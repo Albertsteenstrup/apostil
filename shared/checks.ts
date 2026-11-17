@@ -86,9 +86,9 @@ function wholeFileProblem(folder: string, base: string, path: string): string | 
 }
 
 /** What the change did to the lines of one file: `changed` are the changed files of the change. A file that the change does not touch has no added or removed lines. */
-export function fileChange(folder: string, base: string, path: string, changed: ChangedFile[]): FileChange {
+export function fileChange(folder: string, base: string, path: string, changed: ChangedFile[], head?: string): FileChange {
   const entry = changed.find((candidate) => candidate.path === path);
-  const length = lineCount(fileText(folder, path) ?? '');
+  const length = lineCount(fileText(folder, path, head) ?? '');
   const totals = { added: entry?.added ?? 0, removed: entry?.removed ?? 0 };
   if (!entry || entry.binary) return { length, added: [], removed: [], totals };
   if (entry.status === 'added') return { length, added: length ? [[1, length]] : [], removed: [], totals };
@@ -96,7 +96,7 @@ export function fileChange(folder: string, base: string, path: string, changed: 
     const old = (fileText(folder, path, base) ?? '').replace(/\n$/, '').split('\n');
     return { length: 0, added: [], removed: old.map((text, at) => ({ at: 1, line: at + 1, text })), totals };
   }
-  const diff = fileDiff(folder, base, path, undefined, entry.renamedFrom);
+  const diff = fileDiff(folder, base, path, head, entry.renamedFrom);
   return { length, added: toRanges(addedLines(diff)), removed: removedLines(diff), totals };
 }
 
@@ -127,13 +127,13 @@ export const inNoThingPlaces = (file: string, lines: LinesInNoThing): string =>
  * Where the cells of a notebook stand, as it is now or at the base (for removed lines; a renamed file under its old path).
  * Undefined for a file that is no notebook or does not read as one.
  */
-export function cellsIn(folder: string, base: string, changed: ChangedFile[] = []): CellsOf {
+export function cellsIn(folder: string, base: string, changed: ChangedFile[] = [], head?: string): CellsOf {
   const known = new Map<string, ReturnType<CellsOf>>();
   return (path, removed) => {
     const key = `${removed}:${path}`;
     if (!known.has(key)) {
       const old = changed.find((candidate) => candidate.path === path)?.renamedFrom ?? path;
-      const raw = isNotebookPath(path) ? rawFileText(folder, removed ? old : path, removed ? base : undefined) : undefined;
+      const raw = isNotebookPath(path) ? rawFileText(folder, removed ? old : path, removed ? base : head) : undefined;
       const cells = raw === undefined ? undefined : readNotebook(raw);
       known.set(key, cells && cellsAt(cells));
     }

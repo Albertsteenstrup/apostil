@@ -1,9 +1,10 @@
 // Builds what Home and the graphs page show, from the store and from Git. No `vscode` import.
 // Home is the map of the repo; the graphs page shows every diagram that one folder or file is a part of.
 
-import { existsSync, statSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Diagram } from '../shared/change-file';
+import { changeWhere } from '../shared/change-rows';
 import { thingsOf } from '../shared/diagram-code';
 import { diagramGraph, type DiagramGraph } from '../shared/diagram-graph';
 import { schemaDrawing, type SchemaDrawing } from '../shared/schema';
@@ -253,9 +254,9 @@ export function graphsData(store: Store, folder: string, path: string, address: 
     if (!change) return undefined;
     const from = `${FROM[entry.level]} · branch ${change.branch}`;
     if (entry.level === 'change') {
-      const where = existsSync(change.folder) ? change.folder : folder;
+      const { folder: where, saved } = changeWhere(change, folder);
       let files: ReturnType<typeof changedFiles> = [];
-      try { files = changedFiles(where, change.base); } catch { /* the base is gone: the parts without counts */ }
+      try { if (!saved?.missing) files = changedFiles(where, change.base, saved && change.head); } catch { /* the base is gone: the parts without counts */ }
       const mermaid = changeMermaid({ parts: change.file.parts, links: change.file.links, files, filesInNoPart: change.checks.filesInNoPart });
       const lit = entry.lit.map((part) => nodeId(change.file.parts.findIndex((candidate) => candidate.id === part)));
       const names = entry.lit.map((part) => change.file.parts.find((candidate) => candidate.id === part)?.name ?? part);
