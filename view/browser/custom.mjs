@@ -122,7 +122,7 @@ try {
     card.parts.join() === 't,d', JSON.stringify(card));
   await one.close();
 
-  // ----- Build 61: the list "Repo" in the made-up look "?look=side-bar" (view/check-example/look/look-side-bar.json) -----
+  // ----- Build 61: the list "Repo" and the page of a pull request in the made-up look "?look=side-bar" (view/check-example/look/look-side-bar.json) -----
   {
   const openList = async (look) => {
     const page = await openPage({ viewport: { width: 400, height: 760 }, deviceScaleFactor: 2 });
@@ -131,6 +131,18 @@ try {
     await page.waitForFunction(() => window.apostilListDone, null, { timeout: 5000 });
     return page;
   };
+  const conversation = `go=${encodeURIComponent(JSON.stringify({ view: 'conversation' }))}`;
+  const openPull = async (look) => {
+    const page = await openPage({ viewport: { width: 1300, height: 1000 }, deviceScaleFactor: 2 });
+    page.on('pageerror', (error) => errors.push(error.message));
+    await page.goto(`file://${pageFile}?${look ? `look=${look}&` : ''}${conversation}`);
+    await page.waitForFunction(() => (window.apostilConversations ?? 0) >= 1 && !!document.querySelector('#status .status'), null, { timeout: 15000 });
+    return page;
+  };
+  /** Does `act` in the page of a pull request and waits until the page has drawn the conversation again. */
+  const redrawn = async (page, act) => { const before = await page.evaluate(() => window.apostilConversations); await act(); await page.waitForFunction((at) => window.apostilConversations > at, before, { timeout: 8000 }); };
+  /** Shows "Messages" or "Classic" in the page of a pull request. */
+  const lookOfConversation = (page, mode) => page.click(`[data-mode="${mode}"]`).then(() => page.waitForSelector(`.conv.${mode}`, { timeout: 5000 }));
 
   // The search at the start: the words of the rule while VS Code keeps no search; then his own search (the field emptied) wins, and the rows stand in the order of the rule.
   const side = await openList('side-bar');
@@ -150,6 +162,67 @@ try {
     holds.facts === '2 hours ago · 48 files' && holds.pulls[0] === '#12 rgb(180, 83, 9)' && holds.pulls.slice(1).every((one) => /^#1[01] /.test(one) && !one.endsWith('rgb(180, 83, 9)')) && rows.every((one) => !one.avatars && !one.more), JSON.stringify(holds));
   await side.close();
 
+  // The page of a pull request: "Classic" first with the side column in the order of the rule; the strip with its bits in the order of the rule, and the
+  // list of checks without the passed and skipped ones while the strip still counts every check.
+  const plain = await openPull();
+  const plainStrip = await plain.evaluate(() => document.querySelector('#status .chk').textContent);
+  const pull = await openPull('side-bar');
+  const classic = await pull.evaluate(() => ({ mode: document.querySelector('.conv').className, side: [...document.querySelectorAll('.cside h4')].map((h4) => h4.textContent) }));
+  const strip = () => pull.evaluate(() => ({ bits: [...document.querySelector('#status .status').children].map((el) => el.className || el.tagName.toLowerCase()), checks: document.querySelector('#status .chk').textContent }));
+  const stripBefore = await strip();
+  await pull.click('#status [data-checks]');
+  const checks = await pull.evaluate(() => [...document.querySelectorAll('.checks-panel .ck')].map((ck) => ck.className.replace('ck ', '')));
+  const stripAfter = await strip();
+  await takePicture(pull, '612-custom-strip-checks-and-side-column.png');
+  check('"Classic" opens first, with the side column in the order of the rule (labels, reviewers, then the others as before)',
+    classic.mode === 'conv classic' && classic.side.join() === 'Labels,Reviewers,Assignees,Milestone,Closes,Tasks', JSON.stringify(classic));
+  check('the status strip shows its bits in the order of the rule (checks, blocker, reviewers), "Review" at its place; the list of checks has no passed or skipped one, and the strip still counts every check',
+    stripBefore.bits.join() === 'span,chk,msent,rvs,rvb,others' && checks.length === 3 && checks.every((one) => one === 'bad' || one === 'wait')
+      && stripAfter.checks.replace('▾', '') === plainStrip.replace('▸', ''), JSON.stringify({ stripBefore, checks, stripAfter, plainStrip }));
+  // "Messages": the comments of a bot in the colour of the rule, no commit, and the day lines in the words of the rule.
+  await lookOfConversation(pull, 'messages');
+  const messages = await pull.evaluate(() => ({
+    bots: [...document.querySelectorAll('.feed .prod > .prow, .feed .prods > .prow')].map((row) => row.classList.contains('lk-box') && getComputedStyle(row).backgroundColor),
+    commits: document.querySelectorAll('.feed .ico.git-commit').length, days: [...document.querySelectorAll('.feed .dayline')].map((line) => line.textContent),
+    open: !document.querySelector('.about .more') && !document.querySelector('.about .md.folded'),
+  }));
+  const plainCommits = await lookOfConversation(plain, 'messages').then(() => plain.evaluate(() => document.querySelectorAll('.feed .ico.git-commit').length), () => -1);
+  await pull.evaluate(() => document.querySelector('.feed .prods, .feed .prod')?.scrollIntoView({ block: 'center' }));
+  await takePicture(pull, '613-custom-messages-in-the-look.png');
+  check('"Messages": a comment of a bot in the colour of the rule, no commit row, the day lines in the words of the rule, and the description open at the start',
+    messages.bots.length > 0 && messages.bots.every((color) => color && color !== 'rgba(0, 0, 0, 0)') && messages.commits === 0 && plainCommits > 0
+      && messages.days.length > 0 && messages.days.every((day) => /^.+ · \d{1,2} \w+ \d{4}$/.test(day)) && messages.open, JSON.stringify({ messages, plainCommits }));
+  await pull.close();
+
+  // Safety: under a look that tries to hide all that it can, every control that writes to GitHub is there, in both looks of the conversation.
+  const writes = (page) => page.evaluate(() => ({
+    fields: document.querySelectorAll('.conv [data-gh] textarea').length, resolve: document.querySelectorAll('.conv [data-gh-resolve]').length,
+    comment: document.querySelectorAll('.conv .ghend textarea').length, review: document.querySelectorAll('#status [data-review]').length,
+  }));
+  const before = { messages: await writes(plain) };
+  await lookOfConversation(plain, 'classic');
+  before.classic = await writes(plain);
+  const hideAll = ['description', 'event', 'reaction', 'check', 'side-section', 'label', 'day-line'].map((kind) => ({ pick: { kind }, show: { shown: false } }))
+    .concat([{ pick: { kind: 'status-strip' }, content: { fields: ['checks'] } }, { pick: { kind: 'message' }, content: { fields: ['name'] } }, { pick: { kind: 'pull-facts' }, content: { fields: ['github'] } }]);
+  await redrawn(plain, () => plain.evaluate((rules) => { App.page = { ...App.page, look: { custom: true, rules, one: ['content', 'click'], sets: [], values: {}, marks: [], files: {} } }; App.render(); }, hideAll));
+  const after = { classic: await writes(plain) };
+  await lookOfConversation(plain, 'messages');
+  after.messages = await writes(plain);
+  check('under a look that tries to hide all that it can, every control that writes to GitHub is there: each "Answer", "Resolve", "Comment" and "Review", in "Classic" and in "Messages"',
+    before.classic.fields > 0 && before.classic.resolve > 0 && before.classic.review === 1 && JSON.stringify(after) === JSON.stringify({ classic: before.classic, messages: before.messages }), JSON.stringify({ before, after }));
+  await plain.close();
+
+  // With no look, the list and the page are drawn as before: a look with no rule for their parts gives the same HTML.
+  const listHtml = async (look) => { const page = await openList(look); const html = await page.evaluate(() => document.getElementById('list').innerHTML); await page.close(); return html; };
+  const pullHtml = async (look) => {
+    const page = await openPull(look);
+    const html = await page.evaluate(() => `${document.getElementById('status').innerHTML}${document.querySelector('.conv').innerHTML}`.replace(/<span class="t[^"]*"[^>]*>[^<]*<\/span>/g, ''));
+    await page.close();
+    return html;
+  };
+  const [listPlain, listOther, pullPlain, pullOther] = [await listHtml(), await listHtml('1'), await pullHtml(), await pullHtml('1')];
+  check('with no rule for their parts (no look, or the look of build 51), the list and the page of a pull request are drawn as before, to the same HTML',
+    listPlain.length > 1000 && listPlain === listOther && pullPlain.length > 1000 && pullPlain === pullOther, `list ${listPlain.length}/${listOther.length}, page ${pullPlain.length}/${pullOther.length}`);
   }
 } catch (error) {
   check('the checks ran to the end', false, error.message.split('\n').slice(0, 14).join(' / '));
