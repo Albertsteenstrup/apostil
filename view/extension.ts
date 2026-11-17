@@ -18,6 +18,7 @@ import { idOf } from './home-data';
 import { HomePages } from './home-page';
 import { lookPages } from './look-blocks';
 import { answerTarget, type TargetPlaces } from './look-targets';
+import { LookInVsCode } from './look-in-vscode';
 import { askOnceInNewRepo } from './new-repo-question';
 import { registerLinks } from './link-handler';
 import { fileOfTab, NotesBesideCode } from './notes-beside-code';
@@ -172,6 +173,9 @@ export function activate(context: vscode.ExtensionContext) {
   // The same for a click of the look in the list "Repo" and on a row of the tree "Files" (its item runs this command, which is not in the palette).
   list.onTarget = (target) => void answerTarget(target, places);
   context.subscriptions.push(vscode.commands.registerCommand('apostil.lookTarget', (target: Target) => answerTarget(target, places)));
+  // The look of the repo in VS Code itself (build 62): the margin, the search with #, the right-click entries and keys, and the list "Look".
+  const lookInVsCode = new LookInVsCode(theStore, openFolder, places, (uri) => notes.notesOf(uri)?.result.notes);
+  lookInVsCode.register(context);
 
   /** A page of the look as a new path, "Home › <title>"; a page that the look no longer has says so. */
   function openLookPage(id: string): void {
@@ -238,7 +242,23 @@ export function activate(context: vscode.ExtensionContext) {
   );
   setState({ openFiles: openFiles() });
   updateHasChange();
-  registerHomeWhenEmpty(context, openFolder, () => openHome(true)); // Home in place of the empty editor area, without taking the keyboard
+  // What opens by itself: Home in place of the empty editor area, or the first page of the look of the repo; neither takes the keyboard.
+  const quietPlaces = (beside: boolean): TargetPlaces => ({
+    ...places,
+    openStep: (step) => {
+      trail.start(step);
+      if (step.tab === 'home') home.openHome({ diagram: step.diagram, lit: step.lit ?? [] }, true, beside);
+      else if (step.tab === 'graphs') home.openGraphs(step.path, true, beside);
+      else openStep(step);
+    },
+    openPage: (id) => {
+      const title = home.pageTitle(id);
+      if (!title) return;
+      trail.start({ tab: 'page', page: id, name: title });
+      home.openPage(id, true, beside);
+    },
+  });
+  registerHomeWhenEmpty(context, openFolder, (what) => ('home' in what ? openHome(true) : void answerTarget(what.first, quietPlaces(what.beside))), () => lookInVsCode.firstPage());
   // In a repo with no map: one question, after the first-start questions. A check window answers its own questions.
   if (context.extensionMode !== vscode.ExtensionMode.Test) {
     void firstStart.then((setUpAskedNow) => askOnceInNewRepo(context, theStore, openFolder(), apps, setUpAskedNow, (app, describe) => home.writeMap(app, describe))).catch(() => {});
@@ -249,7 +269,7 @@ export function activate(context: vscode.ExtensionContext) {
   const changed = (): void => {
     clearTimeout(timer);
     timer = setTimeout(() => {
-      list.refreshIfChanged(); page.reloadIfChanged(); updateHasChange(); notes.storeChanged();
+      list.refreshIfChanged(); page.reloadIfChanged(); updateHasChange(); notes.storeChanged(); lookInVsCode.storeChanged();
       if (home.changed()) { files.refresh(); updateLookPages(); } // a new map or change can put new rows into a diagram; a new look new pages
     }, 300);
   };

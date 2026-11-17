@@ -7,7 +7,7 @@ import { dirname, join } from 'node:path';
 import { currentBranch, fileText, headCommit, repoFiles, repoId, repoRoot } from '../shared/git';
 import { apostilCommands, lookFiles, lookProblems, type Look, type LookFile } from '../shared/look';
 import {
-  endingOf, fileProblem, isId, isLine, isText, ONE_WORD, readPrints, RELATIONS, SERVICES, siteOf,
+  endingOf, fileProblem, FILE_USES, isId, isLine, isText, ONE_WORD, readPrints, RELATIONS, SERVICES, siteOf,
   type IconRefused, type Mark, type MarkSet, type MarkValue, type NamedThing, type Relation,
 } from '../shared/marks';
 import type { RepoMap } from '../shared/repo-map';
@@ -46,6 +46,8 @@ function readInRepo(root: string, path: string): Buffer | undefined {
     return undefined;
   }
 }
+
+const ICON_ENDINGS = FILE_USES.icon.endings;
 
 /** An icon or a look file that a writer put in the top folder of the repo: removed after a save that worked, so it never goes into a change. */
 const isDraftFile = (path: string): boolean => /^apostil-(icon|look)-[^/]+$/.test(path);
@@ -181,6 +183,18 @@ export function addMarksToMap(store: Store, folder: string, draft: unknown): Add
       }
       seen.add(key);
     });
+    // A service with marks has an icon, or is named in "iconRefused": a writer gets the icon with apostil icon, the owner sees letters otherwise.
+    const pending = (id: string): string | undefined => ICON_ENDINGS.find((ending) => existsSync(store.iconFile(set.id, id, ending)));
+    if (services) {
+      const refusedNow = new Set([...iconRefused.map((one) => one.value), ...(stored.iconRefused ?? []).filter((one) => one.set === set.id).map((one) => one.value)]);
+      for (const id of new Set(written.map((mark) => mark?.value).filter(isText))) {
+        const value = declared.find((one) => one.id === id), old = known.get(id);
+        if (!isKnown(id) || value?.icon || old?.icon || pending(id) || refusedNow.has(id)) continue;
+        const site = siteOf(value?.site ?? old?.site ?? '');
+        const address = site ? `https://${site}` : 'https://<its site>';
+        problems.push(`Service "${value?.name ?? old?.name ?? id}" has no icon. Run apostil icon ${id} ${address}${old ? '' : ` --site ${site || '<its site>'}`}, or name a picture of its own website in "icon"; when its website gives none, add it to "iconRefused" with the address that you tried.`);
+      }
+    }
     for (const one of iconRefused) if (!isKnown(one.value)) problems.push(`The refused icon of "${one.value}": it is no known value. Declare it in "values" first.`);
     for (const path of named) if (!files.has(path)) problems.push(`"files" names ${path}, which is no file of the repo.`);
     if (problems.length) return fail(problems);
@@ -196,14 +210,14 @@ export function addMarksToMap(store: Store, folder: string, draft: unknown): Add
       }
       store.saveMarkValue(set.id, {
         id: value.id, name: value.name ?? old?.name ?? value.id, ...(value.site ?? old?.site ? { site: siteOf(value.site ?? old!.site!) } : {}),
-        ...(icon ? { icon: endingOf(icon.path) } : old?.icon ? { icon: old.icon } : {}),
+        ...(icon ? { icon: endingOf(icon.path) } : old?.icon ? { icon: old.icon } : pending(value.id) ? { icon: pending(value.id) } : {}),
       });
     }
     const marks: Mark[] = written.map((mark) => ({
       set: set.id, value: mark.value, file: mark.file, line: mark.line, name: mark.name, ...(services ? { relation: mark.relation } : {}),
       ...(mark.thing ? { thing: { kind: mark.thing.kind, name: mark.thing.name } } : {}), group, code: linesOf(mark.file)![mark.line - 1],
     }));
-    const withIcon = new Set([...icons.keys(), ...[...known.values()].filter((value) => value.icon).map((value) => value.id)]);
+    const withIcon = new Set([...icons.keys(), ...declared.filter((value) => pending(value.id)).map((value) => value.id), ...[...known.values()].filter((value) => value.icon).map((value) => value.id)]);
     const refused: IconRefused[] = [
       ...(stored.iconRefused ?? []).filter((one) => one.set !== set.id || (!withIcon.has(one.value) && !iconRefused.some((again) => again.value === one.value))),
       ...iconRefused.filter((one) => !withIcon.has(one.value)).map((one) => ({ set: set.id, value: one.value, tried: one.tried })),

@@ -14,7 +14,7 @@ const Marks = require('../../view/media/marks.js');
 
 const LIST: LookPartsList = LOOK_PARTS;
 /** The areas of the parts that the changes do not count: the list and the tree of the side bar, and the page of a pull request. */
-const UNCOUNTED = ['side-bar', 'pull-lines', 'files', 'pull-request', 'conversation'];
+const UNCOUNTED = ['side-bar', 'pull-lines', 'files', 'pull-request', 'conversation', 'vscode'];
 
 type Thing = { kind: string; slots?: Record<string, unknown> } & Record<string, unknown>;
 

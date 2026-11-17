@@ -121,6 +121,6 @@ test('each part of the change page and the file tab has an area and other words;
   assert.deepEqual(problems({ pick: { kind: 'part', where: { id: 'night-jobs' } }, box: { color: '#2b6cb0' } }, { ...context, parts: undefined }), []); // no saved change: not checked
   assert.deepEqual(problems({ pick: { kind: 'diff-file' }, order: { by: 'size' } }), ['Rule 1, "order": a file of the list has no field "size". Its fields are "path", "part", "type", "added", "removed".']);
   assert.deepEqual(problems({ pick: { kind: 'change-view' }, order: { first: ['diff'] } }), ['Rule 1, "order": "diff" is no view. The views are "diagram", "diffs", "conversation". The nearest is "diffs".']);
-  assert.deepEqual(problems({ pick: { kind: 'thread', where: { state: 'done' } }, box: { color: '#15803d' } }), ['Rule 1, "pick": "state" of a thread is one of "open", "sent", "working", "answered", "resolved", or a list of them.']);
+  assert.deepEqual(problems({ pick: { kind: 'thread', where: { state: 'done' } }, box: { color: '#15803d' } }), ['Rule 1, "pick": "done" is no value of "state". The values are "open", "sent", "working", "answered", "resolved".']);
   assert.deepEqual(problems({ pick: { kind: 'margin', mark: 'eror:*' }, show: { shown: true } }), ['Rule 1: "eror" is no mark set. Use "services" or a set of "sets". The nearest is "errors".']);
 });

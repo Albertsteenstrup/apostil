@@ -649,6 +649,20 @@ const Marks = (() => {
   }
 
   /**
+   * The icon in the margin of the code at each line of a file whose rule shows it, [line, "<set>:<value>"]: the first value of the stack there, the
+   * sets in the order of the look and in a set the values that fewer lines hold first, as on a node. The one rule of the margin, for the file tab
+   * (code-notes.js) and for VS Code's editor and each side of a diff (view/look-of-vscode.ts). `marks` have their line now in that text (`at`).
+   */
+  function marginIcons(look, path, marks) {
+    const shown = marginThings(path, marks).filter(([, thing]) => slotsIn(look, thing)['show.shown'] === true);
+    const spread = spreadOf(shown.map(([, thing]) => thing));
+    return shown.map(([line, thing]) => {
+      const set = look.sets.find((one) => thing.marks.some((mark) => mark.set === one.id))?.id ?? thing.marks[0].set;
+      return [line, stackOf(thing.marks, set, spread)[0].key];
+    });
+  }
+
+  /**
    * The things of the file tab of one file, for the count of set-look: from its notes in the order of their lines and its marks with their lines now.
    * The page builds the same things one by one where it draws them (code-notes.js).
    */
@@ -678,6 +692,7 @@ const Marks = (() => {
     spreadOf, stackOf, namedThings, boxColors, lineColors, contrast, parse, SHOWN, READS,
     flowArrows, groupsOf, boxesOf, drawingOf, openSteps, headOf, wordsHtml,
     DATA_FILE, slotsIn, threadsOf, threadThing, pointThing, stepThings, diagramThing, changeThings, lineThing, marginThings, fileThings, listOrder, shownInOrder,
+    marginIcons,
   };
   if (typeof window !== 'object') return pure;
 
