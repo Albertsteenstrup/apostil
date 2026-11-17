@@ -2,11 +2,12 @@
 
 import { join } from 'node:path';
 import * as vscode from 'vscode';
+import { keptOnMap, withKept } from '../shared/comment-lines';
 import type { Target } from '../shared/look';
 import type { Store } from '../shared/store';
 import { startMapRun, startRun } from './agent-run';
 import { agentsNeedSetup, runNextStep } from './change-list';
-import { apostilOnPath, appName, codexModel, showRunProblem } from './run-settings';
+import { apostilOnPath, appName, codexModel, commentRuns, showRunProblem } from './run-settings';
 import { openLink, openRemarkSession, webviewHtml, type NewRemark } from './change-page';
 import { graphsData, homeData, idOf, type GraphsData, type HomeData } from './home-data';
 import { blocksAnswer, lookPages, pageData, type CustomPageData } from './look-blocks';
@@ -149,14 +150,14 @@ export class HomePages {
   saveRemark(message: NewRemark): void {
     const repo = idOf(this.openFolder());
     if (!repo) return;
-    const id = this.store.addRepoRemark(repo, message.target, message.text, message.thread);
+    const id = this.store.addRepoRemark(repo, withKept(message.target, keptOnMap(this.store.getMap(repo)?.map, message.target)), message.text, message.thread); // it keeps what its thing is now
     if (message.to?.kind === 'new') {
       this.store.sendRemark(id, message.to);
       const { app } = message.to;
       startRun(this.store, id, (problem) => {
         if (problem) showRunProblem(problem, { app });
         this.changed();
-      }, app, this.openFolder(), codexModel());
+      }, app, this.openFolder(), codexModel(), commentRuns());
     }
     this.reload();
   }

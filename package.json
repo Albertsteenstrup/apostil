@@ -248,6 +248,19 @@
           "default": "",
           "markdownDescription": "The model for the Codex runs that Apostil starts: for a comment to `@codex-new` or `@codex-current`, and for the map. Leave it empty to use the model of your Codex settings. Set it when the command-line Codex refuses that model for your account."
         },
+        "apostil.commentRuns": {
+          "type": "string",
+          "default": "read and edit",
+          "enum": [
+            "read and edit",
+            "read only"
+          ],
+          "enumDescriptions": [
+            "A run that a comment starts reads the repo and may change files, for a comment that asks for a change.",
+            "A run that a comment starts reads the repo and changes nothing."
+          ],
+          "markdownDescription": "What a Claude Code run that a comment starts may do in your repo. With `read and edit` it may read and edit files, and run only the `apostil` command. A Codex run keeps the sandbox of your Codex settings."
+        },
         "apostil.notesBesideCode": {
           "type": "string",
           "default": "tab",

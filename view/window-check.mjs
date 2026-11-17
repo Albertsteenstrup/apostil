@@ -856,10 +856,14 @@ try {
   }
   const nodeRemark = await until(() => { const one = remarks().find((remark) => remark.text.startsWith('Explain this.')); return one?.state === 'done' && one; }, 15000);
   const prompt = existsSync(path.join(temp, 'prompt.txt')) ? readFileSync(path.join(temp, 'prompt.txt'), 'utf8') : '';
-  check('a comment on a node of a part\'s diagram reaches the stand-in claude with the lines that say what the node is; in the whole run the stand-in gh got one write, the one send',
+  // The run of that comment was started with the tools to read and edit, and its prompt holds the diagram as text.
+  const lastRun = readFileSync(runs, 'utf8').split(RUN).at(-1).split('\n');
+  const tools = lastRun.slice(lastRun.indexOf('--allowedTools') + 1, lastRun.indexOf('--allowedTools') + 8);
+  check('a comment on a node of a part\'s diagram reaches the stand-in claude with the lines that say what the node is and the diagram as text, started with Edit among its allowed tools; in the whole run the stand-in gh got one write, the one send',
     nodeWords === 'Node "Library open today?", diagram "How one night run offers returned copies"' && nodeRemark?.target.node === 'open'
       && /about what he pointed at:\n {4}In the flow chart "How one night run offers returned copies"\n {4}Node "Library open today\?"\n {4}Arrows come from: "Read the date and the opening hours"\n {4}Arrows go to: "Return: closed today", "Select the returned copies"/.test(prompt)
-      && writesNow().length === 1, `box "${nodeWords}"; prompt "${prompt.slice(0, 300)}"; ${writesNow().length} writes`);
+      && /The diagram as text:\n {4}- [^\n]*\n[\s\S]*- Library open today\?/.test(prompt) && tools.includes('Edit') && tools.includes('Write') && tools.includes('Bash(apostil *)')
+      && writesNow().length === 1, `box "${nodeWords}"; tools ${tools}; prompt "${prompt.slice(0, 300)}"; ${writesNow().length} writes`);
 
   // ---- 6. The quick pick "Sort and filter", the look "VS Code default", the search that stays, a link from outside ----
   for (const name of ['View: Close Editors in Other Groups', 'View: Show Apostil']) await command(name);

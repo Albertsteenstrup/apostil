@@ -6,6 +6,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { basename, join, relative, sep } from 'node:path';
 import * as vscode from 'vscode';
 import { openSessionCommand, sessionLink, resumeCommand } from '../shared/agents';
+import { keptInChange, withKept } from '../shared/comment-lines';
 import { rawFileText } from '../shared/git';
 import type { Target } from '../shared/look';
 import { ghPictures, inlinePictures } from '../shared/pull-pictures';
@@ -13,7 +14,7 @@ import { pullRequestFrom, readPullRequest, runGh, type PullRequestView } from '.
 import { writePullRequest, type Write } from '../shared/write-pull-request';
 import type { AppState, RemarkTarget, RemarkTo, Store } from '../shared/store';
 import { startRun } from './agent-run';
-import { codexModel, showRunProblem } from './run-settings';
+import { codexModel, commentRuns, showRunProblem } from './run-settings';
 import { iconCss } from './state-icons';
 import { blocksAnswer } from './look-blocks';
 import { pullRequestsLater } from './change-list';
@@ -463,7 +464,7 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
     startRun(this.store, id, (problem) => {
       if (problem) showRunProblem(problem, { app: newApp });
       this.reloadIfChanged();
-    }, newApp, undefined, codexModel());
+    }, newApp, undefined, codexModel(), commentRuns());
   }
 
   /**
@@ -472,7 +473,8 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
    */
   saveRemark(message: NewRemark, changeId = this.changeId): void {
     if (changeId === undefined) return;
-    const id = this.store.addRemark(changeId, message.target, message.text, message.thread);
+    const stored = this.store.getChange(changeId);
+    const id = this.store.addRemark(changeId, stored ? withKept(message.target, keptInChange(stored, message.target)) : message.target, message.text, message.thread); // it keeps what its thing is now
     if (message.to) this.store.sendRemark(id, message.to);
     const agent = this.store.getChange(changeId)?.agent;
     if (message.to?.kind === 'new') this.run(id, message.to.app);
