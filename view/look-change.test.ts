@@ -10,12 +10,14 @@ import type { ChangeFile } from '../shared/change-file';
 import { checkChangeFile } from '../shared/checks';
 import { currentBranch, repoId } from '../shared/git';
 import { apostilCommands, LOOK_PARTS, lookProblems, type Look, type LookContext } from '../shared/look';
+import { SERVICES } from '../shared/marks';
 import type { RepoMap } from '../shared/repo-map';
 import { Store } from '../shared/store';
 import { tempFolder } from '../shared/test-repo';
 import { lookChanges } from '../store/look-changes';
 import { setLook } from '../store/marks-save';
 import { EXAMPLE_LOOK, makeCheckExample } from './check-example';
+import { lookRules } from './look-data';
 import { filePage, lookOfPage } from './page-data';
 
 /* eslint-disable @typescript-eslint/no-require-imports */
@@ -92,6 +94,51 @@ test('the margin of the code: one thing for each line with marks, the first 200 
   const notes = [{ file: 'a/one.py', lines: [1, 9], symbol: 'run', title: 'Run' }, { file: 'a/one.py', lines: [2, 3], symbol: 'run', title: 'Read' }, { file: 'a/one.py', lines: [20, 22], title: 'Other' }];
   const kinds = Marks.fileThings('a/one.py', notes, [], () => 3).map((thing: { kind: string }) => thing.kind);
   assert.deepEqual(['code-map', 'notes-column', 'note-line', 'function-line', 'note-order'].map((kind) => kinds.filter((one: string) => one === kind).length), [1, 1, 3, 1, 1]);
+});
+
+// ----- the icons of the services on the diagrams of a change (build 63) -----
+
+// Made-up marks of the services: `line` at the save of the map, `at` in the file as the change has it.
+const serviceMark = (value: string, file: string, line: number, at = line) => ({ set: 'services', value, file, line, at, name: 'call' });
+
+test('a step of a flow chart holds the marks inside the lines of its places, as the change has them; a whole file holds all of it, a removed place nothing; a sequence diagram none', () => {
+  const marks = [serviceMark('store', 'a/one.py', 40, 5), serviceMark('store', 'a/one.py', 12), serviceMark('feed', 'a/one.py', 30), serviceMark('store', 'b/three.py', 2)];
+  const flow = {
+    id: 'flow', kind: 'flow', graph: { nodes: { read: 'Read the rows', all: 'Write the table', gone: 'A removed step', none: 'Go on' }, edges: [] },
+    code: { read: { places: [{ file: 'a/one.py', lines: [4, 12] }] }, all: { places: [{ file: 'b/three.py' }] }, gone: { places: [{ file: 'a/one.py', lines: [30, 30], removed: true }] }, none: { places: [], reason: 'order' } },
+  };
+  const steps = Marks.stepThings(flow, marks);
+  assert.deepEqual(Object.values(steps).map((step: any) => step.marks.map((mark: any) => `${mark.value}:${mark.at}`)), [['store:5', 'store:12'], ['store:2'], [], []]);
+  assert.deepEqual(Object.values(Marks.stepThings({ ...flow, kind: 'sequence' }, marks)).map((step: any) => step.marks.length), [0, 0, 0, 0]);
+  // The services stand at the upper right corner of a step, as on a step of a drawn process; a look's set at the corner of its set on a node.
+  const errors = { id: 'errors', name: 'Errors', rule: 'r', corner: { node: 'lower-left' as const, note: 'upper-left' as const } };
+  assert.deepEqual(Marks.slotsIn(look(lookRules([SERVICES, errors])), steps.read), { 'corners.upper-right': { set: 'services' }, 'corners.lower-left': { set: 'errors' } });
+});
+
+test('a part holds the marks under its files, as a node of Home holds those under its paths; the box of the files in no part holds none; a rule picks a part by a mark', () => {
+  const marks = [serviceMark('store', 'a/one.py', 3), serviceMark('feed', 'a/two.py', 8), serviceMark('store', 'b/three.py', 2), serviceMark('store', 'tests/test_one.py', 4)];
+  const parts = Marks.changeThings({ ...page, look: { marks } }, 'part');
+  assert.deepEqual(parts.map((part: any) => part.marks.map((mark: any) => `${mark.file}:${mark.at}`)), [['a/one.py:3', 'a/two.py:8'], ['b/three.py:2']]);
+  const node = Marks.thingsOf({ id: 'top', graph: { nodes: {} }, nodes: { a: { paths: [{ path: 'a/one.py' }, { path: 'a/two.py' }] } } }, { marks, rules: [] }).a;
+  assert.deepEqual(parts[0].marks, node.marks);
+  assert.deepEqual(Marks.changeThings(page, 'no-part', marks)[0].marks ?? [], []);
+  assert.deepEqual(parts.map((part: any) => Marks.picks({ kind: 'part', mark: 'services:feed' }, part)), [true, false]);
+});
+
+test('the page of a change gets the marks of the files of its parts, each at its line as the change has it; a mark whose line text the change no longer has stands nowhere', () => {
+  const store = new Store(tempFolder('apostil-store-'));
+  const file = 'src/library/lending/hold_service.py';
+  const lines = readFileSync(join(example.folder, file), 'utf8').split('\n');
+  const marks = [
+    { ...serviceMark('postgresql', file, 219), group: 'g', code: lines[218] }, // stands
+    { ...serviceMark('postgresql', file, 61), group: 'g', code: '        row = self.db.fetch_one(OLD_SELECT, {"id": hold_id})' }, // a line that the change no longer has
+    { ...serviceMark('postgresql', file, 300), group: 'g', code: lines[279] }, // its line moved up to 280
+    { ...serviceMark('postgresql', 'src/library/lending/requests.py', 40), group: 'g', code: 'x' }, // a file of no part
+  ];
+  store.saveMap(repoId(example.folder), example.head, { format: 1, diagrams: [], marks } as unknown as RepoMap);
+  const changed = { ...filePage(example.folder), parts: [{ id: 'hold-service', name: 'Hold service', files: [file], diagrams: [] }] };
+  assert.deepEqual(lookOfPage(store, changed)?.marks.map((mark) => `${mark.line}>${mark.at}`), ['219>219', '300>280']);
+  store.close();
 });
 
 test('set-look counts what a rule picks on the page of the saved change of the branch; with no saved change it says that a part id is not checked', () => {
