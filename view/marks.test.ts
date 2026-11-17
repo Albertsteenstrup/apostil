@@ -3,6 +3,7 @@
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { flowGraph } from '../shared/diagram-graph';
 import { DEFAULT_RULES } from '../shared/look';
 import { SERVICES } from '../shared/marks';
 import { lookRules } from './look-data';
@@ -114,5 +115,68 @@ test('the roll-up: a node holds the marks under its paths, a step the marks insi
     const edges = Marks.edgesOf(diagram, look, things);
     assert.deepEqual(edges.map((edge: any) => edge.marks.map((one: any) => one.line)), [[], [102]]);
   }
+});
+
+// ----- the shared kinds of every component (build 57): the fields, what shows, the words, an order, the window of the pointer -----
+
+test('the pick "where" picks by a field of a thing, and ranks after a path and before a kind', () => {
+  const diagram = {
+    id: 'top', graph: { nodes: { feed: 'Feed', jobs: 'Night jobs' }, edges: [] },
+    nodes: { feed: { paths: [{ path: 'src/feed/' }], files: 4, down: 'feed-area' }, jobs: { paths: [{ path: 'src/jobs/' }], files: 2 } },
+  };
+  const rules = [
+    { pick: { kind: 'node' }, box: { color: '#111111' } }, // a kind
+    { pick: { kind: 'node', where: { down: false } }, box: { color: '#222222', line: '#222222' } }, // a field wins over the later kind rule below
+    { pick: { kind: 'node', paths: ['src/jobs/'] }, box: { line: '#333333' } }, // a path wins over a field
+    { pick: { kind: 'node', where: { files: [2, 3] } }, text: { size: 'small' } }, // one of a list of values
+    { pick: { kind: 'node' }, box: { dashed: true, color: '#444444' } }, // a later kind
+  ];
+  const things = Marks.thingsOf(diagram, { marks: [], rules });
+  assert.deepEqual(things.jobs.fields, { title: 'Night jobs', files: 2, down: false });
+  assert.deepEqual(things.jobs.slots, { 'box.color': '#222222', 'box.line': '#333333', 'text.size': 'small', 'box.dashed': true });
+  assert.deepEqual(things.feed.slots, { 'box.color': '#444444', 'box.dashed': true });
+  // A step and a call read their own fields; the names of a call are a list, and "where" finds one of them.
+  const step = { kind: 'step', paths: [{ path: 'src/run.py' }], note: { title: 'Run the rows' }, steps: 3 };
+  assert.deepEqual(Marks.fieldsOf('step', 's0', step, diagram), { title: 'Run the rows', file: 'src/run.py', steps: 3, is: 'step' });
+  assert.equal(Marks.picks({ kind: 'call', where: { name: 'send' } }, { kind: 'call', fields: Marks.fieldsOf('call', 'o0', { paths: [], names: ['send', 'read'], note: { title: 'smtplib' } }, diagram) }), true);
+});
+
+test('what shows: a node that is not shown leaves the flow chart with its arrows, an arrow can leave alone or get new words, and the rest stays as written', () => {
+  const mermaid = ['flowchart LR', '  web["Web pages"] -->|"calls"| routes["Web routes"]', '  jobs["Night jobs"] -->|"wakes &lt;each&gt;"| lending["Lending"]',
+    '  checks["Tests"] -.->|"try"| lending', '  a & b --> c --> d', '  subgraph f0["src/x.py"]', '    s1["One step"]', '  end', '  class checks,s1 elsewhere'].join('\n');
+  const graph = { nodes: { web: 'Web pages', routes: 'Web routes', jobs: 'Night jobs', lending: 'Lending', checks: 'Tests', a: 'a', b: 'b', c: 'c', d: 'd', s1: 'One step' }, edges: flowGraph(mermaid).edges.map(({ from, to, label }) => ({ from, to, ...(label ? { label } : {}) })) };
+  const hide = new Set(['checks', 's1', 'b']);
+  const things = Object.fromEntries(Object.keys(graph.nodes).map((node) => [node, { node, slots: hide.has(node) ? { 'show.shown': false } : {} }]));
+  const edges = graph.edges.map((edge: { from: string; label?: string }, at: number) => ({ ...edge, fields: { words: edge.label ?? '', of: edge.from }, slots: at === 0 ? { 'show.shown': false } : at === 1 ? { content: { words: '{words} night · from {of}' } } : {} }));
+  const shown = Marks.shownFlow({ mermaid, graph }, things, edges);
+  // The text draws the graph without them: what flowGraph reads of it is the graph less the hidden nodes and their arrows.
+  const drawn = flowGraph(shown.text);
+  assert.deepEqual([...drawn.nodes.keys()].sort(), ['a', 'c', 'd', 'jobs', 'lending', 'routes', 'web']);
+  assert.deepEqual(drawn.edges.map((edge) => `${edge.from}>${edge.to}:${edge.label ?? ''}`), ['jobs>lending:wakes <each> night · from jobs', 'a>c:', 'c>d:']);
+  assert.deepEqual(shown.graph.edges.map((edge: { from: string; to: string }) => `${edge.from}>${edge.to}`), ['jobs>lending', 'a>c', 'c>d']);
+  assert.match(shown.text, /jobs -->\|"wakes &lt;each&gt; night · from jobs"\| lending/); // the words of the repo are escaped
+  assert.ok(!/subgraph|elsewhere/.test(shown.text), 'a group left empty goes, and a class names no hidden node');
+  // With nothing hidden and no new words, the text is the text as written.
+  assert.equal(Marks.shownFlow({ mermaid, graph }, {}, graph.edges.map((edge) => ({ ...edge, slots: {} }))).text, mermaid);
+});
+
+test('words with fields are filled in and escaped; an order puts the ids of "first" first, sorts by a field and groups by another', () => {
+  assert.equal(Marks.fillWords('{title} · {files} files · {name}', { title: 'Jobs <night>', files: 3, name: ['send', 'read'] }), 'Jobs &lt;night&gt; · 3 files · send, read');
+  const rows = [{ id: 'a', fields: { size: 3, kind: 'x' } }, { id: 'b', fields: { size: 9, kind: 'y' } }, { id: 'c', fields: { size: 1, kind: 'x' } }, { id: 'd', fields: { size: 5, kind: 'y' } }];
+  const ids = (groups: { group?: string; rows: { id: string }[] }[]) => groups.map((group) => `${group.group ?? ''}:${group.rows.map((row) => row.id).join('')}`);
+  assert.deepEqual(ids(Marks.orderRows(rows, { by: 'size' })), [':cadb']);
+  assert.deepEqual(ids(Marks.orderRows(rows, { by: 'size', down: true, first: ['c'] })), [':cbda']);
+  assert.deepEqual(ids(Marks.orderRows(rows, { by: 'size', group: 'kind' })), ['x:ca', 'y:db']);
+});
+
+test('a window of the pointer from sections: the order and the width of the rule, without the sections that it does not name, and the lines of what a click does first', () => {
+  const sections = [{ id: 'files', html: '<f>' }, { id: 'changes', html: '<c>' }, { id: 'marks', html: '<m>' }, { id: 'where', sub: 'run.py · line 3' }];
+  const plain = Marks.windowOf({ title: 'Jobs', sub: '3 files', width: 520, sections });
+  assert.deepEqual([plain.width, plain.sub, plain.body], [520, '3 files · run.py · line 3', '<f><c><m>']);
+  const ruled = Marks.windowOf({ title: 'Jobs', sub: '3 files', width: 520, sections }, { 'window.sections': ['changes', 'files'], 'window.width': 440, click: { graphs: 'src/jobs/' } });
+  assert.deepEqual([ruled.width, ruled.sub, ruled.ids], [440, '3 files', ['changes', 'files']]);
+  assert.equal(ruled.body, '<div class="lk-does"><p>Click: Opens the graphs of src/jobs/.</p></div><c><f>');
+  assert.deepEqual(Marks.inputWords({ 'input.alt': { file: 'a.py', line: 3 }, 'input.key': { g: { pull: 12 } }, 'input.menu': [{ name: 'One', target: { comment: true } }] }),
+    ['Alt+click: Opens a.py at line 3.', 'Key G: Opens pull request #12.', 'Right click: 1 entry']);
 });
 

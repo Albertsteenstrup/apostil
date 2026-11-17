@@ -148,6 +148,7 @@ const Marks = (() => {
   const FLOW_ARROW = /\s*(?:--\s+[^-]+?\s+--[->]|==\s+[^=]+?\s+==[=>]|-\.\s+.+?\s+\.->|<?-{2,}>|<?={2,}>|-{3,}|={3,}|<?-\.+->|-\.+-)\s*(?:\|[^|]*\|)?\s*/;
   const FLOW_NODE = /^([A-Za-z0-9_]+(?:-[A-Za-z0-9_]+)*)\s*(.*)$/;
   const NOT_A_STATEMENT = /^\s*(subgraph|end|classDef|class|style|linkStyle|click|direction|%%)\b/;
+  const OUTSIDE_QUOTES = /;(?=(?:[^"]*"[^"]*")*[^"]*$)/; // a ";" between two statements, not one inside quoted words such as "&lt;"
 
   /** An arrow without its words: "-->|yes|" and "-- yes -->" are "-->", "-. yes .->" is "-.->". */
   const bareArrow = (token) => {
@@ -190,7 +191,7 @@ const Marks = (() => {
       return [...nodes, ...kept].map((line) => `  ${line}`).join('\n');
     };
     const written = text.split('\n');
-    const lines = written.map((line) => (/^\s*(flowchart|graph)\b/.test(line) ? line : line.split(';').map(rewrite).filter((one, at, all) => one.trim() || all.length === 1).join(';')));
+    const lines = written.map((line) => (/^\s*(flowchart|graph)\b/.test(line) ? line : line.split(OUTSIDE_QUOTES).map(rewrite).filter((one, at, all) => one.trim() || all.length === 1).join(';')));
     // A group whose statements all went is left out.
     const open = [];
     const gone = new Set();
@@ -254,6 +255,26 @@ const Marks = (() => {
     const menu = slots['input.menu'];
     if (menu?.length) lines.push(`Right click: ${menu.length === 1 ? '1 entry' : `${menu.length} entries`}`);
     return lines;
+  }
+
+  // ----- the window of the pointer, from named sections -----
+
+  /**
+   * A window of the pointer from named sections, in the order and at the width that the rule of the thing gives (`slots`: "window.sections",
+   * "window.width"); a section that the rule does not name is not shown. A section is { id, html, sub, ready }: `sub` goes into the quiet line of the
+   * title. `wrap` puts the sections into their frame; the lines of what a click and other input do come first. nodeWindow, noteWindow and stackWindow use it.
+   */
+  function windowOf({ title, sub = '', width, sections, wrap = (inner) => inner, ready }, slots = {}) {
+    const order = slots['window.sections'];
+    const shown = order ? order.map((id) => sections.find((one) => one.id === id)).filter(Boolean) : sections;
+    const does = inputWords(slots);
+    const lines = does.length ? `<div class="lk-does">${does.map((line) => `<p>${escapeHtml(line).replace(/"/g, '&quot;')}</p>`).join('')}</div>` : '';
+    return {
+      title, width: slots['window.width'] ?? width, ids: shown.map((one) => one.id),
+      sub: [sub, ...shown.map((one) => one.sub)].filter(Boolean).join(' · '),
+      body: `${lines}${wrap(shown.map((one) => one.html ?? '').join(''))}`,
+      ready: async (body) => { for (const one of shown) await one.ready?.(body); await ready?.(body); },
+    };
   }
 
   // ----- the roll-up -----
@@ -330,7 +351,7 @@ const Marks = (() => {
   }
 
   const pure = {
-    covers, keyOf, holds, marksIn, picks, rankOf, resolve, fieldsOf, fillWords, orderRows, thingsOf, edgesOf, flowWithout, shownFlow, targetWords, inputWords,
+    covers, keyOf, holds, marksIn, picks, rankOf, resolve, fieldsOf, fillWords, orderRows, thingsOf, edgesOf, flowWithout, shownFlow, targetWords, inputWords, windowOf,
     spreadOf, stackOf, namedThings, boxColors, lineColors, contrast, parse, SHOWN, READS,
   };
   if (typeof window !== 'object') return pure;
@@ -582,9 +603,10 @@ const Marks = (() => {
         const single = () => (click ? act(click, el) : today?.(event));
         if (!double) return single();
         clearTimeout(timer);
-        if (event.detail < 2) timer = setTimeout(single, DOUBLE_WAIT); // the second click of a double click is the double click's
+        timer = setTimeout(single, DOUBLE_WAIT);
       });
     }
+    // A double click takes back the single click that waits.
     if (double) el.addEventListener('dblclick', (event) => { event.stopPropagation(); clearTimeout(timer); act(double, el); });
     if (menu?.length) el.addEventListener('contextmenu', (event) => { event.preventDefault(); event.stopPropagation(); openMenu(el, menu, name); });
     if (keys) {
@@ -618,26 +640,6 @@ const Marks = (() => {
   function inputWindow(el, slots, title) {
     const lines = inputWords(slots);
     if (lines.length) Hover.attach(el, () => ({ title, width: 320, pad: true, body: lines.map((line) => `<p class="stepnote">${esc(line)}</p>`).join('') }));
-  }
-
-  // ----- the window of the pointer, from named sections -----
-
-  /**
-   * A window of the pointer from named sections, in the order and at the width that the rule of the thing gives (`slots`: "window.sections",
-   * "window.width"); a section that the rule does not name is not shown. A section is { id, html, sub, ready }: `sub` goes into the quiet line of the
-   * title. `wrap` puts the sections into their frame; the lines of what a click and other input do come first. nodeWindow, noteWindow and stackWindow use it.
-   */
-  function windowOf({ title, sub = '', width, sections, wrap = (inner) => inner, ready }, slots = {}) {
-    const order = slots['window.sections'];
-    const shown = order ? order.map((id) => sections.find((one) => one.id === id)).filter(Boolean) : sections;
-    const does = inputWords(slots);
-    const lines = does.length ? `<div class="lk-does">${does.map((line) => `<p>${esc(line)}</p>`).join('')}</div>` : '';
-    return {
-      title, width: slots['window.width'] ?? width, ids: shown.map((one) => one.id),
-      sub: [sub, ...shown.map((one) => one.sub)].filter(Boolean).join(' · '),
-      body: `${lines}${wrap(shown.map((one) => one.html ?? '').join(''))}`,
-      ready: async (body) => { for (const one of shown) await one.ready?.(body); await ready?.(body); },
-    };
   }
 
   /**
@@ -795,7 +797,7 @@ const Marks = (() => {
     });
   }
 
-  return { ...pure, lookText, decorate, decorateNote, stackWindow, placesHtml, doesWords, act, useHere, bind, inputWindow, windowOf };
+  return { ...pure, lookText, decorate, decorateNote, stackWindow, placesHtml, doesWords, act, useHere, bind, inputWindow };
 })();
 
 if (typeof module === 'object') module.exports = Marks; // for the tests in Node

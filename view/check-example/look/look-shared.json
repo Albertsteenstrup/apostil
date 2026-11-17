@@ -10,7 +10,7 @@
     "input": {
       "alt": { "file": "src/library/night_jobs.py", "line": 516 },
       "double": { "folder": "src/library/jobs/" },
-      "key": { "g": { "graphs": "src/library/jobs/" } },
+      "key": { "g": { "change": "book-holds", "part": "hold-service" } },
       "menu": [
         { "name": "Show the folder in Files", "target": { "folder": "src/library/jobs/" } },
         { "name": "Open the night run", "target": { "file": "src/library/night_jobs.py", "line": 516 } }
