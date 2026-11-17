@@ -535,6 +535,7 @@ try {
   const PROMPT = 'Explain how the night jobs wake the lending code, in three short sentences.';
   const lookNow = (look) => { const write = new Store(storeFolder); const saved = setLook(write, repo, look); write.close(); return saved.saved; };
   const promptLook = lookNow({ rules: [{ pick: { kind: 'node', diagram: 'lib-top', nodes: ['jobs'] }, click: { prompt: PROMPT } }] });
+  await command('View: Close All Editors'); // Home opens again at its top map, where the node is
   await list?.locator('.home').click();
   const promptHome = await frameWhere(() => typeof Home === 'object' && Home.data?.look?.rules.some((rule) => rule.click?.prompt) && !!document.querySelector('#view g.node[id*="flowchart-jobs-"]'));
   const dialog = page.locator('.monaco-dialog-box');
