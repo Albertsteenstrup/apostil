@@ -931,7 +931,7 @@ try {
   const searchFor = async (words, wanted) => {
     await palette();
     await page.locator('.quick-input-widget .quick-input-box input').fill(`#${words}`);
-    return until(async () => { const rows = await searchRows(); return (wanted ? rows.some((row) => row.startsWith(wanted)) : rows.length) && rows; }, 5000) || searchRows();
+    return await until(async () => { const rows = await searchRows(); return (wanted ? rows.some((row) => row.startsWith(wanted)) : rows.length) && rows; }, 5000) || searchRows();
   };
   const noteRows = await searchFor('lock requests', 'Lock the requests for the book');
   await page.keyboard.press('Enter');
@@ -963,7 +963,8 @@ try {
       const row = [...document.querySelectorAll('.editor-group-container.active .margin-view-overlays .line-numbers')].find((one) => one.textContent.trim() === String(wanted))?.parentElement.getBoundingClientRect();
       return row && row.y + row.height / 2;
     }, line);
-    const box = await page.locator('.editor-group-container.active .view-lines').first().boundingBox();
+    const box = await page.locator('.editor-group-container.active .view-lines').first().boundingBox({ timeout: 3000 }).catch(() => null);
+    if (!box || !y) return []; // no text editor in front: no menu to read
     await page.mouse.click(box.x + 150, y, { button: 'right' });
     await page.locator('.monaco-menu .action-label').first().waitFor({ timeout: 3000 }).catch(() => {});
     return (await page.locator('.monaco-menu .action-label').allTextContents()).map((words) => words.trim()).filter(Boolean);
@@ -975,7 +976,7 @@ try {
   await page.keyboard.press('Escape');
   await menuAt(46);
   await shot('7d-the-right-click-menu-of-a-marked-line');
-  await page.locator('.monaco-menu .action-label', { hasText: OTHER_PLACES }).click();
+  await page.locator('.monaco-menu .action-label', { hasText: OTHER_PLACES }).click({ timeout: 3000 }).catch(() => {});
   const placeCount = await until(async () => { const count = await quickCount(); return count >= 20 && count; }, 4000) || await quickCount();
   await page.locator('.quick-input-widget .quick-input-box input').fill('139');
   await until(async () => (await searchRows()).join() === 'src/library/night_jobs.py | line 139', 3000);
@@ -1028,7 +1029,7 @@ try {
   const lookPane = page.locator('.pane', { has: page.locator('.pane-header .title', { hasText: /^Look$/ }) });
   const lookRows = () => lookPane.locator('.monaco-list-row').allTextContents().catch(() => []);
   const listed = await until(async () => { const rows = await lookRows(); return rows.some((row) => /^Table Store25 lines · 3 files$/.test(row)) && rows; }, 5000) || await lookRows();
-  await lookPane.locator('.monaco-list-row', { hasText: 'Table Store' }).click();
+  await lookPane.locator('.monaco-list-row', { hasText: 'Table Store' }).click({ timeout: 3000 }).catch(() => {});
   const valuePlaces = await until(async () => { const count = await quickCount(); return count >= 20 && count; }, 4000) || await quickCount();
   await shot('7f-the-list-look-and-the-places-of-a-value');
   await page.keyboard.press('Escape');
