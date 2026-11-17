@@ -66,6 +66,12 @@ function ask(question) {
   return answers.get(question);
 }
 
+/** Asks VS Code a question afresh, for data that may have changed since the last answer: the blocks of a look, read each time their window opens. */
+function askAgain(question) {
+  answers.delete(question);
+  return ask(question);
+}
+
 /** Tells VS Code something that needs no answer: open a file, save a remark, what is selected. */
 function tell(message) {
   window.apostilSent.push(message);

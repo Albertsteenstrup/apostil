@@ -6,6 +6,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { repoId } from '../shared/git';
+import { LOOK_PARTS } from '../shared/look';
 import { markFacts, markGroups, marksNow, SERVICES } from '../shared/marks';
 import type { RepoMap } from '../shared/repo-map';
 import { Store } from '../shared/store';
@@ -219,7 +220,7 @@ test('set-look keeps a look and its files in the store, removes its draft files,
   const parts = JSON.parse(runApostil(['look-slots', '--all'], { cwd: repoFolder, env }).stdout);
   assert.deepEqual([Object.keys(parts.components), parts.components.note.slots, Object.keys(parts.targets)], [
     ['node', 'step', 'call', 'arrow', 'note'], ['note', 'corners', 'content', 'show', 'click', 'input'],
-    ['file', 'url', 'command', 'prompt', 'place', 'graphs', 'folder', 'change', 'pull', 'comment'],
+    Object.keys(LOOK_PARTS.targets),
   ]);
   // With no look, "apostil look" says that the default applies. (A store of its own: two test repos made in the same second have the same first commit.)
   assert.equal(JSON.parse(runApostil(['look'], { cwd: repoFolder, env: { APOSTIL_HOME: tempFolder('apostil-store-') } }).stdout).look, 'default');

@@ -73,5 +73,7 @@ export function lookChanges(store: Store, folder: string, look: Look): { changes
     changes.push(`Rule ${index + 1}: ${many} ${rule.pick.kind}${many === 1 ? ' gets' : 's get'} ${gives(rule)}.`);
     if (!many) notes.push(`Rule ${index + 1} picks nothing now: ${whyNothing(rule.pick, count)}.`);
   });
+  // A page of the look (build 58): the tab that it opens as.
+  for (const page of look.pages ?? []) changes.push(`Page "${page.id}" opens as the tab "${page.title}", with ${page.blocks.length} ${page.blocks.length === 1 ? 'block' : 'blocks'}.`);
   return { changes, notes };
 }

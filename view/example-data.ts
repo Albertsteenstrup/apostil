@@ -16,6 +16,7 @@ import type { OpenPoint, Remark } from '../shared/store';
 import { tempFolder } from '../shared/test-repo';
 import { EXAMPLE_LOOK, makeCheckExample, putLookFiles } from './check-example';
 import { asDefault, type LookData } from './look-data';
+import { blocksAnswer, pageData, type CustomPageData } from './look-blocks';
 import { addMarksToMap, setLook } from '../store/marks-save';
 import { graphsData, homeData, type GraphsData, type HomeData } from './home-data';
 import { sessionGroups, type ListRow } from './list-rows';
@@ -107,6 +108,9 @@ const page = examplePage(folder, base, file, points, remarks, agent, apps, map?.
 // with its second set and its marks) is "?look=1", "look-<name>.json" is "?look=<name>". Home and the note cards are read after each save.
 const homeLooks: Record<string, HomeData> = {};
 const pageLooks: Record<string, LookData | undefined> = {};
+// The pages of each look (build 58), as "?look=<name>&page=<id>", and the blocks of each section of its own and window of a target, as the page asks for them.
+const lookPages: Record<string, Record<string, CustomPageData>> = {};
+const lookAnswers: Record<string, unknown> = {};
 for (const name of put ? readdirSync(EXAMPLE_LOOK).filter((one) => /^look(-[a-z]+)?\.json$/.test(one)).sort() : []) {
   const key = name === 'look.json' ? '1' : name.slice('look-'.length, -'.json'.length);
   const files = putLookFiles(folder);
@@ -115,6 +119,9 @@ for (const name of put ? readdirSync(EXAMPLE_LOOK).filter((one) => /^look(-[a-z]
   files.clean();
   homeLooks[key] = homeData(store, folder, apps, address);
   pageLooks[key] = lookOfPage(store, page);
+  const ids = (JSON.parse(readFileSync(join(EXAMPLE_LOOK, name), 'utf8')).pages ?? []).map((one: { id: string }) => one.id) as string[];
+  lookPages[key] = Object.fromEntries(ids.map((id) => [id, pageData(store, folder, id, address)]));
+  for (const [, ref] of JSON.stringify([homeLooks[key].look, lookPages[key]]).matchAll(/"ref":"([0-9a-f]+)"/g)) lookAnswers[`blocks:${ref}`] = blocksAnswer(store, folder, ref, address);
 }
 
 // Made up: an earlier change, merged long ago, with a note on code that this change left alone. The file tab shows it beside its lines, with no colour.
@@ -125,6 +132,7 @@ if (earlier) store.saveChange(earlier);
 const pageLook = pageLooks['1'] ?? lookOfPage(store, page);
 page.look = pageLook && asDefault(pageLook);
 const answers = Object.fromEntries(allQuestions(page).map((question) => [question, answer(page, question, (path, lines) => notesBeside(store, page, path, lines), (path) => marksBeside(store, page, path))]));
+Object.assign(answers, lookAnswers);
 store.close();
 rmSync(storeFolder, { recursive: true, force: true });
 
@@ -164,6 +172,6 @@ answers['pull:https://example.com/made-up/pull/11'] = { pull: pullRequestFrom(ex
 const pagePulls = pulls[page.branch].slice(0, 2); // the page knows the two that have a made-up conversation
 
 const target = join(__dirname, '../../view/media/example-data.js');
-writeFileSync(target, `// Written by view/example-data.ts. Not in Git.\n${iconScript(join(__dirname, '../../view/media'))}window.APOSTIL_EXAMPLE = ${JSON.stringify({ page, pageLooks, pagePulls, answers, list, home, homeLooks, homeNoMap, graphs })};\n`);
+writeFileSync(target, `// Written by view/example-data.ts. Not in Git.\n${iconScript(join(__dirname, '../../view/media'))}window.APOSTIL_EXAMPLE = ${JSON.stringify({ page, pageLooks, pagePulls, answers, list, home, homeLooks, homeNoMap, graphs, lookPages })};\n`);
 example?.remove();
 console.log(`Wrote ${target}: ${page.files.length} files, ${page.parts.length} parts, ${Object.keys(answers).length} answers, ${rows.length} list rows, ${home.map?.diagrams.length ?? 0} map diagrams, ${Object.keys(graphs).length} graphs pages.`);

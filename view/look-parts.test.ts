@@ -67,7 +67,7 @@ test('each new target passes, and each fault of a target has its sentence', () =
     assert.deepEqual(problems({ pick: jobs, click: target }), [], JSON.stringify(target));
   }
   const one = (target: unknown): string => problems({ pick: jobs, click: target }).join(' | ');
-  assert.equal(one({ graph: 'src/' }), 'Rule 1, "click": "graph" is no target. The targets are "file", "url", "command", "prompt", "place", "graphs", "folder", "change", "pull", "comment". The nearest is "graphs".');
+  assert.equal(one({ graph: 'src/' }), `Rule 1, "click": "graph" is no target. The targets are ${Object.keys(LOOK_PARTS.targets).map((name) => `"${name}"`).join(', ')}. The nearest is "graphs".`);
   assert.equal(one({ folder: 'src/library/jobs' }), 'Rule 1, "click": "folder" must be a folder of the repo, ending with "/".');
   assert.equal(one({ graphs: 'src/gone.py' }), 'Rule 1, "click": The path src/gone.py does not exist.');
   assert.equal(one({ pull: 0 }), 'Rule 1, "click": "pull" must be the number of a pull request, as 12.');
@@ -97,11 +97,15 @@ test('a key that a page of Apostil uses is refused, with the keys that are free'
   assert.deepEqual(problems({ pick: jobs, input: { key: { gg: { comment: true } } } }), ['Rule 1, "input": the key "gg" is no letter or digit. A key of a look is one letter or one digit.']);
 });
 
-test('the sections of a window: the ids of the component, an unknown one names the nearest, and a section of its own waits for a later build', () => {
+test('the sections of a window: the ids of the component, an unknown one names the nearest, and a section of its own holds blocks (build 58)', () => {
   assert.deepEqual(problems({ pick: jobs, window: { width: 440, sections: ['changes', 'files'] } }), []);
   assert.deepEqual(problems({ pick: { kind: 'step' }, window: { sections: ['marks', 'note'] } }), []);
   assert.deepEqual(problems({ pick: jobs, window: { sections: ['file'] } }), ['Rule 1, "window": "file" is no section of the window of a node. Its sections are "files", "changes", "marks". The nearest is "files".']);
-  assert.deepEqual(problems({ pick: jobs, window: { sections: [{ text: 'Hello' }] } }), ['Rule 1, "window": a section of its own comes with a later build. Give the ids of the sections of today: "files", "changes", "marks".']);
+  assert.deepEqual(problems({ pick: jobs, window: { sections: ['files', { title: 'In short', blocks: [{ text: 'Hello' }] }] } }), []);
+  assert.deepEqual(problems({ pick: jobs, window: { sections: [{ text: 'Hello' }] } }), [
+    'Rule 1, "window", section 1: "text" is no field here. Use only "title", "blocks".',
+    'Rule 1, "window", section 1: "blocks" must be a list of blocks, as [ { "text": "<words>" } ]; apostil look-slots blocks gives every block.',
+  ]);
   assert.deepEqual(problems({ pick: jobs, window: { width: 2000 } }), ['Rule 1, "window": "width" must be a number of pixels from 240 to 720.']);
   assert.deepEqual(problems({ pick: { kind: 'arrow' }, window: { width: 300 } }), ['Rule 1: an arrow has no slot "window". Its slots are "arrow", "content", "show", "text", "click", "input".']);
 });
