@@ -164,7 +164,7 @@
    ],
    "outside": [
     { "from": "src/library/lending/requests.py:101-104", "to": "json", "label": "write the details", "fromLine": 103, "name": "dumps" },
-    { "from": "src/library/lending/requests.py:101-104", "to": "Table Store", "label": "insert the row", "fromLine": 102, "name": "book_request" }
+    { "from": "src/library/lending/requests.py:101-104", "to": "PostgreSQL", "label": "insert the row", "fromLine": 102, "name": "book_request" }
    ]
   }
  ],

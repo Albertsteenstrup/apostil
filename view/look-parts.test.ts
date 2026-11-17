@@ -24,7 +24,7 @@ test('a look saved by build 51 still passes the check, and so does the shared lo
 
 test('each new part has an area, other words and an example that passes the check on the made-up example', () => {
   const fill = (rule: unknown): unknown => JSON.parse(JSON.stringify(rule).replaceAll('<diagram>', 'lib-top').replaceAll('<node>', 'jobs')
-    .replaceAll('<folder>/', 'src/library/jobs/').replaceAll('<file>', 'src/library/night_jobs.py').replaceAll('<set>:<value>', 'services:table-store'));
+    .replaceAll('<folder>/', 'src/library/jobs/').replaceAll('<file>', 'src/library/night_jobs.py').replaceAll('<set>:<value>', 'services:postgresql'));
   const all: Record<string, unknown> = { ...LOOK_PARTS.slots, ...LOOK_PARTS.picks, ...LOOK_PARTS.targets };
   const parts = ['show', 'order', 'text', 'click', 'input', 'window', 'where', 'graphs', 'folder', 'change', 'pull', 'comment'].map((name) => [name, all[name]] as [string, { area: string; words: readonly string[]; example?: unknown }]);
   for (const [name, part] of parts) {

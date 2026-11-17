@@ -48,7 +48,7 @@ Run `apostil mark-groups --set services`. Its `values` are the services that Apo
       "values": [ { "id": "book-feed", "name": "Book Feed", "site": "book-feed.example.org", "icon": "apostil-icon-book-feed.png" } ],
       "marks": [
         { "value": "book-feed", "relation": "calls", "file": "src/feed.py", "line": 12, "name": "requests.get" },
-        { "value": "table-store", "relation": "stores", "file": "src/save.py", "line": 40, "name": "book_row",
+        { "value": "postgresql", "relation": "stores", "file": "src/save.py", "line": 40, "name": "book_row",
           "thing": { "kind": "table", "name": "book_row" } }
       ],
       "iconRefused": [ { "value": "night-bell", "tried": "night-bell.example.org" } ]

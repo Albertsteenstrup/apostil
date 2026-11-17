@@ -101,7 +101,7 @@ test('look-slots --find finds a part by a word of its "what" and by one of its "
 test('every component has an area with an index line, and each example of the list passes the check on the made-up example with the placeholders filled', () => {
   const { folder, store } = example();
   const fill = (rule: unknown): unknown => JSON.parse(JSON.stringify(rule).replaceAll('<folder>/', 'src/library/lending/').replaceAll('<file>', 'src/library/night_jobs.py')
-    .replaceAll('<diagram>', 'lib-top').replaceAll('<node>', 'jobs').replaceAll('<set>:<value>', 'services:table-store'));
+    .replaceAll('<diagram>', 'lib-top').replaceAll('<node>', 'jobs').replaceAll('<set>:<value>', 'services:postgresql'));
   const context = { folder, map: store.getMap(repoId(folder))?.map, commands: apostilCommands() };
   // "order" has no example until a component is a list (briefs 59 to 61); every other part has one.
   const examples: Record<string, { example?: unknown }> = { ...LOOK_PARTS.components, ...Object.fromEntries(Object.entries(LOOK_PARTS.slots).map(([name, slot]) => [`slot ${name}`, slot])) };
@@ -128,7 +128,7 @@ test('set-look --check saves nothing and removes no file; a wrong kind, slot, fi
     notes: ['Rule 7 picks nothing now: no step holds a mark "errors:state".', 'Rule 8 picks nothing now: no note holds a mark "errors:*".'],
   });
   // A rule of the services picks the steps, calls and notes whose code holds a mark.
-  writeFileSync(join(folder, 'apostil-look-calls.json'), JSON.stringify({ rules: [{ pick: { kind: 'call', mark: 'services:table-store' }, box: { dashed: true } }] }));
+  writeFileSync(join(folder, 'apostil-look-calls.json'), JSON.stringify({ rules: [{ pick: { kind: 'call', mark: 'services:postgresql' }, box: { dashed: true } }] }));
   assert.match(JSON.parse(apostil(['set-look', '--check', 'apostil-look-calls.json']).stdout).changes[0], /^Rule 1: [1-9]\d* calls? gets? a dashed or solid line\.$/);
 
   writeFileSync(join(folder, 'apostil-look-wrong.json'), JSON.stringify({ rules: [
