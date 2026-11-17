@@ -26,6 +26,7 @@ const { baseOf, currentBranch, headCommit, repoId } = own('./out/shared/git.js')
 const { examplePullRequest } = own('./out/view/example-pull-request.js');
 const { CHECK_SETTINGS, CODE } = own('./out/shared/run-in-vscode.js');
 const { makeCheckExample } = own('./out/view/check-example.js');
+const { putLookFiles } = own('./out/view/check-example.js');
 const { noteCodeOf } = own('./out/shared/notes-beside-code.js');
 const { makeNotebookRepo, notebookChangeFile } = own('./out/shared/test-repo.js');
 const { saveDraft } = own('./out/store/save.js');
@@ -557,6 +558,29 @@ try {
     promptLook && !!promptHome && notSent.words.includes('Send this to a new session of Claude Code?') && notSent.words.includes(PROMPT) && notSent.buttons.includes('Send')
       && promptSent.words.includes(PROMPT) && runAfterSend?.length === runsBeforeAsk + 1 && runAfterSend.at(-1).includes(PROMPT),
     JSON.stringify({ promptLook, home: !!promptHome, notSent, sent: promptSent.buttons, runs: `${runsBeforeAsk} -> ${runsNow().length}` }));
+
+  // The tree "Files" in a look of the repo (build 61): a folder that a rule leaves out is not there; a file that a rule picks has the icon of the look and
+  // quiet words after its name, and a click on it goes to the target of the rule. A browser cannot show VS Code's own tree.
+  const fileRowOf = (name) => filesPane.locator('.monaco-list-row', { has: page.locator('.label-name', { hasText: new RegExp(`^${name.replace('.', '\\.')}$`) }) });
+  const jobsBefore = await fileRowOf('jobs').count();
+  const lookFiles = putLookFiles(repo);
+  const treeLook = lookNow({ rules: [
+    { pick: { kind: 'tree-folder', paths: ['src/library/jobs/'] }, show: { shown: false } },
+    { pick: { kind: 'tree-file', paths: ['src/library/lending/hold_service.py'] }, text: { icon: 'apostil-look-open.svg' }, content: { words: 'in the look' }, click: { file: 'src/library/night_jobs.py', line: 516 } },
+  ] });
+  lookFiles.clean();
+  const treeRow = await until(() => fileRowOf('hold_service.py').first().evaluate((row) => {
+    const icon = row.querySelector('.custom-view-tree-node-item-icon');
+    const read = { words: row.querySelector('.label-description')?.textContent ?? '', icon: icon ? getComputedStyle(icon).backgroundImage : '', label: row.querySelector('.monaco-icon-label')?.className ?? '' };
+    return read.words === 'in the look' && read;
+  }).catch(() => false), 10000);
+  const jobsAfter = await fileRowOf('jobs').count();
+  await shot('3e-the-tree-files-in-a-look');
+  await fileRowOf('hold_service.py').first().click().catch(() => {});
+  const treeTarget = await until(() => page.locator('[id="status.editor.selection"]').textContent({ timeout: 1000 }).then((text) => /^Ln 516\b/.test(text ?? '') && text, () => ''));
+  check('the tree "Files" in a look: the folder that a rule leaves out is gone; the file that a rule picks has the icon of the look and its quiet words after the name, and a click on it goes to the target of the rule',
+    treeLook && jobsBefore === 1 && jobsAfter === 0 && !!treeRow && /^url\(/.test(treeRow.icon) && !!treeTarget && /night_jobs\.py/.test(await activeTab() ?? ''),
+    JSON.stringify({ treeLook, jobsBefore, jobsAfter, treeRow, treeTarget, tab: await activeTab() }));
   lookNow({ rules: [] }); // the default look again for the parts after this one
   await command('View: Close All Editors');
 

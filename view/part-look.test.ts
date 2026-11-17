@@ -8,6 +8,7 @@ import { after, test } from 'node:test';
 import { apostilCommands, EVENT_KINDS, LOOK_PARTS, lookProblems, ROW_STATES, type LookContext } from '../shared/look';
 import type { RepoMap } from '../shared/repo-map';
 import { EXAMPLE_LOOK, makeCheckExample } from './check-example';
+import { fileRow, graphsIconClick, treeChildren } from './files-follow';
 import type { LookData } from './look-data';
 
 /* eslint-disable @typescript-eslint/no-require-imports */
@@ -53,6 +54,24 @@ test('the search at the start: the words of a rule while VS Code keeps no search
   assert.deepEqual(PartLook.startSearch({ text: '', sort: 'modified', reverse: false }, words), { text: '', sort: 'modified', reverse: false });
   assert.deepEqual(PartLook.startSearch({ text: 'author:mira-k', sort: 'size', reverse: true }, words).text, 'author:mira-k');
   assert.deepEqual(PartLook.startSearch(undefined, undefined), {});
+});
+
+test('the rows of the tree "Files": a folder that a rule leaves out is gone, folders in the order of a field, and a file row has the icon, the words and the click of its rule', () => {
+  const marks = [{ set: 'errors', value: 'state', file: 'src/a.py', line: 3, at: 3 }, { set: 'errors', value: 'field', file: 'src/a.py', line: 9, at: 9 }];
+  const look = lookOf([
+    { pick: { kind: 'tree-folder', paths: ['web/src/api/generated/'] }, show: { shown: false } },
+    { pick: { kind: 'tree-folder' }, order: { by: 'files', down: true } },
+    { pick: { kind: 'tree-file', mark: 'errors:*' }, content: { words: '{marks} errors' } },
+    { pick: { kind: 'tree-file', paths: ['src/b.py'] }, text: { icon: 'kept.svg' }, click: { file: 'src/b.py', line: 3 } },
+    { pick: { kind: 'graphs-icon', paths: ['src/'] }, click: { folder: 'src/' } },
+  ], marks);
+  const counts = new Map([['db/', 1], ['src/', 5], ['web/', 3], ['web/src/api/', 2], ['web/src/api/generated/', 1]]);
+  assert.deepEqual(treeChildren(['db/', 'src/', 'web/', 'README.md'], '', look, counts), ['src/', 'web/', 'db/', 'README.md']);
+  assert.deepEqual(treeChildren(['web/src/api/generated/', 'web/src/api/client.ts'], 'web/src/api/', look, counts), ['web/src/api/client.ts']);
+  assert.deepEqual(treeChildren(['db/', 'src/', 'web/', 'README.md'], '', undefined, counts), ['db/', 'src/', 'web/', 'README.md']); // no look: as before
+  assert.deepEqual(fileRow(look, 'src/a.py'), { icon: undefined, words: '2 errors', click: undefined });
+  assert.deepEqual(fileRow(look, 'src/b.py'), { icon: 'kept.svg', words: undefined, click: { file: 'src/b.py', line: 3 } });
+  assert.deepEqual([graphsIconClick(look, 'src/b.py'), graphsIconClick(look, 'web/x.ts'), graphsIconClick(undefined, 'src/b.py')], [{ folder: 'src/' }, undefined, undefined]);
 });
 
 test('the bits of the status strip in the order of a rule; with no rule the reviewers (or the review in words), the checks and the blocker', () => {
