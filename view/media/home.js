@@ -49,7 +49,7 @@ function focusOn(stage, graph, node, diagram) {
 
 /** Option+click on a node of a drawing focuses it; the look wins when it gives that click a target (`lookAlt`). True when the click was taken. */
 function focusClick(event, stage, graph, lookAlt, diagram) {
-  const g = event.altKey && !lookAlt ? event.target.closest('g.node, g.image-shape') : null;
+  const g = event.altKey && !lookAlt ? nodeAt(stage, event) : null;
   if (!g || !stage.contains(g)) return false;
   event.stopImmediatePropagation(); // not also the click of the node, or of the panel that holds it
   event.preventDefault();
@@ -216,8 +216,7 @@ function pickMark(thing, one) {
   const below = node.down && diagramOf(node.down);
   if (below) {
     const lit = Object.entries(Marks.thingsOf(below, look)).filter(([, other]) => other.marks.some((mark) => Marks.keyOf(mark) === one.key)).map(([key]) => key);
-    const nodeName = diagramOf(thing.diagram).graph.nodes[thing.node] ?? thing.node;
-    walkTo(mapStep(node.down, lit, { value: name, text: `${name} · ${plural(one.marks.length, 'place')} in ${nodeName.replace(/<[^>]+>/g, ' ').replace(/\s+\d+ steps?$/, '').trim()}` }));
+    walkTo(mapStep(node.down, lit, { value: name, text: `${name} · ${plural(one.marks.length, 'place')} in ${plainName(diagramOf(thing.diagram).graph, thing.node)}` }));
     return true;
   }
   if (one.marks.length === 1) { openAt(one.marks[0].file, one.marks[0].at); return true; }
@@ -401,9 +400,9 @@ async function drawGraphs() {
     for (const el of view.querySelectorAll('.pnl')) {
       const panel = data.panels[Number(el.dataset.panel)];
       const row = groups.flatMap((group) => group.rows).find((one) => one.panel === panel);
-      // Option+click on a node of a panel focuses it in that panel, in place of the click of the panel.
+      // Option+click on a node of a panel focuses it in that panel, in place of the click of the panel (the listener stands before that of Marks.bind).
       const box = el.querySelector('.pd');
-      if (panel.graph) box.addEventListener('click', (event) => focusClick(event, box, panel.graph, row.slots['input.alt']));
+      if (panel.graph) el.addEventListener('click', (event) => focusClick(event, box, panel.graph, row.slots['input.alt']));
       Marks.bind(el, row.slots, () => walkTo(panel.open), panel.line);
     }
     const seen = new IntersectionObserver((entries) => {

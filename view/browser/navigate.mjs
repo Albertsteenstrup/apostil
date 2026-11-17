@@ -118,12 +118,33 @@ try {
   const lookBefore = await home.evaluate(() => window.apostilSent.length);
   await home.click(nodeOf('jobs'), { modifiers: ['Alt'] });
   const lookWins = { on: (await focusNow()).on, sent: await home.evaluate((from) => window.apostilSent.slice(from).map((one) => one.type).filter((type) => type !== 'pointer').join(), lookBefore) };
-  check('Option+click on a node of a diagram focuses it: the node, its arrows and the nodes at their other ends stay and the rest is faint, one quiet line names it, and the click leads nowhere; Escape ends it; the link "Focus on this node" in its window does the same, the × of the line ends it, and Option+click on the same node again ends it; a look that gives that click a target wins',
+  // A step of a drawn process that holds steps: the click goes no level down, and the line names the step without the count of its steps.
+  await homeAt('?diagram=process:ask-request');
+  const step = home.locator('#view g.node', { hasText: /\d+ steps?$/ }).first();
+  const stepWords = (await step.textContent().catch(() => '')).trim();
+  await step.click({ modifiers: ['Alt'] }).catch(() => {});
+  const onStep = { ...(await focusNow()), at: await home.evaluate(() => Home.at) };
+  // The graphs page: a panel is one thing to click, and Option+click on a node in it focuses that node in the panel; the page stays.
+  await homeAt(`?path=${encodeURIComponent('src/library/lending/')}`);
+  const inPanel = home.locator('.pnl .pd g.node[id*="flowchart-service-"]').first();
+  await inPanel.waitFor({ state: 'attached' }).catch(() => {});
+  await inPanel.click({ modifiers: ['Alt'] }).catch(() => {});
+  const panelNow = () => home.evaluate(() => ({
+    graphs: /[?&]path=/.test(location.search), focused: [...document.querySelectorAll('.pnl .pd.focus g.node.focused')].map((g) => nodeKey(g)).join(),
+    panels: document.querySelectorAll('.pnl .pd.focus').length, line: document.querySelector('#summary .fc')?.textContent ?? '',
+  })).catch(() => ({})); // a click that led away leaves a page that is still loading
+  await home.waitForTimeout(300); // a click of the panel itself would have left the page by now
+  const onPanel = await panelNow();
+  await home.keyboard.press('Escape');
+  const panelAfter = await panelNow();
+  check('Option+click on a node of a diagram focuses it: the node, its arrows and the nodes at their other ends stay and the rest is faint, one quiet line names it, and the click leads nowhere; Escape ends it; the link "Focus on this node" in its window does the same, the × of the line ends it, and Option+click on the same node again ends it; a look that gives that click a target wins; a step of a drawn process is named without the count of its steps; on the graphs page the click focuses the node inside its panel and the page stays',
     focused.on && focused.focused === wanted.key && focused.near === wanted.near && focused.faint === wanted.all - wanted.near.split(',').length && focused.faint > 0 && focused.arrows === wanted.arrows
       && focused.line === `Focus: ${wanted.name} · ×` && led.join() === '' && stayed === 'lib-lending'
       && !afterEscape.on && afterEscape.faint === 0 && afterEscape.line === '' && link === 'Focus on this node' && byLink.focused === wanted.key && byLink.near === wanted.near
-      && !afterCross.on && !afterAgain.on && afterAgain.faint === 0 && !lookWins.on && lookWins.sent === 'target',
-    JSON.stringify({ wanted, focused, led, stayed, afterEscape, link, byLink, afterCross, afterAgain, lookWins }));
+      && !afterCross.on && !afterAgain.on && afterAgain.faint === 0 && !lookWins.on && lookWins.sent === 'target'
+      && onStep.on && onStep.at === 'process:ask-request' && /\d+ steps?$/.test(stepWords) && /^Focus: \S/.test(onStep.line) && !/\d+ steps?/.test(onStep.line)
+      && onPanel.graphs && onPanel.focused === 'service' && onPanel.panels === 1 && /Focus: \S/.test(onPanel.line) && panelAfter.graphs && panelAfter.panels === 0 && panelAfter.line === '',
+    JSON.stringify({ wanted, focused, led, stayed, afterEscape, link, byLink, afterCross, afterAgain, lookWins, stepWords, onStep, onPanel, panelAfter }));
 
   // ----- the view stays: a diagram that draws again with new marks keeps its zoom and its place; a fit and a new diagram fit again -----
   await homeAt('');

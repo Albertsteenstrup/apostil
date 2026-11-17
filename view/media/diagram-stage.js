@@ -276,6 +276,15 @@ function lightNodes(into, keys, all = false) {
   return lit.length;
 }
 
+/** The name of a node of a graph in plain words: no tags, and without the count of the steps that a step holds. */
+const plainName = (graph, node) => (graph.nodes[node] ?? node).replace(/<[^>]+>/g, ' ').replace(/\s+\d+ steps?$/, '').trim();
+
+/** The node of a drawing that a click is on. A panel of the graphs page takes no pointer itself, so there the place of the click finds the node. */
+function nodeAt(stage, event) {
+  const inside = (g) => { const box = g.getBoundingClientRect(); return event.clientX >= box.left && event.clientX <= box.right && event.clientY >= box.top && event.clientY <= box.bottom; };
+  return event.target.closest('g.node, g.image-shape') ?? [...stage.querySelectorAll('g.node, g.image-shape')].find(inside) ?? null;
+}
+
 /**
  * Focus on a node (build 64): the node, its arrows and the nodes at their other ends stay as they are, and the rest of the drawing grows faint
  * (look.css), as the rest around lit nodes does. `graph` is the graph of the drawing. With no node, the focus ends. Returns the name of the node,
@@ -297,7 +306,7 @@ function focusNode(stage, graph, node) {
   });
   for (const g of nodes) g.classList.toggle('tied', tied.has(nodeKey(g)));
   own.classList.add('focused');
-  return Marks.nameOf(own);
+  return plainName(graph, node);
 }
 
 // ----- the things of a drawing that a comment can be stuck on -----

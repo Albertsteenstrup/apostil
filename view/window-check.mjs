@@ -677,7 +677,8 @@ try {
     changedRows.removed > 0 && oneTab && !!nextTab && !!pickedTab && (await tabOf('ready_shelf.py').count()) === 0, `${JSON.stringify(changedRows)}; one tab ${oneTab}; next ${!!nextTab}; picked ${!!pickedTab}`);
 
   // Cmd+B (build 64): with the views of Apostil in the side bar and a page of Apostil in front that has the keyboard, the key hides the side bar, it stays
-  // hidden for a second, and the key shows it again.
+  // hidden for a second, and the key shows it again. Shown and hidden at once (one press that ran twice did this), it stays hidden too: the tree "Files"
+  // marks the file in front only when it still shows.
   const sideBarShows = () => page.evaluate(() => { const part = document.querySelector('.part.sidebar'); return !!part && part.getBoundingClientRect().width > 0 && getComputedStyle(part).display !== 'none'; });
   const apostilShows = () => filesPane.first().isVisible().catch(() => false);
   if (!(await apostilShows())) await command('View: Show Apostil');
@@ -688,9 +689,14 @@ try {
   await sleep(1000); // calm: the side bar must not come back by itself
   const sideStays = !(await sideBarShows());
   await page.keyboard.press('Meta+B');
+  await page.keyboard.press('Meta+B');
+  await sleep(700); // a mark of the tree that was asked for as it showed would have opened it by now
+  const sideTwice = !(await sideBarShows());
+  await page.keyboard.press('Meta+B');
   const sideAgain = await until(() => sideBarShows(), 3000);
-  check('Cmd+B with the views of Apostil in the side bar and a page of Apostil in front hides the side bar, and it stays hidden for a second; Cmd+B again shows it',
-    sideBefore.shows && sideBefore.apostil && /night_jobs\.py/.test(sideBefore.front ?? '') && sideBefore.focus === 'IFRAME' && sideHidden && sideStays && sideAgain, JSON.stringify({ sideBefore, sideHidden, sideStays, sideAgain }));
+  check('Cmd+B with the views of Apostil in the side bar and a page of Apostil in front hides the side bar, and it stays hidden for a second; shown and hidden at once it stays hidden; Cmd+B again shows it',
+    sideBefore.shows && sideBefore.apostil && /night_jobs\.py/.test(sideBefore.front ?? '') && sideBefore.focus === 'IFRAME' && sideHidden && sideStays && sideTwice && sideAgain,
+    JSON.stringify({ sideBefore, sideHidden, sideStays, sideTwice, sideAgain }));
 
   // "Diagram" in a wide tab: Alt+Down and Alt+Up as real keys step through the diffs of night_jobs.py and open its diff, and the graph at the left follows.
   // The side bar closes first, so that the page has the width of the two halves.
