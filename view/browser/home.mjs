@@ -119,7 +119,7 @@ try {
       && placeDrawn.quiet.join() === 'Ask the library for a book7 steps' && placeDrawn.arrows.join() === 'the request row' && placeSent.filter((type) => type !== 'walk').join() === 'showInTree'
       && processWin.title === 'Answer a book request' && processWin.sub === '14 steps' && processWin.text === 'Stores the answer of a librarian and tells each member who asked for the book.'
       && oneProcess.crumb === 'Home›Processes of Web routes›Answer a book request' && oneProcess.boxes === 3 && oneProcess.names.length === 6 && oneProcess.names.includes('Answer the request9 steps')
-      && oneProcess.quiet.join() === 'json' && oneProcess.arrows.join() === 'make the service,pass the answer,send the mail,shape the request,write the details' && processSent.join() === '',
+      && oneProcess.quiet.join() === 'json' && oneProcess.arrows.join() === '1 make the service,1 write the details,2 pass the answer,2 send the mail,3 shape the request' && processSent.join() === '',
     JSON.stringify({ placeDrawn, placeSent, processWin, oneProcess, processSent }));
   await home.click(nodeOf('s2'));
   await homeSettled();

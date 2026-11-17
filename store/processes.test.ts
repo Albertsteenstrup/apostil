@@ -282,7 +282,7 @@ test('the drawings: a process by its top steps in a box for each file, a step op
   assert.deepEqual(Object.keys(top.nodes).sort(), ['o0', 's0', 's6', 's7', 's8']);
   assert.match(top.mermaid, /subgraph f0\["src\/run\.py"\]/);
   assert.match(top.mermaid, /s0\["Run the rows<br><i class='ns'>5 steps<\/i>"\]/);
-  assert.match(top.mermaid, /s0 -->\|"read the file"\| s6/);
+  assert.match(top.mermaid, /s0 -->\|"<span class='eo'>1<\/span> read the file"\| s6/); // s0 calls twice: its arrows are numbered by their lines
   assert.match(top.mermaid, /s8 -->\|"encode"\| o0/);
   assert.match(top.mermaid, /class o0 elsewhere/);
   assert.deepEqual(top.nodes.s0, { kind: 'step', files: ['src/run.py'], at: [{ file: 'src/run.py', from: 1, to: 7 }], note: { title: 'Run the rows', text: 'Does the work of this step.', where: 'run.py · lines 1-7' }, down: 'process:run-rows/0', steps: 5 });
