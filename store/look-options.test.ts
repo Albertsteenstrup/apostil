@@ -95,8 +95,8 @@ test('look-slots --find finds a part by a word of its "what" and by one of its "
   // A hit in a name counts more: "dashed" finds the two fields of that name first.
   assert.deepEqual(find('dashed').matches.slice(0, 2).map((one: { name: string }) => one.name), ['box.dashed', 'arrow.dashed']);
   const none = find('zebra quilt');
-  assert.equal(none.found, 'Nothing in the list fits "zebra quilt". Read the index lines; when none fits, tell the owner and leave it out.');
-  assert.deepEqual(none.areas.map((one: { id: string }) => one.id), AREAS);
+  assert.equal(none.found, 'Nothing in the list fits "zebra quilt". Look at the index lines of these areas; when none fits, tell the owner and leave it out.');
+  assert.deepEqual(none.areas, AREAS);
 });
 
 test('every component has an area with an index line, and each example of the list passes the check on the made-up example with the placeholders filled', () => {

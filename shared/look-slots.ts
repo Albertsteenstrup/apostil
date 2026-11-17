@@ -147,7 +147,8 @@ function find(words: string): Record<string, unknown> {
   const asked = wordsOf(words).filter((word) => word.length >= 3 && !IGNORED.has(word));
   const ranked = parts().map((part, order) => ({ part, order, score: score(part, asked) })).filter((one) => one.score > 0)
     .sort((a, b) => b.score - a.score || a.order - b.order).slice(0, MATCHES);
-  if (!ranked.length) return { found: `Nothing in the list fits "${words}". Read the index lines; when none fits, tell the owner and leave it out.`, areas: index() };
+  // With nothing found, the ids of the areas only: their index lines are in the first answer, and they would grow this answer with each area.
+  if (!ranked.length) return { found: `Nothing in the list fits "${words}". Look at the index lines of these areas; when none fits, tell the owner and leave it out.`, areas: index().map((one) => one.id) };
   // An example that an earlier match shows already is named, not printed again.
   return {
     matches: ranked.map(({ part: { by: _by, ...match } }, at) => {
