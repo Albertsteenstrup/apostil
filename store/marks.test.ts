@@ -215,8 +215,8 @@ test('set-look keeps a look and its files in the store, removes its draft files,
   // The look as "apostil look" prints it names the files that Apostil keeps: sent again with one more rule, it saves, with no file in the repo.
   const again = setLook(store, repoFolder, { sets: kept.sets, rules: [...kept.rules, { pick: { kind: 'note' }, note: { color: '#15803d' } }] });
   assert.deepEqual([again.saved, again.problems, again.files], [true, [], 3]);
-  // "apostil look-slots" prints the one list that the check reads: the components with their slots, the picks and every action.
-  const parts = JSON.parse(runApostil(['look-slots'], { cwd: repoFolder, env }).stdout);
+  // "apostil look-slots --all" prints the one list that the check reads: the components with their slots, the picks and every action.
+  const parts = JSON.parse(runApostil(['look-slots', '--all'], { cwd: repoFolder, env }).stdout);
   assert.deepEqual([Object.keys(parts.components), parts.components.note.slots, Object.keys(parts.actions)], [['node', 'step', 'call', 'arrow', 'note'], ['note', 'corners'], ['file', 'url', 'command', 'prompt', 'place']]);
   // With no look, "apostil look" says that the default applies. (A store of its own: two test repos made in the same second have the same first commit.)
   assert.equal(JSON.parse(runApostil(['look'], { cwd: repoFolder, env: { APOSTIL_HOME: tempFolder('apostil-store-') } }).stdout).look, 'default');

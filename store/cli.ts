@@ -22,6 +22,7 @@ import { uninstall } from './uninstall';
 import { changeMaterial, forFreshCheck } from './material';
 import { runHasNoPerson, sentRemarks, waitForRemarks } from './inbox';
 import { LINK_USAGE, linkCommand, linksCommand } from './link-command';
+import { compactJson } from '../shared/look-slots';
 import { MAP_USAGE, runMapCommand } from './map-commands';
 import { openInApp } from './open-in-app';
 import { afterSave, readJson } from './read-input';
@@ -83,6 +84,7 @@ const flagText = (flag: string | true | undefined): string | undefined => (typeo
 interface Done {
   output: unknown;
   ok: boolean;
+  compact?: true; // printed with compactJson: an agent reads it, and pays for each character
 }
 
 const done = (output: unknown, ok = true): Done => ({ output, ok });
@@ -90,7 +92,10 @@ const failed = (problem: string): Done => done({ problems: [problem] }, false);
 
 function run(store: Store, command: string, [argument = '', ...more]: string[], folder: string, flags: Record<string, string | true>): Done {
   const part = typeof flags.part === 'string' ? flags.part : undefined;
-  if (command in MAP_USAGE) return runMapCommand(store, command, argument, folder, flags.full === true, flags.all === true, flagText(flags.set));
+  if (command in MAP_USAGE) {
+    const find = 'find' in flags ? (flagText(flags.find) ?? '') : undefined;
+    return runMapCommand(store, command, argument, folder, { full: flags.full === true, all: flags.all === true, set: flagText(flags.set), check: flags.check === true, find });
+  }
   // --base <commit>: on a main branch, the change is every commit after that one. The save stores it, so later commands need it no more.
   const named = typeof flags.base === 'string' ? namedBase(folder, flags.base) : undefined;
   if (named && 'problem' in named) return failed(named.problem);
@@ -265,11 +270,12 @@ export async function main(args: string[]): Promise<void> {
   const flags: Record<string, string | true> = {};
   const rest: string[] = [];
   for (let index = 0; index < words.length; index++) {
-    if (['--folder', '--path', '--part', '--base', '--agent', '--session', '--session-name', '--account', '--timeout', '--set'].includes(words[index])) flags[words[index].slice(2)] = words[++index];
+    if (['--folder', '--path', '--part', '--base', '--agent', '--session', '--session-name', '--account', '--timeout', '--set', '--find'].includes(words[index])) flags[words[index].slice(2)] = words[++index];
     else if (words[index] === '--mark-sent') flags['mark-sent'] = true;
     else if (words[index] === '--wait') flags.wait = true;
     else if (words[index] === '--full') flags.full = true;
     else if (words[index] === '--all') flags.all = true;
+    else if (words[index] === '--check') flags.check = true;
     else if (words[index] === '--all-repos') flags['all-repos'] = true;
     else if (words[index] === '--remove' || words[index] === '--no-open') flags[words[index].slice(2)] = true;
     else rest.push(words[index]);
@@ -277,8 +283,8 @@ export async function main(args: string[]): Promise<void> {
 
   const store = new Store();
   try {
-    const { output, ok } = command === 'inbox' ? await runInbox(store, flags) : run(store, command, rest, resolve(String(flags.folder ?? process.cwd())), flags);
-    if (output !== undefined) console.log(JSON.stringify(output, null, 1));
+    const { output, ok, compact } = command === 'inbox' ? await runInbox(store, flags) : run(store, command, rest, resolve(String(flags.folder ?? process.cwd())), flags);
+    if (output !== undefined) console.log(compact ? compactJson(output) : JSON.stringify(output, null, 1));
     if (!ok) process.exitCode = 1;
   } catch (error) {
     console.log(JSON.stringify({ problems: [error instanceof Error ? error.message : String(error)] }, null, 1));
