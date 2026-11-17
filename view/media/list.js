@@ -168,12 +168,16 @@ function markField(query) {
   find.querySelector('.sf .on').hidden = Search.defaultSort(search) && !query.words.length;
 }
 
-/** The row "Home": the mark of Apostil, "Home" and the name of the repo; a rule gives it an icon of the look and other words (with {repo}). */
+/**
+ * The row "Home": the mark of Apostil, "Home" and the name of the repo; a rule gives it an icon of the look and other words (with {repo}).
+ * While a map run writes the map of the repo, its short state stands at the right ("writing the map").
+ */
 function drawHome(home) {
   const own = part('home-row', { repo: shown.repo });
   const words = own.content?.words;
   home.innerHTML = `<img class="mark" src="${esc(look?.files?.[own['text.icon']] ?? 'apostil.svg')}" alt="">`
-    + (words === undefined ? `Home<span class="repo">${esc(shown.repo)}</span>` : esc(Marks.fillText(words, { repo: shown.repo })));
+    + (words === undefined ? `Home<span class="repo">${esc(shown.repo)}</span>` : esc(Marks.fillText(words, { repo: shown.repo })))
+    + (shown.homeState ? `<span class="state">${esc(shown.homeState)}</span>` : '');
 }
 
 function draw() {
@@ -264,7 +268,7 @@ if (vscodeApi) {
     const key = new URLSearchParams(location.search).get('look'); // a made-up look of the example: "?look=side-bar"
     look = key ? pageLooks[key] : undefined;
     search = { ...search, ...PartLook.startSearch(undefined, part('list-search').content?.words) };
-    shown = list;
+    shown = new URLSearchParams(location.search).get('run') ? { ...list, homeState: window.APOSTIL_EXAMPLE.homeState } : list; // "?run=1": while a made-up map run writes
     draw();
     setTimeout(() => { Object.assign(pulls, list.pulls); draw(); window.apostilListDone = true; }, 50); // as in VS Code: pull requests come later
   };
