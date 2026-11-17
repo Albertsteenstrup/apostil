@@ -578,6 +578,42 @@ try {
   const goneLit = await lightsAfter('Is this step still needed?', toDiffs);
   check('a card whose thing is gone says "no longer in the diagram" in quiet text, and its click lights the part',
     /· no longer in the diagram$/.test(goneText) && goneLit.flashed === 'part:hold-service', `${goneText}; ${JSON.stringify(goneLit)}`);
+
+  // The line from a card to its thing: the pointer on a card draws one that ends at the box of its node, and it goes when the pointer leaves;
+  // a card whose thing is not on the page has none.
+  await diagramView({ level: 'broad', diagram: 'member-areas' });
+  await card('Who may renew?').hover();
+  const line = await page.evaluate(() => {
+    const dot = document.querySelector('.remark-line circle');
+    const node = document.querySelector('.paper [data-rk="node:member-areas:renew"]')?.getBoundingClientRect();
+    return dot && node ? { x: +dot.getAttribute('cx'), y: +dot.getAttribute('cy'), node: { left: node.left, right: node.right, top: node.top, bottom: node.bottom } } : null;
+  });
+  const inside = (v, from, to) => v >= from - 1 && v <= to + 1;
+  await page.mouse.move(2, 2);
+  const lineAway = await page.$$eval('.remark-line', (els) => els.length);
+  await card('Is this step still needed?').hover();
+  const lineOfGone = await page.$$eval('.remark-line', (els) => els.length);
+  check('the pointer on a card draws a line that ends at the box of its node, it goes when the pointer leaves, and a card whose thing is not on the page has none',
+    !!line && inside(line.x, line.node.left, line.node.right) && inside(line.y,line.node.top, line.node.bottom) && lineAway === 0 && lineOfGone === 0, `${JSON.stringify(line)}; ${lineAway}, ${lineOfGone}`);
+  await card('Who may renew?').hover();
+  await shot('43-line-from-a-card-to-its-node');
+  await page.mouse.move(2, 2);
+
+  // A comment keeps the title of its thing: a node whose id now names another thing, and one that is gone, show the title that they had.
+  await drawn(() => page.evaluate(() => {
+    const kept = { title: 'Check the hold', diagram: 'How one night run offers returned copies' };
+    App.page.remarks.push({ id: 97, changeId: 0, target: { kind: 'node', diagram: 'offer-flow', node: 's21', part: 'hold-service', label: 'Node "s21"', kept }, text: 'Why only after a retry?', createdAt: new Date().toISOString(), state: 'open' });
+    // The answer of a run names the files that it changed, from Git.
+    App.page.remarks.push({ id: 96, changeId: 0, target: { kind: 'part', part: 'hold-service', label: 'Part "Hold service"' }, text: 'Rename the helper', createdAt: new Date().toISOString(), state: 'done', answer: 'I renamed it.', answeredAt: new Date().toISOString(), changed: ['src/library/lending/hold_service.py', 'tests/test_holds.py'] });
+    return App.render();
+  }));
+  const titleKept = await card('Why only after a retry?').locator('.where').textContent();
+  const changedLine = await card('Rename the helper').locator('.changed').textContent();
+  await card('Rename the helper').locator('.changed a').first().click();
+  const opened = (await page.evaluate(() => window.apostilSent.filter((message) => message.type === 'openFile'))).at(-1);
+  check('a thread whose thing is gone shows the title that it kept, and under an answer one quiet line names the files that the run changed, each a link that opens the file',
+    /^Node "Check the hold" · no longer in the diagram$/.test(titleKept) && changedLine === 'changed: hold_service.py, test_holds.py' && opened?.path === 'src/library/lending/hold_service.py', `${titleKept}; ${changedLine}; ${JSON.stringify(opened)}`);
+  await shot('44-answer-with-its-changed-files');
 } catch (error) {
   check('the checks ran to the end', false, error.message.split('\n').slice(0, 14).join(' / '));
 }

@@ -6,9 +6,13 @@ import { tryGit } from '../shared/git';
 import { addAllowRules, keepOutOfGit, settingsFile } from '../store/connect-claude-code';
 
 const CODEX_MODEL = 'apostil.codexModel';
+const COMMENT_RUNS = 'apostil.commentRuns';
 
 /** The model for Codex runs, or undefined when the owner set none: Codex then takes the model of its own settings. */
 export const codexModel = (): string | undefined => vscode.workspace.getConfiguration().get<string>(CODEX_MODEL)?.trim() || undefined;
+
+/** What a run that a comment starts may do in the repo: "read and edit" (the default) or "read only". */
+export const commentRuns = (): string => (vscode.workspace.getConfiguration().get<string>(COMMENT_RUNS) === 'read only' ? 'read only' : 'read and edit');
 
 /** The name of an app as a person reads it: "Claude Code" for claude-code. */
 export const appName = (app: string): string => APP_NAMES[app] ?? app;
