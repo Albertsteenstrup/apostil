@@ -147,6 +147,10 @@
       {
         "command": "apostil.linksOn",
         "title": "Apostil: Turn on links and nudges"
+      },
+      {
+        "command": "apostil.openLookPage",
+        "title": "Apostil: Open a Page of the Look…"
       }
     ],
     "menus": {
@@ -190,6 +194,10 @@
         {
           "command": "apostil.linksOn",
           "when": "apostil.linksOff"
+        },
+        {
+          "command": "apostil.openLookPage",
+          "when": "apostil.lookHasPages"
         }
       ]
     },

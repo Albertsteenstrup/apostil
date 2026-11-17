@@ -74,9 +74,10 @@ test('look-slots <area> prints only the parts of that area; an unknown area name
   assert.deepEqual(processes.components.call.example, LOOK_PARTS.components.call.example);
   const marks = JSON.parse(runApostil(['look-slots', 'marks'], home).stdout);
   assert.deepEqual([marks.components, Object.keys(marks.slots), marks.targets, marks.sets.form], [undefined, ['corners'], undefined, LOOK_PARTS.sets.form]);
-  // Every target, and the slots of a click and other input, are in the area "clicks" (build 57).
+  // The slots of a click and other input, and every target of the area "clicks" (build 57); the window and the page of build 58 are in their areas.
   const clicks = JSON.parse(runApostil(['look-slots', 'clicks'], home).stdout);
-  assert.deepEqual([Object.keys(clicks.slots), Object.keys(clicks.targets)], [['click', 'input'], Object.keys(LOOK_PARTS.targets)]);
+  const ofClicks = Object.entries(LOOK_PARTS.targets).filter(([, target]) => target.area === 'clicks').map(([name]) => name);
+  assert.deepEqual([Object.keys(clicks.slots), Object.keys(clicks.targets)], [['click', 'input'], ofClicks]);
   const wrong = runApostil(['look-slots', 'diagram'], home);
   assert.equal(wrong.status, 1);
   assert.deepEqual(JSON.parse(wrong.stdout).problems, [`"diagram" is no area. The areas are ${AREAS.join(', ')}. The nearest is "diagrams".`]);
@@ -86,8 +87,8 @@ test('look-slots <area> prints only the parts of that area; an unknown area name
 test('look-slots --find finds a part by a word of its "what" and by one of its "words"; words that fit nothing say so and print the index', () => {
   const home = { env: { APOSTIL_HOME: tempFolder('apostil-store-') } };
   const find = (words: string) => JSON.parse(runApostil(['look-slots', '--find', words], home).stdout);
-  // "tab" stands only in the "what" of a note; "badge" only in the "words" of the corners.
-  const [note] = find('tab').matches;
+  // "tab" stands only in the "what" of a note (the block "table" starts with it, build 58); "badge" only in the "words" of the corners.
+  const note = find('tab').matches.find((one: { name: string }) => one.name === 'note');
   assert.deepEqual([note.name, note.is, note.area, note.example], ['note', 'component', 'notes', LOOK_PARTS.components.note.example]);
   const [corners] = find('a badge').matches;
   assert.deepEqual([corners.name, corners.is, corners.area, corners.example], ['corners', 'slot', 'marks', LOOK_PARTS.slots.corners.example]);

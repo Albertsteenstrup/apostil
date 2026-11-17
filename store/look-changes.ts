@@ -98,5 +98,7 @@ export function lookChanges(store: Store, folder: string, look: Look): { changes
     // A part id is checked against the saved change of the branch; with none, it is not checked.
     if (namesPart(rule) && !count.page) notes.push(`Rule ${index + 1} names a part, and this branch has no saved change: the part is not checked.`);
   });
+  // A page of the look (build 58): the tab that it opens as.
+  for (const page of look.pages ?? []) changes.push(`Page "${page.id}" opens as the tab "${page.title}", with ${page.blocks.length} ${page.blocks.length === 1 ? 'block' : 'blocks'}.`);
   return { changes, notes };
 }

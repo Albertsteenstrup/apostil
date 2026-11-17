@@ -399,8 +399,11 @@ function fileWindow(path, slots = {}) {
     const file = App.page.files.find((candidate) => candidate.path === path);
     const folder = folderOf(path);
     const facts = { id: 'facts', sub: `${countsHtml(file)}${file?.renamedFrom ? ` · renamed from ${esc(file.renamedFrom)}` : ''}${folder ? ` · <a data-folder="${esc(folder)}">${esc(folder)}</a>` : ''}` };
-    // A file with no rows to draw (a picture, a fact, no changed line) has no "ready": nothing of it is read as code.
-    const frame = (diff) => { const content = Marks.windowOf({ title: baseName(path), width: 640, sections: [facts, { id: 'diff', ...diff }] }, slots); return { ...content, ready: diff.ready && content.ready, open: () => App.openFile(path) }; };
+    // A file with no rows to draw (a picture, a fact, no changed line) has no "ready", unless a section of a look's own fills itself: nothing of it is read as code.
+    const frame = (diff) => {
+      const content = Marks.windowOf({ title: baseName(path), width: 640, sections: [facts, { id: 'diff', ...diff }] }, slots);
+      return { ...content, ready: diff.ready || content.ids.some((id) => id.startsWith('own-')) ? content.ready : undefined, open: () => App.openFile(path) };
+    };
     if (file?.what) return frame({ html: await factHtml(file) });
     const lines = (await ask(`diff:${path}`)) ?? [];
     if (!lines.length) return frame({ html: '<div class="quiet" style="padding:4px 12px">No changed lines.</div>' });
@@ -460,7 +463,7 @@ function placesWindow(name, code, check, slots = {}) {
     const content = Marks.windowOf({ title: name, sub, width: 600, sections: [{ id: 'places', html: '<div class="places"></div>' }, { id: 'check' }] }, slots);
     return {
       ...content, open: () => App.showCode(first.file, first.lines && !first.removed ? first.lines : null),
-      ready: (body) => drawPlaces(body.querySelector('.places'), code, body, content.ids.includes('check') ? check : undefined),
+      ready: async (body) => { await content.ready(body); if (content.ids.includes('places')) await drawPlaces(body.querySelector('.places'), code, body, content.ids.includes('check') ? check : undefined); }, // and the sections of a look's own
     };
   };
 }
