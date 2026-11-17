@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { test } from 'node:test';
 import { repoId } from '../shared/git';
-import type { Fetcher } from '../shared/icon-fetch';
+import { fetchIcon, publicHost, type Fetcher } from '../shared/icon-fetch';
 import { markFacts } from '../shared/marks';
 import type { RepoMap } from '../shared/repo-map';
 import { Store } from '../shared/store';
@@ -112,4 +112,15 @@ test('add-marks refuses a service with no icon, and saves it with an icon file, 
   assert.equal(addMarksToMap(store, repo.folder, marks()).saved, true);
   assert.deepEqual(markFacts(repo.folder, store.getMap(repoName)!.map, setsOf(store, repoName), (set) => valuesOf(store, repoName, set)).noIcon, []);
   assert.equal(store.getMap(repoName)!.map.iconRefused, undefined);
+});
+
+test('an icon is never asked of this computer or of a private network: such a host is refused before any request', async () => {
+  for (const host of ['127.0.0.1', '10.0.0.5', '172.16.3.4', '192.168.1.1', '169.254.169.254', '100.64.0.1', '[::1]', '::ffff:127.0.0.1', 'fd00::1', 'fe80::1', 'localhost']) {
+    assert.equal(await publicHost(host), false, host);
+  }
+  assert.equal(await publicHost('93.184.216.34'), true); // an address on the internet, as a literal: no lookup and no request
+  const { fetcher, asked } = web({ 'https://127.0.0.1/icon.png': { type: 'image/png', body: PNG } });
+  const refused = await fetchIcon('https://127.0.0.1/icon.png', '127.0.0.1', false, fetcher, publicHost);
+  assert.match(refused.problem ?? '', /127\.0\.0\.1 is no public website/);
+  assert.deepEqual(asked, []);
 });
