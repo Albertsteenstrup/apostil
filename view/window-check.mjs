@@ -699,7 +699,7 @@ try {
     check('on "Diagram" in a wide tab Alt+Down and Alt+Up as real keys step through the diffs of night_jobs.py and open its diff, and the graph at the left follows with its things lit',
       follows?.path === 'src/library/night_jobs.py' && follows.open >= 1, JSON.stringify(follows));
     await shot('3b-diagram-the-graph-follows-alt-down');
-    await stage.locator('#tabs [data-all="close"]').click();
+    await stage.locator('[data-all="close"]').click();
     await stage.locator('.codeswitch[data-half="code"]').click(); // "Hide code": the hover windows below belong to the diagram alone
     await stage.waitForFunction(() => !document.querySelector('#view > .half.right'));
   } else check('the window is wide enough for the two halves of the diagram page', false, 'no two halves');
