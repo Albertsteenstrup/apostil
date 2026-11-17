@@ -9,6 +9,7 @@ import { DatabaseSync } from 'node:sqlite';
 import type { AgentSession } from './agents';
 import type { ChangeFile } from './change-file';
 import type { Look } from './look';
+import type { MapRun } from './map-run';
 import type { MarkValue } from './marks';
 import type { NoteCode, NoteSource } from './notes-beside-code';
 import type { RepoMap } from './repo-map';
@@ -247,6 +248,10 @@ create table if not exists repo_look (
   repo_id text primary key, saved_at text not null, look_json text not null
 );`;
 
+// The run that writes the map of a repo now, or the last one: one record for a repo (shared/map-run.ts).
+const RUN_SCHEMA = `
+create table if not exists map_run (repo_id text primary key, run_json text not null);`;
+
 /** The store of a home folder: ~/.apostil, or APOSTIL_HOME when it is set. */
 export const storeFolder = (home = homedir()): string => process.env.APOSTIL_HOME ?? join(home, '.apostil');
 
@@ -278,6 +283,7 @@ export class Store {
     this.db.exec(LOOK_SCHEMA);
     this.db.exec(KEPT_SCHEMA);
     this.db.exec(MARK_SCHEMA);
+    this.db.exec(RUN_SCHEMA);
     for (const [table, column, type] of ADDED_COLUMNS) {
       const has = (this.db.prepare(`pragma table_info(${table})`).all() as Row[]).some((row) => row.name === column);
       try {
@@ -617,6 +623,27 @@ export class Store {
   getMap(repoId: string): StoredMap | undefined {
     const row = this.db.prepare('select * from repo_map where repo_id = ?').get(repoId) as Row | undefined;
     return row && { map: JSON.parse(row.map_json), savedAt: row.saved_at, commit: row.commit_id };
+  }
+
+  // ----- the run that writes the map -----
+
+  /** The record of the map run of a repo: the run that writes its map now, or the last one. */
+  mapRun(repoId: string): MapRun | undefined {
+    const row = this.db.prepare('select run_json from map_run where repo_id = ?').get(repoId) as Row | undefined;
+    return row && JSON.parse(row.run_json);
+  }
+
+  /** Reads the record of the map run, lets `change` return the new one, and keeps it, all in one step, so that two writers at once lose no part. `change` returns undefined to keep it as it is. */
+  changeMapRun(repoId: string, change: (run: MapRun | undefined) => MapRun | undefined): void {
+    this.db.exec('begin immediate');
+    try {
+      const next = change(this.mapRun(repoId));
+      if (next) this.db.prepare('insert into map_run (repo_id, run_json) values (?, ?) on conflict (repo_id) do update set run_json = excluded.run_json').run(repoId, JSON.stringify(next));
+      this.db.exec('commit');
+    } catch (error) {
+      this.db.exec('rollback');
+      throw error;
+    }
   }
 
   // ----- marks and looks -----

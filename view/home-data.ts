@@ -7,7 +7,9 @@ import type { Diagram } from '../shared/change-file';
 import { thingsOf } from '../shared/diagram-code';
 import { diagramGraph, type DiagramGraph } from '../shared/diagram-graph';
 import { schemaDrawing, type SchemaDrawing } from '../shared/schema';
+import { sessionName } from '../shared/agents';
 import { changedFiles, commitExists, tryGit } from '../shared/git';
+import { homeRun, mapRunLine, type MapRunLine } from '../shared/map-run';
 import { diagramsOf, touches, type DiagramOfPath } from '../shared/repo-map';
 import { allProcessDrawings, placeDiagramId, placeDrawing, processDiagramId, processesStartingIn, type LineOf, type ProcessDiagram, type ProcessNode, type Span } from '../shared/process-diagrams';
 import { lookData, type LookData } from './look-data';
@@ -61,6 +63,7 @@ export interface HomeData {
   look?: LookData; // the look of the repo and its marks: the default look when none is saved
   apps: string[]; // the agent apps whose program is on the path: each can write the map, and "@" offers a new session of each
   writing?: string; // the app that writes the map now
+  mapRun?: MapRunLine; // while a map run writes, or after one stopped: which session, and what is saved so far
   needsSetup?: boolean; // with no map: no agent app has the skills, so Home shows "Set up for agents"
   remarks: Remark[]; // the comments on the map of the repo, which belong to no change
 }
@@ -141,13 +144,26 @@ function downOf(diagrams: Diagram[], parent: string, paths: string[]): string | 
 }
 
 /**
- * What Home shows for the repo of a folder: its map with every node and its look, or no map and the apps that can write one.
- * `address` turns a kept file of the look into an address that the page may load.
+ * The line of the map run of a repo, for Home and for the row "Home" of the list: from the record of the store, with the name of the session from the
+ * files of its app. `writing` is the app of the run that this window started and that still runs; in a folder with no commit that run has no record.
  */
-export function homeData(store: Store, folder: string, apps: string[] = [], address: (file: string) => string = (file) => file): HomeData {
+export function mapRunOf(store: Store, id: string | undefined, writing?: string): MapRunLine | undefined {
+  const run = (id ? store.mapRun(id) : undefined) ?? (writing ? homeRun(writing, new Date().toISOString()) : undefined);
+  return mapRunLine(run, { name: run?.agent && (sessionName(run.agent) ?? run.agent.name), alive: !!writing });
+}
+
+/** The short state of the row "Home" of the list while a map run writes; nothing else. */
+export const homeRowState = (store: Store, id: string | undefined): string | undefined => (mapRunOf(store, id)?.state === 'writing' ? 'writing the map' : undefined);
+
+/**
+ * What Home shows for the repo of a folder: its map with every node and its look, or no map and the apps that can write one; and the line of its map run.
+ * `address` turns a kept file of the look into an address that the page may load. `writing`: see mapRunOf.
+ */
+export function homeData(store: Store, folder: string, apps: string[] = [], address: (file: string) => string = (file) => file, writing?: string): HomeData {
   const id = idOf(folder);
   const stored = id ? store.getMap(id) : undefined;
-  const base: HomeData = { kind: 'home', repo: repoName(folder), folder, apps, remarks: id ? store.repoRemarks(id) : [] };
+  const mapRun = mapRunOf(store, id, writing);
+  const base: HomeData = { kind: 'home', repo: repoName(folder), folder, apps, remarks: id ? store.repoRemarks(id) : [], ...(mapRun ? { mapRun } : {}) };
   if (!id || !stored) return base;
   const files = repoFiles(folder);
   const changes = store.listChanges(id).map((change) => ({ ref: { id: change.id, branch: change.branch, title: change.file.title }, files: filesOfChange(change) }));

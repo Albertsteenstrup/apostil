@@ -3,6 +3,7 @@
 import { join } from 'node:path';
 import * as vscode from 'vscode';
 import type { Target } from '../shared/look';
+import { homeRun, QUIET_MS, withEnd, withSession } from '../shared/map-run';
 import type { Store } from '../shared/store';
 import { startMapRun, startRun } from './agent-run';
 import { agentsNeedSetup, runNextStep } from './change-list';
@@ -44,6 +45,7 @@ export class HomePages {
   private graphs = new Map<string, Tab>();
   private pages = new Map<string, Tab>(); // a page of the look, by its id
   private writing?: string; // the app that writes the map now
+  private quiet?: NodeJS.Timeout; // while the line of a map run says "writing": draws Home again when the run saved nothing for 30 minutes
   private pointerOn?: Tab; // the tab that the pointer is on, so the comment key works there
   private signature = '';
   homeShown?: HomeData; // what Home shows now, for the check inside VS Code
@@ -166,7 +168,10 @@ export class HomePages {
     void vscode.commands.executeCommand('setContext', 'apostil.pointerOnPage', !!tab);
   }
 
-  /** Starts a new session of an app that writes the map, and with `describe` then the change; Home shows that it works, and the map when it is saved. */
+  /**
+   * Starts a new session of an app that writes the map, and with `describe` then the change; Home shows that it works, and the map when it is saved.
+   * The record of the map run starts at once, takes the session that the run reports, and ends with the run: as a stop when it failed or saved no map.
+   */
   writeMap(app: string, describe = false): void {
     const folder = this.openFolder();
     if (!folder || this.writing) return;
@@ -176,25 +181,32 @@ export class HomePages {
     // The other connected agent app, which a toast offers when this one cannot run now.
     const other = this.apps.find((one) => one !== app && (one === 'claude-code' || one === 'codex'));
     const instead = other ? { app: other, start: () => this.writeMap(other, describe) } : undefined;
+    const repo = idOf(folder);
+    const record = (change: Parameters<Store['changeMapRun']>[1]): void => { if (repo) this.store.changeMapRun(repo, change); };
     const started = startMapRun(app, folder, (problem, facts) => {
       this.writing = undefined;
       const id = idOf(folder);
       // A run that ended well but saved no map says so, with the commands that it was not allowed to use.
       const why = problem ?? (id && !this.store.getMap(id) ? 'It ended and saved no map.' : undefined);
+      record((run) => withEnd(run, new Date().toISOString(), !!why));
       // "codex" stays in small letters at the start: the problem of its model is told by that word.
       if (why) showRunProblem(`${app === 'codex' ? 'codex' : appName(app)} did not write the map. It said: ${why}`, { app, again, folder, instead, ...facts });
       this.reload();
-    }, codexModel(), describe);
+    }, codexModel(), describe, (session) => { record((run) => withSession(run, session)); this.reload(); });
     if (!started) return void vscode.window.showWarningMessage(`A new session of ${app} cannot be started from here.`);
     this.writing = app;
+    record(() => homeRun(app, new Date().toISOString()));
     this.reload();
   }
 
   private homeMessage(): unknown {
     // A picture or a film of the look is loaded from Apostil's store by its webview address.
     const webview = this.home?.panel.webview;
-    const data = homeData(this.store, this.openFolder(), this.apps, (file) => (webview ? webview.asWebviewUri(vscode.Uri.file(file)).toString() : file));
+    const data = homeData(this.store, this.openFolder(), this.apps, (file) => (webview ? webview.asWebviewUri(vscode.Uri.file(file)).toString() : file), this.writing);
     this.homeShown = { ...data, writing: this.writing, needsSetup: !data.map && agentsNeedSetup(this.openFolder()) };
+    // A run that stops saves nothing, so the store does not change and nothing loads Home again: one timer does, after the quiet time, and the line then says that the run stopped.
+    clearTimeout(this.quiet);
+    if (data.mapRun?.state === 'writing') this.quiet = setTimeout(() => this.reload(), QUIET_MS + 1000);
     return { type: 'data', data: this.homeShown, trail: this.trail.steps };
   }
 
@@ -236,7 +248,7 @@ export class HomePages {
     const id = idOf(this.openFolder());
     const changes = id ? this.store.listChanges(id).map((change) => [change.id, change.savedAt]) : [];
     const remarks = id ? this.store.repoRemarks(id).map((remark) => [remark.id, remark.state, remark.answeredAt, remark.run?.session]) : [];
-    return JSON.stringify([id && this.store.getMap(id)?.savedAt, id && this.store.getLook(id)?.savedAt, changes, remarks, this.writing]);
+    return JSON.stringify([id && this.store.getMap(id)?.savedAt, id && this.store.getLook(id)?.savedAt, changes, remarks, this.writing, id && this.store.mapRun(id)]);
   }
 
   private addTab(panel: vscode.WebviewPanel, path?: string, page?: string): Tab {

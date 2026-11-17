@@ -13,6 +13,7 @@ import { lookSlots } from '../shared/look-slots';
 import { markFacts, markGroups, SERVICES } from '../shared/marks';
 import { lookChanges } from './look-changes';
 import { mapForWriters, mapMaterial } from './map-material';
+import { mapSaveOf, recordMapSave } from './map-run';
 import { addMarksToMap, checkLook, setLook, setsOf, valuesOf } from './marks-save';
 import { addProcessesToMap } from './processes-save';
 import { addDiagramToMap, addNotesToMap, checkMapDraft, saveMapDraft } from './save';
@@ -52,30 +53,33 @@ export interface MapFlags {
   find?: string;
 }
 
-/** Runs one of the map commands. Returns what to print and if the command did its work. */
-export function runMapCommand(store: Store, command: string, argument: string, folder: string, flags: MapFlags = {}): Done {
+/**
+ * Runs one of the map commands. Returns what to print and if the command did its work.
+ * A save of a writer that worked is kept in the record of the map run (store/map-run.ts); `env` says which session saves.
+ */
+export function runMapCommand(store: Store, command: string, argument: string, folder: string, flags: MapFlags = {}, env: Record<string, string | undefined> = process.env): Done {
   const { full = false, all = false } = flags;
   const draft = (): unknown => readJson(argument);
+  /** The answer of a save command of a writer, for the JSON that it was given. */
+  const saved = (given: unknown, result: { saved: boolean; files?: number }): Done => {
+    try {
+      if (result.saved) recordMapSave(store, folder, mapSaveOf(command, given, result), env);
+    } catch { /* the record is a help for the owner: a save never fails for it */ }
+    return { output: result.saved ? afterSave(result, folder, argument) : result, ok: result.saved };
+  };
   const NO_MAP = { output: { problems: ['This repo has no saved map. Save one with apostil save-map.'] }, ok: false };
   if (command in MARK_COMMANDS) return MARK_COMMANDS[command](store, folder, argument, flags);
-  switch (command) {
+  switch (command) { // the five saves of the writers first
     case 'map-material': return { output: mapMaterial(store, folder), ok: true };
     case 'check-map': {
       const result = checkMapDraft(folder, draft());
       return { output: result, ok: result.problems.length === 0 };
     }
-    case 'save-map': {
-      const result = saveMapDraft(store, folder, draft());
-      return { output: result.saved ? afterSave(result, folder, argument) : result, ok: result.saved };
-    }
-    case 'add-diagram': {
-      const result = addDiagramToMap(store, folder, draft());
-      return { output: result.saved ? afterSave(result, folder, argument) : result, ok: result.saved };
-    }
-    case 'add-notes': {
-      const result = addNotesToMap(store, folder, draft());
-      return { output: result.saved ? afterSave(result, folder, argument) : result, ok: result.saved };
-    }
+    case 'save-map': { const given = draft(); return saved(given, saveMapDraft(store, folder, given)); }
+    case 'add-diagram': { const given = draft(); return saved(given, addDiagramToMap(store, folder, given)); }
+    case 'add-notes': { const given = draft(); return saved(given, addNotesToMap(store, folder, given)); }
+    case 'add-processes': { const given = draft(); return saved(given, addProcessesToMap(store, folder, given)); }
+    case 'add-marks': { const given = draft(); return saved(given, addMarksToMap(store, folder, given)); }
     case 'note-groups': return { output: noteGroups(folder, store.getMap(repoId(folder)), all), ok: true };
     case 'notes': {
       const stored = store.getMap(repoId(folder));
@@ -89,10 +93,6 @@ export function runMapCommand(store: Store, command: string, argument: string, f
         return { key, ...note, ...(processes.length ? { processes } : {}) };
       });
       return { output: { file: argument, notes, standing: standing.notes.length, older: standing.older }, ok: true };
-    }
-    case 'add-processes': {
-      const result = addProcessesToMap(store, folder, draft());
-      return { output: result.saved ? afterSave(result, folder, argument) : result, ok: result.saved };
     }
     case 'process-groups': {
       const stored = store.getMap(repoId(folder));
@@ -133,12 +133,8 @@ export function runMapCommand(store: Store, command: string, argument: string, f
 
 type Done = { output: unknown; ok: boolean; compact?: true };
 
-/** The commands of marks and of the look. */
+/** The commands of marks and of the look, but the save of marks (add-marks, with the saves of the other writers). */
 const MARK_COMMANDS: Record<string, (store: Store, folder: string, argument: string, flags: MapFlags) => Done> = {
-  'add-marks': (store, folder, argument) => {
-    const result = addMarksToMap(store, folder, readJson(argument));
-    return { output: result.saved ? afterSave(result, folder, argument) : result, ok: result.saved };
-  },
   'mark-groups': (store, folder, _argument, { all = false, set }) => {
     const repo = repoId(folder);
     const found = setsOf(store, repo).find((one) => one.id === set);

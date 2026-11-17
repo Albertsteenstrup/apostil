@@ -122,11 +122,14 @@ export function mapPrompt(describe = false): string {
   ].join('\n\n');
 }
 
-/** Starts a new session of an app in a folder that writes the map of the repo, and with `describe` then the description of the change. Returns false when the app cannot be started from here. */
-export function startMapRun(app: string, folder: string, ended: (problem?: string, facts?: RunFacts) => void, codexModel?: string, describe = false): boolean {
+/**
+ * Starts a new session of an app in a folder that writes the map of the repo, and with `describe` then the description of the change. Returns false when
+ * the app cannot be started from here. `found` gets the session that the run reports on its output: Codex at its start, Claude Code with its result.
+ */
+export function startMapRun(app: string, folder: string, ended: (problem?: string, facts?: RunFacts) => void, codexModel?: string, describe = false, found: (session: string) => void = () => {}): boolean {
   const command = newRunCommand(app, mapPrompt(describe), runOptions(folder, storeFolder(), codexModel));
   if (!command) return false;
-  spawnRun(command, folder, () => {}, (problem, facts) => {
+  spawnRun(command, folder, found, (problem, facts) => {
     rmSync(join(folder, MAP_DRAFT), { force: true });
     ended(problem, facts);
   });

@@ -18,7 +18,8 @@ import { EXAMPLE_LOOK, makeCheckExample, putLookFiles } from './check-example';
 import { asDefault, type LookData } from './look-data';
 import { blocksAnswer, pageData, type CustomPageData } from './look-blocks';
 import { addMarksToMap, setLook } from '../store/marks-save';
-import { graphsData, homeData, type GraphsData, type HomeData } from './home-data';
+import { graphsData, homeData, homeRowState, mapRunOf, type GraphsData, type HomeData } from './home-data';
+import { homeRun, withEnd, withSave, type MapRun, type MapRunLine } from '../shared/map-run';
 import { sessionGroups, type ListRow } from './list-rows';
 import { pullRequestFrom, type Person } from '../shared/read-pull-request';
 import { iconScript } from './state-icons';
@@ -136,6 +137,25 @@ const pageLook = pageLooks['1'] ?? lookOfPage(store, page, address);
 page.look = pageLook && asDefault(pageLook);
 const answers = Object.fromEntries(allQuestions(page).map((question) => [question, answer(page, question, (path, lines) => notesBeside(store, page, path, lines), (path) => marksBeside(store, page, path))]));
 Object.assign(answers, lookAnswers);
+
+// Made-up map runs, read from the store as Home reads them ("?run=<name>"): the run of Home, his own session in the desktop app (a link) and in a
+// terminal (the command that resumes it), and a run that stopped. Each saved the overview, 3 areas and the notes of 40 files.
+const mapSession = '1a2b3c4d-0000-4000-8000-00000000cafe';
+const savedSoFar = (run: MapRun | undefined, by: AgentSession | undefined): MapRun => {
+  const at = minutesAgo(1);
+  let next = withSave(run, { overview: true }, by, 8, at);
+  for (const area of ['Lending', 'Desk', 'Catalogue']) next = withSave(next, { area }, by, 8, at);
+  return withSave(next, { noteFiles: 40 }, by, 8, at);
+};
+const desktopRun = savedSoFar(undefined, { app: 'claude-code', session: mapSession, hostSession: 'made-up-host-0002', name: 'Map of library-app' });
+const lineOf = (run: MapRun): MapRunLine | undefined => { store.changeMapRun(repoId(folder), () => run); return mapRunOf(store, repoId(folder)); };
+const mapRuns = {
+  home: lineOf(savedSoFar(homeRun('claude-code', minutesAgo(5)), { app: 'claude-code', session: mapSession })),
+  terminal: lineOf(savedSoFar(undefined, { app: 'claude-code', session: mapSession })),
+  stopped: lineOf(withEnd(desktopRun, minutesAgo(0), true)!),
+  desktop: lineOf(desktopRun), // the last one: the row "Home" of the list reads it too
+};
+const homeState = homeRowState(store, repoId(folder));
 store.close();
 rmSync(storeFolder, { recursive: true, force: true });
 
@@ -175,6 +195,6 @@ answers['pull:https://example.com/made-up/pull/11'] = { pull: pullRequestFrom(ex
 const pagePulls = pulls[page.branch].slice(0, 2); // the page knows the two that have a made-up conversation
 
 const target = join(__dirname, '../../view/media/example-data.js');
-writeFileSync(target, `// Written by view/example-data.ts. Not in Git.\n${iconScript(join(__dirname, '../../view/media'))}window.APOSTIL_EXAMPLE = ${JSON.stringify({ page, pageLooks, pagePulls, answers, list, home, homeLooks, homeNoMap, graphs, lookPages, graphsLooks })};\n`);
+writeFileSync(target, `// Written by view/example-data.ts. Not in Git.\n${iconScript(join(__dirname, '../../view/media'))}window.APOSTIL_EXAMPLE = ${JSON.stringify({ page, pageLooks, pagePulls, answers, list, home, homeLooks, homeNoMap, graphs, lookPages, graphsLooks, mapRuns, homeState })};\n`);
 example?.remove();
 console.log(`Wrote ${target}: ${page.files.length} files, ${page.parts.length} parts, ${Object.keys(answers).length} answers, ${rows.length} list rows, ${home.map?.diagrams.length ?? 0} map diagrams, ${Object.keys(graphs).length} graphs pages.`);
