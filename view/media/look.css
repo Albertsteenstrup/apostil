@@ -1093,3 +1093,6 @@ body:not(.picking) .stage g.image-shape.go:hover > *{scale:1.03}
 /* What a click and other input of the look do, at the top of a window of the pointer; the menu of a right click. */
 .lk-does{padding:6px 12px 4px;color:var(--muted);font-size:var(--small)}
 .lk-does p{margin:0 0 2px}
+.rows.lk-menu a{font:var(--size)/1.6 var(--sans);cursor:pointer}
+/* A thing with a key of the look takes the keyboard; a click of the mouse draws no ring round it */
+.stage [data-lk-keys]:focus:not(:focus-visible){outline:none}

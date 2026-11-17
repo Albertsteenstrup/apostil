@@ -113,6 +113,10 @@ try {
     const el = [...document.querySelectorAll('.mc')].find((mc) => mc.querySelector('.nt')?.textContent === 'Answer the request');
     return { parts: [...el.children].filter((part) => !part.classList.contains('mk-stack')).map((part) => part.className), shownBefore: !!el };
   });
+  // For the picture: the comments window folded, and the card in view.
+  await one.click('#side [data-fold]', { timeout: 3000 }).catch(() => {});
+  await one.evaluate(() => App.showCode('src/library/lending/requests.py', [43, 43]));
+  await one.waitForFunction(() => { const top = [...document.querySelectorAll('.mc')].find((mc) => mc.querySelector('.nt')?.textContent === 'Answer the request')?.getBoundingClientRect().top; return top > 0 && top < innerHeight - 100; }, null, { timeout: 5000 }).catch(() => {});
   await takePicture(one, '573-custom-note-card-fields.png');
   check('a note card shows its fields in the order of the rule: the title, then the text; the function line and the service line that the rule leaves out are not shown',
     card.parts.join() === 't,d', JSON.stringify(card));
