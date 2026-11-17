@@ -42,6 +42,11 @@ function area(id: string): Record<string, unknown> {
   const names = [...new Set([...components.flatMap(([, one]) => one.slots), ...entries(LIST.slots).filter(([, slot]) => slot.area === id).map(([name]) => name)])];
   // A slot of another area is one line that names that area, where its fields stand; the slots of this area come whole.
   const whole = names.filter((name) => !LIST.slots[name].area || LIST.slots[name].area === id);
+  // A slot comes with the fields that the components of the area take ("takes"), or all of them.
+  const fieldsOf = (name: string): Readonly<Record<string, string>> => {
+    const users = components.filter(([, one]) => one.slots.includes(name));
+    return !users.length || users.some(([, one]) => !one.takes?.[name]) ? LIST.slots[name].fields : only(LIST.slots[name].fields, users.flatMap(([, one]) => one.takes![name]));
+  };
   // A slot shows its own example when no example of a component of the area uses it.
   const used = (name: string): boolean => components.some(([, one]) => name in one.example);
   const targets = entries(TARGETS).filter(([, target]) => target.area === id);
@@ -62,9 +67,9 @@ function area(id: string): Record<string, unknown> {
       slots: Object.fromEntries(names.map((name) => {
         const slot = LIST.slots[name];
         if (!whole.includes(name)) return [name, `the area ${slot.area}${slot.core ? ' (and the core)' : ''} gives its fields`];
-        return [name, { what: slot.what, ...(slot.one ? { one: true } : {}), ...(slot.target ? { target: true } : { fields: slot.fields }), ...(used(name) || !slot.example ? {} : { example: slot.example }) }];
+        return [name, { what: slot.what, ...(slot.one ? { one: true } : {}), ...(slot.target ? { target: true } : { fields: fieldsOf(name) }), ...(used(name) || !slot.example ? {} : { example: slot.example }) }];
       })),
-      values: only(LIST.values, kindsOf(whole.map((name) => LIST.slots[name].fields))),
+      values: only(LIST.values, kindsOf(whole.map(fieldsOf))),
       picks: `${Object.keys(LIST.picks).join(', ')}: the core says what each picks`,
     } : {}),
     ...(picks.length ? { fields: Object.fromEntries(entries(LIST.components).map(([name, one]) => [name, one.fields])) } : {}),

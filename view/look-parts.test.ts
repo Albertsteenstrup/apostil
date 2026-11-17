@@ -52,7 +52,7 @@ test('a field of a slot that the component does not take, and words that name a 
     ['Rule 1, "content": the words name the field {file}, which a node does not have. Its fields are "title", "files", "down". The nearest is "files".']);
   assert.deepEqual(problems({ pick: { kind: 'note' }, content: { fields: ['title', 'test'] } }), ['Rule 1, "content": a note shows no field "test". It shows "title", "function", "tests", "text", "services". The nearest is "tests".']);
   assert.deepEqual(problems({ pick: jobs, text: { size: 'huge' } }), ['Rule 1, "text": "huge" is no size. Use one of "small", "normal", "large".']);
-  assert.deepEqual(problems({ pick: { kind: 'note' }, order: { by: 'title' } }), ['Rule 1: a note has no slot "order". Its slots are "note", "corners", "content", "show", "click", "input".']);
+  assert.deepEqual(problems({ pick: { kind: 'arrow' }, order: { by: 'words' } }), ['Rule 1: an arrow has no slot "order". Its slots are "arrow", "content", "show", "text", "click", "input".']);
 });
 
 test('the slot "order" is checked against the fields of its component: one function, used by the lists of later builds', () => {

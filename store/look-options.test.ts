@@ -7,7 +7,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { repoId } from '../shared/git';
-import { apostilCommands, LOOK_PARTS, lookProblems, nearest } from '../shared/look';
+import { apostilCommands, LOOK_KINDS, LOOK_PARTS, lookProblems, nearest } from '../shared/look';
 import { compactJson, lookSlots } from '../shared/look-slots';
 import { Store } from '../shared/store';
 import { runApostil, tempFolder } from '../shared/test-repo';
@@ -144,7 +144,7 @@ test('set-look --check saves nothing and removes no file; a wrong kind, slot, fi
   assert.deepEqual(JSON.parse(wrong.stdout), {
     ok: false, changes: [], notes: [],
     problems: [
-      'Rule 1: "pick" must name a "kind": one of node, step, call, arrow, note. The nearest is "node".',
+      `Rule 1: "pick" must name a "kind": one of ${LOOK_KINDS.join(', ')}. The nearest is "node".`,
       'Rule 2: "boxes" is no slot. The slots are "box", "content", "corners", "note", "arrow", "show", "order", "text", "click", "input", "window". The nearest is "box".',
       'Rule 3, "box": "colour" is no field here. Use only "color", "line", "width", "dashed", "shape". The nearest is "color".',
       'Rule 4: the diagram "lib-top" has no node "job". Its nodes are web, routes, lending, jobs, desk, data, checks, writing. The nearest is "jobs".',

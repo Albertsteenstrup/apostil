@@ -110,6 +110,10 @@ const States = (() => {
   /** The remark whose state a thread shows: the newest one that is not open, else the newest. */
   const threadLead = (thread) => [...thread].reverse().find((remark) => remark.state !== 'open') ?? thread[thread.length - 1];
 
+  /** The state of a thread in one word, as a rule of the look names it (THREAD_STATES in shared/look.ts): resolved when every remark is closed, else the word of its lead. */
+  const threadState = (thread) => (thread.every((remark) => remark.state === 'closed') ? 'resolved'
+    : ({ open: 'open', sent: 'sent', running: 'working', done: 'answered', closed: 'resolved' })[threadLead(thread).state] ?? 'open');
+
   /** The look of a circle: the state of the remark. A sent remark still looks open; a closed one is faint. */
   const circleOf = (remark) => ({ running: 'running', done: 'done', closed: 'closed' })[remark.state] ?? 'open';
 
@@ -174,7 +178,7 @@ const States = (() => {
   /** The circle with a number, in the look of a state. A thread id makes a click bring up its card. */
   const circleHtml = (number, look, thread) => `<i class="rk ${look}"${thread ? ` data-thread="${thread}"` : ''}>${number}${look === 'done' ? ' ✓' : ''}</i>`;
 
-  return { WORDS, MENTION_WORDS, mentionName, mentionChoices, cutChoices, rowLine, remarkLine, threadLead, circleOf, isOpen, foldPulls, foldRows, stackOrder, lineHtml, circleHtml, pullTip, pullIcon };
+  return { WORDS, MENTION_WORDS, mentionName, mentionChoices, cutChoices, rowLine, remarkLine, threadLead, threadState, circleOf, isOpen, foldPulls, foldRows, stackOrder, lineHtml, circleHtml, pullTip, pullIcon };
 })();
 
 if (typeof module === 'object') module.exports = States; // for the tests in Node

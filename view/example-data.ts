@@ -118,7 +118,7 @@ for (const name of put ? readdirSync(EXAMPLE_LOOK).filter((one) => /^look(-[a-z]
   if (key === '1') for (const draft of drafts.filter((one) => one.set !== 'services')) must(addMarksToMap(store, folder, draft), 'marks');
   files.clean();
   homeLooks[key] = homeData(store, folder, apps, address);
-  pageLooks[key] = lookOfPage(store, page);
+  pageLooks[key] = lookOfPage(store, page, address);
   const ids = (JSON.parse(readFileSync(join(EXAMPLE_LOOK, name), 'utf8')).pages ?? []).map((one: { id: string }) => one.id) as string[];
   lookPages[key] = Object.fromEntries(ids.map((id) => [id, pageData(store, folder, id, address)]));
   for (const [, ref] of JSON.stringify([homeLooks[key].look, lookPages[key]]).matchAll(/"ref":"([0-9a-f]+)"/g)) lookAnswers[`blocks:${ref}`] = blocksAnswer(store, folder, ref, address);
@@ -129,7 +129,7 @@ const earlier = exampleEarlierChange(folder, base);
 if (earlier) store.saveChange(earlier);
 
 // The look of the note cards: a look of the example with "?look=<name>", else the default look, which shows the logos of the services.
-const pageLook = pageLooks['1'] ?? lookOfPage(store, page);
+const pageLook = pageLooks['1'] ?? lookOfPage(store, page, address);
 page.look = pageLook && asDefault(pageLook);
 const answers = Object.fromEntries(allQuestions(page).map((question) => [question, answer(page, question, (path, lines) => notesBeside(store, page, path, lines), (path) => marksBeside(store, page, path))]));
 Object.assign(answers, lookAnswers);
