@@ -233,6 +233,10 @@ const Marks = (() => {
 
   // ----- where a click goes: the words of a target -----
 
+  // The titles of the pages of the look, by id, for the words of a target "page" (the page sets them from its data: setPages).
+  const pageTitles = {};
+  const setPages = (pages = []) => { for (const page of pages) pageTitles[page.id] = page.title; };
+
   /** What a target does, in one line: the pointer says it before a click. */
   const targetWords = (target) => (!target ? 'Does nothing.'
     : target.url ? `Opens ${target.url}, after VS Code asks.`
@@ -244,6 +248,8 @@ const Marks = (() => {
     : target.change ? `Opens the change of the branch ${target.change}${target.part ? ` at its part ${target.part}` : ''}.`
     : target.pull ? `Opens pull request #${target.pull}.`
     : target.comment ? 'Opens a comment box on it.'
+    : target.window ? `Opens a window${target.window.title ? ` "${target.window.title}"` : ''} beside it.`
+    : target.page ? `Opens the page "${pageTitles[target.page] ?? target.page}".`
     : `Sends this to the agent of the repo, after VS Code asks: "${target.prompt}"`);
 
   /** One line for the click and each other input of a thing that a rule gives: "Click: Opens …", "Alt+click: …", "Key G: …", "Right click: 2 entries". */
@@ -266,14 +272,35 @@ const Marks = (() => {
    */
   function windowOf({ title, sub = '', width, sections, wrap = (inner) => inner, ready }, slots = {}) {
     const order = slots['window.sections'];
-    const shown = order ? order.map((id) => sections.find((one) => one.id === id)).filter(Boolean) : sections;
+    const shown = order ? order.map((id, at) => (id && typeof id === 'object' ? ownSection(id, at) : sections.find((one) => one.id === id))).filter(Boolean) : sections;
     const does = inputWords(slots);
     const lines = does.length ? `<div class="lk-does">${does.map((line) => `<p>${escapeHtml(line).replace(/"/g, '&quot;')}</p>`).join('')}</div>` : '';
+    // The sections of today stand in their frame (`wrap`); a section of its own stands outside it, at its place among them.
+    const runs = [];
+    for (const one of shown) {
+      if (one.own) runs.push(one);
+      else if (runs.length && !runs.at(-1).own) runs.at(-1).list.push(one);
+      else runs.push({ list: [one] });
+    }
+    if (!runs.some((run) => !run.own)) runs.unshift({ list: [] }); // the frame is there also with no section of today in it
     return {
       title, width: slots['window.width'] ?? width, ids: shown.map((one) => one.id),
       sub: [sub, ...shown.map((one) => one.sub)].filter(Boolean).join(' · '),
-      body: `${lines}${wrap(shown.map((one) => one.html ?? '').join(''))}`,
+      body: `${lines}${runs.map((run) => (run.own ? run.html : wrap(run.list.map((one) => one.html ?? '').join('')))).join('')}`,
       ready: async (body) => { for (const one of shown) await one.ready?.(body); await ready?.(body); },
+    };
+  }
+
+  /**
+   * A section of its own in a window (build 58): its quiet title, and its blocks, which the page asks for when the window opens and Blocks draws
+   * (media/blocks.js). `section.ref` names the blocks; the page carries no blocks before that.
+   */
+  function ownSection(section, at) {
+    const titleHtml = section.title ? `<div class="bk-sectitle">${escapeHtml(section.title)}</div>` : '';
+    return {
+      id: `own-${at}`, own: true,
+      html: `<div class="bk-sec" data-bk-own="${at}">${titleHtml}<div class="bk-hold"></div></div>`,
+      ready: (body) => (typeof Blocks === 'object' ? Blocks.fill(body.querySelector(`[data-bk-own="${at}"] .bk-hold`), section.ref) : undefined),
     };
   }
 
@@ -351,7 +378,7 @@ const Marks = (() => {
   }
 
   const pure = {
-    covers, keyOf, holds, marksIn, picks, rankOf, resolve, fieldsOf, fillWords, orderRows, thingsOf, edgesOf, flowWithout, shownFlow, targetWords, inputWords, windowOf,
+    covers, keyOf, holds, marksIn, picks, rankOf, resolve, fieldsOf, fillWords, orderRows, thingsOf, edgesOf, flowWithout, shownFlow, targetWords, inputWords, windowOf, setPages,
     spreadOf, stackOf, namedThings, boxColors, lineColors, contrast, parse, SHOWN, READS,
   };
   if (typeof window !== 'object') return pure;
@@ -567,12 +594,26 @@ const Marks = (() => {
    */
   function act(target, el) {
     if (!target) return;
+    if (target.window) return void openWindow(target.window, el);
     Hover.hide();
     if (target.comment) return void (typeof Remarks === 'object' && Remarks.boxOn(el));
     const step = target.place ? { tab: 'home', diagram: target.place.diagram, lit: target.place.node ? [target.place.node] : [], name: target.place.diagram }
-      : target.graphs ? { tab: 'graphs', path: target.graphs, name: target.graphs } : null;
+      : target.graphs ? { tab: 'graphs', path: target.graphs, name: target.graphs }
+      : target.page ? { tab: 'page', page: target.page, name: pageTitles[target.page] ?? target.page } : null;
     if (step && here.walk?.(step)) return;
     tell({ type: 'target', target, ...(here.diagram?.() ? { diagram: here.diagram() } : {}) });
+  }
+
+  /** The name of a drawn node as its words say it, without the letters of the chips in its corners. */
+  const nameOf = (g) => (g.querySelector?.('.nodeLabel, .label') ?? g).textContent.trim();
+
+  /** The window of a target (build 58): it opens beside the thing at once, and its blocks come when it opens. It closes as a window of the pointer does, or with Escape. */
+  function openWindow(win, el) {
+    const name = win.title || nameOf(el) || 'Window';
+    Hover.now(el, () => ({
+      title: name, width: win.width ?? 420, body: '<div class="bk-sec bk-own"></div>',
+      ready: (body) => (typeof Blocks === 'object' ? Blocks.fill(body.querySelector('.bk-own'), win.ref) : undefined),
+    }), undefined, true);
   }
 
   /** A button in a corner: its icon; the pointer says what it does, and a click does it. */
@@ -797,7 +838,7 @@ const Marks = (() => {
     });
   }
 
-  return { ...pure, lookText, decorate, decorateNote, stackWindow, placesHtml, doesWords, act, useHere, bind, inputWindow };
+  return { ...pure, lookText, decorate, decorateNote, stackWindow, placesHtml, doesWords, act, useHere, bind, inputWindow, nameOf };
 })();
 
 if (typeof module === 'object') module.exports = Marks; // for the tests in Node

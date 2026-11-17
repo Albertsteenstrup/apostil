@@ -1,9 +1,10 @@
 // Home: the map of the repo as one large diagram that he moves and zooms, one level at a time.
 // The graphs page: one small panel for each diagram that a folder or file is a part of, drawn when it comes into view.
+// A page of the look (build 58): the blocks of one page of the look of the repo, in a tab of its own.
 'use strict';
 
 const Home = {
-  data: null, // a HomeData or a GraphsData from home-data.ts
+  data: null, // a HomeData or a GraphsData from home-data.ts, or a CustomPageData from look-blocks.ts
   at: null, // the id of the map diagram that Home shows
   lit: [], // the nodes to light on it
   filter: null, // after a click on a mark: the quiet line "<value> · n places in <node>", and the nodes that hold the value are lit
@@ -12,7 +13,9 @@ const Home = {
   render() {
     this.waiting = !document.body.clientWidth || document.hidden;
     if (this.waiting) return this.drawing ?? Promise.resolve();
-    this.drawing = (this.drawing ?? Promise.resolve()).then(() => (this.data?.kind === 'graphs' ? drawGraphs() : drawHome())).catch((error) => console.error(error));
+    Marks.setPages(this.data?.look?.pages); // the titles of the pages of the look, for the words of a target "page"
+    const draw = { graphs: drawGraphs, page: drawPage }[this.data?.kind] ?? drawHome;
+    this.drawing = (this.drawing ?? Promise.resolve()).then(() => draw()).catch((error) => console.error(error));
     return this.drawing;
   },
 
@@ -34,9 +37,11 @@ const mapStep = (id, lit = [], filter = null) => {
   return filter ? { ...step, filter, name: `${step.name} · ${filter.value}` } : step;
 };
 const graphsStep = (path) => ({ tab: 'graphs', path, name: path });
+const pageStep = (data) => ({ tab: 'page', page: data.id, name: data.title });
 
 /** The view that this tab shows now, as a step of the path. */
-const ownStep = () => (Home.data.kind === 'graphs' ? graphsStep(Home.data.path) : Home.data.map ? mapStep(Home.at, Home.lit, Home.filter) : Trail.HOME);
+const ownStep = () => (Home.data.kind === 'graphs' ? graphsStep(Home.data.path) : Home.data.kind === 'page' ? pageStep(Home.data)
+  : Home.data.map ? mapStep(Home.at, Home.lit, Home.filter) : Trail.HOME);
 
 /** He goes from here to another view: one level down on Home, or the graphs of a path, a change or a diagram in another tab. */
 function walkTo(step) {
@@ -85,7 +90,7 @@ function nodeWindow(g, node, thing) {
     const hidden = thing ? look.sets.filter((set) => !thing.cornered?.has(set.id)).map((set) => [set, Marks.stackOf(thing.marks, set.id)]).filter(([, stack]) => stack.length) : [];
     const marks = hidden.map(([set, stack]) => `<div class="gp">${esc(set.name)}</div>${stack.map((one) => `<a data-mk-node="${esc(one.key)}"><span>${esc(look.values[one.key]?.name ?? one.value)}</span><i class="c">${plural(one.marks.length, 'place')}</i></a>`).join('')}`).join('');
     return Marks.windowOf({
-      title: g.textContent.trim(), width: 520,
+      title: Marks.nameOf(g), width: 520,
       sub: `${plural(node.files, 'file')}${node.changes.length ? ` · ${plural(node.changes.length, 'change')}` : ''}`,
       sections: [
         { id: 'files', html: `<div class="gp">Folders and files</div>${paths}` },
@@ -121,7 +126,9 @@ function noteWindow(node, thing) {
       wrap: (inner) => `<div class="mk-note">${inner}</div>`,
     }, thing?.slots);
     const marks = content.ids.includes('marks');
-    return { ...content, ready: async (body) => { if (look && thing) await Marks.decorateNote(body.querySelector('.mk-note'), look, { ...thing, kind: 'note', marks: marks ? thing.marks : [] }, openAt); } };
+    // A section of its own can stand between sections of today: the look of the note goes to the part that holds the marks.
+    const note = (body) => body.querySelector('.mk-note:has(> .mk-lines)') ?? body.querySelector('.mk-note');
+    return { ...content, ready: async (body) => { await content.ready(body); if (look && thing) await Marks.decorateNote(note(body), look, { ...thing, kind: 'note', marks: marks ? thing.marks : [] }, openAt); } };
   };
 }
 
@@ -132,10 +139,12 @@ const openAt = (path, line) => tell({ type: 'openFile', path, line });
 
 // What Home does itself for a target of the look (Marks.act): a diagram of the map goes one level in this tab, the graphs of a path open as a step;
 // a prompt names the diagram that Home shows.
+// On a page of the look or the graphs page every step opens in its own tab.
 Marks.useHere({
   walk: (step) => {
-    if (step.tab === 'home' && !diagramOf(step.diagram)) return true; // a diagram that the map no longer has: nothing opens
-    walkTo(step.tab === 'home' ? mapStep(step.diagram, step.lit) : step);
+    const onHome = step.tab === 'home' && Home.data.kind === 'home';
+    if (onHome && !diagramOf(step.diagram)) return true; // a diagram that the map no longer has: nothing opens
+    walkTo(onHome ? mapStep(step.diagram, step.lit) : step);
     return true;
   },
   diagram: () => Home.at,
@@ -223,7 +232,7 @@ async function drawHome() {
         else if (paths.length === 1 && !paths[0].endsWith('/')) tell({ type: 'openFile', path: paths[0] });
         else tell({ type: 'showInTree', paths, open: true });
       } : null;
-      if (Marks.bind(g, thing?.slots ?? {}, today, g.textContent.trim())) g.classList.add('go');
+      if (Marks.bind(g, thing?.slots ?? {}, today, Marks.nameOf(g))) g.classList.add('go');
     }
     lightNodes(view, Home.lit);
     const first = view.querySelector('g.node.lit');
@@ -240,9 +249,9 @@ async function drawHome() {
 let panelQueue = Promise.resolve(); // panels draw one after the other
 let drawnPanels = 0;
 
-/** Draws one panel small, with the nodes of the path lit and the rest quiet, in the look of the repo. */
+/** Draws one panel small, with the nodes of the path lit and the rest quiet, in the look of the repo; also a diagram of a block (blocks.js). Resolves when it is drawn. */
 function drawPanel(box, panel) {
-  panelQueue = panelQueue.then(async () => {
+  return panelQueue = panelQueue.then(async () => {
     if (!box.isConnected) return;
     const look = Home.data.look;
     const diagram = look && panel.nodes ? { id: panel.id, nodes: panel.nodes, graph: panel.graph, edgeLines: panel.edgeLines, mermaid: panel.mermaid } : null;
@@ -262,7 +271,7 @@ function drawPanel(box, panel) {
     box.classList.toggle('rest', panel.lit.length > 0); // only the lit part stands out
     box.dataset.lit = lightNodes(box, panel.lit, true);
     drawnPanels++;
-    tell({ type: 'rendered', kind: 'graphs', nodes: 0, panels: Home.data.panels.length, drawn: drawnPanels });
+    if (Home.data.kind === 'graphs') tell({ type: 'rendered', kind: 'graphs', nodes: 0, panels: Home.data.panels.length, drawn: drawnPanels });
   });
 }
 
@@ -287,6 +296,21 @@ async function drawGraphs() {
     view.querySelectorAll('.pnl').forEach((el) => seen.observe(el));
   }
   tell({ type: 'rendered', kind: 'graphs', nodes: 0, panels: data.panels.length, drawn: 0 });
+  window.apostilRendered = (window.apostilRendered ?? 0) + 1;
+}
+
+// ----- a page of the look -----
+
+/** A page of the look: its title and its blocks, drawn by blocks.js; a page that the look no longer has says so in one quiet line. */
+async function drawPage() {
+  const { data } = Home;
+  const view = document.getElementById('view');
+  view.className = 'view bk-page';
+  Trail.show(document.getElementById('crumb'), ownStep());
+  document.getElementById('summary').textContent = '';
+  view.innerHTML = data.gone ? `<p class="nomap">${esc(data.gone)}</p>` : `<h1 class="bk-head">${esc(data.title)}</h1><div class="bk-body"></div>`;
+  if (!data.gone) await Blocks.show(view.querySelector('.bk-body'), data.blocks);
+  tell({ type: 'rendered', kind: 'page', nodes: 0, panels: 0, drawn: 0 });
   window.apostilRendered = (window.apostilRendered ?? 0) + 1;
 }
 
@@ -324,7 +348,7 @@ new ResizeObserver(drawIfWaiting).observe(document.body);
 
 // Start: inside VS Code ask for the data; as a file in a browser, load example-data.js:
 // "?path=<path>" is the graphs page of that path, "?nomap=1" Home with no map, "?diagram=<id>&lit=<ids>" Home at that diagram, "?look=<name>" Home with a
-// made-up look of the example: "?look=1" the look of build 51 (look.json), "?look=shared" look-shared.json.
+// made-up look of the example: "?look=1" the look of build 51 (look.json), "?look=shared" look-shared.json; "?look=blocks&page=<id>" a page of that look.
 if (vscodeApi) {
   tell({ type: 'ready' });
 } else {
@@ -335,8 +359,9 @@ if (vscodeApi) {
     const example = window.APOSTIL_EXAMPLE;
     const query = new URLSearchParams(location.search);
     const path = query.get('path');
+    const page = query.get('page') && example.lookPages[query.get('look')]?.[query.get('page')];
     // "?look=<name>": Home with a made-up look of the example; else the default look, with the logos of the services.
-    Home.data = path ? example.graphs[path] ?? { kind: 'graphs', repo: example.home.repo, folder: '', path, panels: [] } : query.get('nomap') ? example.homeNoMap : query.get('look') ? example.homeLooks[query.get('look')] : example.home;
+    Home.data = page || (path ? example.graphs[path] ?? { kind: 'graphs', repo: example.home.repo, folder: '', path, panels: [] } : query.get('nomap') ? example.homeNoMap : query.get('look') ? example.homeLooks[query.get('look')] : example.home);
     Home.at = query.get('diagram') || null;
     Home.lit = (query.get('lit') ?? '').split(',').filter(Boolean);
     Home.render();

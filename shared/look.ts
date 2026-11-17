@@ -6,6 +6,7 @@
 // may use for it, for the search) and one `example`, a whole rule that passes the check. `core: true` marks what most looks use; all else is
 // found through its area. A slot may also give `gets`: what each field gives a thing, in a few words, for the changes that set-look prints.
 
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathProblem } from './checks';
@@ -13,6 +14,7 @@ import { diagramGraph } from './diagram-graph';
 import { fileText, repoFiles } from './git';
 import { CORNERS, FILE_USES, isId, isLine, isText, SERVICES, type Corner, type FileUse, type MarkSet } from './marks';
 import { processDiagramId } from './process-diagrams';
+import { listedFiles, readRepoData, readRepoText, type ReadFault } from './repo-data';
 import type { RepoMap } from './repo-map';
 
 /** The shapes of Mermaid that a box can take. */
@@ -35,6 +37,7 @@ const FREE_KEYS = [...'0123456789abcdefghijklmnopqrstuvwxyz'].filter((key) => !P
 export const LOOK_COMMANDS = [
   'apostil.home', 'apostil.graphsOf', 'apostil.openChange', 'apostil.openBranchChange', 'apostil.openPullRequest', 'apostil.openNoteInTab',
   'apostil.toggleNotes', 'apostil.remark', 'apostil.sortAndFilter', 'apostil.refresh', 'apostil.chooseLook', 'apostil.reportIssue',
+  'apostil.openLookPage',
 ];
 
 /** The kinds of values that a field takes, in words: the check of a field and `apostil look-slots` both use them. */
@@ -58,7 +61,7 @@ const VALUES = {
   field: 'one field of the thing',
   ids: 'a list of ids',
   pixels: `a number of pixels from ${WINDOW_WIDTH[0]} to ${WINDOW_WIDTH[1]}`,
-  sections: 'a list of the ids of the sections of the window, in the order that they show',
+  sections: 'a list of the ids of the sections of the window, in the order that they show, or { "title"?, "blocks" }: a section of its own',
 } as const;
 type ValueKind = keyof typeof VALUES;
 /** The kind of a field that a rule reads of a thing: words, a count, true or false, or one of a few fixed values. */
@@ -89,6 +92,12 @@ export interface LookPartsList {
   values: Readonly<Record<string, string>>;
   [TARGETS_KEY]: Readonly<Record<string, { what: string; form: string; asks?: boolean; core?: boolean; area?: string; words?: readonly string[]; example?: Example }>>;
   sets: { what: string; form: string; area: string; words?: readonly string[] };
+  // Build 58: what a page or a section of a window shows. Each block has its form, and `file` when its data may come from a file of the repo.
+  blocks: Readonly<Record<string, { what: string; form: string; file?: string; area: string; words?: readonly string[]; example: Example }>>;
+  blockTitle: string;
+  sources: Readonly<Record<string, string>>; // where the data of a block comes from
+  limits: Readonly<Record<string, number>>;
+  pages: { what: string; form: string; area: string; words?: readonly string[]; example: Example };
 }
 
 const BLUE = '#2b6cb0';
@@ -235,6 +244,14 @@ export const LOOK_PARTS = {
       what: 'opens the comment box of Apostil on the thing', form: '{ "comment": true }',
       area: 'clicks', words: ['comment', 'remark', 'note', 'ask'], example: { pick: ONE_NODE, input: { double: { comment: true } } },
     },
+    window: {
+      what: 'opens a window of blocks beside the thing; Escape closes it', form: '{ "window": { "title"?: "<words>", "width"?: <pixels>, "blocks": [<block>] } }',
+      area: 'windows', words: ['popup', 'pop-up', 'panel', 'details', 'card', 'blocks'], example: { pick: ONE_NODE, click: { window: { title: 'In short', blocks: [{ text: 'What it does.' }] } } },
+    },
+    page: {
+      what: 'opens a page of the look as a tab', form: '{ "page": "<id of a page of the look>" }',
+      area: 'pages', words: ['page', 'report', 'dashboard'], example: { pick: ONE_NODE, click: { page: '<page>' } },
+    },
   },
   areas: {
     diagrams: 'nodes and arrows of the map: words and their size, a picture or film, a button on an arrow',
@@ -242,13 +259,55 @@ export const LOOK_PARTS = {
     notes: 'note cards and the window of a step: the bar colour, the corners',
     marks: 'a new kind of mark at lines of code, its values and icons, its corner, a button in a corner',
     clicks: 'where a click, Alt+click, Shift+click, double click, key or right-click menu goes; every target',
-    windows: 'the window of the pointer: its width, its sections, their order',
+    windows: 'the window of the pointer: width, sections, their order, sections of blocks; a window as a target',
     lists: 'what is left out, a pick by a field, the order and groups of rows',
+    blocks: 'text, fields, table, bars, code, state, links, button, picture, diagram, row; data from a repo file',
+    pages: 'a page of the look that opens as a tab: its blocks, and the target that opens it',
   },
   sets: {
     what: 'a new kind of mark: writers mark the lines of code that its rule names, and the icons of its values stand in its corner',
     form: '{ "id": "<small letters and ->", "name": "<a short name>", "rule": "<one or two plain sentences that tell a writer which lines to mark, and which value each gets>", "values": [ { "id": "<id>", "name": "<name>", "icon": "<file of an icon>" } ], "corner": { "node": "<corner>", "note": "<corner>" } }',
     area: 'marks', words: ['mark', 'marks', 'tag', 'category', 'icon'],
+  },
+  blocks: {
+    text: { what: 'words; an empty line starts a new paragraph; no HTML', form: '{ "text": "<words>" }', area: 'blocks', words: ['words', 'paragraph', 'description', 'summary'], example: { text: 'What this part does, in two plain sentences.' } },
+    fields: {
+      what: 'names with their values', form: '{ "fields": [ ["<name>", "<value>"] ] }', file: '{ "file": "<a JSON object>", "keys": [<keys>] }',
+      area: 'blocks', words: ['facts', 'properties', 'key value', 'details'], example: { fields: [['Runs', 'each night'], ['Owner', 'the desk team']] },
+    },
+    table: {
+      what: 'a small table', form: '{ "table": { "columns": [<names>], "rows": [ [<values>] ] } }', file: '{ "file", "columns": [<columns>], "rows"?: <the most rows> }',
+      area: 'blocks', words: ['grid', 'rows', 'columns', 'csv', 'spreadsheet'], example: { title: 'Branches', table: { columns: ['Branch', 'Opens'], rows: [['North', '09:00']] } },
+    },
+    bars: {
+      what: 'one bar for each row, with its number', form: '{ "bars": [ ["<name>", <number>] ] }', file: '{ "file", "label": "<column>", "value": "<column of numbers>", "rows"? }',
+      area: 'blocks', words: ['chart', 'graph', 'bar chart', 'numbers', 'counts'], example: { bars: [['North', 9], ['Harbour', 8]] },
+    },
+    code: {
+      what: 'lines of code, never cut off; from a file, its name opens those lines', form: '{ "code": "<text>" }', file: '{ "file", "lines": [<from>, <to>] }, or { "file", "key" }: a value of a JSON file',
+      area: 'blocks', words: ['snippet', 'source', 'json', 'excerpt'], example: { code: 'def main():\n    run()' },
+    },
+    state: {
+      what: 'a dot, a word, and quiet words after it', form: '{ "state": { "word": "<word>", "color"?: "#rrggbb", "text"?: "<words>" } }', file: '{ "file", "key" }: the word is its value',
+      area: 'blocks', words: ['status', 'badge', 'health', 'passed', 'failed'], example: { state: { word: 'ready', color: '#2b6cb0', text: 'since the last run' } },
+    },
+    links: { what: 'links, each to a target', form: '{ "links": [ { "name": "<words>", "target": <target> } ] }', area: 'blocks', words: ['link', 'go to', 'open', 'see also'], example: { links: [{ name: 'The code', target: { file: '<file>' } }] } },
+    button: { what: 'a button that goes to a target', form: '{ "button": { "name": "<words>", "target": <target> } }', area: 'blocks', words: ['press', 'action', 'run'], example: { button: { name: 'Open the code', target: { file: '<file>' } } } },
+    picture: { what: 'a picture, kept in Apostil\'s store', form: '{ "picture": "<file>" }', area: 'blocks', words: ['image', 'figure', 'screenshot', 'photo'], example: { picture: 'apostil-look-figure.png' } },
+    diagram: { what: 'a diagram of the map, small; a click opens it on Home', form: '{ "diagram": "<id>" }', area: 'blocks', words: ['map', 'flow', 'process', 'drawing'], example: { diagram: '<diagram>' } },
+    row: { what: 'two or three blocks side by side, one under the other when narrow; no row in a row', form: '{ "row": [<block>, <block>] }', area: 'blocks', words: ['columns', 'side by side', 'layout'], example: { row: [{ text: 'Left' }, { text: 'Right' }] } },
+  },
+  blockTitle: 'any block may have "title": a quiet line above it',
+  sources: {
+    written: 'the value in the block, as "form" says',
+    file: 'in its place, as "file" says: a CSV, TSV or JSON file that Git lists (rows, or the keys of an object), read when its window or page opens',
+  },
+  limits: { pageBlocks: 30, sectionBlocks: 6, ownSections: 4, rowBlocks: 3, rows: 50, rowsWhenNone: 10, columns: 12, codeLines: 100, fileBytes: 2 * 1024 * 1024, pages: 20 },
+  pages: {
+    what: 'pages of the look: each opens as a tab with its title; the target "page" opens one',
+    form: '"pages": [ { "id": "<small letters, digits and ->", "title": "<words>", "blocks": [<block>] } ], beside "rules"',
+    area: 'pages', words: ['page', 'report', 'dashboard', 'overview', 'screen'],
+    example: { pages: [{ id: 'overview', title: 'Overview', blocks: [{ text: 'What the repo does.' }] }], rules: [] },
   },
 } as const satisfies LookPartsList;
 
@@ -290,6 +349,8 @@ export interface Target {
   part?: string;
   pull?: number;
   comment?: true;
+  window?: { title?: string; width?: number; blocks?: Block[]; ref?: string }; // a page gets `ref` in place of the blocks, and asks for them when it opens
+  page?: string;
 }
 /** What a button does on a click: a target (build 51 named it an action). */
 export type Action = Target;
@@ -315,11 +376,19 @@ export interface LookRule {
   text?: { color?: string; size?: string; icon?: string };
   click?: Target;
   input?: { alt?: Target; shift?: Target; double?: Target; key?: Record<string, Target>; menu?: { name: string; target: Target }[] };
-  window?: { width?: number; sections?: string[] };
+  window?: { width?: number; sections?: (string | OwnSection)[] };
 }
+
+/** A block of a page or a window: one kind of LOOK_PARTS.blocks with its value, and any "title". */
+export type Block = Record<string, unknown> & { title?: string };
+/** A section of its own in the window of the pointer: a quiet title and blocks. A page gets `ref` in place of the blocks. */
+export interface OwnSection { title?: string; blocks?: Block[]; ref?: string }
+/** A page of the look: it opens as a tab named by its title. */
+export interface LookPage { id: string; title: string; blocks: Block[] }
 
 export interface Look {
   sets?: MarkSet[];
+  pages?: LookPage[];
   rules: LookRule[];
 }
 
@@ -355,6 +424,7 @@ export function lookFiles(look: Look): LookFile[] {
     if (isText(holder[key])) files.push({ path: holder[key], use, at, put: (kept) => { holder[key] = kept; }, ...(value ? { value } : {}) });
   };
   for (const set of look.sets ?? []) for (const value of set.values ?? []) add(value, 'icon', 'icon', `The value "${value.id}" of the set "${set.id}"`, { set: set.id, id: value.id });
+  eachBlock(look, (block, at) => add(block, 'picture', 'picture', at)); // the pictures of blocks, kept as the picture of a node is
   look.rules.forEach((rule, index) => {
     for (const [slot, about] of Object.entries(LOOK_PARTS.slots) as [SlotName, (typeof LOOK_PARTS.slots)[SlotName]][]) {
       const given = (rule as unknown as Record<string, unknown>)[slot];
@@ -374,6 +444,8 @@ export interface LookContext {
   folder: string;
   map?: RepoMap;
   commands: string[];
+  pages?: string[]; // the ids of the pages of the look, which the target "page" may name
+  listed?: Set<string>; // the files that Git lists, read once for a look
 }
 
 /** How many letters to add, remove or change to turn one word into the other. */
@@ -418,11 +490,14 @@ const unknownFields = (value: object, known: readonly string[], at: string): str
  * What is wrong with a look, as sentences that a model can act on: known components and slots, each slot fits its component, known fields with
  * values of their kind, existing paths, node ids and diagram ids, known mark sets, known targets. The files are checked by set-look, which reads them.
  */
-export function lookProblems(value: unknown, context: LookContext): string[] {
+export function lookProblems(value: unknown, given: LookContext): string[] {
   if (!isObject(value)) return ['The look must be a JSON object: { "sets"?: [ ... ], "rules": [ ... ] }.'];
   const look = value as unknown as Look;
   const problems: string[] = [];
-  for (const key of Object.keys(value)) if (key !== 'sets' && key !== 'rules') problems.push(`The look: "${key}" is no field of a look. Use "sets" and "rules".`);
+  for (const key of Object.keys(value)) if (key !== 'sets' && key !== 'rules' && key !== 'pages') problems.push(`The look: "${key}" is no field of a look. Use "sets", "pages" and "rules".`);
+  // The pages first, so that a target "page" anywhere knows their ids.
+  const context: LookContext = { ...given, pages: Array.isArray(look.pages) ? look.pages.map((page) => page?.id).filter(isId) : [] };
+  if (look.pages !== undefined) problems.push(...pageProblems(look.pages, context));
   if (!Array.isArray(look.rules)) problems.push('"rules" must be a list of rules. Write an empty list for the default look.');
   if (look.sets !== undefined && !Array.isArray(look.sets)) problems.push('"sets" must be a list of mark sets.');
   const sets = new Set([SERVICES.id]);
@@ -586,10 +661,15 @@ export function valueProblem(kind: ValueKind, value: unknown, at: string, field:
     case 'sections': {
       const own = component.sections ?? [];
       if (!Array.isArray(value) || !value.length) return [`${at}: "sections" must be a list of the sections of the window of ${an(ctx.kind)}: any of ${listed(own)}.`];
-      return value.flatMap((one) => {
-        if (isObject(one)) return [`${at}: a section of its own comes with a later build. Give the ids of the sections of today: ${listed(own)}.`];
-        return own.includes(one) ? [] : [`${at}: "${String(one)}" is no section of the window of ${an(ctx.kind)}. Its sections are ${listed(own)}.${nearestPart(String(one), own)}`];
-      });
+      const mine = value.filter(isObject).length;
+      const most = LIMITS.ownSections;
+      return [
+        ...(mine > most ? [`${at}: it has ${mine} sections of its own. A window holds at most ${most}. Make a page, or fewer sections.`] : []),
+        ...value.flatMap((one, index) => {
+          if (isObject(one)) return ownSectionProblems(one, `${at}, section ${index + 1}`, context);
+          return own.includes(one) ? [] : [`${at}: "${String(one)}" is no section of the window of ${an(ctx.kind)}. Its sections are ${listed(own)}.${nearestPart(String(one), own)}`];
+        }),
+      ];
     }
     case 'button': return buttonProblems(value, `${at}, the button "${field}"`, context);
     case 'corner':
@@ -679,6 +759,227 @@ export function targetProblems(value: unknown, at: string, context: LookContext)
     case 'comment':
       if (target.comment !== true) problems.push(`${at}: "comment" must be true.`);
       break;
+    case 'window': {
+      const win = target.window as unknown;
+      if (!isObject(win)) { problems.push(`${at}: "window" must be ${TARGETS.window.form.slice('{ "window": '.length, -2)}.`); break; }
+      problems.push(...unknownFields(win, ['title', 'width', 'blocks'], `${at}, "window"`));
+      if (win.title !== undefined && !isText(win.title)) problems.push(`${at}: the "title" of a window must be words.`);
+      if (win.width !== undefined && !(typeof win.width === 'number' && win.width >= WINDOW_WIDTH[0] && win.width <= WINDOW_WIDTH[1])) problems.push(`${at}: the "width" of a window must be ${VALUES.pixels}.`);
+      problems.push(...blockProblems(win.blocks, at, context, { most: LIMITS.sectionBlocks, holder: 'A window', instead: 'Make a page, or fewer blocks.' }));
+      break;
+    }
+    case 'page': {
+      const pages = context.pages ?? [];
+      if (isText(target.page) && pages.includes(target.page)) break;
+      problems.push(pages.length ? `${at}: the look has no page "${String(target.page)}". Its pages are ${listed(pages)}.${nearestPart(target.page, pages)}`
+        : `${at}: the look has no page "${String(target.page)}". It has no pages yet: add one to "pages".`);
+      break;
+    }
   }
   return problems;
+}
+
+// ----- blocks: what a page or a section of a window shows (build 58) -----
+
+const LIMITS = LOOK_PARTS.limits;
+export const BLOCK_KINDS = Object.keys(LOOK_PARTS.blocks);
+/** The fields of a file source of each block that takes one: a table, bars, fields, a state, and code (its lines, or a key of a JSON file). */
+const SOURCE_FIELDS: Record<string, string[]> = { table: ['file', 'columns', 'rows'], bars: ['file', 'label', 'value', 'rows'], fields: ['file', 'keys'], state: ['file', 'key'], code: ['file', 'lines', 'key'] };
+
+/** The kind of a block: its one field besides "title"; undefined when it has none or several. */
+export function blockKind(block: unknown): string | undefined {
+  if (!isObject(block)) return undefined;
+  const kinds = Object.keys(block).filter((key) => key !== 'title');
+  return kinds.length === 1 ? kinds[0] : undefined;
+}
+
+/** How many blocks a list may hold, and the words of its sentence: "A page holds at most 30. Make two pages, or fewer blocks." */
+interface BlockRoom { most: number; holder: string; instead: string }
+
+/** The problems of the pages of a look: at most 20, each { "id", "title", "blocks" }, its id once. */
+function pageProblems(pages: unknown, context: LookContext): string[] {
+  if (!Array.isArray(pages)) return ['"pages" must be a list of pages: { "id", "title", "blocks" }.'];
+  const problems = pages.length > LIMITS.pages ? [`The look: it has ${pages.length} pages. A look holds at most ${LIMITS.pages}. Put more blocks on one page, or fewer pages.`] : [];
+  const ids = new Set<string>();
+  pages.forEach((page, index) => {
+    if (!isObject(page)) return void problems.push(`Page ${index + 1}: a page is { "id", "title", "blocks" }.`);
+    const at = isText(page.id) ? `Page "${page.id}"` : `Page ${index + 1}`;
+    problems.push(...unknownFields(page, ['id', 'title', 'blocks'], at));
+    if (!isId(page.id)) problems.push(`${at}: "id" must use small letters, digits and "-".`);
+    else if (ids.has(page.id)) problems.push(`The look: the page id "${page.id}" is used twice. Give each page its own id.`);
+    else ids.add(page.id);
+    if (!isText(page.title)) problems.push(`${at}: "title" is missing: the name of its tab.`);
+    problems.push(...blockProblems(page.blocks, at, context, { most: LIMITS.pageBlocks, holder: 'A page', instead: 'Make two pages, or fewer blocks.' }));
+  });
+  return problems;
+}
+
+/** The problems of a section of its own in a window: a quiet title, and at most 6 blocks. */
+function ownSectionProblems(section: Record<string, unknown>, at: string, context: LookContext): string[] {
+  return [
+    ...unknownFields(section, ['title', 'blocks'], at),
+    ...(section.title !== undefined && !isText(section.title) ? [`${at}: "title" must be words.`] : []),
+    ...blockProblems(section.blocks, at, context, { most: LIMITS.sectionBlocks, holder: 'A section', instead: 'Make two sections, or fewer blocks.' }),
+  ];
+}
+
+/** The problems of a list of blocks, wherever it stands: at most `room.most`, each one block of LOOK_PARTS.blocks in its form. */
+export function blockProblems(blocks: unknown, at: string, context: LookContext, room: BlockRoom): string[] {
+  if (!Array.isArray(blocks) || !blocks.length) return [`${at}: "blocks" must be a list of blocks, as [ { "text": "<words>" } ]; apostil look-slots blocks gives every block.`];
+  const problems = blocks.length > room.most ? [`${at}: it has ${blocks.length} blocks. ${room.holder} holds at most ${room.most}. ${room.instead}`] : [];
+  blocks.forEach((block, index) => problems.push(...oneBlockProblems(block, `${at}, block ${index + 1}`, context)));
+  return problems;
+}
+
+/** The problems of one block: one kind with its value, or a file source in its place. */
+function oneBlockProblems(block: unknown, at: string, context: LookContext): string[] {
+  if (!isObject(block)) return [`${at}: a block is an object of one kind, as { "text": "<words>" }.`];
+  const keys = Object.keys(block).filter((key) => key !== 'title');
+  const problems = keys.filter((key) => !BLOCK_KINDS.includes(key)).map((key) => `${at}: "${key}" is no block. The blocks are ${listed(BLOCK_KINDS)}.${nearestPart(key, BLOCK_KINDS)}`);
+  if (block.title !== undefined && !isText(block.title)) problems.push(`${at}: "title" must be words.`);
+  const kinds = keys.filter((key) => BLOCK_KINDS.includes(key));
+  if (kinds.length !== 1) return problems.length && !kinds.length ? problems : [...problems, `${at}: a block holds exactly one of ${listed(BLOCK_KINDS)}.`];
+  const kind = kinds[0];
+  const value = block[kind];
+  const about = (LOOK_PARTS.blocks as LookPartsList['blocks'])[kind];
+  const form = `${at}: the block "${kind}" is ${about.form}${about.file ? `, or a file in its place: ${about.file}` : ''}.`;
+  if (SOURCE_FIELDS[kind] && isObject(value) && 'file' in value) return [...problems, ...sourceProblems(kind, value, at, context)];
+  const pairs = (most: number, fits: (one: unknown) => boolean): string[] => {
+    if (!Array.isArray(value) || !value.length || !value.every((one) => Array.isArray(one) && one.length === 2 && isText(one[0]) && fits(one[1]))) return [form];
+    return value.length > most ? [`${at}: it has ${value.length} rows. ${kind === 'bars' ? 'Bars show' : 'Fields show'} at most ${most}.`] : [];
+  };
+  switch (kind) {
+    case 'text': return isText(value) ? problems : [...problems, form];
+    case 'fields': return [...problems, ...pairs(LIMITS.rows, (one) => ['string', 'number', 'boolean'].includes(typeof one))];
+    case 'bars': return [...problems, ...pairs(LIMITS.rows, (one) => typeof one === 'number' && Number.isFinite(one))];
+    case 'code': return typeof value === 'string' && value.length ? problems : [...problems, form];
+    case 'table': {
+      if (!isObject(value) || !Array.isArray(value.columns) || !value.columns.length || !value.columns.every(isText) || !Array.isArray(value.rows) || !value.rows.every((row) => Array.isArray(row))) return [...problems, form];
+      if (value.columns.length > LIMITS.columns) problems.push(`${at}: a table shows at most ${LIMITS.columns} columns. Give fewer "columns".`);
+      if (value.rows.length > LIMITS.rows) problems.push(`${at}: it has ${value.rows.length} rows. A table shows at most ${LIMITS.rows}.`);
+      if (value.rows.some((row: unknown[]) => row.length > value.columns.length)) problems.push(`${at}: a row of the table has more values than "columns" has names.`);
+      return problems;
+    }
+    case 'state':
+      if (!isObject(value) || !isText(value.word)) return [...problems, form];
+      problems.push(...unknownFields(value, ['word', 'color', 'text'], `${at}, "state"`));
+      if (value.color !== undefined) problems.push(...valueProblem('colour', value.color, `${at}, "state"`, 'color', { kind: 'node', component: componentOf('node'), context, sets: new Set() }));
+      if (value.text !== undefined && !isText(value.text)) problems.push(`${at}: the "text" of a state must be words.`);
+      return problems;
+    case 'links':
+      if (!Array.isArray(value) || !value.length) return [...problems, form];
+      return [...problems, ...value.flatMap((link, index) => (isObject(link) && isText(link.name)
+        ? [...unknownFields(link, ['name', 'target'], `${at}, link ${index + 1}`), ...targetProblems(link.target, `${at}, link ${index + 1}`, context)]
+        : [`${at}: link ${index + 1} must be { "name": what it says, "target": <target> }.`]))];
+    case 'button':
+      if (!isObject(value) || !isText(value.name)) return [...problems, form];
+      return [...problems, ...unknownFields(value, ['name', 'target'], `${at}, "button"`), ...targetProblems(value.target, `${at}, "button"`, context)];
+    case 'picture': return isText(value) ? problems : [...problems, form]; // set-look reads the file and keeps it
+    case 'diagram':
+      if (isText(value) && diagramIds(context.map).has(value)) return problems;
+      return [...problems, `${at}: "${String(value)}" is no diagram of the map. apostil map lists the ids of the diagrams; a process is "process:<id>".${nearestPart(value, [...diagramIds(context.map)])}`];
+    case 'row':
+      if (!Array.isArray(value) || value.length < 2 || value.length > LIMITS.rowBlocks) return [...problems, `${at}: a row holds two or three blocks side by side: { "row": [<block>, <block>] }.`];
+      if (value.some((one) => blockKind(one) === 'row')) return [...problems, `${at}: a row cannot hold a row. Put the blocks of the inner row into this row, or into a second row.`];
+      return [...problems, ...value.flatMap((one, index) => oneBlockProblems(one, `${at}.${index + 1}`, context))];
+  }
+  return problems;
+}
+
+/** The sentence of a file that a block cannot read, by why. */
+function readProblem(fault: ReadFault, path: string, at: string, kind: string): string {
+  const ending = (/\.([a-z]+)$/i.exec(path)?.[1] ?? '').toUpperCase();
+  return {
+    unlisted: `${at}: the file ${path} is no file of the repo. Give a path that Git lists.`,
+    outside: `${at}: the file ${path} lies outside the repo. Give a path inside it that Git lists.`,
+    large: `${at}: the file ${path} is larger than ${LIMITS.fileBytes / 1024 / 1024} MB. A block reads a file of at most ${LIMITS.fileBytes / 1024 / 1024} MB.`,
+    kind: `${at}: the file ${path} is no CSV, TSV or JSON file. A block reads its data from one of them${kind === 'code' ? ', or code from "lines" of any file' : ''}.`,
+    unread: `${at}: the file ${path} does not read as ${ending}. Correct it, or give another file.`,
+  }[fault];
+}
+
+/** The fields of a file source that are missing in the file now: a column or a key. Undefined when all are there. The check and the page both use it. */
+export function missingIn(kind: string, source: Record<string, unknown>, data: { rows?: { columns: string[] }; keys?: Record<string, unknown> }): { name: string; of: 'column' | 'key'; have: string[] } | undefined {
+  const names = kind === 'table' ? source.columns : kind === 'bars' ? [source.label, source.value] : kind === 'fields' ? source.keys : [source.key];
+  const have = data.rows ? data.rows.columns : Object.keys(data.keys ?? {});
+  const name = (Array.isArray(names) ? names : []).find((one) => !have.includes(String(one)));
+  return name === undefined ? undefined : { name: String(name), of: data.rows ? 'column' : 'key', have };
+}
+
+/** The problems of a file source in place of the value of a block: its fields, a file that Git lists and that reads as its kind, and its columns or keys. */
+function sourceProblems(kind: string, source: Record<string, unknown>, at: string, context: LookContext): string[] {
+  const problems = unknownFields(source, SOURCE_FIELDS[kind], at);
+  const path = String(source.file);
+  context.listed ??= listedFiles(context.folder);
+  if (kind === 'code' && source.lines === undefined && source.key === undefined) return [...problems, `${at}: code from a file needs "lines": [<from>, <to>], or "key" for a value of a JSON file.`];
+  if (kind === 'code' && source.lines !== undefined) {
+    const read = readRepoText(context.folder, path, LIMITS.fileBytes, context.listed);
+    if ('fault' in read) return [...problems, readProblem(read.fault, path, at, kind)];
+    const [from, to] = Array.isArray(source.lines) ? source.lines : [];
+    const count = read.text.split('\n').length;
+    if (!isLine(from) || !isLine(to) || from > to) return [...problems, `${at}: "lines" must be [<from>, <to>]: two line numbers, the first one first.`];
+    if (to > count) return [...problems, `${at}: line ${to} is not inside ${path}, which has ${count} lines.`];
+    return to - from + 1 > LIMITS.codeLines ? [...problems, `${at}: it shows ${to - from + 1} lines. A code block shows at most ${LIMITS.codeLines}.`] : problems;
+  }
+  if (source.rows !== undefined && !(Number.isInteger(source.rows) && (source.rows as number) >= 1 && (source.rows as number) <= LIMITS.rows)) problems.push(`${at}: "rows" must be a whole number from 1 to ${LIMITS.rows}.`);
+  const read = readRepoData(context.folder, path, LIMITS.fileBytes, context.listed);
+  if ('fault' in read) return [...problems, readProblem(read.fault, path, at, kind)];
+  const { rows, keys } = read.data;
+  const wantsRows = kind === 'table' || kind === 'bars';
+  if (wantsRows && !rows) return [...problems, `${at}: the file ${path} holds one object, not rows. ${kind === 'bars' ? 'Bars read' : 'A table reads'} a CSV or TSV file, or a JSON list of objects.`];
+  if (!wantsRows && !keys) return [...problems, `${at}: the file ${path} holds rows, not one object. ${kind === 'fields' ? 'Fields read keys' : kind === 'state' ? 'A state reads a key' : 'Code reads a key'} of a JSON object.`];
+  const have = rows ? rows.columns : Object.keys(keys!);
+  const needs = { table: ['columns', 'a table from a file needs "columns"'], bars: ['label', 'bars from a file need "label" and "value"'], fields: ['keys', 'fields from a file need "keys"'], state: ['key', 'a state from a file needs "key"'], code: ['key', 'code from a JSON file needs "key"'] }[kind]!;
+  const given = kind === 'bars' ? isText(source.label) && isText(source.value) : kind === 'state' || kind === 'code' ? isText(source.key) : Array.isArray(source[needs[0]]) && (source[needs[0]] as unknown[]).length && (source[needs[0]] as unknown[]).every(isText);
+  if (!given) return [...problems, `${at}: ${needs[1]}. The file ${path} has: ${have.join(', ')}.`];
+  if (kind === 'table' && (source.columns as string[]).length > LIMITS.columns) problems.push(`${at}: a table shows at most ${LIMITS.columns} columns. Give fewer "columns".`);
+  const missing = missingIn(kind, source, read.data);
+  if (missing) return [...problems, `${at}: the file ${path} has no ${missing.of} "${missing.name}". Its ${missing.of}s are ${missing.have.join(', ')}.${nearestPart(missing.name, missing.have)}`];
+  const odd = kind === 'bars' && rows!.rows.find((row) => !Number.isFinite(Number(row[source.value as string])));
+  if (odd) problems.push(`${at}: the column "${String(source.value)}" of ${path} holds "${String(odd[source.value as string])}", which is no number.`);
+  return problems;
+}
+
+/** Each block of a look with where it stands: in its pages, in the sections of windows, in the windows of targets, and inside rows. */
+export function eachBlock(look: Partial<Look>, visit: (block: Block, at: string) => void): void {
+  const walk = (value: unknown, at: string): void => {
+    if (Array.isArray(value)) return value.forEach((one) => walk(one, at));
+    if (!isObject(value)) return;
+    if (Array.isArray(value.blocks)) value.blocks.forEach((block: unknown, index: number) => one(block, `${at}, block ${index + 1}`));
+    for (const [key, inner] of Object.entries(value)) if (key !== 'blocks') walk(inner, at);
+  };
+  const one = (block: unknown, at: string): void => {
+    if (!isObject(block)) return;
+    visit(block, at);
+    if (Array.isArray(block.row)) block.row.forEach((inner: unknown, index: number) => one(inner, `${at}.${index + 1}`));
+    for (const [key, inner] of Object.entries(block)) if (key !== 'row') walk(inner, at); // a window of a link or a button
+  };
+  for (const page of Array.isArray(look.pages) ? look.pages : []) walk(page, `Page "${page?.id}"`);
+  (Array.isArray(look.rules) ? look.rules : []).forEach((rule, index) => walk(rule, `Rule ${index + 1}`));
+}
+
+/** The name of a list of blocks for a page that asks for it: the same blocks give the same name. */
+export const blockRef = (blocks: unknown): string => createHash('sha1').update(JSON.stringify(blocks)).digest('hex').slice(0, 12);
+
+/** A copy of a value of the look with each list of blocks (a section of its own, the window of a target) in the form { ref }: Home carries no blocks. */
+export function withBlockRefs<T>(value: T): T {
+  if (Array.isArray(value)) return value.map(withBlockRefs) as T;
+  if (!isObject(value)) return value;
+  const { blocks, ...rest } = value as Record<string, unknown>;
+  const copy = Object.fromEntries(Object.entries(rest).map(([key, inner]) => [key, withBlockRefs(inner)]));
+  return (Array.isArray(blocks) ? { ...copy, ref: blockRef(blocks) } : blocks === undefined ? copy : { ...copy, blocks }) as T;
+}
+
+/** The list of blocks of a look that has a ref, or undefined when the look has none such now. */
+export function blocksOfRef(look: Partial<Look>, ref: string): Block[] | undefined {
+  let found: Block[] | undefined;
+  const walk = (value: unknown): void => {
+    if (found || !value || typeof value !== 'object') return;
+    if (Array.isArray(value)) return value.forEach(walk);
+    const blocks = (value as Record<string, unknown>).blocks;
+    if (Array.isArray(blocks) && blockRef(blocks) === ref) found = blocks;
+    Object.values(value).forEach(walk);
+  };
+  walk(look);
+  return found;
 }

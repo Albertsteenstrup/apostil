@@ -16,6 +16,7 @@ import { rowOfFileInFront, treeSteps } from './files-follow';
 import { FilesTree } from './files-tree';
 import { idOf } from './home-data';
 import { HomePages } from './home-page';
+import { lookPages } from './look-blocks';
 import { answerTarget, type TargetPlaces } from './look-targets';
 import { askOnceInNewRepo } from './new-repo-question';
 import { registerLinks } from './link-handler';
@@ -62,6 +63,7 @@ export function activate(context: vscode.ExtensionContext) {
     if (step.tab === 'home') home.openHome({ diagram: step.diagram, lit: step.lit ?? [] });
     else if (step.tab === 'graphs') home.openGraphs(step.path);
     else if (step.tab === 'pull') page.openPull(step.link, Number(step.link.split('/').pop()));
+    else if (step.tab === 'page') home.openPage(step.page);
     else page.openAt(step.change, step.go);
   };
   const trail = new WindowTrail(openStep, (steps) => { home.postTrail(steps); page.postTrail(steps); });
@@ -157,10 +159,27 @@ export function activate(context: vscode.ExtensionContext) {
       return change && { id: change.id, title: change.file.title, parts: change.file.parts.map(({ id, name }) => ({ id, name })) };
     },
     openPull: (number) => void openPullRequest(String(number)),
+    openPage: (id) => openLookPage(id),
     app: apps[0],
     sendPrompt: (text, diagram) => home.sendPrompt(text, diagram),
   };
   home.onTarget = page.onTarget = (target, diagram) => void answerTarget(target, places, diagram);
+
+  /** A page of the look as a new path, "Home › <title>"; a page that the look no longer has says so. */
+  function openLookPage(id: string): void {
+    const title = home.pageTitle(id);
+    if (!title) return void vscode.window.showInformationMessage(`The look of this repo has no page "${id}".`);
+    trail.start({ tab: 'page', page: id, name: title });
+    home.openPage(id);
+  }
+  /** "Apostil: Open a Page of the Look…": the pages of the look of the open repo, in a list; the command shows only when the look has pages. */
+  const pickLookPage = async (): Promise<void> => {
+    const pages = lookPages(theStore, openFolder());
+    const picked = pages.length === 1 ? { id: pages[0].id } : await vscode.window.showQuickPick(pages.map((one) => ({ label: one.title, description: one.id, id: one.id })), { title: 'Open a page of the look' });
+    if (picked) openLookPage(picked.id);
+  };
+  const updateLookPages = (): void => { void vscode.commands.executeCommand('setContext', 'apostil.lookHasPages', lookPages(theStore, openFolder()).length > 0); };
+  updateLookPages();
 
   // The tree "Files" marks the file of the tab in front, as the Explorer of VS Code does: the file of an editor, a notebook or a file tab of Apostil
   // (the choice: rowOfFileInFront).
@@ -180,6 +199,7 @@ export function activate(context: vscode.ExtensionContext) {
     filesView.onDidChangeVisibility((event) => { if (event.visible) markFileInFront(true); }),
     vscode.commands.registerCommand('apostil.home', () => openHome()),
     vscode.commands.registerCommand('apostil.graphsOf', (target?: unknown) => graphsOf(target)),
+    vscode.commands.registerCommand('apostil.openLookPage', () => pickLookPage()),
     vscode.workspace.registerTextDocumentContentProvider(BaseText.scheme, new BaseText()),
     vscode.window.registerCustomEditorProvider(ChangePage.fileEditor, page, { webviewOptions: { retainContextWhenHidden: true } }),
     vscode.workspace.onDidChangeConfiguration((event) => { if (event.affectsConfiguration('editor.minimap.enabled')) page.minimapChanged(); }),
@@ -215,7 +235,7 @@ export function activate(context: vscode.ExtensionContext) {
     clearTimeout(timer);
     timer = setTimeout(() => {
       list.refreshIfChanged(); page.reloadIfChanged(); updateHasChange(); notes.storeChanged();
-      if (home.changed()) files.refresh(); // a new map or change can put new rows into a diagram
+      if (home.changed()) { files.refresh(); updateLookPages(); } // a new map or change can put new rows into a diagram; a new look new pages
     }, 300);
   };
   for (const file of storeFiles()) watchFile(file, { interval: 1000 }, changed);
@@ -225,7 +245,7 @@ export function activate(context: vscode.ExtensionContext) {
     listRows: () => list.rows(), listShown: () => list.shown, needsSetup: () => agentsNeedSetup(openFolder()), listPulls: () => list.pulls, page: () => page.page, rendered: () => page.rendered, renderedFile: () => page.renderedFile,
     remarkAction: (id: number, action: RemarkAction) => page.act(id, action),
     saveRemark: (message: NewRemark) => page.saveRemark(message),
-    home: () => home.homeShown, graphs: (path: string) => home.graphsShown[path], homeRendered: () => home.rendered,
+    home: () => home.homeShown, graphs: (path: string) => home.graphsShown[path], homeRendered: () => home.rendered, lookPage: (id: string) => home.pagesShown[id],
     writeMap: (app: string) => home.writeMap(app), openHome: () => openHome(), graphsOf: (target?: unknown) => graphsOf(target), trail: () => trail.steps,
     notesShown: (path: string) => notes.shown.get(path), notesStatus: () => notes.statusText,
   };
