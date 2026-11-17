@@ -214,7 +214,7 @@ const App = {
       await drawBroad(view, broad);
     } else if (Split.wanted()) {
       // The diagram of the change and the list of its diffs, closed; the keys step through the changes, and the graph follows them.
-      tabs.innerHTML = `${Split.controlHtml()}${Split.allHtml(false)}<span class="nav"></span>`;
+      tabs.innerHTML = `${Split.controlHtml()}<span class="nav">&nbsp;</span>`; // the counter fills it later; the line has its height from the start
       this.diffs = await changeWithDiffs(...Split.halves(view), state.from);
     } else {
       tabs.innerHTML = Split.controlHtml();
@@ -389,11 +389,11 @@ async function drawPartView(tabs, view, part) {
   const diagrams = partDiagrams(part);
   if (!diagrams.length) return App.showCode(App.firstFile(part), null); // the look leaves out all its diagrams: its code, as for a part with none
   const diagram = diagrams.find((candidate) => candidate.id === state.diagram) ?? diagrams[0];
-  tabs.innerHTML = tabsHtml(diagrams, diagram) + diagramFactsHtml(diagram) + Split.controlHtml();
+  tabs.innerHTML = Split.controlHtml() + tabsHtml(diagrams, diagram) + diagramFactsHtml(diagram);
   if (!Split.wanted()) return drawPart(view, diagram);
   const [left, right] = Split.halves(view);
   const join = diagram.file ? await Split.showFile(right, diagram) : null;
-  if (!join) Split.showDiffs(right, part.id);
+  if (!join) { Split.showDiffs(right, part.id); Split.controls(view); }
   await drawPart(left, diagram, join);
 }
 
@@ -411,16 +411,20 @@ function summaryHtml() {
   return bits.join(' · ');
 }
 
-/** The list of every changed file, under the names of the parts, each with its counts; picking one opens it, on "Diffs" shows it, on "Diagram" brings it to the top. */
-function fileList(anchor) {
+/**
+ * The list of every changed file, under the names of the parts, each with its counts; picking one opens it, on "Diffs" shows it, on "Diagram" brings it to the top.
+ * With `part` (the id of a part, or "no-part") only the files of that part: the window of "3 more files".
+ */
+function fileList(anchor, part = null) {
   const { page } = App;
-  const order = App.order();
+  const groups = filesByPart().filter((group) => !part || group.id === part);
+  const count = groups.reduce((sum, group) => sum + group.paths.length, 0);
   const current = App.diffs ? App.diffs.here()?.path : App.state.file;
-  const group = ({ name, paths }) => `<div class="gp">${esc(name)}</div>` + paths.map((path) =>
+  const group = ({ name, paths }) => (part ? '' : `<div class="gp">${esc(name)}</div>`) + paths.map((path) =>
     `<a data-show="${esc(path)}" class="${path === current ? 'on' : ''}"><span>${esc(path)}</span><i class="c">${countsHtml(page.files.find((file) => file.path === path))}</i></a>`).join('');
-  const frame = windowFrame({ title: 'Files', sub: plural(order.length, 'changed file'), width: 640, actions: '<a data-close>Close</a>' });
+  const frame = windowFrame({ title: part ? groups[0]?.name ?? 'Files' : 'Files', sub: plural(count, part ? 'file' : 'changed file'), width: 640, actions: '<a data-close>Close</a>' });
   frame.el.classList.add('files');
-  frame.body.innerHTML = `<div class="rows">${filesByPart().map(group).join('')}</div>`;
+  frame.body.innerHTML = `<div class="rows">${groups.map(group).join('')}</div>`;
   placeWindow(frame.el, anchor.getBoundingClientRect());
   frame.body.querySelector('.on')?.scrollIntoView({ block: 'center' });
   const close = () => { frame.el.remove(); removeEventListener('mousedown', outside, true); };

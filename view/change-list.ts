@@ -9,7 +9,7 @@ import { ghArguments, pullRequestsFromJson, stackArguments, stackPlacesFromJson,
 import type { Store } from '../shared/store';
 import { someAppSeesSkills, thisInstall } from '../store/setup';
 import { openLink, webviewHtml } from './change-page';
-import { idOf } from './home-data';
+import { homeRowState, idOf } from './home-data';
 import { listRows, reopenStaleRuns, sessionGroups, type ListRow } from './list-rows';
 import { savedLook } from './look-data';
 import type { MenuMessage } from './sort-filter';
@@ -140,7 +140,8 @@ export class ChangeList implements vscode.WebviewViewProvider {
     this.searchKey = `apostil.listSearch:${(folder && idOf(folder)) || folder}`;
     const id = folder ? idOf(folder) : undefined;
     const look = id ? savedLook(this.store, id, folder) : undefined; // the look of the repo for the rows, when one is saved
-    this.view.webview.postMessage({ type: 'rows', repo, groups: sessionGroups(this.sentRows), search: this.memory?.get<ListSearch>(this.searchKey), look });
+    // homeState: what the row "Home" says while a map run writes the map of the repo.
+    this.view.webview.postMessage({ type: 'rows', repo, groups: sessionGroups(this.sentRows), search: this.memory?.get<ListSearch>(this.searchKey), look, homeState: homeRowState(this.store, id) });
   }
 
   /** After the list is drawn: the pull requests of each branch, one message for each branch that has some. */
@@ -162,7 +163,7 @@ export class ChangeList implements vscode.WebviewViewProvider {
   private signatureNow(): string {
     const folder = this.openFolder();
     const id = folder ? idOf(folder) : undefined;
-    return JSON.stringify(id ? [this.store.getLook(id)?.savedAt, ...this.store.listChanges(id).map((change) => [
+    return JSON.stringify(id ? [this.store.getLook(id)?.savedAt, homeRowState(this.store, id), ...this.store.listChanges(id).map((change) => [
       change.id, change.savedAt, change.head, change.checks.filesInNoPart.length, change.agent,
       this.store.remarks(change.id).map((remark) => remark.state).join(),
     ])] : []);

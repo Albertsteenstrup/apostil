@@ -227,12 +227,14 @@ function pickMark(thing, one) {
 /**
  * The repo has no map: the wordmark of Apostil, large and quiet, where VS Code shows its own logo in an empty editor area.
  * Under it the press that maps the repo, one link for each app that can write the map (mapPressHtml in tools.js), and the next steps (the set-up step and the example).
+ * While a map run writes, the line of the run stands in place of the press (mapRunHtml in tools.js).
  */
 function noMapHtml() {
-  const { apps, writing, needsSetup } = Home.data;
+  const { apps, mapRun, needsSetup } = Home.data;
   const mark = '<img class="wordmark" src="apostil-wordmark.svg" alt="Apostil">';
-  if (writing) return `<div class="nomap">${mark}${mapPressHtml(apps, writing)}</div>`;
-  return `<div class="nomap">${mark}<p>This repo has no map and no notes yet.</p>${mapPressHtml(apps)}<div class="next">${nextStepsHtml(needsSetup)}</div></div>`;
+  if (mapRun?.state === 'writing') return `<div class="nomap">${mark}${mapPressHtml(apps, mapRun)}</div>`;
+  // After a map run that stopped, its line says so in place of the first line, above the press that starts again.
+  return `<div class="nomap">${mark}${mapRun ? '' : '<p>This repo has no map and no notes yet.</p>'}${mapPressHtml(apps, mapRun)}<div class="next">${nextStepsHtml(needsSetup)}</div></div>`;
 }
 
 async function drawHome() {
@@ -253,6 +255,9 @@ async function drawHome() {
   if (Object.keys(head).length) summary.innerHTML = Marks.wordsHtml(map.written ?? '', head, headFields, look) ?? '';
   // After a click on a mark: the quiet line of the value, which the × clears.
   if (Home.filter && diagram) summary.insertAdjacentHTML('beforeend', `${map.written ? ' · ' : ''}<span class="mk-filter">${esc(Home.filter.text)} <a data-clear-filter title="Clear">×</a></span>`);
+  // While a map run writes, the map shows what is saved, and this line says which session writes and what is done; after a stop, the press that starts again.
+  const run = Home.data.mapRun;
+  if (run && diagram) summary.insertAdjacentHTML('beforeend', `${summary.hasChildNodes() ? ' · ' : ''}${mapRunHtml(run, run.state === 'stopped' ? Home.data.apps : [])}`);
   let nodes = 0;
   if (!diagram) view.innerHTML = noMapHtml();
   else {
@@ -471,7 +476,7 @@ document.addEventListener('visibilitychange', drawIfWaiting);
 new ResizeObserver(drawIfWaiting).observe(document.body);
 
 // Start: inside VS Code ask for the data; as a file in a browser, load example-data.js:
-// "?path=<path>" is the graphs page of that path, "?nomap=1" Home with no map, "?diagram=<id>&lit=<ids>" Home at that diagram, "?look=<name>" Home with a
+// "?path=<path>" is the graphs page of that path, "?nomap=1" Home with no map, "?run=<name>" Home with the line of a made-up map run, "?diagram=<id>&lit=<ids>" Home at that diagram, "?look=<name>" Home with a
 // made-up look of the example: "?look=1" the look of build 51 (look.json), "?look=shared" look-shared.json; "?look=blocks&page=<id>" a page of that look;
 // "?look=home" look-home.json, also with "?path=".
 if (vscodeApi) {
@@ -488,6 +493,8 @@ if (vscodeApi) {
     // "?look=<name>": Home with a made-up look of the example; else the default look, with the logos of the services.
     const graphs = (query.get('look') && example.graphsLooks?.[query.get('look')]) || example.graphs; // the graphs pages in a made-up look, for a few paths
     Home.data = page || (path ? graphs[path] ?? example.graphs[path] ?? { kind: 'graphs', repo: example.home.repo, folder: '', path, panels: [] } : query.get('nomap') ? example.homeNoMap : query.get('look') ? example.homeLooks[query.get('look')] : example.home);
+    const run = example.mapRuns?.[query.get('run')]; // "?run=<name>": Home while a made-up map run writes, or after one stopped; with "?nomap=1" too
+    if (run && Home.data.kind === 'home') Home.data = { ...Home.data, mapRun: run };
     Home.at = query.get('diagram') || null;
     Home.lit = (query.get('lit') ?? '').split(',').filter(Boolean);
     Home.render();

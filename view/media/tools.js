@@ -106,14 +106,28 @@ const ASK_FOR_MAP = 'Ask your agent: <b>"Map this repo for Apostil."</b> It draw
 const MAP_RUN_WORDS = 'A new agent session reads the repo, draws its map and writes notes beside your code. It takes a few minutes and changes no file of the repo.';
 
 /**
+ * The quiet line of a map run (`run`, a MapRunLine of shared/map-run.ts): which session writes the map and what is saved so far, or that the run stopped.
+ * After the words, the link that opens the session in its app; for a session with no link, the command that resumes it, as text to copy (a click selects it).
+ * `apps`: after a run that stopped, one press for each app that starts the map again. Nothing in the line moves.
+ */
+function mapRunHtml(run, apps = []) {
+  const words = `<span${run.tip ? ` title="${esc(run.tip)}"` : ''}>${esc(run.words)}</span>`;
+  const reach = run.link ? `<a data-link="${esc(run.link)}">Open the session</a>`
+    : run.command ? `<code title="The command that resumes this session in a terminal">${esc(run.command)}</code>` : '';
+  const again = apps.map((app) => `<a data-write="${esc(app)}">Start again with ${esc(AGENT_NAMES[app] ?? app)}</a>`);
+  return `<span class="state maprun" data-run="${esc(run.state)}">${[words, reach, ...again].filter(Boolean).join(' · ')}</span>`;
+}
+
+/**
  * The press that maps a repo, on Home of a repo with no map: one link for each agent app that Apostil can start (`apps`, in their order),
  * and what the press does. A click starts a new session of that app; nobody has to type the words into a chat. With no such app, the words to say to an agent.
- * While an app writes (`writing`), one line says so in place of the links.
+ * While a map run writes (`run`), its line stands in place of the links; after a run that stopped, its line stands above them.
  */
-function mapPressHtml(apps = [], writing = '') {
-  if (writing) return `<p class="state"><span class="dot pulse"></span>${esc(AGENT_NAMES[writing] ?? writing)} is writing the map and the notes</p>`;
-  if (!apps.length) return `<p>${ASK_FOR_MAP}</p>`;
-  return `<p class="acts">${apps.map((app) => `<a data-write="${esc(app)}">Map this repo with ${esc(AGENT_NAMES[app] ?? app)}</a>`).join('')}</p><p class="quiet">${MAP_RUN_WORDS}</p>`;
+function mapPressHtml(apps = [], run = null) {
+  const line = run ? `<p>${mapRunHtml(run)}</p>` : '';
+  if (run?.state === 'writing') return line;
+  if (!apps.length) return `${line}<p>${ASK_FOR_MAP}</p>`;
+  return `${line}<p class="acts">${apps.map((app) => `<a data-write="${esc(app)}">Map this repo with ${esc(AGENT_NAMES[app] ?? app)}</a>`).join('')}</p><p class="quiet">${MAP_RUN_WORDS}</p>`;
 }
 // A click on the press: VS Code starts the session, and Home shows that it works.
 document.addEventListener('click', (event) => {

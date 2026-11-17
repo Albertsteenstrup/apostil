@@ -92,7 +92,10 @@ try {
   await home.goto(`file://${file}?diagram=process:list-requests`);
   await home.waitForFunction(() => (window.apostilRendered ?? 0) >= 1, null, { timeout: 15000 });
   const numbers = await home.$$eval('#view .edgeLabel:has(.eo)', (labels) => [...new Set(labels.map((el) => el.textContent.trim()))]);
-  check('a box of the example with two calls shows "1" and "2" before the words of its arrows, in the order of their lines', numbers.join() === '1 make the service,2 fetch the rows', numbers.join());
+  // The number is no part of the name of an arrow: a comment stays on its arrow when the order of the calls changes.
+  const names = await home.$$eval('#view .edgeLabel:has(.eo)', (labels) => [...new Set(labels.map((el) => JSON.parse(el.closest('[data-remark]')?.dataset.remark ?? '{}').name ?? 'no mark'))]);
+  check('a box of the example with two calls shows "1" and "2" before the words of its arrows, in the order of their lines, and a comment names each arrow by its words alone',
+    numbers.join() === '1 make the service,2 fetch the rows' && names.join() === 'make the service,fetch the rows', `${numbers.join()} / ${names.join()}`);
   await takePicture(home, 'two-numbered-arrows.png');
   await home.close();
 } catch (error) {

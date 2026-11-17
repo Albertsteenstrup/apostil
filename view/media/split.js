@@ -42,12 +42,27 @@ const Split = {
   /** A page of a pull request alone has no diagram; its "Diffs" has the list beside the file when its commits are in the folder. */
   halved: (half) => !App.page.pullOnly || (half === 'files' && !!App.page.pullOnly.local),
 
-  /** The quiet control that hides a half or shows it again, at the same place; nothing on a narrow tab or on a page with no such half. */
+  /**
+   * The quiet control that shows a hidden half again, "Show code" at the left of the line above the diagram ("Show files" at its right, on "Diffs").
+   * While the code shows, its controls stand over the code (controls); nothing on a narrow tab or on a page with no such half.
+   */
   controlHtml(half = 'code') {
     if (!this.wide(half) || !this.halved(half)) return '';
     const hidden = this.hidden(half);
+    if (half === 'code') return hidden ? '<a class="codeswitch at-left" data-half="code" data-to="show">Show code</a>' : '';
     return `<a class="codeswitch" data-half="${half}" data-to="${hidden ? 'show' : 'hide'}">${hidden ? 'Show' : 'Hide'} ${half}</a>`;
   },
+
+  /**
+   * The controls of the code over it, at the right end of the line of its first group header: "Hide code", and with `all` "Open all" (or "Close all").
+   * They lie over the right end of the left half and stay there while its list scrolls.
+   */
+  controls(view, all = false) {
+    view.querySelector('.half.right').classList.add('ctl');
+    view.insertAdjacentHTML('beforeend', `<div class="dctl">${all ? this.allHtml(false) : ''}${this.hideHtml}</div>`);
+  },
+
+  hideHtml: '<a class="codeswitch" data-half="code" data-to="hide">Hide code</a>',
 
   /**
    * Makes the view two halves and returns them: [the diagram or the file, the code or the list]. look.css puts the second in the left column.
@@ -89,7 +104,7 @@ const Split = {
 
   /** Writes that control again for the list now. */
   showAll(list) {
-    const control = document.querySelector('#tabs [data-all]');
+    const control = document.querySelector('[data-all]');
     if (control) control.outerHTML = this.allHtml(list.anyOpen());
   },
 
@@ -103,7 +118,7 @@ const Split = {
     if (!code) return null;
     const file = App.page.files.find((candidate) => candidate.path === path);
     right.classList.add('file-half');
-    right.innerHTML = `<div class="fh" ${Places.attrs({ kind: 'file', file: path })}><a data-open-file="${esc(path)}">${esc(path)}</a><i class="c">${countsHtml(file)}</i></div>`
+    right.innerHTML = `<div class="fh" ${Places.attrs({ kind: 'file', file: path })}><a data-open-file="${esc(path)}">${esc(path)}</a><i class="c">${countsHtml(file)}</i>${this.hideHtml}</div>`
       + `<div class="fc" data-file="${esc(path)}"></div>`;
     const rows = fileRows(code);
     const color = lineColors(codeToColor(code));
@@ -168,10 +183,12 @@ function placesOver(right, code, check) {
  * again; `still()` stays true while that thing shows, for what comes later. Two things are the same when they are one object or have one `key`.
  * point: the pointer rests on a thing; rest: the pointer left it, and the kept thing shows again; pin: a click keeps a thing, a second click lets it go;
  * drop: the kept thing goes. A click that reaches `area` lets the kept thing go (a click on a thing stops before it).
+ * `more` of a pin is kept, so that the kept thing shows again as the click asked for it (a click brings its rows into view; the pointer does not).
  */
 function oneShown(area, show) {
   let now = null;
   let pinned = null;
+  let pinnedMore = [];
   let hide = () => {};
   const same = (a, b) => a === b || (!!a && !!b && a.key !== undefined && a.key === b.key);
   const put = (thing, ...more) => {
@@ -183,8 +200,13 @@ function oneShown(area, show) {
   const one = {
     get now() { return now; },
     point: put,
-    rest: () => put(pinned),
-    pin(thing, ...more) { pinned = same(pinned, thing) ? null : thing; put(pinned, ...more); },
+    rest: () => put(pinned, ...pinnedMore),
+    pin(thing, ...more) {
+      pinned = same(pinned, thing) ? null : thing;
+      pinnedMore = more;
+      if (pinned) { hide(); hide = () => {}; now = null; } // it shows again, as the click asks for it
+      put(pinned, ...more);
+    },
     drop: () => { pinned = null; put(null); },
   };
   area.addEventListener('click', () => { if (pinned) one.drop(); });
@@ -351,15 +373,31 @@ function diffList(right, list, change) {
     /** A click on a link keeps its code; a second click on it lets it go. */
     pin: (one) => link.pin(one),
 
-    /** The pointer rested on a file name in a node: only that file opens, at the top. */
-    file(path) {
+    /** The pointer rested on a file name in a node: only that file opens, at the top. With `by` "click" it stays open, as a click on its row keeps it. */
+    file(path, by = 'pointer') {
       rested = `file:${path}`;
       link.drop();
       const section = find(path);
       closePointed([section]);
-      open(section, 'pointer').then(refresh);
+      open(section, by).then(refresh);
       if (section) scrollTo(section, { under: true });
       focus = { path };
+    },
+
+    /** A click on a part or on "In no part": one with no diagram opens its first file in the list and the diagram half keeps what it shows; the others open as ever. */
+    click(id) {
+      const part = App.page.parts.find((one) => one.id === id);
+      if (part && partDiagrams(part).length) return App.openPart(id);
+      const paths = filesByPart().find((one) => one.id === id)?.paths ?? [];
+      const path = paths.find((one) => App.page.notes.some((note) => note.file === one)) ?? paths[0];
+      if (path) self.file(path, 'click');
+    },
+
+    /** A click on "3 more files" in a node: the group of its part comes to the top of the list, and a window in the diagram half lists every file of the part. */
+    more(id, anchor) {
+      const title = right.querySelector(`.dp[data-part="${CSS.escape(id)}"]`);
+      if (title) scrollTo(title);
+      fileList(anchor, id);
     },
 
     /** J and K: the next or the previous row comes to the top and opens; the one that the keys opened before closes. */
@@ -420,12 +458,16 @@ function graphThatFollows(left, right, change, steps) {
     }
   };
 
-  /** The places of a thing as the list holds them, by file in their order, each file filled: [[section, places]]; null when the list does not hold one. */
+  const byFile = (places) => {
+    const files = new Map();
+    for (const place of places) files.set(place.file, [...(files.get(place.file) ?? []), place]);
+    return files;
+  };
+
+  /** The places of a thing as the list holds them, by file in their order, each file opened and filled: [[section, places]]; null when the list does not hold one. */
   const inList = async (places) => {
-    const byFile = new Map();
-    for (const place of places) byFile.set(place.file, [...(byFile.get(place.file) ?? []), place]);
     const found = [];
-    for (const [path, list] of byFile) {
+    for (const [path, list] of byFile(places)) {
       const section = await steps.reach(path);
       if (!section?.view || !list.every((place) => section.view.span(place))) return null;
       found.push([section, list]);
@@ -433,19 +475,37 @@ function graphThatFollows(left, right, change, steps) {
     return found;
   };
 
-  /** The code of a thing at the left: its first place glides to the reading line and the rows of all its places light; else its places over the right half. */
-  const held = oneShown(left, (one, still) => {
+  /** The same with nothing opened or filled: only what the list shows now, and only the places whose first rows are in view. */
+  const inView = (places) => [...byFile(places)].flatMap(([path, list]) => {
+    const section = right.querySelector(`.dfile.open[data-file="${CSS.escape(path)}"]`);
+    const span = section?.view && section.view.span(list[0]);
+    if (!span || !list.every((place) => section.view.span(place))) return [];
+    const top = steps.topOf(section.view.box) + section.view.list.top(span[0]);
+    const bottom = steps.topOf(section.view.box) + section.view.list.top(span[1] + 1);
+    return bottom > right.scrollTop && top < right.scrollTop + right.clientHeight ? [[section, list]] : [];
+  });
+
+  /**
+   * The code of a thing at the left. The pointer lights it, and its rows when they are in view already. A click (`click`) glides its first place to the reading line
+   * (a closed diff opens first) and lights the rows of all its places; a place that the list does not hold shows over the right half, with a click only.
+   */
+  const held = oneShown(left, (one, still, click) => {
     const shown = { views: [] }; // the views of the diffs whose rows it lights, or the panel of its places
     light();
     one.els.forEach((el) => el.classList.add('joined'));
     const { code, check } = one;
-    (check || code.places.some((place) => !place.lines) ? Promise.resolve(null) : inList(code.places)).then((placed) => {
-      if (!still()) return;
-      if (!placed) { shown.panel = placesOver(right, code, check); return; }
-      for (const [section, places] of placed) { section.view.mark('step', { any: places }); shown.views.push(section.view); }
-      const [[section, places]] = placed;
-      steps.glideTo(steps.topOf(section.view.box) + section.view.list.top(section.view.span(places[0])[0]) - right.clientHeight * READING);
-    });
+    const nothing = check || code.places.some((place) => !place.lines);
+    if (!click) {
+      for (const [section, places] of nothing ? [] : inView(code.places)) { section.view.mark('step', { any: places }); shown.views.push(section.view); }
+    } else {
+      (nothing ? Promise.resolve(null) : inList(code.places)).then((placed) => {
+        if (!still()) return;
+        if (!placed) { shown.panel = placesOver(right, code, check); return; }
+        for (const [section, places] of placed) { section.view.mark('step', { any: places }); shown.views.push(section.view); }
+        const [[section, places]] = placed;
+        steps.glideTo(steps.topOf(section.view.box) + section.view.list.top(section.view.span(places[0])[0]) - right.clientHeight * READING);
+      });
+    }
     return () => {
       one.els.forEach((el) => el.classList.remove('joined'));
       shown.views.forEach((view) => view.mark('step', null));
@@ -464,7 +524,7 @@ function graphThatFollows(left, right, change, steps) {
     const thingOf = (main) => [...one.things.values()].find((thing) => thing.main === main);
     await drawPart(one.body, diagram, {
       step: (main, code, els, check, key) => one.things.set(key, { key: `${id}:${key}`, main, code, els, check }),
-      show: (main) => held.point(thingOf(main)), rest: held.rest, pin: (main) => held.pin(thingOf(main)),
+      show: (main) => held.point(thingOf(main)), rest: held.rest, pin: (main) => held.pin(thingOf(main), true),
     }, true);
     Remarks.paint(el, true); // the page painted its circles before this card came
   }
@@ -542,6 +602,7 @@ function graphThatFollows(left, right, change, steps) {
  * Returns the steps, with the list, for the keys and the controls; J and K open the next and the previous row, as before.
  */
 async function changeWithDiffs(left, right, from) {
+  Split.controls(left.parentElement, true);
   const change = html('<div class="gchange"></div>');
   left.append(change);
   const rows = Split.showDiffs(right, null, change);
@@ -559,7 +620,13 @@ async function changeWithDiffs(left, right, from) {
   const onHead = list.onHead;
   list.onHead = (section) => Promise.resolve(onHead(section)).then(() => { Split.showAll(list); if (!list.isOpen(section)) graph.follow(steps.here()); });
   list.onChange = () => Split.showAll(list);
-  return { ...steps, list, stepFile: (direction) => rows.step(direction) };
+  // The arrows ‹ and › of the counter: the file before or after the one that the counter names, at the top (J and K go on from the row that the keys opened last).
+  const stepFile = (direction) => {
+    const order = App.order();
+    const next = order[order.indexOf(steps.here()?.path) + direction];
+    return next && steps.toPath(next);
+  };
+  return { ...steps, list, stepFile };
 }
 
 /**
@@ -700,10 +767,10 @@ function diffsPage(into, list) {
 }
 
 /**
- * The join of the things of a diagram to their code in the half `right` (at the left of the page). The pointer on a thing whose places all are lines of that file lights its rows,
- * brings the first into view and draws one line from the thing to it; the pointer on rows lights their thing. A thing with a place in another file, a whole
- * file as a place, or an open point shows its places one under the other over the file, while the pointer rests on it; then the file is back.
- * A click on a thing keeps it until the next click. One join at a time. `path` is the file of the code half.
+ * The join of the things of a diagram to their code in the half `right` (at the left of the page). The code follows a click, not the pointer.
+ * The pointer on a thing only lights it, and draws one line to its rows when they are in view already; the pointer on rows lights their thing.
+ * A click on a thing keeps it until the next click: its first rows come into view, and a thing with a place in another file, a whole file as a place,
+ * or an open point shows its places one under the other over the file; a second click lets it go. One join at a time. `path` is the file of the code half.
  */
 function joinOf(right, view, path) {
   const steps = []; // { g, els, here, away, code, check }: g is the thing, or the label of an arrow; els are all its drawn parts; here its places in the file of the code half
@@ -717,7 +784,9 @@ function joinOf(right, view, path) {
     const [base, half, box, node, diagram] = [page, right, view.box, shown.g, page.querySelector('.half.left')].map((el) => el.getBoundingClientRect());
     const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
     const head = right.querySelector('.fh').offsetHeight;
-    const rowsMiddle = clamp(box.top + (view.list.top(span[0]) + view.list.top(span[1] + 1)) / 2, half.top + head, half.bottom - 4);
+    const [rowsTop, rowsBottom] = [box.top + view.list.top(span[0]), box.top + view.list.top(span[1] + 1)];
+    if (rowsBottom < half.top + head || rowsTop > half.bottom) { line.innerHTML = ''; return; } // its rows are not in view: no line, a click brings them
+    const rowsMiddle = clamp((rowsTop + rowsBottom) / 2, half.top + head, half.bottom - 4);
     // From the left edge of the thing in the diagram at the right to the right edge of its rows in the file at the left.
     const [x1, y1] = [clamp(node.left, diagram.left, diagram.right) - base.left, clamp(node.top + node.height / 2, diagram.top, diagram.bottom) - base.top];
     const [x2, y2] = [Math.min(box.right, half.right) - base.left, rowsMiddle - base.top];
@@ -725,12 +794,12 @@ function joinOf(right, view, path) {
     line.innerHTML = `<path d="M${x1} ${y1} C${middle} ${y1} ${middle} ${y2} ${x2} ${y2}"/>`;
   };
 
-  // A thing lights with its rows, or shows its places over the file; with `bring`, its first rows come into view when they are out of it.
-  const join = oneShown(page.querySelector('.half.left'), (step, still, bring) => {
+  // A thing lights with its rows; a click (`click`) also brings its first rows into view when they are out of it, or shows its places over the file.
+  const join = oneShown(page.querySelector('.half.left'), (step, still, click) => {
     step.els.forEach((el) => el.classList.add('joined'));
     if (!step.away) view.mark('step', { any: step.here });
-    const panel = step.away ? placesOver(right, step.code, step.check) : null;
-    const span = !step.away && bring && view.span(step.here[0]);
+    const panel = step.away && click ? placesOver(right, step.code, step.check) : null;
+    const span = !step.away && click && view.span(step.here[0]);
     const [top, bottom] = span ? [view.box.offsetTop + view.list.top(span[0]), view.box.offsetTop + view.list.top(span[1] + 1)] : [0, 0];
     if (span && (bottom < right.scrollTop + right.querySelector('.fh').offsetHeight || top > right.scrollTop + right.clientHeight)) Code.reveal(step.here[0]);
     draw();
@@ -763,7 +832,7 @@ function joinOf(right, view, path) {
       const svg = g.ownerSVGElement;
       if (steps.length === 1 && svg) moved.observe(svg, { attributes: true, attributeFilter: ['viewBox'] });
     },
-    show: (g) => join.point(find(g), true),
+    show: (g) => join.point(find(g)),
     rest: join.rest,
     pin: (g) => join.pin(find(g), true),
   };

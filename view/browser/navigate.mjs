@@ -151,8 +151,9 @@ try {
   const frame = () => home.$eval('#view svg', (svg) => svg.getAttribute('viewBox').split(' ').map((part) => Math.round(Number(part))).join(' '));
   const chips = () => home.$$eval('#view .mk-chip', (all) => all.length);
   const fitted = await frame();
-  await home.mouse.move(900, 500);
-  await home.mouse.wheel(0, -350); // zooms in at the pointer
+  /** A pinch at the pointer (a wheel with Ctrl) zooms in. */
+  const pinch = async (x, y) => { await home.mouse.move(x, y); await home.keyboard.down('Control'); await home.mouse.wheel(0, -60); await home.keyboard.up('Control'); };
+  await pinch(900, 500);
   await home.mouse.down();
   await home.mouse.move(820, 440, { steps: 4 }); // and a drag moves it
   await home.mouse.up();
@@ -175,8 +176,7 @@ try {
   await home.goto(`file://${fileURLToPath(new URL('../media/page.html', import.meta.url))}`);
   await drawn();
   const changeFitted = await frame();
-  await home.mouse.move(700, 500);
-  await home.mouse.wheel(0, -300);
+  await pinch(700, 500);
   const changeLeft = await frame();
   await home.evaluate(() => App.render());
   const changeAgain = await frame();
