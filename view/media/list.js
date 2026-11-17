@@ -9,7 +9,9 @@ let search = { ...Search.DEFAULT }; // the text of the field and the sort; VS Co
 let searchOf; // the repo whose kept search the page took
 let look; // the look of the repo when one is saved (VS Code sends it with the rows); with none the list is drawn as before
 const targets = []; // the click targets of the look on the parts drawn last, by their data-lk
-const pullsOf = (row) => pulls[row.branch] ?? [];
+let repoPulls = { pulls: [] }; // the open pull requests of the repo and why there are none, as they arrive; `problem` is the failure of gh in a sentence
+const SHOWN_PULLS = 20; // pull requests with no change that show before the line "n more"
+const pullsOf = (row) => (row.only ? [row.only] : pulls[row.branch] ?? []);
 /** The slots that the look gives a part of the list (PartLook in part-look.js); none with no look. */
 const part = (kind, fields) => PartLook.slotsOf(look, kind, fields);
 /** The attribute that sends a click of a part to the target of its rule, or nothing. */
@@ -75,6 +77,7 @@ function factsHtml(row, fields, names) {
  * A rule of the look gives a row the facts that show in their order, a colour, and a click; and the older pull requests open or hidden.
  */
 function listRow(row, own = pullsOf(row), flat = false) {
+  if (row.only) return pullRow(row.only);
   const fields = PartLook.rowFields(row, pullsOf(row));
   const lk = part('change-row', fields);
   const shows = lk.content?.fields;
@@ -84,12 +87,38 @@ function listRow(row, own = pullsOf(row), flat = false) {
   const older = part('more-pulls');
   const folded = States.foldPulls(own, unfolded.has(row.branch) || older['show.folded'] === false ? Infinity : 2);
   const app = shows ? shows.includes('app') : flat;
-  return `<div class="row${row.open ? ' sel' : ''}${flat ? ' flat' : ''}${box.cls}"${box.style}${row.id !== undefined ? ` data-id="${row.id}"` : ''}${clickOf(lk.click)}>`
+  return `<div class="row${row.open ? ' sel' : ''}${flat ? ' flat' : ''}${box.cls}"${box.style}${row.id !== undefined ? ` data-id="${row.id}"` : row.commits || row.files ? '' : ' data-home-row'}${clickOf(lk.click)}>`
     + `<div class="top">${app ? (row.agent && agentIcon(row.agent)) || '<span class="icon"></span>' : ''}${show('branch') ? `<span class="nm">${esc(row.branch)}</span>` : ''}${show('state') ? stateHtml(row) : ''}</div>`
-    + factsHtml(row, fields, facts)
+    + (row.uncounted ? `<div class="mt">${esc(row.age)} · ${esc(row.uncounted)}</div>` : factsHtml(row, fields, facts))
     + folded.shown.map(pullLine).join('')
     + (folded.more && older['show.shown'] !== false ? `<a class="more" data-unfold="${esc(row.branch)}">${esc(States.WORDS.morePulls(folded.more))}</a>` : '')
     + '</div>';
+}
+
+/** A row for a pull request with no stored change, so that the search, the sort and the look read it as any row. */
+const pullAsRow = (pull) => ({ only: pull, branch: pull.branch ?? '', age: '', savedAt: pull.updatedAt ?? pull.createdAt ?? '', firstSavedAt: pull.createdAt, commits: 0, files: 0, added: 0, removed: 0, phrase: '', open: false, remarks: { sent: 0, running: 0, done: 0 } });
+
+/** The open pull requests that have no row: those whose branch has a row show under it already. */
+const pullRows = () => {
+  const branches = new Set(shown.groups.flatMap((group) => group.rows.map((row) => row.branch)));
+  return repoPulls.pulls.filter((pull) => !branches.has(pull.branch)).map(pullAsRow);
+};
+
+/** One pull request with no stored change: its title, then its line (number and state). A click opens its page. */
+const pullRow = (pull) => `<div class="row prow" data-pull="${pull.number}"><div class="top"><span class="nm" title="${esc(pull.title)}">${esc(pull.title)}</span></div>${pullLine(pull)}</div>`;
+
+/**
+ * The head "Pull requests" and the open pull requests with no change, the first 20 and a line for the rest; or one quiet line that says why gh gave none.
+ * With a rule of the look that orders the rows, the rows stand in that order.
+ */
+function repoPullsHtml(order) {
+  if (repoPulls.problem) return `<div class="eyebrow">${esc(States.WORDS.pullRequests)}</div><div class="note">${esc(repoPulls.problem)}</div>`;
+  const rows = pullRows();
+  if (!rows.length) return '';
+  const ordered = order ? PartLook.rowGroups([{ rows }], pullsOf, { ...order, group: undefined })[0]?.rows ?? [] : rows;
+  const all = unfolded.has('repo-pulls');
+  return `<div class="eyebrow">${esc(States.WORDS.pullRequests)}</div>${ordered.slice(0, all ? Infinity : SHOWN_PULLS).map((row) => pullRow(row.only)).join('')}`
+    + (ordered.length > SHOWN_PULLS ? foldLine('repo-pulls', all, all ? States.WORDS.fewer : States.WORDS.nMore(ordered.length - SHOWN_PULLS)) : '');
 }
 
 /** The head of a session; a rule gives it other words (with {name} and {app}) and an icon in place of the icon of its app. */
@@ -145,7 +174,7 @@ function flatHtml(rows, query, order) {
 function orderedHtml(order) {
   const head = (group) => (group.by === 'session' ? (group.agent ? sessionHead(group.agent) : '') : group.by ? `<div class="head"><span class="ses">${esc(group.value ?? '')}</span></div>` : '');
   return `<div class="eyebrow">${esc(States.WORDS.changes)}</div>`
-    + PartLook.rowGroups(shown.groups, pullsOf, order).map((group) => `<div class="grp">${head(group)}${group.rows.map((row) => listRow(row, undefined, group.by !== 'session')).join('')}</div>`).join('');
+    + PartLook.rowGroups(shown.groups, pullsOf, order).map((group) => `<div class="grp">${head(group)}${group.rows.map((row) => listRow(row, undefined, group.by !== 'session')).join('')}</div>`).join('') + repoPullsHtml(order);
 }
 
 // ----- the search field -----
@@ -184,9 +213,9 @@ function draw() {
   const rows = shown.groups.flatMap((group) => group.rows);
   const query = Search.parse(search.text);
   const order = Search.defaultSort(search) ? PartLook.rowOrder(look) : null; // a sort that he picked wins over the order of the look
-  list.querySelector('.changes').innerHTML = Search.active(query) || !Search.defaultSort(search) ? flatHtml(rows, query, order)
+  list.querySelector('.changes').innerHTML = Search.active(query) || !Search.defaultSort(search) ? flatHtml([...rows, ...pullRows()], query, order)
     : order ? orderedHtml(order)
-    : `<div class="eyebrow">${esc(States.WORDS.changes)}</div>${shown.groups.map(groupHtml).join('')}`; // no first words here: the press that maps a repo, the set-up step and the example are on Home
+    : `<div class="eyebrow">${esc(States.WORDS.changes)}</div>${shown.groups.map(groupHtml).join('')}${repoPullsHtml()}`; // no first words here: the press that maps a repo, the set-up step and the example are on Home
   markField(query);
   return rows.length;
 }
@@ -203,7 +232,7 @@ function setSearch(change) {
  * The values are counted here, in search.js, and nowhere else.
  */
 function askMenu() {
-  tell({ type: 'menu', values: Search.menuValues(shown.groups.flatMap((group) => group.rows), pullsOf), search });
+  tell({ type: 'menu', values: Search.menuValues([...shown.groups.flatMap((group) => group.rows), ...pullRows()], pullsOf), search });
 }
 
 window.addEventListener('message', (event) => {
@@ -217,6 +246,10 @@ window.addEventListener('message', (event) => {
   }
   if (message?.type === 'search') { search = { ...Search.DEFAULT, ...message.search }; draw(); } // a pick in the quick pick of VS Code
   if (message?.type === 'askMenu') askMenu(); // the command "Apostil: Sort and Filter the Changes"
+  if (message?.type === 'repoPulls') {
+    repoPulls = { pulls: message.pulls ?? [], problem: message.problem };
+    draw();
+  }
   if (message?.type === 'pulls') {
     pulls[message.branch] = message.pulls;
     draw();
@@ -249,6 +282,8 @@ document.addEventListener('click', (event) => {
   const lk = event.target.closest('[data-lk]');
   if (lk && !(pull && pull !== lk && lk.contains(pull))) return Marks.act(targets[Number(lk.dataset.lk)], lk);
   if (pull && row) return tell({ type: 'openPull', id: Number(row.dataset.id), number: Number(pull.dataset.pull) });
+  if (pull) return tell({ type: 'openRepoPull', number: Number(pull.dataset.pull), url: repoPulls.pulls.find((one) => one.number === Number(pull.dataset.pull))?.url }); // a pull request with no stored change
+  if (event.target.closest('[data-home-row]')) return tell({ type: 'home' }); // the open branch with no commit and no changed file: Home
   if (row) tell({ type: 'open', id: Number(row.dataset.id) });
 });
 
@@ -266,7 +301,7 @@ if (vscodeApi) {
     search = { ...search, ...PartLook.startSearch(undefined, part('list-search').content?.words) };
     shown = list;
     draw();
-    setTimeout(() => { Object.assign(pulls, list.pulls); draw(); window.apostilListDone = true; }, 50); // as in VS Code: pull requests come later
+    setTimeout(() => { Object.assign(pulls, list.pulls); repoPulls = list.repoPulls ?? repoPulls; draw(); window.apostilListDone = true; }, 50); // as in VS Code: pull requests come later
   };
   document.head.append(script);
 }

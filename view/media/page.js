@@ -177,7 +177,7 @@ const App = {
       const broad = state.view === 'diagram' && state.level === 'broad' && broadOf(state);
       Trail.show(document.getElementById('crumb'), this.ownStep(), { attrs: broad ? Places.attrs({ kind: 'diagram', diagram: broad.id }) : '', extra: state.view === 'code' ? baseName(state.file) : '', look: this.page?.look });
     }
-    document.getElementById('summary').innerHTML = this.tab || page.pullOnly ? '' : summaryHtml();
+    document.getElementById('summary').innerHTML = this.tab ? '' : page.pullOnly ? pullOnlyLineHtml() : summaryHtml();
     drawSwitch();
     drawStrip();
     const tabs = document.getElementById('tabs');
@@ -397,11 +397,23 @@ async function drawPartView(tabs, view, part) {
   await drawPart(left, diagram, join);
 }
 
+/** The words to give an agent for a pull request that has no description of Apostil. */
+const describeWords = (number) => `Describe pull request #${number} for Apostil`;
+
+/** A pull request with no stored change says so in one quiet line, with the words for an agent and a button that copies them. */
+function pullOnlyLineHtml() {
+  const { pullOnly } = App.page;
+  if (pullOnly.otherRepo) return '';
+  const words = describeWords(pullOnly.number);
+  return `This pull request has no description of Apostil yet. Give an agent these words: <b>${esc(words)}</b> <a class="copy" data-copy="${esc(words)}">Copy</a>`;
+}
+
 /** The line under the head, only for what shows nowhere else: the branch that a stacked change is compared with, and what the check found wrong. Empty for a change with nothing wrong: the counts of its files are in the diagram. */
 function summaryHtml() {
   const { page } = App;
   const checks = page.checks;
   const bits = [];
+  if (page.savedWords) bits.push(esc(page.savedWords)); // the folder is on another branch: the change is shown as saved
   if (page.baseBranch) bits.push(`compared with ${esc(page.baseBranch)}`);
   if (checks.filesInTwoParts.length) bits.push(`<b>${plural(checks.filesInTwoParts.length, 'file')} in two parts</b>`);
   if (checks.filesNotChanged.length) bits.push(`<b>${plural(checks.filesNotChanged.length, 'file')} named but not changed</b>`);
@@ -437,6 +449,8 @@ function fileList(anchor) {
 // Clicks that work anywhere on the page.
 document.addEventListener('click', (event) => {
   const target = event.target;
+  const copy = target.closest('[data-copy]');
+  if (copy) { tell({ type: 'copy', text: copy.dataset.copy }); copy.textContent = 'Copied'; return; }
   const go = target.closest('[data-go]');
   if (go) return App.go(JSON.parse(go.dataset.go));
   const view = target.closest('.switch a');

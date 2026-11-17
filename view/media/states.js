@@ -41,6 +41,8 @@ const States = (() => {
     unfold: 'Open the comments',
     morePulls: (n) => `${count(n, 'more pull request', 'more pull requests')}`,
     fewer: 'Show fewer',
+    pullRequests: 'Pull requests',
+    nMore: (n) => `${n} more`,
     history: (n) => `History · ${n}`,
     historyTip: 'Changes whose pull requests are merged or closed',
     failedChecks: (checks) => `${checks.failed} of ${checks.failed + checks.passed + checks.pending} checks failed`,

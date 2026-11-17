@@ -4,6 +4,7 @@ import { execFile } from 'node:child_process';
 import { homedir } from 'node:os';
 import * as vscode from 'vscode';
 import { tryGit } from '../shared/git';
+import { readRepoPulls, type RepoPulls } from '../shared/repo-pulls';
 import type { Target } from '../shared/look';
 import { ghArguments, pullRequestsFromJson, stackArguments, stackPlacesFromJson, withStacks, type PullRequest, type StackPlace } from '../shared/pull-requests';
 import type { Store } from '../shared/store';
@@ -16,12 +17,24 @@ import type { MenuMessage } from './sort-filter';
 
 const KEEP_MS = 60_000;
 const pullCache = new Map<string, { at: number; pulls: PullRequest[] }>();
+const repoPullCache = new Map<string, { at: number; answer: RepoPulls }>();
 const stackCache = new Map<string, { at: number; places: Promise<Map<number, StackPlace>> }>();
 
 /** The output of gh in a folder, or '' when it fails. It does not block VS Code. */
 const ghOut = (folder: string, args: string[]): Promise<string> => new Promise((done) => {
   execFile('gh', args, { cwd: folder, encoding: 'utf8', timeout: 5000 }, (error, out) => done(error ? '' : out));
 });
+
+/** Every open pull request of the repo of a folder with its place in a stack, kept for 60 seconds, or why there are none (see readRepoPulls). */
+export async function repoPullsLater(folder: string): Promise<RepoPulls> {
+  const kept = repoPullCache.get(folder);
+  if (kept && Date.now() - kept.at < KEEP_MS) return kept.answer;
+  const answer = await readRepoPulls(folder);
+  const places = answer.pulls.length ? await stackPlacesLater(folder) : new Map<number, StackPlace>();
+  const made = { ...answer, pulls: withStacks(answer.pulls, places) };
+  repoPullCache.set(folder, { at: Date.now(), answer: made });
+  return made;
+}
 
 /** The places of the pull requests of the repo in their stacks, asked once for a folder (and repo) and kept for 60 seconds. */
 function stackPlacesLater(folder: string, repo?: string): Promise<Map<number, StackPlace>> {
@@ -77,17 +90,20 @@ export class ChangeList implements vscode.WebviewViewProvider {
   onMenu: (menu: MenuMessage) => void = () => {}; // the icon of the field was pressed: VS Code shows its quick pick
   private askWhenDrawn = false; // "Sort and Filter" was asked before the view was there
   shown = 0; // how many rows the view drew last, for the check inside VS Code
+  repoPulls?: RepoPulls; // the open pull requests that the view got, for the check inside VS Code
   pulls: Record<string, PullRequest[]> = {}; // the pull requests that the view got, by branch, for the check inside VS Code
   onTarget: (target: Target) => void = () => {}; // a click of the look on a part of the list (look-targets.ts); set by the extension
 
   constructor(
     private media: vscode.Uri, private store: Store, private openFolder: () => string, private openChange: (id: number) => void, private openHome: () => void = () => {},
     private openPull: (id: number, number: number) => void = () => {}, // a pull request of a row: the page of its change at "Conversation"
+    private openRepoPull: (link: string) => void = () => {}, // a pull request with no stored change: its page, by its link
     private memory?: vscode.Memento, // the state of the workspace, where the search of each repo is kept
   ) {}
 
   resolveWebviewView(view: vscode.WebviewView): void {
     this.view = view;
+    this.repoPulls = undefined; // a new view has nothing yet
     view.webview.options = { enableScripts: true, localResourceRoots: [this.media] };
     view.webview.html = webviewHtml(view.webview, this.media, 'list.html');
     view.webview.onDidReceiveMessage((message: { type: string; id?: number; rows?: number; url?: string; number?: number; search?: ListSearch; values?: MenuMessage['values']; target?: Target }) => {
@@ -95,6 +111,7 @@ export class ChangeList implements vscode.WebviewViewProvider {
       if (message.type === 'ready') this.refresh();
       if (message.type === 'open' && message.id !== undefined) this.openChange(message.id);
       if (message.type === 'openPull' && message.id !== undefined && message.number !== undefined) this.openPull(message.id, message.number);
+      if (message.type === 'openRepoPull' && message.number !== undefined) this.openRepoPull(message.url ?? String(message.number));
       if (message.type === 'home') this.openHome();
       if (message.type === 'openLink' && message.url) openLink(message.url);
       if (message.type === 'search' && message.search) void this.memory?.update(this.searchKey, message.search);
@@ -103,6 +120,7 @@ export class ChangeList implements vscode.WebviewViewProvider {
         this.shown = message.rows ?? 0;
         if (this.askWhenDrawn) { this.askWhenDrawn = false; this.askMenu(); }
         this.loadPulls();
+        this.loadRepoPulls();
       }
     });
     view.onDidChangeVisibility(() => { if (view.visible) this.refresh(); });
@@ -152,6 +170,17 @@ export class ChangeList implements vscode.WebviewViewProvider {
         this.view?.webview.postMessage({ type: 'pulls', branch: row.branch, pulls });
       });
     }
+  }
+
+  /** After the list is drawn: the open pull requests of the repo, or the reason that there are none. The view leaves out those whose branch has a row. */
+  private loadRepoPulls(): void {
+    const folder = this.openFolder();
+    if (!folder) return;
+    void repoPullsLater(folder).then((answer) => {
+      const same = JSON.stringify(answer) === JSON.stringify(this.repoPulls);
+      this.repoPulls = answer;
+      if (!same) this.view?.webview.postMessage({ type: 'repoPulls', ...answer }); // the view keeps what it got, so the same answer is not sent twice
+    });
   }
 
   /** Refreshes when the stored changes of the repo or the states of their remarks differ from the last time. */
