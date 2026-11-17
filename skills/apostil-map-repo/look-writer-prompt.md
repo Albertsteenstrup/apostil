@@ -22,7 +22,7 @@ A file of the look (a picture, a film, an icon) is a file of the repo, or a file
 
 ## Step 3: A new kind of mark
 
-When he wants icons for lines that no set marks yet, add a set to `sets`: `apostil look-slots marks` gives its form. A writer who does not know the owner reads its `rule`: say in plain words which lines get a mark, and which value each gets. After the save, start the mark writers (Step 6 of the skill).
+When he wants icons for lines that no set marks yet, add a set to `sets`: `apostil look-slots marks` gives its form. A writer who does not know the owner reads its `rule`: say in plain words which lines get a mark, and which value each gets. After the save, start the mark writers (Step 7 of the skill).
 
 ## Step 4: Check, then save
 

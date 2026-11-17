@@ -45,7 +45,13 @@ function setUp() {
   return { repo, store, map: () => store.getMap(repoId(repo.folder))!.map };
 }
 
-const services = (group: string, marks: unknown[], more: Record<string, unknown> = {}) => ({ group, set: 'services', marks, ...more });
+/** A draft for the services. A new service with no icon is named in "iconRefused", as a writer does when its website gives none (a new service with none of them is refused: see the test of the icons). */
+const services = (group: string, marks: unknown[], more: Record<string, unknown> = {}) => {
+  const values = (more.values ?? []) as { id: string; icon?: string }[];
+  const refused = (more.iconRefused ?? []) as { value: string }[];
+  const none = values.filter((value) => !value.icon && !refused.some((one) => one.value === value.id)).map((value) => ({ value: value.id, tried: `${value.id}.example.org` }));
+  return { group, set: 'services', marks, ...more, ...(none.length || refused.length ? { iconRefused: [...refused, ...none] } : {}) };
+};
 const FEED_SERVICE = { id: 'bookfeed', name: 'Bookfeed', site: 'https://feed.example.org/' };
 const STORE_SERVICE = { id: 'tablestore', name: 'Tablestore', site: 'tablestore.example.org' };
 

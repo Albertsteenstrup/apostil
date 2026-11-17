@@ -89,6 +89,9 @@ export const FILE_USES = {
 } as const;
 export type FileUse = keyof typeof FILE_USES;
 
+/** The ending of an icon from its first bytes (png, svg, ico or webp), or undefined when it is none of them. */
+export const iconEndingOf = (bytes: Buffer): string | undefined => FILE_USES.icon.endings.find((ending) => KINDS[ending].test(bytes));
+
 export const endingOf = (path: string): string => (/\.([a-z0-9]+)$/i.exec(path)?.[1] ?? '').toLowerCase();
 
 /** The names of H.264 video inside an MP4 file. */
@@ -255,6 +258,9 @@ export function markFacts(folder: string, map: RepoMap | undefined, sets: MarkSe
       };
     }),
     iconRefused: (map?.iconRefused ?? []).filter((one) => !only || one.set === only),
+    // The services with marks and no icon: apostil icon tries each from its site (skill apostil-map-repo, Step 7).
+    noIcon: (!only || only === SERVICES.id ? [...new Set(now.filter((one) => one.mark.set === SERVICES.id && one.at !== undefined).map((one) => one.mark.value))] : [])
+      .flatMap((id) => { const value = valuesOf(SERVICES.id).find((one) => one.id === id); return value?.icon ? [] : [{ id, name: value?.name ?? id, ...(value?.site ? { site: value.site } : {}) }]; }),
   };
 }
 
