@@ -406,11 +406,18 @@ const Marks = (() => {
     fields: { type: POINT_TYPES[point.kind] ?? 'thing', file: point.file ?? '', part: point.part ?? page.parts.find((part) => part.files.includes(point.file))?.id ?? '', diagram: point.diagram ?? '' },
   });
 
-  /** The steps of the drawing of a part as things, by node id: each with the files of its places and its counts. */
-  const stepThings = (diagram) => Object.fromEntries(Object.entries(diagram.graph?.nodes ?? {}).map(([key, label]) => {
+  /**
+   * The steps of the drawing of a part as things, by node id: each with the files of its places, its counts, and the marks inside its lines (build 63).
+   * A step holds a mark as a step of a drawn process does (holds), by the lines of its places in the files as the change has them (`now`); a place of a
+   * whole file holds all of the file, a removed place nothing. Only a flow chart: in a sequence, a schema or a state diagram no box stands for lines of code.
+   */
+  const stepThings = (diagram, marks = []) => Object.fromEntries(Object.entries(diagram.graph?.nodes ?? {}).map(([key, label]) => {
     const code = diagram.code?.[key];
-    const paths = [...new Set((code?.places ?? []).map((place) => place.file))];
-    return [key, { kind: 'part-step', diagram: diagram.id, node: key, paths, marks: [], fields: { title: plainText(label), added: code?.counts?.added ?? 0, removed: code?.counts?.removed ?? 0 } }];
+    const places = code?.places ?? [];
+    const paths = [...new Set(places.map((place) => place.file))];
+    const at = places.filter((place) => !place.removed).map((place) => ({ file: place.file, from: place.lines?.[0] ?? 1, to: place.lines?.[1] ?? Infinity }));
+    const thing = { kind: 'part-step', diagram: diagram.id, node: key, paths, now: true, at, fields: { title: plainText(label), added: code?.counts?.added ?? 0, removed: code?.counts?.removed ?? 0 } };
+    return [key, { ...thing, marks: diagram.kind === 'flow' ? marksIn(thing, marks) : [] }];
   }));
 
   /** A diagram of a part as a thing: its id, its kind, its function and its title; its paths are its file, or the files of its part. */
@@ -423,12 +430,16 @@ const Marks = (() => {
    * The things of the page of a change of one kind, or of every kind, from its data (view/page-data.ts): the card, the parts, the box of the files in no
    * part, the links between parts, the files of the list of diffs, the views, the diagrams of the parts and their steps, the comments window, the threads,
    * the open points and the comment marks (one for each place with open threads). Each with its kind, its id, its paths and its fields. Worked out each time:
-   * a page changes its data in place.
+   * a page changes its data in place. A part holds the marks under its files, as a node of Home holds those under its paths, and a step of a flow chart
+   * those inside its lines (build 63); `marks` are those of the files of the change, from the look of the page.
    */
-  function changeThings(page, kind) {
+  function changeThings(page, kind, marks = page.look?.marks ?? []) {
     const fileOf = (path) => page.files.find((file) => file.path === path);
     const counts = (paths) => Object.fromEntries(['added', 'removed'].map((key) => [key, paths.reduce((sum, path) => sum + (fileOf(path)?.[key] ?? 0), 0)]));
-    const parts = () => page.parts.map((part) => ({ kind: 'part', id: part.id, paths: part.files, fields: { id: part.id, name: part.name, files: part.files.length, ...counts(part.files) } }));
+    const parts = () => page.parts.map((part) => {
+      const thing = { kind: 'part', id: part.id, paths: part.files, fields: { id: part.id, name: part.name, files: part.files.length, ...counts(part.files) } };
+      return { ...thing, marks: marksIn(thing, marks) };
+    });
     const open = () => threadsOf(page.remarks ?? []).filter((thread) => states().threadState(thread) !== 'resolved');
     const placeOf = (thread) => thread[0].target.label ?? thread[0].target.kind;
     const generated = new Set(page.checks.generated);
@@ -446,7 +457,7 @@ const Marks = (() => {
       })),
       'change-view': () => ['diagram', 'diffs', 'conversation'].map((id) => ({ kind: 'change-view', id, fields: { id } })),
       'part-diagram': () => page.diagrams.filter((one) => !one.broad && one.part).map((diagram) => diagramThing(diagram, page)),
-      'part-step': () => page.diagrams.filter((one) => !one.broad && one.part).flatMap((diagram) => Object.values(stepThings(diagram))),
+      'part-step': () => page.diagrams.filter((one) => !one.broad && one.part).flatMap((diagram) => Object.values(stepThings(diagram, marks))),
       'comments-window': () => [{ kind: 'comments-window', fields: {} }],
       thread: () => threadsOf(page.remarks ?? []).map(threadThing),
       'open-point': () => (page.openPoints ?? []).map((point) => pointThing(point, page)),

@@ -54,6 +54,28 @@
   ]
  },
  {
+  "group": "holds-example",
+  "set": "services",
+  "files": ["src/library/lending/hold_service.py"],
+  "marks": [
+   { "value": "postgresql", "file": "src/library/lending/hold_service.py", "line": 61, "name": "fetch_one", "relation": "stores", "thing": { "kind": "table", "name": "book_hold" } },
+   { "value": "postgresql", "file": "src/library/lending/hold_service.py", "line": 67, "name": "fetch_all", "relation": "stores", "thing": { "kind": "table", "name": "book_hold" } },
+   { "value": "postgresql", "file": "src/library/lending/hold_service.py", "line": 74, "name": "fetch_all", "relation": "stores", "thing": { "kind": "table", "name": "book_hold" } },
+   { "value": "postgresql", "file": "src/library/lending/hold_service.py", "line": 97, "name": "fetch_value", "relation": "stores", "thing": { "kind": "table", "name": "book_copy" } },
+   { "value": "postgresql", "file": "src/library/lending/hold_service.py", "line": 99, "name": "fetch_value", "relation": "stores", "thing": { "kind": "table", "name": "book_hold" } },
+   { "value": "postgresql", "file": "src/library/lending/hold_service.py", "line": 103, "name": "fetch_one", "relation": "stores", "thing": { "kind": "table", "name": "book_hold" } },
+   { "value": "postgresql", "file": "src/library/lending/hold_service.py", "line": 139, "name": "fetch_one", "relation": "stores", "thing": { "kind": "table", "name": "book_hold" } },
+   { "value": "postgresql", "file": "src/library/lending/hold_service.py", "line": 156, "name": "execute", "relation": "stores", "thing": { "kind": "table", "name": "book_copy" } },
+   { "value": "postgresql", "file": "src/library/lending/hold_service.py", "line": 164, "name": "execute", "relation": "stores", "thing": { "kind": "table", "name": "loan" } },
+   { "value": "postgresql", "file": "src/library/lending/hold_service.py", "line": 191, "name": "execute", "relation": "stores", "thing": { "kind": "table", "name": "book_copy" } },
+   { "value": "postgresql", "file": "src/library/lending/hold_service.py", "line": 219, "name": "fetch_all", "relation": "stores", "thing": { "kind": "table", "name": "book_copy" } },
+   { "value": "postgresql", "file": "src/library/lending/hold_service.py", "line": 264, "name": "fetch_all", "relation": "stores", "thing": { "kind": "table", "name": "book_hold" } },
+   { "value": "postgresql", "file": "src/library/lending/hold_service.py", "line": 276, "name": "fetch_value", "relation": "stores", "thing": { "kind": "table", "name": "book_hold" } },
+   { "value": "postgresql", "file": "src/library/lending/hold_service.py", "line": 280, "name": "execute", "relation": "stores", "thing": { "kind": "table", "name": "book_copy" } },
+   { "value": "postgresql", "file": "src/library/lending/hold_service.py", "line": 286, "name": "execute", "relation": "stores", "thing": { "kind": "table", "name": "hold_event" } }
+  ]
+ },
+ {
   "group": "lending-example",
   "set": "errors",
   "files": ["src/library/lending/requests.py"],

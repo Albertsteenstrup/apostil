@@ -491,6 +491,24 @@ function partWindow(part, slots = {}) {
   };
 }
 
+// ----- a click on a mark of a part or a step (build 63), as on Home (pickMark in home.js) -----
+
+/** Opens a place of a mark: its file at its line. */
+const openMark = (file, line) => App.showCode(file, [line, line]);
+
+/** A value with one place opens it; with several, its window lists them (false). As a node of Home with no level under it. */
+const pickPlace = (thing, one) => (one.marks.length === 1 ? (openMark(one.marks[0].file, one.marks[0].at), true) : false);
+
+/** A part with a flow chart goes down to it, with the steps that hold the value lit, as a node of Home goes down a level; else as pickPlace. */
+function pickPart(thing, one) {
+  const page = App.page;
+  const diagram = page.diagrams.find((candidate) => candidate.id === page.parts.find((part) => part.id === thing.id)?.diagrams[0]);
+  if (diagram?.kind !== 'flow') return pickPlace(thing, one);
+  const lit = Object.entries(Marks.stepThings(diagram, page.look.marks)).filter(([, step]) => step.marks.some((mark) => Marks.keyOf(mark) === one.key)).map(([key]) => key);
+  App.go({ level: 'part', part: thing.id, diagram: diagram.id, lit });
+  return true;
+}
+
 // ----- the three levels of diagrams -----
 
 /**
@@ -513,7 +531,8 @@ async function drawChange(into, fromPart, tie) {
   const links = inLook ? looked.edges : written;
   if (inLook) {
     const drawn = edgeElements(svg, links).map(({ path, label }, at) => ({ ...links[at], path, label })); // decorate reads the drawn line and label of each
-    Marks.decorate(svg, looked.things, drawn, page.look, looked.filled, { nodeKey, open: (file, line) => App.showCode(file, [line, line]), pick: () => false });
+    // With the marks of the parts at their corners (build 63); a drawing that the look does not touch keeps its frame, as on Home.
+    if (Marks.decorate(svg, looked.things, drawn, page.look, looked.filled, { nodeKey, open: openMark, pick: pickPart })) fitToContent(svg);
   }
   const fileSlotsOf = fileSlots(page);
   if (svg) Places.mark(svg, { kind: 'diagram' });
@@ -581,7 +600,7 @@ async function changeLook(text, links) {
   for (const thing of Marks.changeThings(page, 'part')) things[`ap${page.parts.findIndex((part) => part.id === thing.id)}`] = thing;
   const [noPart] = Marks.changeThings(page, 'no-part');
   if (noPart) things.apnone = noPart;
-  for (const [node, thing] of Object.entries(things)) things[node] = { ...thing, node, marks: [], slots: Marks.slotsIn(look, thing) };
+  for (const [node, thing] of Object.entries(things)) things[node] = { ...thing, node, marks: thing.marks ?? [], slots: Marks.slotsIn(look, thing) }; // the box in no part has no marks
   const ofLinks = Marks.changeThings(page, 'part-link');
   const edges = links.map((one) => { const thing = ofLinks[page.links.indexOf(one.link)]; return { ...one, marks: [], fields: thing.fields, slots: Marks.slotsIn(look, thing) }; });
   const gone = things.apnone?.slots['show.shown'] === false; // its node, its class and its place in the rows go
@@ -730,12 +749,13 @@ const diagramFactsHtml = (diagram) => (diagram && !diagram.broad
 
 /** The diagram of one part or function: a flow, a sequence, the states or a schema, with what the change did to it. `join` as in wireCode, `stack` as in makeSurface. */
 async function drawPart(into, diagram, join, stack = false) {
-  // The look of its steps (build 60): a colour, or a picture in place of a step, by the same code as a node on Home (marks.js).
+  // The look of its steps (build 60): a colour, or a picture in place of a step, by the same code as a node on Home (marks.js); and on a flow chart
+  // the marks inside the lines of each step at its corners (build 63).
   const { look } = App.page;
-  const things = look ? Object.fromEntries(Object.entries(Marks.stepThings(diagram)).map(([key, thing]) => [key, { ...thing, slots: Marks.slotsIn(look, thing) }])) : {};
+  const things = look ? Object.fromEntries(Object.entries(Marks.stepThings(diagram, look.marks)).map(([key, thing]) => [key, { ...thing, slots: Marks.slotsIn(look, thing) }])) : {};
   const shaped = look && !diagram.schema ? await Marks.lookText({ ...diagram, mermaid: diagram.draw }, things, [], look) : { text: diagram.draw, filled: {} };
   const svg = await drawMermaid(into, shaped.text, shaped.text === diagram.draw ? diagram.plain : diagram.draw, diagram.schema, diagram.id);
-  if (look && svg && !svg.hasAttribute('data-plain')) Marks.decorate(svg, things, [], look, shaped.filled, { nodeKey, open: (file, line) => App.showCode(file, [line, line]), pick: () => false });
+  if (look && svg && !svg.hasAttribute('data-plain') && Marks.decorate(svg, things, [], look, shaped.filled, { nodeKey, open: openMark, pick: pickPlace })) fitToContent(svg);
   markDiagram(into, diagram);
   paintChange(into, diagram);
   wireCode(into, diagram, join);

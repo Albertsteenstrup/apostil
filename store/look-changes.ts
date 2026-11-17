@@ -41,7 +41,7 @@ function counter(store: Store, folder: string): ((pick: Pick) => number) & { pag
   const notes = [...(page?.notes ?? []).filter((note) => !note.removed), ...(map?.fileNotes ?? [])].sort((a, b) => a.lines[0] - b.lines[0]);
   const files = [...new Set([...notes.map((note) => note.file), ...marks.map((mark: { file: string }) => mark.file)])];
   const tests = (name: string): number => page?.functionTests[name] ?? 0;
-  const ofPage: Thing[] = [...(page ? Marks.changeThings(page) : []), ...files.flatMap((path) => Marks.fileThings(path, notes.filter((note) => note.file === path), marks, tests))];
+  const ofPage: Thing[] = [...(page ? Marks.changeThings(page, undefined, marks) : []), ...files.flatMap((path) => Marks.fileThings(path, notes.filter((note) => note.file === path), marks, tests))];
   const count = (pick: Pick): number => {
     if (onPage(pick.kind)) return ofPage.filter((thing) => thing.kind === pick.kind && Marks.picks(pick, thing)).length;
     if (pick.kind === 'note') return (pick.diagram ? windows : cards).filter((thing) => Marks.picks(pick, thing)).length;
