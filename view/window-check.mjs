@@ -672,6 +672,22 @@ try {
   check('a second click on a changed file shows its tab and opens no second one and no diff editor; J in the file tab opens the next changed file in the same tab, and the list of the control opens night_jobs.py in it',
     changedRows.removed > 0 && oneTab && !!nextTab && !!pickedTab && (await tabOf('ready_shelf.py').count()) === 0, `${JSON.stringify(changedRows)}; one tab ${oneTab}; next ${!!nextTab}; picked ${!!pickedTab}`);
 
+  // Cmd+B (build 64): with the views of Apostil in the side bar and a page of Apostil in front that has the keyboard, the key hides the side bar, it stays
+  // hidden for a second, and the key shows it again.
+  const sideBarShows = () => page.evaluate(() => { const part = document.querySelector('.part.sidebar'); return !!part && part.getBoundingClientRect().width > 0 && getComputedStyle(part).display !== 'none'; });
+  const apostilShows = () => filesPane.first().isVisible().catch(() => false);
+  if (!(await apostilShows())) await command('View: Show Apostil');
+  await pickedTab?.locator('.cv .code').click({ position: { x: 200, y: 100 } }); // the keyboard is in the page
+  const sideBefore = { shows: await sideBarShows(), apostil: await apostilShows(), front: await activeTab(), focus: await page.evaluate(() => document.activeElement?.tagName) };
+  await page.keyboard.press('Meta+B');
+  const sideHidden = await until(async () => !(await sideBarShows()), 3000);
+  await sleep(1000); // calm: the side bar must not come back by itself
+  const sideStays = !(await sideBarShows());
+  await page.keyboard.press('Meta+B');
+  const sideAgain = await until(() => sideBarShows(), 3000);
+  check('Cmd+B with the views of Apostil in the side bar and a page of Apostil in front hides the side bar, and it stays hidden for a second; Cmd+B again shows it',
+    sideBefore.shows && sideBefore.apostil && /night_jobs\.py/.test(sideBefore.front ?? '') && sideBefore.focus === 'IFRAME' && sideHidden && sideStays && sideAgain, JSON.stringify({ sideBefore, sideHidden, sideStays, sideAgain }));
+
   // "Diagram" in a wide tab: Alt+Down and Alt+Up as real keys step through the diffs of night_jobs.py and open its diff, and the graph at the left follows.
   // The side bar closes first, so that the page has the width of the two halves.
   await command('View: Close Primary Side Bar');

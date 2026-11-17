@@ -189,7 +189,6 @@ const Trail = (() => {
 
   // Back and forward along the path, as in a browser: Cmd+Left and Cmd+Right on a Mac, Ctrl+Left and Ctrl+Right elsewhere (VS Code uses those
   // only where he types), and Alt+Left and Alt+Right everywhere. Not in a text field, where these keys move the caret.
-  const MAC = /Mac/.test(navigator.platform);
   document.addEventListener('keydown', (event) => {
     const way = { ArrowLeft: -1, ArrowRight: 1 }[event.key];
     const { altKey: alt, metaKey: meta, ctrlKey: ctrl } = event;

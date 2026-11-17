@@ -56,6 +56,22 @@ function keep(change) {
   vscodeApi?.setState(kept);
 }
 
+const MAC = /Mac/.test(navigator.platform);
+
+// One run for one shortcut (build 64). VS Code runs a shortcut from the key that a page passes on to it. While a page has the keyboard, VS Code also
+// tells macOS to leave the shortcuts of its menu alone: one switch for the window, which each page sets by its own clock, four times a second. When
+// the keyboard goes from one page of Apostil to another (the list in the side bar and a tab), the "off" of the old page can come after the "on" of the
+// new one. Then the menu runs the shortcut too: Cmd+B hid the side bar and showed it again at once. A key that the page marks as handled never
+// reaches that menu, and VS Code still gets it from the page, so it runs once. This holds for Cmd with a letter or a digit, outside a text field;
+// not for the keys that the page or VS Code's own script of a page handles (select all, copy, cut, paste, undo), and not for those that only macOS
+// runs (hide, minimize, quit).
+if (MAC && vscodeApi) {
+  document.addEventListener('keydown', (event) => {
+    const own = /^[a-z0-9]$/i.test(event.key) && !'acxvzhmq'.includes(event.key.toLowerCase());
+    if (event.metaKey && own && !event.target.closest?.('[data-field], textarea, input, [contenteditable]')) event.preventDefault();
+  });
+}
+
 /** Asks VS Code a question, for example "diff:src/app.py". Each answer is kept, so a second hover is instant. */
 function ask(question) {
   if (!answers.has(question)) {
