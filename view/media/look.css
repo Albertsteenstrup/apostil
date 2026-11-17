@@ -320,7 +320,7 @@ p.fact{margin:0;padding:8px 12px;color:var(--muted)} /* what a file is, in one l
 .where .gone-place{color:var(--faint)}
 
 /* the comments window: its own window at the right edge of the tab, over the full height; hidden when it holds nothing */
-body.with-side .paper{margin-right:336px}
+body.with-side .paper{margin-right:var(--side-room,336px)} /* a rule of the look can give the comments window another width */
 /* beside code with notes it takes no room of its own: it lies over the notes column, so the code keeps its width; "›" folds it away */
 body.with-side .paper:has(#view > .cvw .notes){margin-right:0}
 body.with-side:has(#view > .cvw .notes) .side{top:var(--notes-top,8px)}
@@ -1107,6 +1107,89 @@ body:not(.picking) .stage g.image-shape.go:hover > *{scale:1.03}
 .stage g.node.lit.lk-fill .label-container{fill:var(--lk-fill)!important}
 .stage g.node.lit.lk-line .label-container{stroke:var(--lk-line)!important}
 span.lk-words{color:var(--lk-words)}
-.lk-ico::before{content:'';display:inline-block;width:14px;height:14px;margin-right:5px;vertical-align:-2px;background:var(--lk-icon) center/contain no-repeat}
 .lk-picture{display:block;max-height:48px;max-width:100%}
 .panels .pgp{grid-column:1/-1;color:var(--muted);font-size:var(--small);margin-top:4px}
+
+/* ----- blocks of a look (media/blocks.js, build 58): a page of the look, a section of its own in a window, the window of a target -----
+   The class of a block's kind (.block-<kind>) and the classes of its inner parts (.bk-…) have different names, so that a block inside a row keeps its own layout.
+   No box is lighter than the page: in a dark theme the code stands in a darker well, and a button has only its line. */
+body{--bk-well:var(--region)}
+body:where(.vscode-dark,.vscode-high-contrast:not(.vscode-high-contrast-light)){--bk-well:color-mix(in srgb,#000 22%,var(--paper))}
+.bks{display:flex;flex-direction:column;gap:20px;min-width:0}
+.bk{min-width:0}
+.bk-title{font-weight:600;font-size:var(--small);color:var(--muted);margin-bottom:6px}
+.bk-words p{overflow-wrap:anywhere}
+.bk-words p+p{margin-top:8px}
+.bk-pairs{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:4px 18px;margin:0}
+.bk-pairs dt{color:var(--muted)}
+.bk-pairs dd{margin:0;overflow-wrap:anywhere}
+.bk-scroll{overflow-x:auto}
+.bk-grid{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+.bk-grid th{font-weight:400;color:var(--muted);text-align:left;padding:3px 16px 6px 0;border-bottom:1px solid var(--line2);white-space:nowrap}
+.bk-grid td{padding:5px 16px 5px 0;border-bottom:1px solid var(--line);vertical-align:top}
+.bk-grid :is(th,td):last-child{padding-right:0}
+.bk-grid .n{text-align:right}
+.bk-bar-list{display:grid;grid-template-columns:max-content minmax(60px,1fr) max-content;gap:7px 14px;align-items:center;max-width:680px;font-variant-numeric:tabular-nums}
+.bk-bar-track{display:block;height:8px}
+.bk-bar{display:block;height:100%;min-width:2px;border-radius:4px;background:var(--teal)}
+.bk-bar-n{text-align:right}
+.bk-file{display:inline-block;margin-bottom:5px;font:var(--small) var(--mono);color:var(--tealink)}
+.bk-file i{color:var(--muted);font-family:var(--sans)}
+.bk-lines{margin:0;padding:8px 12px;border:1px solid var(--line);border-radius:6px;background:var(--bk-well);color:var(--ink);font:var(--code-weight) var(--code)/1.55 var(--mono);white-space:pre-wrap;overflow-wrap:anywhere}
+.bk-state{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 8px}
+.bk-dot{flex:none;align-self:center;width:8px;height:8px;border-radius:4px;--bk-dot:var(--bk-dot-l);background:var(--bk-dot,var(--teal))}
+body.vscode-dark .bk-dot{--bk-dot:var(--bk-dot-d)}
+body.vscode-high-contrast .bk-dot{background:var(--ink)}
+.bk-word{font-weight:600}
+.bk-said{color:var(--muted)}
+.bk-links{display:flex;flex-wrap:wrap;gap:4px 20px}
+.bk-links a,.bk-from a{color:var(--tealink)}
+:is(.bk-links a,.bk-from a,.bk-file):hover{text-decoration:underline;text-underline-offset:3px}
+.bk-arrow{color:var(--muted);margin-right:5px}
+.bk-press{font:600 var(--size) var(--sans);color:var(--tealink);background:var(--tealsoft);border:1px solid var(--tealline);border-radius:6px;padding:4px 12px;cursor:pointer}
+body:where(.vscode-dark,.vscode-high-contrast) .bk-press{background:transparent}
+.bk-press:hover{border-color:var(--teal)}
+.bk-press:focus-visible,.bk a:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.bk-image{display:block;max-width:100%;height:auto;border:1px solid var(--line);border-radius:6px}
+.bk-panel{display:block;max-width:560px;border:1px solid var(--line);border-radius:8px;overflow:hidden;cursor:pointer}
+.bk-panel:hover{border-color:var(--line2)}
+.bk-drawing{height:220px;padding:10px;pointer-events:none}
+.bk-drawing.stage{display:block;overflow:hidden}
+.bk-drawing svg{width:100%;height:100%;margin:0}
+.bk-caption{display:block;padding:6px 12px 8px;border-top:1px solid var(--line);font-size:var(--small);color:var(--soft)}
+.bk-cols{display:flex;flex-wrap:wrap;gap:20px 32px}
+.bk-cols > .bk{flex:1 1 260px}
+.bk-from{margin-top:6px;color:var(--muted);font-size:var(--small);overflow-wrap:anywhere}
+.bk-quiet{color:var(--muted);font-size:var(--small)}
+/* in a window: a section of its own among the sections of today, and the window of a target */
+.win .bk-sec{padding:6px 12px 8px}
+.bk-sectitle{font:600 var(--small) var(--sans);color:var(--muted);padding:2px 0 6px}
+.win .bks{gap:12px}
+.win .bk-cols > .bk{flex-basis:180px}
+.win .bk-drawing{height:160px}
+/* a page of the look: one column that reads well, under the line at the top */
+.bk-page{max-width:1040px}
+.bk-head{margin:2px 0 18px;font-size:calc(var(--size) + 7px);font-weight:600;color:var(--ink);line-height:1.25}
+/* The look on the page of a change and in the file tab (build 60). A box of a page (the card of the change, the comments window, a thread) takes the
+   colours of one colour of a rule, as a node does; the lines beside the notes take its colour, width and dashes; the comment mark and the "?" of an
+   open point take the colour of its words and an icon; the margin of the code shows the icon of a mark. */
+:is(.sec, .side, .side .thread).lk-fill{background:var(--lk-fill)}
+.side.lk-fill .sh{background:var(--lk-fill)}
+:is(.sec, .side).lk-line{border-color:var(--lk-line)}
+.side .thread.lk-line{box-shadow:inset 3px 0 0 var(--lk-line)}
+:is(.sec, .side .thread).lk-ink{color:var(--lk-ink)}
+.cn svg.links path.lk-stroke{stroke:var(--lk-stroke)}
+.cn svg.links path.arrow.lk-stroke{fill:var(--lk-stroke)}
+.cn svg.links path.lk-wide{stroke-width:var(--lk-width)}
+.cn svg.links path.lk-dashed{stroke-dasharray:5 4}
+.cn svg.links path.cur{stroke:var(--teal)}
+.rk.lk-words{color:var(--lk-words);box-shadow:inset 0 0 0 1.2px var(--lk-words)}
+.rk.svg.lk-words circle,.opt.lk-words circle{stroke:var(--lk-words)}
+.rk.svg.lk-words text,.opt.lk-words text{fill:var(--lk-words)}
+.lk-icon{width:14px;height:14px;margin-right:5px;vertical-align:-2px;object-fit:contain}
+.rk .lk-icon{width:11px;height:11px;margin-right:3px}
+.point .ch.lk-words .where{color:var(--lk-words)}
+.side .pgroup{padding:6px 12px 2px;font-size:var(--small);color:var(--muted);border-top:1px solid var(--line)}
+.cn .code .n{position:relative}
+.cn .code .mg{position:absolute;left:4px;top:calc((var(--row) - 16px) / 2);width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 0 0 1px var(--line2);display:flex;align-items:center;justify-content:center;font:600 10px/1 var(--sans);color:#1f2328;cursor:pointer}
+.cn .code .mg img{width:12px;height:12px;object-fit:contain}

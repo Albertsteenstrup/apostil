@@ -396,19 +396,22 @@ function markDiagram(into, diagram, whole = true) {
 
 // ----- what the hover windows show -----
 
-function fileWindow(path) {
+/** The window of a file name: its facts in the quiet line of the title ("facts") and its diff ("diff"); `slots` of a rule of the look order them and leave some out. */
+function fileWindow(path, slots = {}) {
   return async () => {
     const file = App.page.files.find((candidate) => candidate.path === path);
     const folder = folderOf(path);
-    const frame = {
-      title: baseName(path), width: 640, open: () => App.openFile(path),
-      sub: `${countsHtml(file)}${file?.renamedFrom ? ` · renamed from ${esc(file.renamedFrom)}` : ''}${folder ? ` · <a data-folder="${esc(folder)}">${esc(folder)}</a>` : ''}`,
+    const facts = { id: 'facts', sub: `${countsHtml(file)}${file?.renamedFrom ? ` · renamed from ${esc(file.renamedFrom)}` : ''}${folder ? ` · <a data-folder="${esc(folder)}">${esc(folder)}</a>` : ''}` };
+    // A file with no rows to draw (a picture, a fact, no changed line) has no "ready", unless a section of a look's own fills itself: nothing of it is read as code.
+    const frame = (diff) => {
+      const content = Marks.windowOf({ title: baseName(path), width: 640, sections: [facts, { id: 'diff', ...diff }] }, slots);
+      return { ...content, ready: diff.ready || content.ids.some((id) => id.startsWith('own-')) ? content.ready : undefined, open: () => App.openFile(path) };
     };
-    if (file?.what) return { ...frame, body: await factHtml(file) };
+    if (file?.what) return frame({ html: await factHtml(file) });
     const lines = (await ask(`diff:${path}`)) ?? [];
-    if (!lines.length) return { ...frame, body: '<div class="quiet" style="padding:4px 12px">No changed lines.</div>' };
+    if (!lines.length) return frame({ html: '<div class="quiet" style="padding:4px 12px">No changed lines.</div>' });
     // The scroll bar has the size of the whole diff at once; long lines wrap.
-    return { ...frame, body: `<div data-file="${esc(path)}"></div>`, ready: (body) => codeWithNotes(body.firstChild, { rows: diffRows(lines, file?.cells), scroller: body, path }) };
+    return frame({ html: `<div data-file="${esc(path)}"></div>`, ready: (body) => codeWithNotes(body.querySelector(`[data-file="${CSS.escape(path)}"]`), { rows: diffRows(lines, file?.cells), scroller: body, path }) });
   };
 }
 
@@ -453,27 +456,42 @@ async function drawPlaces(holder, code, scroller, check) {
 }
 
 /** The window on a thing of a diagram: its places, or its reason in plain words. A click on the head of a place opens its file. */
-function placesWindow(name, code, check) {
+function placesWindow(name, code, check, slots = {}) {
   return async () => {
     const [first] = code.places;
-    if (!first) return { title: name, width: 320, pad: true, body: `<div class="why">${esc(code.why ?? '')}</div>${check ? `<div class="pck">Check: ${esc(check)}</div>` : ''}` };
+    const pointed = { id: 'check', html: check ? `<div class="pck">Check: ${esc(check)}</div>` : '' };
+    if (!first) return { ...Marks.windowOf({ title: name, width: 320, sections: [{ id: 'why', html: `<div class="why">${esc(code.why ?? '')}</div>` }, pointed] }, slots), pad: true };
     const sub = code.places.length > 1 ? plural(code.places.length, 'place') : `${esc(baseName(first.file))} · ${esc(placeText(first))}`;
+    // What the check found stands over the places, in the same box.
+    const content = Marks.windowOf({ title: name, sub, width: 600, sections: [{ id: 'places', html: '<div class="places"></div>' }, { id: 'check' }] }, slots);
     return {
-      title: name, sub, width: 600, body: '<div class="places"></div>', open: () => App.showCode(first.file, first.lines && !first.removed ? first.lines : null),
-      ready: (body) => drawPlaces(body.firstChild, code, body, check),
+      ...content, open: () => App.showCode(first.file, first.lines && !first.removed ? first.lines : null),
+      ready: async (body) => { await content.ready(body); if (content.ids.includes('places')) await drawPlaces(body.querySelector('.places'), code, body, content.ids.includes('check') ? check : undefined); }, // and the sections of a look's own
     };
   };
 }
 
-/** A part shows its next diagram down, or else its full list of files. */
-function partWindow(part) {
+/**
+ * A part shows its next diagram down ("diagram"), or else its full list of files ("files"). `slots` of a rule of the look give the sections, their
+ * order and the width, and the lines of what a click does.
+ */
+function partWindow(part, slots = {}) {
   const diagram = App.page.diagrams.find((candidate) => candidate.id === part.diagrams[0]);
-  if (!diagram) return filesWindow(part.name, part.files);
-  return () => ({
-    title: part.name, sub: `${esc(diagram.title)} ${changeWordsHtml(diagram)}`, width: 440, pad: true, body: '<div></div>',
-    ready: async (body) => { await drawMermaid(body.firstChild, diagram.draw, diagram.plain, diagram.schema, diagram.id); markDiagram(body.firstChild, diagram); paintChange(body.firstChild, diagram); },
-    open: () => App.go({ level: 'part', part: part.id }),
-  });
+  const files = filesWindow(part.name, part.files);
+  if (!diagram && !Object.keys(slots).length) return files;
+  return () => {
+    const list = files();
+    const sections = [
+      ...(diagram ? [{ id: 'diagram', sub: `${esc(diagram.title)} ${changeWordsHtml(diagram)}`, html: '<div class="pdg"></div>', ready: async (body) => {
+        const into = body.querySelector('.pdg');
+        await drawMermaid(into, diagram.draw, diagram.plain, diagram.schema, diagram.id); markDiagram(into, diagram); paintChange(into, diagram);
+      } }] : []),
+      { id: 'files', sub: list.sub, html: list.body },
+    ];
+    const shown = slots['window.sections'] ? sections : sections.slice(0, 1); // with no rule, the diagram, or else the files
+    const content = Marks.windowOf({ title: part.name, width: shown[0].id === 'diagram' ? 440 : 620, sections: shown }, slots);
+    return { ...content, pad: content.ids[0] === 'diagram', ...(diagram ? { open: () => App.go({ level: 'part', part: part.id }) } : {}) };
+  };
 }
 
 // ----- the three levels of diagrams -----
@@ -486,18 +504,32 @@ function partWindow(part) {
 async function drawChange(into, fromPart, tie) {
   const page = App.page;
   const part = page.parts.find((candidate) => candidate.id === fromPart);
-  await drawMermaid(into, part?.drillUp ?? page.changeDiagram, part?.drillUpPlain);
+  // The links between parts, with the node ids that the Mermaid text of the change gives the parts.
+  const index = (id) => page.parts.findIndex((candidate) => candidate.id === id);
+  const written = page.links.filter((link) => index(link.from) >= 0 && index(link.to) >= 0)
+    .map((link) => ({ from: `ap${index(link.from)}`, to: `ap${index(link.to)}`, label: link.label, link }));
+  const text = part?.drillUp ?? page.changeDiagram;
+  const looked = await changeLook(text, written);
+  await drawMermaid(into, looked.text, looked.text === text ? part?.drillUpPlain : text);
   const svg = into.querySelector('svg');
+  const inLook = page.look && svg && !svg.hasAttribute('data-plain'); // a look whose text does not draw leaves the diagram as it is
+  const links = inLook ? looked.edges : written;
+  if (inLook) {
+    const drawn = edgeElements(svg, links).map(({ path, label }, at) => ({ ...links[at], path, label })); // decorate reads the drawn line and label of each
+    Marks.decorate(svg, looked.things, drawn, page.look, looked.filled, { nodeKey, open: (file, line) => App.showCode(file, [line, line]), pick: () => false });
+  }
+  const fileSlotsOf = fileSlots(page);
   if (svg) Places.mark(svg, { kind: 'diagram' });
   for (const title of into.querySelectorAll('b[data-part]')) {
     const node = title.closest('g.node');
     const id = title.dataset.part;
     const thePart = page.parts.find((candidate) => candidate.id === id);
+    const slots = (inLook && looked.things[`ap${index(id)}`]?.slots) || {};
     node.classList.add('go');
     Places.mark(node, { kind: 'part', part: id });
-    node.addEventListener('click', (event) => { if (!event.target.closest('.f')) tie?.click ? tie.click(id) : App.openPart(id); });
+    Marks.bind(node, slots, (event) => { if (!event.target.closest('.f')) tie?.click ? tie.click(id) : App.openPart(id); }, thePart.name);
     if (tie) Hover.after(node, () => tie.part(id));
-    else Hover.attach(title, partWindow(thePart), node);
+    else Hover.attach(title, partWindow(thePart, slots), node);
   }
   const noPart = into.querySelector('b[data-nopart]');
   if (noPart) {
@@ -511,7 +543,7 @@ async function drawChange(into, fromPart, tie) {
     Places.mark(span, { kind: 'file', file: path });
     span.addEventListener('click', (event) => { event.stopPropagation(); App.fileClick(path, event); });
     if (tie) Hover.after(span, () => tie.file(path));
-    else Hover.attach(span, fileWindow(path), span.closest('g.node'));
+    else Hover.attach(span, fileWindow(path, fileSlotsOf(path)), span.closest('g.node'));
   }
   for (const more of into.querySelectorAll('.f.more')) {
     const id = more.dataset.more;
@@ -519,10 +551,6 @@ async function drawChange(into, fromPart, tie) {
     Places.mark(more, { kind: 'more-files', part: id === 'no-part' ? undefined : id });
     if (!tie) Hover.attach(more, filesWindow(id === 'no-part' ? 'In no part' : page.parts.find((candidate) => candidate.id === id).name, paths.slice(3)), more.closest('g.node'));
   }
-  // The links between parts, with the node ids that the Mermaid text of the change gives the parts.
-  const index = (id) => page.parts.findIndex((candidate) => candidate.id === id);
-  const links = page.links.filter((link) => index(link.from) >= 0 && index(link.to) >= 0)
-    .map((link) => ({ from: `ap${index(link.from)}`, to: `ap${index(link.to)}`, label: link.label, link }));
   if (svg) {
     markEdges(svg, links, (one) => ({ kind: 'edge', edge: [one.link.from, one.link.to], name: one.link.label }));
     wireLinks(svg, links, tie);
@@ -543,6 +571,44 @@ async function drawChange(into, fromPart, tie) {
 }
 
 /**
+ * The diagram of the change in the look (build 60): the parts, the box of the files in no part and the links between parts as things of the look,
+ * by their node ids in the text of change-diagram.ts. The fields of a part that a rule shows, and the box in no part folded or left out, are written
+ * into the labels; then marks.js adds the shapes, the icons and the words of the links before Mermaid draws, as on Home (lookText).
+ * Returns the text, the things by node id and the arrows for decorate; with no look, the text as it is.
+ */
+async function changeLook(text, links) {
+  const page = App.page;
+  const { look } = page;
+  if (!look) return { text, things: {}, edges: links, filled: {} };
+  const things = {};
+  for (const thing of Marks.changeThings(page, 'part')) things[`ap${page.parts.findIndex((part) => part.id === thing.id)}`] = thing;
+  const [noPart] = Marks.changeThings(page, 'no-part');
+  if (noPart) things.apnone = noPart;
+  for (const [node, thing] of Object.entries(things)) things[node] = { ...thing, node, marks: [], slots: Marks.slotsIn(look, thing) };
+  const ofLinks = Marks.changeThings(page, 'part-link');
+  const edges = links.map((one) => { const thing = ofLinks[page.links.indexOf(one.link)]; return { ...one, marks: [], fields: thing.fields, slots: Marks.slotsIn(look, thing) }; });
+  const gone = things.apnone?.slots['show.shown'] === false; // its node, its class and its place in the rows go
+  const lines = text.split('\n').filter((line) => !gone || !/\bapnone\b/.test(line)).map((line) => {
+    const slots = things[/^\s*(ap\d+|apnone)\[/.exec(line)?.[1]]?.slots;
+    const fields = slots?.content?.fields ?? (slots?.['show.folded'] ? ['name'] : null);
+    return fields ? withFields(line, fields) : line;
+  });
+  const shaped = await Marks.lookText({ id: 'change', mermaid: lines.join('\n'), graph: { nodes: {}, edges: links } }, things, edges, look);
+  return { ...shaped, things };
+}
+
+/** A node of the diagram of the change with the fields of its part in the order of a rule: its name, its files, the counts of its files. */
+function withFields(line, fields) {
+  return line.replace(/^(\s*\w+\[\(?")(.*)("\)?\])$/, (all, open, label, close) => {
+    const end = label.indexOf('</b>') + 4;
+    const name = fields.includes('name') ? label.slice(0, end) : label.slice(0, end).replace(/>[^<]*</, '><'); // the title stays, empty: the page finds the part by it
+    const files = !fields.includes('files') ? '' : fields.includes('counts') ? label.slice(end) : label.slice(end).replace(/ <i class='[pm]'>[^<]*<\/i>/g, '');
+    const filesFirst = fields.includes('files') && fields.indexOf('files') < fields.indexOf('name');
+    return `${open}${filesFirst ? files + name : name + files}${close}`;
+  });
+}
+
+/**
  * The links between parts in the diagram of the change, with their code. A link with a diff has its counts at its text, or at the middle of its line
  * when it has no text. With `tie` (the diffs stand beside it) the pointer on a link with places shows them in the right half, and a click keeps that;
  * else a window shows its places, and a click opens the first. A link with a reason shows the reason in a small window. An open point at a link marks it.
@@ -551,13 +617,14 @@ function wireLinks(svg, links, tie) {
   const partName = (id) => App.page.parts.find((part) => part.id === id)?.name ?? id;
   edgeElements(svg, links).forEach(({ path, label: drawn }, at) => {
     const { link } = links[at];
-    const label = link.label ? drawn : null; // a link with no text has an empty label
+    const label = links[at].label ? drawn : null; // a link with no text has an empty label; a rule of the look can give it words
     const code = link.code;
     if (!path || !code) return;
     if (code.counts) path.countsText = edgeCountsAt(path, label, code.counts);
     const els = [label, path, path.nextElementSibling?.classList.contains('hit') && path.nextElementSibling, path.countsText].filter(Boolean);
-    const check = App.page.openPoints?.find((one) => !one.diagram && one.edge?.[0] === link.from && one.edge?.[1] === link.to && (one.name === undefined || one.name === (link.label ?? '')))?.text;
-    if (check) markPoint(els);
+    const point = App.page.openPoints?.find((one) => !one.diagram && one.edge?.[0] === link.from && one.edge?.[1] === link.to && (one.name === undefined || one.name === (link.label ?? '')));
+    const check = point?.text;
+    if (check) markPoint(els, point);
     const name = link.label || `${partName(link.from)} → ${partName(link.to)}`;
     const [first] = code.places;
     for (const el of els) {
@@ -583,11 +650,12 @@ function thingsWithCode(into, diagram) {
   const svg = into.querySelector('svg');
   if (!svg || !diagram?.code) return [];
   const label = (id) => diagram.graph.nodes[id] ?? id;
-  const point = (fits) => App.page.openPoints?.find((one) => one.diagram === diagram.id && fits(one))?.text;
-  const nodeThing = (key, els) => ({ key, name: label(key), code: diagram.code[key], els, point: point((one) => one.node === key) });
+  const found = (fits) => App.page.openPoints?.find((one) => one.diagram === diagram.id && fits(one));
+  const point = (fits) => found(fits)?.text;
+  const nodeThing = (key, els) => ({ key, name: label(key), code: diagram.code[key], els, point: point((one) => one.node === key), open: found((one) => one.node === key) });
   const nodes = diagram.kind === 'sequence'
     ? [...svg.querySelectorAll('rect.actor[name]')].map((actor) => nodeThing(actor.getAttribute('name'), [actor.parentElement]))
-    : [...svg.querySelectorAll('g.node')].map((g) => nodeThing(nodeKey(g), [g]));
+    : [...svg.querySelectorAll('g.node, g.image-shape')].map((g) => nodeThing(nodeKey(g), [g]));
   const edges = drawnEdges(diagram, svg);
   const texts = svg.querySelectorAll('text.messageText');
   const lines = svg.querySelectorAll('.messageLine0, .messageLine1');
@@ -596,6 +664,7 @@ function thingsWithCode(into, diagram) {
   return [...nodes, ...edges.map((edge, at) => ({
     key: edge.key, name: edge.label || `${label(edge.from)} → ${label(edge.to)}`, code: diagram.code[edge.key], els: drawn[at].filter(Boolean),
     point: edge.change === 'removed' ? undefined : point((one) => one.edge?.[0] === edge.from && one.edge?.[1] === edge.to && (one.name === undefined || one.name === (edge.label ?? ''))),
+    open: edge.change === 'removed' ? undefined : found((one) => one.edge?.[0] === edge.from && one.edge?.[1] === edge.to && (one.name === undefined || one.name === (edge.label ?? ''))),
   }))].filter((thing) => thing.code && thing.els.length);
 }
 
@@ -608,7 +677,7 @@ function wireCode(into, diagram, join) {
   for (const thing of thingsWithCode(into, diagram)) {
     const { code, els } = thing;
     const [main] = els;
-    if (thing.point) markPoint(els);
+    if (thing.point) markPoint(els, thing.open);
     for (const el of els) {
       if (!code.places.length) { Hover.attach(el, placesWindow(thing.name, code, thing.point), main); continue; }
       if (join) {
@@ -625,13 +694,15 @@ function wireCode(into, diagram, join) {
   }
 }
 
-/** A small quiet mark at the top right of a thing that the second agent found does not fit its code. */
-function markPoint(els) {
+/** A small quiet mark at the top right of a thing that the second agent found does not fit its code; a rule of the look on its open point gives its colour and icon, or leaves it out. */
+function markPoint(els, point) {
+  const slots = point ? Marks.slotsIn(App.page.look, Marks.pointThing(point, App.page)) : {};
+  if (slots['show.shown'] === false) return;
   const el = els.find((one) => one.tagName === 'g') ?? els.find((one) => one.tagName === 'text');
   const line = !el && els.find((one) => one.tagName === 'path' && one.getTotalLength); // an arrow with no text: at the middle of its line
   if (line) {
     const middle = line.getPointAtLength(line.getTotalLength() / 2);
-    return void line.after(ringAt(middle.x + 12, middle.y));
+    return void line.after(ringAt(middle.x + 12, middle.y, slots));
   }
   if (!el?.getBBox) return;
   // On the corner of the shape itself, not of its label; on a diamond, on its upper right edge.
@@ -641,15 +712,17 @@ function markPoint(els) {
   const box = corner ? { x: corner.x, y: corner.y, width: far.x - corner.x, height: far.y - corner.y } : el.getBBox();
   const [x, y] = shape?.tagName === 'polygon' ? [box.x + box.width * 0.75, box.y + box.height * 0.25]
     : el.tagName === 'g' ? [box.x + box.width, box.y] : [box.x + box.width + 12, box.y + box.height / 2];
-  if (el.tagName === 'g') el.append(ringAt(x, y));
-  else el.after(ringAt(x, y));
+  if (el.tagName === 'g') el.append(ringAt(x, y, slots));
+  else el.after(ringAt(x, y, slots));
 }
 
-/** The quiet ring with "?" of an open point, at a place of the drawing. */
-function ringAt(x, y) {
+/** The quiet ring with "?" of an open point, at a place of the drawing; the colour and the icon of a rule of the look ("text") in place of its own. */
+function ringAt(x, y, slots = {}) {
   const ring = document.createElementNS(SVG_NS, 'g');
   ring.setAttribute('class', 'opt');
-  ring.innerHTML = `<circle cx="${x}" cy="${y}" r="7"/><text x="${x}" y="${y}">?</text>`;
+  const icon = App.page?.look?.files[slots['text.icon']];
+  ring.innerHTML = `<circle cx="${x}" cy="${y}" r="7"/>${icon ? `<image href="${esc(icon)}" x="${x - 5}" y="${y - 5}" width="10" height="10"/>` : `<text x="${x}" y="${y}">?</text>`}`;
+  if (slots['text.color']) Marks.paint(ring, 'words', Marks.lineColors(slots['text.color'], Marks.READS));
   return ring;
 }
 
@@ -660,7 +733,12 @@ const diagramFactsHtml = (diagram) => (diagram && !diagram.broad
 
 /** The diagram of one part or function: a flow, a sequence, the states or a schema, with what the change did to it. `join` as in wireCode, `stack` as in makeSurface. */
 async function drawPart(into, diagram, join, stack = false) {
-  await drawMermaid(into, diagram.draw, diagram.plain, diagram.schema, diagram.id);
+  // The look of its steps (build 60): a colour, or a picture in place of a step, by the same code as a node on Home (marks.js).
+  const { look } = App.page;
+  const things = look ? Object.fromEntries(Object.entries(Marks.stepThings(diagram)).map(([key, thing]) => [key, { ...thing, slots: Marks.slotsIn(look, thing) }])) : {};
+  const shaped = look && !diagram.schema ? await Marks.lookText({ ...diagram, mermaid: diagram.draw }, things, [], look) : { text: diagram.draw, filled: {} };
+  const svg = await drawMermaid(into, shaped.text, shaped.text === diagram.draw ? diagram.plain : diagram.draw, diagram.schema, diagram.id);
+  if (look && svg && !svg.hasAttribute('data-plain')) Marks.decorate(svg, things, [], look, shaped.filled, { nodeKey, open: (file, line) => App.showCode(file, [line, line]), pick: () => false });
   markDiagram(into, diagram);
   paintChange(into, diagram);
   wireCode(into, diagram, join);
@@ -682,9 +760,16 @@ async function drawSections(into, fromPart, tie) {
   const wider = [alters.length ? `alters: ${alters.join(' · ')}` : '', others.length ? `wider: ${others.join(' · ')}` : ''].filter(Boolean).join(' · ');
   // Whether a second agent read the links between the parts against their code.
   const checked = page.links.length ? `<span class="dfact">${page.linksChecked ? 'checked' : 'not checked yet'}</span>` : '';
-  into.innerHTML = `<section class="sec" data-section="change"><div class="sh" ${Places.attrs({ kind: 'diagram' })}><b>${esc(page.title)}</b>`
-    + `<span class="total">${plural(page.files.length, 'file')} ${countsHtml({ added, removed })}</span>${checked}</div>`
-    + (wider ? `<div class="alters">${wider}</div>` : '') + '<div class="sb"></div></section>';
+  // The look of the card: the facts and lines that a rule names, in its order, and its colour. The counts stay those of the whole change.
+  const slots = Marks.slotsIn(page.look, Marks.changeThings(page, 'change-card')[0]);
+  const fields = slots.content?.fields;
+  const total = !fields ? `${plural(page.files.length, 'file')} ${countsHtml({ added, removed })}`
+    : fields.map((field) => ({ files: plural(page.files.length, 'file'), added: countsHtml({ added }), removed: countsHtml({ removed }) })[field]).filter(Boolean).join(' ');
+  const row = { title: `<b>${esc(page.title)}</b>`, total: total && `<span class="total">${total}</span>`, checked };
+  const order = !fields ? ['title', 'total', 'checked'] : [...new Set(fields.map((field) => (['files', 'added', 'removed'].includes(field) ? 'total' : field)))];
+  into.innerHTML = `<section class="sec" data-section="change"><div class="sh" ${Places.attrs({ kind: 'diagram' })}>${order.map((field) => row[field] ?? '').join('')}</div>`
+    + (wider && (!fields || fields.includes('wider')) ? `<div class="alters">${wider}</div>` : '') + '<div class="sb"></div></section>';
+  Marks.paintBox(into.firstChild, slots);
   const body = into.querySelector('.sb');
   await drawChange(body, fromPart, tie);
   makeSurface(body);

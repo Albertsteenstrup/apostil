@@ -16,6 +16,7 @@ import type { OpenPoint, Remark } from '../shared/store';
 import { tempFolder } from '../shared/test-repo';
 import { EXAMPLE_LOOK, makeCheckExample, putLookFiles } from './check-example';
 import { asDefault, type LookData } from './look-data';
+import { blocksAnswer, pageData, type CustomPageData } from './look-blocks';
 import { addMarksToMap, setLook } from '../store/marks-save';
 import { graphsData, homeData, type GraphsData, type HomeData } from './home-data';
 import { sessionGroups, type ListRow } from './list-rows';
@@ -109,6 +110,9 @@ const homeLooks: Record<string, HomeData> = {};
 const pageLooks: Record<string, LookData | undefined> = {};
 const graphsLooks: Record<string, Record<string, GraphsData>> = {}; // the graphs pages of a few paths in each look, for the browser checks
 const LOOK_GRAPHS = ['db/migrations/0042_holds.sql', 'src/library/lending/requests.py'];
+// The pages of each look (build 58), as "?look=<name>&page=<id>", and the blocks of each section of its own and window of a target, as the page asks for them.
+const lookPages: Record<string, Record<string, CustomPageData>> = {};
+const lookAnswers: Record<string, unknown> = {};
 for (const name of put ? readdirSync(EXAMPLE_LOOK).filter((one) => /^look(-[a-z]+)?\.json$/.test(one)).sort() : []) {
   const key = name === 'look.json' ? '1' : name.slice('look-'.length, -'.json'.length);
   const files = putLookFiles(folder);
@@ -116,7 +120,10 @@ for (const name of put ? readdirSync(EXAMPLE_LOOK).filter((one) => /^look(-[a-z]
   if (key === '1') for (const draft of drafts.filter((one) => one.set !== 'services')) must(addMarksToMap(store, folder, draft), 'marks');
   files.clean();
   homeLooks[key] = homeData(store, folder, apps, address);
-  pageLooks[key] = lookOfPage(store, page);
+  pageLooks[key] = lookOfPage(store, page, address);
+  const ids = (JSON.parse(readFileSync(join(EXAMPLE_LOOK, name), 'utf8')).pages ?? []).map((one: { id: string }) => one.id) as string[];
+  lookPages[key] = Object.fromEntries(ids.map((id) => [id, pageData(store, folder, id, address)]));
+  for (const [, ref] of JSON.stringify([homeLooks[key].look, lookPages[key]]).matchAll(/"ref":"([0-9a-f]+)"/g)) lookAnswers[`blocks:${ref}`] = blocksAnswer(store, folder, ref, address);
   graphsLooks[key] = Object.fromEntries(LOOK_GRAPHS.map((path) => [path, graphsData(store, folder, path, address)]));
 }
 
@@ -125,9 +132,10 @@ const earlier = exampleEarlierChange(folder, base);
 if (earlier) store.saveChange(earlier);
 
 // The look of the note cards: a look of the example with "?look=<name>", else the default look, which shows the logos of the services.
-const pageLook = pageLooks['1'] ?? lookOfPage(store, page);
+const pageLook = pageLooks['1'] ?? lookOfPage(store, page, address);
 page.look = pageLook && asDefault(pageLook);
 const answers = Object.fromEntries(allQuestions(page).map((question) => [question, answer(page, question, (path, lines) => notesBeside(store, page, path, lines), (path) => marksBeside(store, page, path))]));
+Object.assign(answers, lookAnswers);
 store.close();
 rmSync(storeFolder, { recursive: true, force: true });
 
@@ -167,6 +175,6 @@ answers['pull:https://example.com/made-up/pull/11'] = { pull: pullRequestFrom(ex
 const pagePulls = pulls[page.branch].slice(0, 2); // the page knows the two that have a made-up conversation
 
 const target = join(__dirname, '../../view/media/example-data.js');
-writeFileSync(target, `// Written by view/example-data.ts. Not in Git.\n${iconScript(join(__dirname, '../../view/media'))}window.APOSTIL_EXAMPLE = ${JSON.stringify({ page, pageLooks, pagePulls, answers, list, home, homeLooks, homeNoMap, graphs, graphsLooks })};\n`);
+writeFileSync(target, `// Written by view/example-data.ts. Not in Git.\n${iconScript(join(__dirname, '../../view/media'))}window.APOSTIL_EXAMPLE = ${JSON.stringify({ page, pageLooks, pagePulls, answers, list, home, homeLooks, homeNoMap, graphs, lookPages, graphsLooks })};\n`);
 example?.remove();
 console.log(`Wrote ${target}: ${page.files.length} files, ${page.parts.length} parts, ${Object.keys(answers).length} answers, ${rows.length} list rows, ${home.map?.diagrams.length ?? 0} map diagrams, ${Object.keys(graphs).length} graphs pages.`);

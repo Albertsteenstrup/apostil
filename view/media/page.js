@@ -96,10 +96,11 @@ const App = {
     if (this.state.view === 'diagram') this.scrolls[this.place()] = scrollY;
   },
 
-  /** A click on a part: its diagram, or its first file when it has none. */
+  /** A click on a part: its diagram, or its first file when it has none (or the look leaves out all its diagrams). */
   openPart(id) {
     const part = this.page.parts.find((candidate) => candidate.id === id);
-    if (part.diagrams.length) this.go({ level: 'part', part: id, diagram: part.diagrams[0] });
+    const [first] = partDiagrams(part);
+    if (first) this.go({ level: 'part', part: id, diagram: first.id });
     else this.showCode(this.firstFile(part), null);
   },
 
@@ -167,6 +168,9 @@ const App = {
     if (state.view === 'diagram' && state.level === 'change' && only && !only.diagrams.length) Object.assign(state, { view: 'code', file: this.firstFile(only), lines: null });
     if (state.view === 'code') state.part = page.parts.find((part) => part.files.includes(state.file))?.id ?? null;
     if (page.pullOnly && state.view === 'diagram') state.view = 'conversation';
+    // A view that a rule of the look leaves out does not open: the next view of the switch opens in its place.
+    const views = lookViews();
+    if (!this.tab && !page.pullOnly && state.view !== 'code' && views.length && !views.includes(state.view)) state.view = views[0];
     document.body.classList.toggle('file-tab', !!this.tab);
     // The path that he followed; a file shown on the page (a removed one) is a bold name after it. The large view of a wider diagram has its title there.
     if (!this.tab) {
@@ -244,6 +248,10 @@ function drawSwitch() {
   link('diffs').hidden = !!notFound;
   link('diffs').textContent = page.pullOnly?.otherRepo ? 'Files' : 'Diffs';
   link('diagram').textContent = onlyPart() && !onlyPart().diagrams.length ? 'Code' : 'Diagram'; // one part with no diagram opens on its code
+  // The look: the views in the order of a rule, without those that it leaves out.
+  const views = lookViews();
+  for (const view of views) document.querySelector('.switch').append(link(view));
+  for (const view of ['diagram', 'diffs', 'conversation']) if (!views.includes(view)) link(view).hidden = true;
   const shown = state.view === 'code' && !App.tab && onlyPart() ? 'diagram' : state.view; // the code of a change of one part is its first view
   document.querySelectorAll('.switch a').forEach((one) => one.classList.toggle('on', one.dataset.view === shown));
 }
@@ -316,6 +324,35 @@ function pullChoice(anchor) {
   });
 }
 
+/**
+ * The views of the switch in the look of the repo (build 60): in the order of a rule on "change-view" ("order.first" comes first), without the views
+ * that a rule leaves out. With no look: diagram, diffs, conversation.
+ */
+function lookViews() {
+  return Marks.shownInOrder(Marks.changeThings(App.page, 'change-view'), App.page.look).map((view) => view.id);
+}
+
+/** The view that a change opens at first: the first view of the switch in the look that the page has; "Conversation" only with a pull request. */
+function firstView() {
+  return lookViews().find((view) => view !== 'conversation' || App.pullLink() || !App.pullsKnown) ?? 'diagram';
+}
+
+/**
+ * The diagrams of a part in the look (build 60): without those that a rule on "part-diagram" leaves out, those of its "order.first" first, each with the
+ * name that a rule gives it in the switch ("content.words", as `named`). With no look, the diagrams of the part as they are.
+ */
+function partDiagrams(part) {
+  const { page } = App;
+  const own = part.diagrams.map((id) => page.diagrams.find((candidate) => candidate.id === id));
+  if (!page.look) return own;
+  const things = own.filter(Boolean).map((diagram) => Marks.diagramThing(diagram, page));
+  return Marks.shownInOrder(things, page.look).map((thing) => {
+    const words = Marks.slotsIn(page.look, thing).content?.words;
+    const diagram = own.find((one) => one.id === thing.id);
+    return words ? { ...diagram, named: Marks.fillWords(esc(words), thing.fields) } : diagram;
+  });
+}
+
 /** The wider diagram that the large view shows. */
 const broadOf = (state) => App.page.diagrams.find((diagram) => diagram.id === state.diagram);
 
@@ -333,7 +370,7 @@ function tabsHtml(diagrams, current) {
   // Named by its title, the chosen one holds a comment on the diagram as a whole, as the title does.
   const names = diagrams.map((diagram) => `<a data-diagram="${esc(diagram.id)}" title="${esc(diagram.title)}" `
     + (diagram === current ? `class="on" ${bySymbol ? '' : Places.attrs({ kind: 'diagram', diagram: diagram.id })}>` : '>')
-    + `${esc(cut(bySymbol ? diagram.symbol : diagram.title))} <i class="k">${KIND_WORDS[diagram.kind]}</i></a>`).join(' · ');
+    + `${diagram.named ?? esc(cut(bySymbol ? diagram.symbol : diagram.title))} <i class="k">${KIND_WORDS[diagram.kind]}</i></a>`).join(' · ');
   return names + (bySymbol ? title : '');
 }
 
@@ -348,8 +385,9 @@ function onlyPart() {
  * On a wide tab the code stands beside it: the file of the diagram, each step joined to its rows, or else the diffs of the files of the part.
  */
 async function drawPartView(tabs, view, part) {
-  const { page, state } = App;
-  const diagrams = part.diagrams.map((id) => page.diagrams.find((candidate) => candidate.id === id));
+  const { state } = App;
+  const diagrams = partDiagrams(part);
+  if (!diagrams.length) return App.showCode(App.firstFile(part), null); // the look leaves out all its diagrams: its code, as for a part with none
   const diagram = diagrams.find((candidate) => candidate.id === state.diagram) ?? diagrams[0];
   tabs.innerHTML = tabsHtml(diagrams, diagram) + diagramFactsHtml(diagram) + Split.controlHtml();
   if (!Split.wanted()) return drawPart(view, diagram);
@@ -454,6 +492,7 @@ window.addEventListener('message', (event) => {
     if (changed) {
       Object.assign(App.state, { view: message.page.pullOnly ? 'conversation' : 'diagram', level: 'change', part: null, diagram: null, from: null, file: null, lines: null, at: null, lit: null, pull: null });
       Object.assign(App, { pulls: [], pullsKnown: false });
+      if (!message.page.pullOnly && !message.file) App.state.view = firstView(); // the first view of the look
     }
     if (message.minimap !== undefined) CodeMap.on = message.minimap; // the setting of VS Code "editor.minimap.enabled"
     if (message.lines) App.state.lines = message.lines;
@@ -536,13 +575,13 @@ if (vscodeApi) {
   script.onload = () => {
     const query = new URLSearchParams(location.search);
     App.page = window.APOSTIL_EXAMPLE.page;
-    if (query.get('look')) App.page = { ...App.page, look: window.APOSTIL_EXAMPLE.pageLooks[query.get('look')] }; // a made-up look of the example: "1" or "shared"
+    if (query.get('look')) App.page = { ...App.page, look: window.APOSTIL_EXAMPLE.pageLooks[query.get('look')] }; // a made-up look of the example: "1", "shared" or "change"
     Object.assign(App, { pulls: window.APOSTIL_EXAMPLE.pagePulls ?? [], pullsKnown: true }); // in VS Code they come later
     if (query.get('pull')) return loadPullData(query.get('pull'));
     App.tab = query.get('file'); // the page as a file tab
     if (App.tab) App.loadPull(); // the pull request of the example, so that a comment on code can go to it
     if (query.get('go')) App.go(JSON.parse(query.get('go')), true); // a view that another page opened: "?go=<place>"
-    else App.render();
+    else { if (!App.tab) App.state.view = firstView(); App.render(); }
   };
   script.onerror = () => { document.getElementById('view').innerHTML = '<p class="quiet">Run node out/view/example-data.js to write example-data.js.</p>'; };
   document.head.append(script);

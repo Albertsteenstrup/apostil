@@ -15,6 +15,7 @@ export interface TargetPlaces {
   showInTree(paths: string[]): void;
   changeOfBranch(branch: string): { id: number; title: string; parts: { id: string; name: string }[] } | undefined;
   openPull(number: number): void; // as "Apostil: Open pull request…" opens it
+  openPage(id: string): void; // a page of the look in its tab, as a new path
   app?: string; // the agent app that a prompt goes to: the first that is on the path
   sendPrompt(text: string, diagram?: string): void; // a new session of that app, as a comment on the map is sent
 }
@@ -47,5 +48,6 @@ export async function answerTarget(target: Target, places: TargetPlaces, diagram
     const part = change.parts.find((one) => one.id === target.part);
     return places.openStep({ tab: 'change', change: change.id, go: part ? { level: 'part', part: part.id } : { level: 'change' }, name: part?.name ?? change.title });
   }
-  if (target.pull) places.openPull(target.pull);
+  if (target.pull) return places.openPull(target.pull);
+  if (target.page) places.openPage(target.page); // a window of a target opens in the page itself (Marks.act)
 }

@@ -1,4 +1,4 @@
-// The Home tab with the map of the repo, and one tab for the graphs of each folder or file.
+// The Home tab with the map of the repo, one tab for the graphs of each folder or file, and one tab for each page of the look (build 58).
 
 import { join } from 'node:path';
 import * as vscode from 'vscode';
@@ -9,6 +9,7 @@ import { agentsNeedSetup, runNextStep } from './change-list';
 import { apostilOnPath, appName, codexModel, showRunProblem } from './run-settings';
 import { openLink, openRemarkSession, webviewHtml, type NewRemark } from './change-page';
 import { graphsData, homeData, idOf, type GraphsData, type HomeData } from './home-data';
+import { blocksAnswer, lookPages, pageData, type CustomPageData } from './look-blocks';
 import type { Step, WindowTrail } from './trail';
 
 type Message =
@@ -25,24 +26,29 @@ type Message =
   | { type: 'openFile'; path: string; line?: number }
   | { type: 'showInTree'; paths: string[]; open?: boolean }
   | { type: 'setUp' }
-  | { type: 'rendered'; kind: string; nodes: number; panels: number; drawn: number };
+  | { type: 'rendered'; kind: string; nodes: number; panels: number; drawn: number }
+  | { type: 'ask'; id: number; question: string }; // the blocks of a section of its own or of the window of a target, when it opens
 
 /** One tab of home.html. Messages wait until its scripts are loaded. */
 interface Tab {
   panel: vscode.WebviewPanel;
   path?: string; // the folder or file of a graphs tab; missing for Home
+  page?: string; // the id of a page of the look in its tab
   ready: boolean;
   waiting: unknown[];
+  follow?: vscode.Disposable[]; // a page of the look: the watchers of the files that its blocks read
 }
 
 export class HomePages {
   private home?: Tab;
   private graphs = new Map<string, Tab>();
+  private pages = new Map<string, Tab>(); // a page of the look, by its id
   private writing?: string; // the app that writes the map now
   private pointerOn?: Tab; // the tab that the pointer is on, so the comment key works there
   private signature = '';
   homeShown?: HomeData; // what Home shows now, for the check inside VS Code
   graphsShown: Record<string, GraphsData> = {}; // what each graphs tab shows now, for the check inside VS Code
+  pagesShown: Record<string, CustomPageData> = {}; // what each page of the look shows now, for the check inside VS Code
   rendered: Record<string, Message & { type: 'rendered' }> = {}; // what each tab drew last, by "home" or its path
 
   /** Shows folders and files of the repo in the tree "Files" of the side bar; with `open` also when that tree does not show. Set by the extension, which owns the tree. */
@@ -84,6 +90,24 @@ export class HomePages {
     this.post(tab, this.graphsMessage(path));
   }
 
+  /** Opens a page of the look of the repo in a tab named by its title, with Apostil's icon, as the graphs of a path open. A page never opens by itself. */
+  openPage(id: string): void {
+    let tab = this.pages.get(id);
+    if (!tab) {
+      const title = this.pageTitle(id) ?? id;
+      const created = this.addTab(vscode.window.createWebviewPanel('apostil.page', title, vscode.ViewColumn.Active, { retainContextWhenHidden: true }), undefined, id);
+      created.panel.onDidDispose(() => { this.pages.delete(id); delete this.pagesShown[id]; created.follow?.forEach((one) => one.dispose()); });
+      this.pages.set(id, (tab = created));
+    }
+    tab.panel.reveal();
+    this.post(tab, this.pageMessage(id, tab));
+  }
+
+  /** The title of a page of the look of the open repo; undefined when the look has no such page. */
+  pageTitle(id: string): string | undefined {
+    return lookPages(this.store, this.openFolder()).find((page) => page.id === id)?.title;
+  }
+
   /** Loads Home and the graphs tabs again when the map or the changes in the store are new. True when they were new. */
   changed(): boolean {
     if (this.signatureNow() === this.signature) return false;
@@ -95,6 +119,7 @@ export class HomePages {
     this.signature = this.signatureNow();
     if (this.home) this.post(this.home, this.homeMessage());
     for (const [path, tab] of this.graphs) this.post(tab, this.graphsMessage(path));
+    for (const [id, tab] of this.pages) this.post(tab, this.pageMessage(id, tab));
   }
 
   /**
@@ -102,7 +127,7 @@ export class HomePages {
    * A message to a hidden tab just before a new tab opens left the new tab without the keyboard focus.
    */
   postTrail(steps: Step[]): void {
-    for (const tab of [this.home, ...this.graphs.values()]) if (tab?.panel.visible) this.post(tab, { type: 'trail', steps });
+    for (const tab of [this.home, ...this.graphs.values(), ...this.pages.values()]) if (tab?.panel.visible) this.post(tab, { type: 'trail', steps });
   }
 
   /** True when the comment key belongs to Home: the pointer is on it, or it has the focus. */
@@ -179,6 +204,34 @@ export class HomePages {
     return { type: 'data', data: this.graphsShown[path], trail: this.trail.steps };
   }
 
+  /**
+   * The data of a page of the look, read now, and its tab follows the files that its blocks read: when one changes on disk, the page gets its data
+   * again. Only an open tab follows; it stops when it closes.
+   */
+  private pageMessage(id: string, tab: Tab): unknown {
+    const folder = this.openFolder();
+    const data = pageData(this.store, folder, id, (file) => tab.panel.webview.asWebviewUri(vscode.Uri.file(file)).toString());
+    this.pagesShown[id] = data;
+    if (data.title !== tab.panel.title && !data.gone) tab.panel.title = data.title;
+    tab.follow?.forEach((one) => one.dispose());
+    let timer: NodeJS.Timeout | undefined;
+    const again = (): void => { clearTimeout(timer); timer = setTimeout(() => { if (this.pages.get(id) === tab) this.post(tab, this.pageMessage(id, tab)); }, 200); };
+    tab.follow = data.files.map((file) => {
+      const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(vscode.Uri.file(folder), file));
+      watcher.onDidChange(again);
+      watcher.onDidCreate(again);
+      watcher.onDidDelete(again);
+      return watcher;
+    });
+    return { type: 'data', data, trail: this.trail.steps };
+  }
+
+  /** The answer to a question of a page: the blocks of a ref, read now, for a window that opens. */
+  private answer(question: string, tab: Tab): unknown {
+    if (!question.startsWith('blocks:')) return undefined;
+    return blocksAnswer(this.store, this.openFolder(), question.slice('blocks:'.length), (file) => tab.panel.webview.asWebviewUri(vscode.Uri.file(file)).toString());
+  }
+
   private signatureNow(): string {
     const id = idOf(this.openFolder());
     const changes = id ? this.store.listChanges(id).map((change) => [change.id, change.savedAt]) : [];
@@ -186,8 +239,8 @@ export class HomePages {
     return JSON.stringify([id && this.store.getMap(id)?.savedAt, id && this.store.getLook(id)?.savedAt, changes, remarks, this.writing]);
   }
 
-  private addTab(panel: vscode.WebviewPanel, path?: string): Tab {
-    const tab: Tab = { panel, path, ready: false, waiting: [] };
+  private addTab(panel: vscode.WebviewPanel, path?: string, page?: string): Tab {
+    const tab: Tab = { panel, path, page, ready: false, waiting: [] };
     panel.iconPath = vscode.Uri.joinPath(this.media, 'apostil-icon.svg');
     // The page may load its own files, and the pictures and films of the looks that Apostil keeps.
     panel.webview.options = { enableScripts: true, localResourceRoots: [this.media, vscode.Uri.file(join(this.store.folder, 'looks'))] };
@@ -217,7 +270,7 @@ export class HomePages {
         const waiting = tab.waiting.splice(0);
         const data = waiting.filter((one) => (one as { type: string }).type === 'data').pop();
         for (const one of waiting) if ((one as { type: string }).type !== 'data' || one === data) this.post(tab, one);
-        if (!data) this.post(tab, tab.path ? this.graphsMessage(tab.path) : this.homeMessage());
+        if (!data) this.post(tab, tab.path ? this.graphsMessage(tab.path) : tab.page ? this.pageMessage(tab.page, tab) : this.homeMessage());
         break;
       }
       case 'walk':
@@ -257,7 +310,10 @@ export class HomePages {
         this.showInTree(message.paths, !!message.open);
         break;
       case 'rendered':
-        this.rendered[tab.path ?? 'home'] = message;
+        this.rendered[tab.path ?? (tab.page ? `page:${tab.page}` : 'home')] = message;
+        break;
+      case 'ask':
+        void tab.panel.webview.postMessage({ type: 'answer', id: message.id, value: this.answer(message.question, tab) });
         break;
     }
   }

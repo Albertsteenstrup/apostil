@@ -7,7 +7,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { repoId } from '../shared/git';
-import { apostilCommands, LOOK_PARTS, lookProblems, nearest } from '../shared/look';
+import { apostilCommands, LOOK_KINDS, LOOK_PARTS, lookProblems, nearest } from '../shared/look';
 import { compactJson, lookSlots } from '../shared/look-slots';
 import { Store } from '../shared/store';
 import { runApostil, tempFolder } from '../shared/test-repo';
@@ -74,20 +74,21 @@ test('look-slots <area> prints only the parts of that area; an unknown area name
   assert.deepEqual(processes.components.call.example, LOOK_PARTS.components.call.example);
   const marks = JSON.parse(runApostil(['look-slots', 'marks'], home).stdout);
   assert.deepEqual([marks.components, Object.keys(marks.slots), marks.targets, marks.sets.form], [undefined, ['corners'], undefined, LOOK_PARTS.sets.form]);
-  // Every target, and the slots of a click and other input, are in the area "clicks" (build 57).
+  // The slots of a click and other input, and every target of the area "clicks" (build 57); the window and the page of build 58 are in their areas.
   const clicks = JSON.parse(runApostil(['look-slots', 'clicks'], home).stdout);
-  assert.deepEqual([Object.keys(clicks.slots), Object.keys(clicks.targets)], [['click', 'input'], Object.keys(LOOK_PARTS.targets)]);
+  const ofClicks = Object.entries(LOOK_PARTS.targets).filter(([, target]) => target.area === 'clicks').map(([name]) => name);
+  assert.deepEqual([Object.keys(clicks.slots), Object.keys(clicks.targets)], [['click', 'input'], ofClicks]);
   const wrong = runApostil(['look-slots', 'diagram'], home);
   assert.equal(wrong.status, 1);
-  assert.deepEqual(JSON.parse(wrong.stdout).problems, ['"diagram" is no area. The areas are diagrams, processes, notes, marks, clicks, windows, lists, home, drawings, graphs, panel-lines. The nearest is "diagrams".']);
-  assert.deepEqual(JSON.parse(runApostil(['look-slots', 'colours'], home).stdout).problems, ['"colours" is no area. The areas are diagrams, processes, notes, marks, clicks, windows, lists, home, drawings, graphs, panel-lines.']);
+  assert.deepEqual(JSON.parse(wrong.stdout).problems, [`"diagram" is no area. The areas are ${AREAS.join(', ')}. The nearest is "diagrams".`]);
+  assert.deepEqual(JSON.parse(runApostil(['look-slots', 'colours'], home).stdout).problems, [`"colours" is no area. The areas are ${AREAS.join(', ')}.`]);
 });
 
 test('look-slots --find finds a part by a word of its "what" and by one of its "words"; words that fit nothing say so and print the index', () => {
   const home = { env: { APOSTIL_HOME: tempFolder('apostil-store-') } };
   const find = (words: string) => JSON.parse(runApostil(['look-slots', '--find', words], home).stdout);
-  // "tab" stands only in the "what" of a note; "badge" only in the "words" of the corners.
-  const [note] = find('tab').matches;
+  // "tab" stands only in the "what" of a note (the block "table" starts with it, build 58); "badge" only in the "words" of the corners.
+  const note = find('tab').matches.find((one: { name: string }) => one.name === 'note');
   assert.deepEqual([note.name, note.is, note.area, note.example], ['note', 'component', 'notes', LOOK_PARTS.components.note.example]);
   const [corners] = find('a badge').matches;
   assert.deepEqual([corners.name, corners.is, corners.area, corners.example], ['corners', 'slot', 'marks', LOOK_PARTS.slots.corners.example]);
@@ -101,7 +102,7 @@ test('look-slots --find finds a part by a word of its "what" and by one of its "
 test('every component has an area with an index line, and each example of the list passes the check on the made-up example with the placeholders filled', () => {
   const { folder, store } = example();
   const fill = (rule: unknown): unknown => JSON.parse(JSON.stringify(rule).replaceAll('<folder>/', 'src/library/lending/').replaceAll('<file>', 'src/library/night_jobs.py')
-    .replaceAll('<diagram>', 'lib-top').replaceAll('<node>', 'jobs').replaceAll('<set>:<value>', 'services:table-store'));
+    .replaceAll('<diagram>', 'lib-top').replaceAll('<node>', 'jobs').replaceAll('<set>:<value>', 'services:postgresql'));
   const context = { folder, map: store.getMap(repoId(folder))?.map, commands: apostilCommands() };
   // Every part has an example, but a slot that the example of a component already shows (the slot "layout" of a drawn process).
   const examples: Record<string, { example?: unknown }> = { ...LOOK_PARTS.components, ...Object.fromEntries(Object.entries(LOOK_PARTS.slots).map(([name, slot]) => [`slot ${name}`, slot])) };
@@ -132,7 +133,7 @@ test('set-look --check saves nothing and removes no file; a wrong kind, slot, fi
     notes: ['Rule 7 picks nothing now: no step holds a mark "errors:state".', 'Rule 8 picks nothing now: no note holds a mark "errors:*".'],
   });
   // A rule of the services picks the steps, calls and notes whose code holds a mark.
-  writeFileSync(join(folder, 'apostil-look-calls.json'), JSON.stringify({ rules: [{ pick: { kind: 'call', mark: 'services:table-store' }, box: { dashed: true } }] }));
+  writeFileSync(join(folder, 'apostil-look-calls.json'), JSON.stringify({ rules: [{ pick: { kind: 'call', mark: 'services:postgresql' }, box: { dashed: true } }] }));
   assert.match(JSON.parse(apostil(['set-look', '--check', 'apostil-look-calls.json']).stdout).changes[0], /^Rule 1: [1-9]\d* calls? gets? a dashed or solid line\.$/);
 
   writeFileSync(join(folder, 'apostil-look-wrong.json'), JSON.stringify({ rules: [
@@ -147,8 +148,8 @@ test('set-look --check saves nothing and removes no file; a wrong kind, slot, fi
   assert.deepEqual(JSON.parse(wrong.stdout), {
     ok: false, changes: [], notes: [],
     problems: [
-      'Rule 1: "pick" must name a "kind": one of node, step, call, arrow, note, trail-step, header, frame, area-box, comment-box, file-box, step-count, process-drawing, count-line, panel, panel-node, panel-title, panel-level, panel-in. The nearest is "node".',
-      'Rule 2: "boxes" is no slot. The slots are "box", "content", "corners", "note", "arrow", "show", "order", "text", "click", "input", "window", "layout". The nearest is "box".',
+      `Rule 1: "pick" must name a "kind": one of ${LOOK_KINDS.join(', ')}. The nearest is "node".`,
+      `Rule 2: "boxes" is no slot. The slots are ${Object.keys(LOOK_PARTS.slots).map((one) => `"${one}"`).join(', ')}. The nearest is "box".`,
       'Rule 3, "box": "colour" is no field here. Use only "color", "line", "width", "dashed", "shape". The nearest is "color".',
       'Rule 4: the diagram "lib-top" has no node "job". Its nodes are web, routes, lending, jobs, desk, data, checks, writing. The nearest is "jobs".',
       'Rule 5: "process:ask-requests" is no diagram of the map. apostil map lists the ids of the diagrams; a process is "process:<id>". The nearest is "process:ask-request".',
