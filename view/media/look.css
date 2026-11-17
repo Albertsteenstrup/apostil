@@ -757,7 +757,8 @@ div.nomap a:hover{text-decoration:underline;text-underline-offset:3px}
 .conv .md img{max-width:100%;max-height:360px;height:auto;width:auto;cursor:zoom-in;border-radius:4px}
 .win img.big{display:block;max-width:100%;height:auto;margin:0 auto}
 .nopic{color:var(--tealink);text-decoration:underline;text-decoration-color:var(--tealline)}
-.conv .mmd{overflow-x:auto;margin-top:6px;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--card)}
+/* a Mermaid block from GitHub can bring its own CSS: contain:paint keeps all of it in the box, so it cannot cover the page */
+.conv .mmd{overflow-x:auto;contain:paint;margin-top:6px;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--card)}
 .conv .mmd svg{max-width:100%;height:auto}
 /* "Messages": a modern chat, calm */
 .conv.messages .dayline{display:flex;align-items:center;gap:10px;margin:14px 0 4px;color:var(--faint);font-size:calc(var(--size) - 2px);font-weight:600;letter-spacing:.3px}

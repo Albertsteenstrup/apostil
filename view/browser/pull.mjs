@@ -587,6 +587,20 @@ try {
   });
   check('a pull request of another repo has only "Conversation" and "Files", the list of its changed files with their counts, and is a step of the path',
     other.conversation && other.shown === 'Files · Conversation' && other.files.length === 3 && /pickup_days\.py\+640 −32/.test(other.files[1]) && /another repo/.test(other.line) && /Pull request #12$/.test(other.crumb), JSON.stringify(other));
+  // A Mermaid block may bring its own CSS in its config ("themeCSS"). The drawing stays in its box: it cannot cover the title or the rest of the page.
+  const covered = await pullOnly.evaluate(async () => {
+    const read = structuredClone(APOSTIL_EXAMPLE.answers['pull:https://example.com/made-up/pull/12']);
+    read.pull.html = '<pre data-mermaid>%%{init: {"themeCSS": "position:fixed;left:0;top:0;width:100vw;height:100vh"}}%%\nflowchart LR\n  a --&gt; b</pre>';
+    App.read[read.pull.url] = read;
+    App.state.view = 'conversation';
+    await App.render();
+    for (let wait = 0; wait < 100 && !document.querySelector('.conv .mmd svg'); wait++) await new Promise((done) => setTimeout(done, 50));
+    scrollTo(0, 0);
+    const title = document.querySelector('.conv .ptitle').getBoundingClientRect();
+    const hit = document.elementFromPoint(title.left + 4, title.top + title.height / 2);
+    return { drawn: !!document.querySelector('.conv .mmd svg'), hit: hit?.closest('.mmd') ? 'the drawing' : hit?.className };
+  });
+  check('a Mermaid block of a pull request that brings its own CSS stays in its box and does not cover the page', covered.drawn && covered.hit === 'ptitle', JSON.stringify(covered));
   await pullOnly.close();
 
   // ----- "@github" in the comment box on code: in the open diffs of the list of "Diagram" (since build prompt 42 "Diffs" opens no diff), on an added line,
