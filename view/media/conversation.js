@@ -949,7 +949,10 @@ const Conversation = (() => {
   const shortHtml = (pull) => `<div class="short" id="short">${icon(pull, false)}<span class="name"><i class="num">#${pull.number}</i> ${esc(pull.title)}</span>`
     + `${document.querySelector('.bar .switch')?.outerHTML ?? ''}</div>`;
 
-  /** Mermaid blocks of a description or a comment: drawn with the Mermaid of the page and its safe settings; the code stays when it does not parse. */
+  /**
+   * Mermaid blocks of a description or a comment: drawn with the Mermaid of the page and its safe settings; the code stays when it does not parse.
+   * Mermaid takes scripts and handlers out of the drawing; its own CSS (a "themeCSS" in the block) stays inside the box .mmd (contain:paint in look.css).
+   */
   async function drawMermaidBlocks(root) {
     if (typeof mermaid !== 'object') return;
     for (const pre of root.querySelectorAll('pre[data-mermaid]')) {

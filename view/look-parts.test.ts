@@ -25,11 +25,10 @@ test('a look saved by build 51 still passes the check, and so does the shared lo
 test('each new part has an area, other words and an example that passes the check on the made-up example', () => {
   const fill = (rule: unknown): unknown => JSON.parse(JSON.stringify(rule).replaceAll('<diagram>', 'lib-top').replaceAll('<node>', 'jobs')
     .replaceAll('<folder>/', 'src/library/jobs/').replaceAll('<file>', 'src/library/night_jobs.py').replaceAll('<set>:<value>', 'services:table-store'));
-  const parts = [...Object.entries(LOOK_PARTS.slots), ...Object.entries(LOOK_PARTS.picks), ...Object.entries(LOOK_PARTS.targets)]
-    .filter(([, part]) => typeof part === 'object' && 'area' in part) as [string, { area: string; words: readonly string[]; example?: unknown }][];
-  assert.deepEqual(parts.map(([name]) => name), ['show', 'order', 'text', 'click', 'input', 'window', 'where', 'graphs', 'folder', 'change', 'pull', 'comment']);
+  const all: Record<string, unknown> = { ...LOOK_PARTS.slots, ...LOOK_PARTS.picks, ...LOOK_PARTS.targets };
+  const parts = ['show', 'order', 'text', 'click', 'input', 'window', 'where', 'graphs', 'folder', 'change', 'pull', 'comment'].map((name) => [name, all[name]] as [string, { area: string; words: readonly string[]; example?: unknown }]);
   for (const [name, part] of parts) {
-    assert.ok(['clicks', 'windows', 'lists', 'diagrams'].includes(part.area) && part.words.length, name);
+    assert.ok(Object.keys(LOOK_PARTS.areas).includes(part.area) && part.words.length, name);
     // "order" has no example until a component is a list (the briefs 59 to 61): no component takes it yet.
     if (name === 'order') { assert.equal(part.example, undefined); continue; }
     assert.deepEqual(problems(fill(part.example)), [], name);

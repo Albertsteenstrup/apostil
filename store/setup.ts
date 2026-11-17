@@ -104,7 +104,7 @@ function skillsToUndo(install: Install, folder: string): string[] {
 
 /** The draft files that a writer left in the top folder of a repo and Git does not track. An undo leaves them, and says so. */
 function draftsLeft(repo: string): string[] {
-  const patterns = DRAFT_LINES.map((path) => new RegExp(`^${path.slice(1).replace(/\./g, '\\.').replace(/\*/g, '.*')}$`));
+  const patterns = DRAFT_LINES.map((path) => new RegExp(`^${path.slice(1).replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*')}$`)); // * is the only wildcard
   return readdirSync(repo).filter((name) => patterns.some((pattern) => pattern.test(name)) && !tryGit(repo, 'ls-files', '--', name));
 }
 

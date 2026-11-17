@@ -237,15 +237,20 @@ export interface SetLookResult {
   filesRemoved?: string[]; // the draft files of the top folder that the save removed
 }
 
-/**
- * Checks a look and keeps it as the look of the repo, in Apostil's store; a new look replaces the old one, and `{ "rules": [] }` brings back the default.
- * Each file that it names (an icon, a picture, a film) is checked and kept in the store, and the look names the kept file. Nothing goes into the repo.
- */
-export function setLook(store: Store, folder: string, draft: unknown): SetLookResult {
+/** A draft of a look with its problems; with none, the look, the files that it names, and the bytes of each, read from the repo folder or the store. */
+interface LookDraft {
+  problems: string[];
+  look?: Look;
+  files?: LookFile[];
+  read?: { file: LookFile; bytes: Buffer | undefined }[];
+}
+
+/** Checks a draft of a look as set-look does, its files too. It reads the repo folder and the store, and writes nothing. */
+function readLookDraft(store: Store, folder: string, draft: unknown): LookDraft {
   const repo = repoId(folder);
   const root = repoRoot(folder);
   const problems = lookProblems(draft, { folder: root, map: store.getMap(repo)?.map, commands: apostilCommands() });
-  if (problems.length) return { saved: false, problems };
+  if (problems.length) return { problems };
   const look = JSON.parse(JSON.stringify(draft)) as Look;
   const files = lookFiles(look);
   const keep = store.lookFolder(repo);
@@ -256,7 +261,22 @@ export function setLook(store: Store, folder: string, draft: unknown): SetLookRe
   };
   const read = files.map((file) => ({ file: file.value && /^(png|svg|ico|webp)$/.test(file.path) ? { ...file, path: `${file.value.id}.${file.path}` } : file, bytes: readInRepo(root, file.path) ?? kept(file) }));
   const bad = read.flatMap(({ file, bytes }) => { const problem = fileProblem(file.path, bytes, file.use); return problem ? [`${file.at}: ${problem}`] : []; });
-  if (bad.length) return { saved: false, problems: bad };
+  return bad.length ? { problems: bad } : { problems: [], look, files, read };
+}
+
+/** `apostil set-look --check`: the problems that set-look would refuse a look for, its files too. It saves nothing and removes no file. */
+export const checkLook = (store: Store, folder: string, draft: unknown): string[] => readLookDraft(store, folder, draft).problems;
+
+/**
+ * Checks a look and keeps it as the look of the repo, in Apostil's store; a new look replaces the old one, and `{ "rules": [] }` brings back the default.
+ * Each file that it names (an icon, a picture, a film) is checked and kept in the store, and the look names the kept file. Nothing goes into the repo.
+ */
+export function setLook(store: Store, folder: string, draft: unknown): SetLookResult {
+  const { problems, look, files, read } = readLookDraft(store, folder, draft);
+  if (!look || !files || !read) return { saved: false, problems };
+  const repo = repoId(folder);
+  const root = repoRoot(folder);
+  const keep = store.lookFolder(repo);
   // A kept file is named by its contents, so the same file twice is kept once.
   mkdirSync(keep, { recursive: true });
   for (const { file, bytes } of read) {

@@ -8,10 +8,12 @@ import { notesOfFile } from '../shared/notes-beside-code';
 import { processFacts, processWithHandoffs, stepKey } from '../shared/processes';
 import { diagramsOf, noteCount } from '../shared/repo-map';
 import type { Store } from '../shared/store';
-import { DEFAULT_RULES, LOOK_PARTS } from '../shared/look';
+import { DEFAULT_RULES, type Look } from '../shared/look';
+import { lookSlots } from '../shared/look-slots';
 import { markFacts, markGroups, SERVICES } from '../shared/marks';
+import { lookChanges } from './look-changes';
 import { mapForWriters, mapMaterial } from './map-material';
-import { addMarksToMap, setLook, setsOf, valuesOf } from './marks-save';
+import { addMarksToMap, checkLook, setLook, setsOf, valuesOf } from './marks-save';
 import { addProcessesToMap } from './processes-save';
 import { addDiagramToMap, addNotesToMap, checkMapDraft, saveMapDraft } from './save';
 
@@ -36,16 +38,26 @@ export const MAP_USAGE: Record<string, string> = {
   'add-marks': 'apostil add-marks <marks.json> (or - for standard input)',
   'mark-groups': 'apostil mark-groups --set <id> [--all]',
   marks: 'apostil marks [--set <id>]',
-  'set-look': 'apostil set-look <look.json> (or - for standard input)',
+  'set-look': 'apostil set-look [--check] <look.json> (or - for standard input; --check checks it, files too, and saves nothing)',
   look: 'apostil look',
-  'look-slots': 'apostil look-slots',
+  'look-slots': 'apostil look-slots [<area> | --find "<words>" | --all] (no argument: the core and one line for each area)',
 };
 
+/** The flags of a map command: --full, --all, --set <id>, --check, and --find <words> (an empty text when no words follow). */
+export interface MapFlags {
+  full?: boolean;
+  all?: boolean;
+  set?: string;
+  check?: boolean;
+  find?: string;
+}
+
 /** Runs one of the map commands. Returns what to print and if the command did its work. */
-export function runMapCommand(store: Store, command: string, argument: string, folder: string, full: boolean, all = false, set?: string): { output: unknown; ok: boolean } {
+export function runMapCommand(store: Store, command: string, argument: string, folder: string, flags: MapFlags = {}): Done {
+  const { full = false, all = false } = flags;
   const draft = (): unknown => readJson(argument);
   const NO_MAP = { output: { problems: ['This repo has no saved map. Save one with apostil save-map.'] }, ok: false };
-  if (command in MARK_COMMANDS) return MARK_COMMANDS[command](store, folder, argument, all, set);
+  if (command in MARK_COMMANDS) return MARK_COMMANDS[command](store, folder, argument, flags);
   switch (command) {
     case 'map-material': return { output: mapMaterial(store, folder), ok: true };
     case 'check-map': {
@@ -119,15 +131,15 @@ export function runMapCommand(store: Store, command: string, argument: string, f
   }
 }
 
-type Done = { output: unknown; ok: boolean };
+type Done = { output: unknown; ok: boolean; compact?: true };
 
 /** The commands of marks and of the look. */
-const MARK_COMMANDS: Record<string, (store: Store, folder: string, argument: string, all: boolean, set?: string) => Done> = {
+const MARK_COMMANDS: Record<string, (store: Store, folder: string, argument: string, flags: MapFlags) => Done> = {
   'add-marks': (store, folder, argument) => {
     const result = addMarksToMap(store, folder, readJson(argument));
     return { output: result.saved ? afterSave(result, folder, argument) : result, ok: result.saved };
   },
-  'mark-groups': (store, folder, _argument, all, set) => {
+  'mark-groups': (store, folder, _argument, { all = false, set }) => {
     const repo = repoId(folder);
     const found = setsOf(store, repo).find((one) => one.id === set);
     if (!found) return { output: { problems: [`Give the set: apostil mark-groups --set <id>. The sets of this repo are ${setsOf(store, repo).map((one) => one.id).join(', ')}.`] }, ok: false };
@@ -136,16 +148,23 @@ const MARK_COMMANDS: Record<string, (store: Store, folder: string, argument: str
     const values = valuesOf(store, repo, found.id).map((value) => ({ id: value.id, name: value.name, ...(value.site ? { site: value.site } : {}), icon: !!value.icon }));
     return { output: { set: about, values, ...markGroups(folder, store.getMap(repo)?.map, found.id, all) }, ok: true };
   },
-  marks: (store, folder, _argument, _all, set) => {
+  marks: (store, folder, _argument, { set }) => {
     const repo = repoId(folder);
     return { output: markFacts(folder, store.getMap(repo)?.map, setsOf(store, repo), (one) => valuesOf(store, repo, one), set), ok: true };
   },
-  'set-look': (store, folder, argument) => {
-    const result = setLook(store, folder, readJson(argument));
-    return { output: result.saved ? afterSave(result, folder, argument) : result, ok: result.saved };
+  // With --check: the problems, and what each rule picks now; nothing is saved and no file is removed. Else the save, and the same changes after it.
+  'set-look': (store, folder, argument, { check }) => {
+    const draft = readJson(argument);
+    if (check) {
+      const problems = checkLook(store, folder, draft);
+      const said = problems.length ? { changes: [], notes: [] } : lookChanges(store, folder, draft as Look);
+      return { output: { ok: !problems.length, problems, ...said }, ok: !problems.length };
+    }
+    const result = setLook(store, folder, draft);
+    return { output: result.saved ? afterSave({ ...result, ...lookChanges(store, folder, draft as Look) }, folder, argument) : result, ok: result.saved };
   },
-  // Every component that a look can change, its slots with their fields and the kinds of their values, what a rule can pick, and every action: the one list.
-  'look-slots': () => ({ output: LOOK_PARTS, ok: true }),
+  // The one list in parts: the core and the index, one area, a search, or all of it (shared/look-slots.ts).
+  'look-slots': (_store, _folder, argument, { find, all = false }) => lookSlots(argument, find, all),
   look: (store, folder) => {
     const stored = store.getLook(repoId(folder));
     // With no look saved, the default look applies: today's look, with the logos of the services at the upper right of a node, a step and a note.
