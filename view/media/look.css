@@ -350,6 +350,12 @@ body.with-rail .paper{margin-right:44px}
 .ch a{margin-left:auto;flex:none;color:var(--muted)}
 .ch a:hover{color:var(--ink)}
 .thread .msg + .msg{margin-top:8px}
+.thread .changed{margin-top:2px;font-size:var(--small);color:var(--faint)}
+.thread .changed a{color:var(--muted)}
+.thread .changed a:hover{color:var(--ink)}
+.remark-line{position:fixed;z-index:14;inset:0;pointer-events:none}
+.remark-line path{fill:none;stroke:var(--teal);stroke-width:1.2}
+.remark-line circle{fill:var(--teal)}
 .thread .who{display:flex;align-items:center;gap:6px;font-size:var(--small);color:var(--soft);font-weight:600}
 .thread .who .icon{width:14px;height:14px}
 .thread .who .at{color:var(--faint);font-weight:400}

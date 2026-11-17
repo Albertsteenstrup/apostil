@@ -4,6 +4,7 @@ import { spawn } from 'node:child_process';
 import { readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { newRunCommand, resumeCommand, runOptions } from '../shared/agents';
+import { changedBetween, workingFiles } from '../shared/git';
 import { storeFolder, type Store } from '../shared/store';
 import { inboxText } from '../store/inbox';
 
@@ -83,17 +84,21 @@ export interface RunFacts {
  * Starts the run for a remark as a child process: the resume command of the change's agent, or with `newApp` a new session of that app.
  * It runs in the folder of the change; a remark on the map has no change and runs in `folder`, the open folder, with a new session only.
  * The session that the run reports is kept on the remark. When the process ends and the remark is still running, the remark is open again,
- * and `ended` gets the reason: what the program said, or that it gave no answer. `codexModel` is the model that the owner set in Apostil for Codex runs.
+ * and `ended` gets the reason: what the program said, or that it gave no answer. `codexModel` is the model that the owner set in Apostil for Codex runs;
+ * `commentRuns` is his setting `apostil.commentRuns`: "read and edit" (the default) or "read only". The files that the run changed are kept on the remark, from Git before and after.
  */
-export function startRun(store: Store, remarkId: number, ended: (problem?: string) => void, newApp?: string, folder?: string, codexModel?: string): void {
+export function startRun(store: Store, remarkId: number, ended: (problem?: string) => void, newApp?: string, folder?: string, codexModel?: string, commentRuns = 'read and edit'): void {
   const remark = store.getRemark(remarkId);
   const change = remark?.changeId === undefined ? undefined : store.getChange(remark.changeId);
-  const prompt = remark && inboxText([remark], store);
+  const prompt = remark && inboxText([remark], store, commentRuns === 'read only');
   const where = change?.folder ?? folder;
-  const options = runOptions(where ?? '', storeFolder(), codexModel); // the modes that the person set as default for the app go with the run
+  const options = { ...runOptions(where ?? '', storeFolder(), codexModel), commentRuns }; // the modes that the person set as default for the app go with the run
   const command = prompt && (newApp ? newRunCommand(newApp, prompt, options) : change?.agent && resumeCommand(change.agent, prompt, options));
   if (!where || !command) return ended(newApp ? `A new session of ${newApp} cannot be started from here.` : 'This agent cannot be continued from here.');
+  const before = workingFiles(where);
   const pid = spawnRun(command, where, (session) => store.setRunSession(remarkId, session), (problem) => {
+    const after = before && workingFiles(where);
+    store.setRemarkChanged(remarkId, before && after ? changedBetween(before, after) : []);
     if (store.getRemark(remarkId)?.state !== 'running') return ended(); // it answered
     store.reopenRemark(remarkId);
     ended(problem ? `${command[0]} gave no answer. It said: ${problem}` : `${command[0]} ended with no answer.`);

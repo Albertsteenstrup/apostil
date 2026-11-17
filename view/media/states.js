@@ -31,6 +31,7 @@ const States = (() => {
     comments: 'Comments',
     openPoints: 'Open points',
     goneFromDiagram: 'no longer in the diagram',
+    changedFiles: 'changed:',
     noAgent: 'No agent to send to: this change has no known session, and no agent app is installed.',
     thisSession: 'the session that made this change',
     namedSession: (name) => `the session ${name}`,

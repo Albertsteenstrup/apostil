@@ -53,6 +53,15 @@ export function checkStateOf(node: Raw): CheckState {
 
 const LEVELS: Record<string, Annotation['level']> = { FAILURE: 'failure', WARNING: 'warning', NOTICE: 'notice' };
 
+/** The link that a check or a deployment names, only when it is an https address: another product writes it. */
+function webLink(raw: unknown): string | undefined {
+  try {
+    return typeof raw === 'string' && new URL(raw).protocol === 'https:' ? raw : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** Every check run and status, of a job that ran more than once only the newest run. */
 export function checkList(nodes: Raw[] = []): CheckItem[] {
   const newest = new Map<string, Raw>();
@@ -65,7 +74,7 @@ export function checkList(nodes: Raw[] = []): CheckItem[] {
   }
   return [...newest.values()].map((node) => {
     if (node.__typename === 'StatusContext') {
-      return { name: node.context ?? 'status', group: 'Other checks', state: checkStateOf(node), link: node.targetUrl ?? undefined, description: node.description ?? undefined, annotations: [], cutAnnotations: 0, required: !!node.isRequired };
+      return { name: node.context ?? 'status', group: 'Other checks', state: checkStateOf(node), link: webLink(node.targetUrl), description: node.description ?? undefined, annotations: [], cutAnnotations: 0, required: !!node.isRequired };
     }
     const workflow = node.checkSuite?.workflowRun?.workflow?.name;
     const app = node.checkSuite?.app?.name;
@@ -77,8 +86,8 @@ export function checkList(nodes: Raw[] = []): CheckItem[] {
       group: [workflow, app].filter(Boolean).join(' · ') || 'Other checks',
       state: checkStateOf(node),
       seconds: Number.isFinite(started) && Number.isFinite(done) && done >= started ? Math.round((done - started) / 1000) : undefined,
-      link: node.detailsUrl ?? undefined,
-      runLink: node.checkSuite?.workflowRun?.url ?? undefined,
+      link: webLink(node.detailsUrl),
+      runLink: webLink(node.checkSuite?.workflowRun?.url),
       annotations: annotations.map((one: Raw) => ({
         level: LEVELS[one.annotationLevel] ?? 'notice', title: one.title ?? '', message: one.message ?? '', path: one.path ?? '', line: one.location?.start?.line ?? undefined,
       })),
@@ -99,7 +108,7 @@ export function deploymentOf(node: Raw): Deployment {
     environment: node?.environment ?? 'an environment',
     state: DEPLOY_STATES[status?.state ?? node?.state] ?? 'waiting',
     at: status?.createdAt ?? node?.createdAt ?? '',
-    link: status?.environmentUrl ?? undefined,
+    link: webLink(status?.environmentUrl),
     description: status?.description ?? undefined,
   };
 }

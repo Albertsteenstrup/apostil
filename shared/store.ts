@@ -80,6 +80,15 @@ export interface RemarkTarget {
   name?: string; // the label of an edge, which tells two edges between the same nodes apart; the name of a test
   removed?: boolean; // for a note or code lines: on removed lines, counted in the file as it was
   view?: 'diffs'; // where the owner stuck it, when it is not where its kind shows: a file on the Diffs page
+  kept?: Kept; // what the thing was when the comment was saved: its ids can name another thing, or none, when the map or the change is written again
+}
+
+/** The title, the diagram, the file and the lines of a thing, as they were when a comment was put on it. */
+export interface Kept {
+  title: string;
+  diagram?: string; // the title of its diagram
+  file?: string;
+  lines?: [number, number];
 }
 
 // open: the owner wrote it. sent: the owner asked an agent to act. running: an agent took it. done: answered. closed: resolved by the owner.
@@ -100,6 +109,7 @@ export interface Remark {
   thread?: number; // the remark that started its thread; missing on the first remark of a thread
   to?: RemarkTo; // whom the owner sent it to
   closedBy?: string; // the agent app that resolved it; missing when the owner resolved it
+  changed?: string[]; // the files that the run that Apostil started for it changed, by Git before and after the run; missing when it changed none
 }
 
 /** Whom a remark was sent to: the session of an app that made the change ("current"), or a new session of an app. */
@@ -172,6 +182,7 @@ const ADDED_COLUMNS: [table: string, column: string, type: string][] = [
   ['remark', 'to_json', 'text'],
   ['remark', 'closed_by', 'text'],
   ['remark', 'repo_id', 'text'],
+  ['remark', 'changed_json', 'text'], // the files that the run for the remark changed, from Git before and after the run
   ['change', 'checked_json', 'text'],
   ['open_point', 'target_json', 'text'],
   ['change', 'note_code_json', 'text'],
@@ -196,6 +207,7 @@ const toRemark = (row: Row): Remark => ({
   createdAt: row.created_at, sentAt: row.sent_at ?? undefined, state: row.state,
   answer: row.answer ?? undefined, answeredAt: row.answered_at ?? undefined, run: row.run_json ? JSON.parse(row.run_json) : undefined,
   thread: row.thread ?? undefined, to: row.to_json ? JSON.parse(row.to_json) : undefined, closedBy: row.closed_by ?? undefined,
+  changed: row.changed_json ? JSON.parse(row.changed_json) : undefined,
 });
 
 /** The remarks grouped by thread, each thread in the order of its remarks, the threads in the order of their first remark. */
@@ -476,6 +488,11 @@ export class Store {
   /** Resolves a remark; `by` is the agent app that resolved it. */
   closeRemark(id: number, by?: string): void {
     this.db.prepare("update remark set state = 'closed', closed_by = ? where id = ?").run(by ?? null, id);
+  }
+
+  /** Keeps the files that the run for a remark changed (none: the field is cleared). */
+  setRemarkChanged(remarkId: number, files: string[]): void {
+    this.db.prepare('update remark set changed_json = ? where id = ?').run(files.length ? JSON.stringify(files) : null, remarkId);
   }
 
   /** Keeps the session of the run that works on a remark, so that its link works after the run too. */

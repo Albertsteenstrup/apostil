@@ -53,19 +53,22 @@ test('what goes with a remark on a part, a file (with the diagrams it is in), a 
 test('what goes with a remark on a node, an arrow and a diagram: its diagram, its label, its arrows, its code, its kind and its Mermaid text', () => {
   assert.deepEqual(about({ kind: 'node', diagram: 'stop-flow', node: 'done' }), [
     'In the flow chart "How the app stops"', 'Node "Return 0"', 'Arrows come from: "Ask to stop"', 'Its code: src/app.py, line 6',
+    'The diagram as text:', '- Ask to stop (src/app.py:5)', '- Return 0 (src/app.py:6)', '- Ask to stop → Return 0',
   ]);
   assert.deepEqual(about({ kind: 'node', diagram: 'stop-states', node: 'running' }), [
     'In the state diagram "The states of the app"', 'State "running"', 'Arrows come from: "start"', 'Arrows go to: "stopped"', 'It has no code: No line of its own.',
+    'The diagram as text:', '- start', '- running', '- stopped', '- start → running (src/app.py:1-2)', '- running → stopped: stop (src/app.py:5-6)',
   ]);
 
   // An arrow says its two ends and its label, in a diagram and in the diagram of the change.
   assert.deepEqual(about({ kind: 'edge', diagram: 'stop-states', edge: ['running', 'stopped'], name: 'stop' }), [
     'In the state diagram "The states of the app"', 'Transition from "running" to "stopped", with the label "stop"', 'Its code: src/app.py, lines 5–6',
+    'The diagram as text:', '- start', '- running', '- stopped', '- start → running (src/app.py:1-2)', '- running → stopped: stop (src/app.py:5-6)',
   ]);
   assert.deepEqual(about({ kind: 'edge', edge: ['app', 'tool'] }), ['In the diagram of the change', 'Arrow from part "App" to part "Tool"', 'It has no code: Only the order.']);
 
   // A diagram gives its title, its kind and its Mermaid text.
-  assert.deepEqual(about({ kind: 'diagram', diagram: 'stop-flow' }), ['Diagram "How the app stops", a flow chart', 'Not checked yet by a second agent.', 'Its Mermaid text:', 'flowchart TD', '  ask["Ask to stop"] --> done(["Return 0"])']);
+  assert.deepEqual(about({ kind: 'diagram', diagram: 'stop-flow' }), ['Diagram "How the app stops", a flow chart', 'Not checked yet by a second agent.', 'The diagram as text:', '- Ask to stop (src/app.py:5)', '- Return 0 (src/app.py:6)', '- Ask to stop → Return 0']);
   assert.deepEqual(about({ kind: 'diagram' }), ['The diagram of the change: one node for each part, one arrow for each link.', 'Its links are not checked yet by a second agent.', 'part "App" uses part "Tool"']);
 });
 
@@ -85,10 +88,11 @@ test('a remark from before the new fields and a remark on the map have their abo
     const onNode = store.addRepoRemark(repoId(repo.folder), { kind: 'node', diagram: 'top', node: 'code', label: 'Node "Code"' }, 'What lives here?');
     const onArrow = store.addRepoRemark(repoId(repo.folder), { kind: 'edge', diagram: 'top', edge: ['code', 'docs'], name: 'calls' }, 'Why?');
     const context = reviewContext(store, repo.folder);
+    const text = ['The diagram as text:', '- Code (src/)', '- Docs (README.md)', '- Code → Docs: calls'];
     const ofMap = context.remarks.filter((remark) => [onNode, onArrow].includes(remark.id));
     assert.deepEqual(ofMap.map((remark) => remark.about), [
-      ['On the map of the repo', 'In the flow chart "The repo"', 'Node "Code"', 'Arrows go to: "Docs"', 'It stands for: src/'],
-      ['On the map of the repo', 'In the flow chart "The repo"', 'Arrow from "Code" to "Docs", with the label "calls"'],
+      ['On the map of the repo', 'In the flow chart "The repo"', 'Node "Code"', 'Arrows go to: "Docs"', 'It stands for: src/', ...text],
+      ['On the map of the repo', 'In the flow chart "The repo"', 'Arrow from "Code" to "Docs", with the label "calls"', ...text],
     ]);
     assert.deepEqual(aboutMapTarget(map, { kind: 'node', diagram: 'top', node: 'gone' }), ['On the map of the repo', 'Node "gone". It is no longer in the map.']);
     assert.match(inboxText([store.getRemark(onNode)!], store), /- remark \d+ \(Node "Code"\): What lives here\?\n {2}about what he pointed at:\n {4}On the map of the repo\n {4}In the flow chart "The repo"/);
