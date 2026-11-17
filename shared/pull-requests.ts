@@ -35,6 +35,7 @@ export interface RawPullRequest {
   latestReviews?: { author?: RawPerson; state?: string }[];
   createdAt?: string;
   updatedAt?: string;
+  headRefName?: string; // asked only for the list of every open pull request
 }
 
 /** A person as the list of gh gives it: a bot is "app/<name>" with is_bot, a team has a name and no login, and no one has the address of a picture. */
@@ -65,6 +66,7 @@ export interface PullRequest {
   labels?: Label[];
   createdAt?: string; // ISO
   updatedAt?: string; // ISO
+  branch?: string; // its head branch, asked only for the list of every open pull request
 }
 
 /** The place of a pull request in a stack: position 1 is the closest to the base of the stack. */
@@ -167,15 +169,19 @@ export function pullRequestsFromJson(json: string): PullRequest[] {
         labels: (pr.labels ?? []).map(({ name, color }) => ({ name, color })),
         ...(pr.createdAt ? { createdAt: pr.createdAt } : {}),
         ...(pr.updatedAt ? { updatedAt: pr.updatedAt } : {}),
+        ...(pr.headRefName ? { branch: pr.headRefName } : {}),
       };
     })
     .sort((a, b) => b.number - a.number);
 }
 
 /** The arguments that ask gh for the pull requests of a branch, in one call. With a repo ("owner/name"), of that repo, else of the repo of the folder. */
+const LIST_FIELDS = 'number,title,url,state,isDraft,reviewDecision,mergeable,statusCheckRollup,author,labels,reviewRequests,latestReviews,createdAt,updatedAt';
 export const ghArguments = (branch: string, repo?: string): string[] =>
-  ['pr', 'list', '--head', branch, '--state', 'all', '--json',
-    'number,title,url,state,isDraft,reviewDecision,mergeable,statusCheckRollup,author,labels,reviewRequests,latestReviews,createdAt,updatedAt', ...(repo ? ['--repo', repo] : [])];
+  ['pr', 'list', '--head', branch, '--state', 'all', '--json', LIST_FIELDS, ...(repo ? ['--repo', repo] : [])];
+
+/** The arguments that ask gh for every open pull request of the repo of the folder (at most 100), with the branch of each. */
+export const openPullsArguments = (): string[] => ['pr', 'list', '--state', 'open', '--limit', '100', '--json', `${LIST_FIELDS},headRefName`];
 
 /** The arguments that ask gh for the stacks of a repo (REST, read only); gh fills in "{owner}/{repo}" with the repo of the folder. */
 export const stackArguments = (repo = '{owner}/{repo}'): string[] => ['api', `repos/${repo}/stacks?per_page=100`];

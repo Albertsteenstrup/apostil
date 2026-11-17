@@ -101,6 +101,7 @@ type Message =
   | { type: 'pointer'; on: boolean }
   | { type: 'edit'; line?: number }
   | { type: 'looked'; repo: string; number: number }
+  | { type: 'copy'; text: string }
   | { type: 'write'; id: number; write: Write };
 
 /**
@@ -498,6 +499,9 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
         // The blocks of the window of a target of the look, read when it opens (look-blocks.ts).
         else if (message.question.startsWith('blocks:')) this.post(view, { type: 'answer', id: message.id, value: blocksAnswer(this.store, page?.folder ?? this.openFolder(), message.question.slice('blocks:'.length), (file) => view.panel.webview.asWebviewUri(vscode.Uri.file(file)).toString()) });
         else this.post(view, { type: 'answer', id: message.id, value: this.page ? answer(this.page, message.question, (path, lines) => notesBeside(this.store, this.page!, path, lines), (path) => marksBeside(this.store, this.page!, path)) : undefined });
+        break;
+      case 'copy':
+        void vscode.env.clipboard.writeText(message.text);
         break;
       case 'looked':
         this.store.setLooked(message.repo, message.number);

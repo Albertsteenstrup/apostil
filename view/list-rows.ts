@@ -1,6 +1,6 @@
 // The rows of the list of changes and their heads: which agent session made each change. No `vscode` import.
 
-import { changeRows } from '../shared/change-rows';
+import { changeRows, savedWords } from '../shared/change-rows';
 import { baseOf, changedFiles, commitsOf, currentBranch, repoId, tryGit } from '../shared/git';
 import type { Store } from '../shared/store';
 import { agentOf, type PageAgent } from './page-data';
@@ -21,6 +21,7 @@ export interface ListRow {
   open: boolean; // the branch that the open folder has checked out
   agent?: PageAgent;
   remarks: { sent: number; running: number; done: number };
+  uncounted?: string; // the saved commit is not in this clone: one quiet line in place of the counts
 }
 
 /** Rows of one agent session under one head. A group with no agent has no head. */
@@ -55,7 +56,7 @@ export function listRows(store: Store, folder: string): ListRow[] {
     return {
       id: row.id, branch: row.branch, folder: row.folder, age: ageOf(row.savedAt), savedAt: row.savedAt, firstSavedAt: row.firstSavedAt, firstCommitAt: row.firstCommitAt,
       commits: row.commits, files: row.files, added: row.added, removed: row.removed,
-      open: row.branch === branch, agent: change?.agent && agentOf(change.agent), remarks,
+      open: row.branch === branch, agent: change?.agent && agentOf(change.agent), remarks, ...(row.saved?.missing ? { uncounted: savedWords(row.saved) } : {}),
       phrase: row.outOfDate ? 'out of date' : row.filesInNoPart ? `${row.filesInNoPart} file${row.filesInNoPart === 1 ? '' : 's'} in no part` : row.branch === branch ? 'open folder' : '',
     };
   });
