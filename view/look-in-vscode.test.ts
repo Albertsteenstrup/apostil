@@ -171,9 +171,9 @@ test('each fault of a part of VS Code has its sentence', () => {
   assert.deepEqual(problems(on('margin'), on('margin'), { pick: { kind: 'status-bar' }, show: { shown: true } }),
     ['Rule 3: "status-bar" is no kind. A look cannot put anything in the status bar. Tell the owner so.']);
   assert.deepEqual(problems({ pick: { kind: 'margin' }, box: { color: '#2b6cb0' } }),
-    ['Rule 1, "box": the margin takes only "show". VS Code draws the margin, and a look can only say which marks stand there.']);
+    ['Rule 1: a margin has no slot "box". Its slots are "show". VS Code draws the margin, and a look can only say which marks stand there.']);
   assert.deepEqual(problems(on('margin'), on('symbol-search', { where: { of: 'notes' } })),
-    ['Rule 2, "pick": "notes" is no value of "of". The values are note, step, process. The nearest is "note".']);
+    ['Rule 2, "pick": "notes" is no value of "of". The values are "note", "step", "process". The nearest is "note".']);
   assert.deepEqual(problems(...Array.from({ length: 4 }, () => on('margin')), { pick: { kind: 'first-page' }, click: { file: 'README.md' } }),
     ['Rule 5, "click": the first page must open a view of Apostil: use "place", "graphs" or "page". A file, a web address, a command and a prompt cannot be the first page.']);
   assert.deepEqual(problems(on('margin'), on('margin'), on('margin'), on('key', { where: { entry: 'action-12' } })),

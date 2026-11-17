@@ -1096,6 +1096,19 @@ body:not(.picking) .stage g.image-shape.go:hover > *{scale:1.03}
 .rows.lk-menu a{font:var(--size)/1.6 var(--sans);cursor:pointer}
 /* A thing with a key of the look takes the keyboard; a click of the mouse draws no ring round it */
 .stage [data-lk-keys]:focus:not(:focus-visible){outline:none}
+/* Build 59. The box of a group of nodes (an area box, a file box), the frame of Home, a lit node of a panel, and a line of words of a page in the look. */
+.stage g.cluster.lk-fill > rect{fill:var(--lk-fill)!important}
+.stage g.cluster.lk-line > rect{stroke:var(--lk-line)!important}
+.stage g.cluster.lk-wide > rect{stroke-width:var(--lk-width)!important}
+.view.surface.lk-fill{background:var(--lk-fill)}
+.view.surface.lk-line{border-color:var(--lk-line)}
+.view.surface.lk-wide{border-width:var(--lk-width)}
+.stage[data-lk-keys]:focus:not(:focus-visible){outline:none}
+.stage g.node.lit.lk-fill .label-container{fill:var(--lk-fill)!important}
+.stage g.node.lit.lk-line .label-container{stroke:var(--lk-line)!important}
+span.lk-words{color:var(--lk-words)}
+.lk-picture{display:block;max-height:48px;max-width:100%}
+.panels .pgp{grid-column:1/-1;color:var(--muted);font-size:var(--small);margin-top:4px}
 
 /* ----- blocks of a look (media/blocks.js, build 58): a page of the look, a section of its own in a window, the window of a target -----
    The class of a block's kind (.block-<kind>) and the classes of its inner parts (.bk-…) have different names, so that a block inside a row keeps its own layout.
@@ -1180,3 +1193,14 @@ body:where(.vscode-dark,.vscode-high-contrast) .bk-press{background:transparent}
 .cn .code .n{position:relative}
 .cn .code .mg{position:absolute;left:4px;top:calc((var(--row) - 16px) / 2);width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 0 0 1px var(--line2);display:flex;align-items:center;justify-content:center;font:600 10px/1 var(--sans);color:#1f2328;cursor:pointer}
 .cn .code .mg img{width:12px;height:12px;object-fit:contain}
+/* The look of a repo on parts drawn as HTML (media/part-look.js, build 61): the colour of a box, of its line and of words, and an icon of the look before words. */
+.lk-box.lk-fill{background:var(--lk-fill)!important}
+.lk-box.lk-ink,.lk-box.lk-ink .nm{color:var(--lk-ink)}
+.lk-box.lk-line{border-color:var(--lk-line)!important}
+.cl .row.lk-box{border-radius:6px;box-shadow:inset 3px 0 0 var(--lk-line)}
+.conv .msg.lk-box{border-radius:7px;padding-left:8px;padding-right:8px}
+.conv .prow.lk-box.lk-ink b{color:var(--lk-ink)}
+.lkw{color:var(--lk-words)}.lkw :is(.pri,.ico,.pn,.pw,.prw,.what){color:var(--lk-words)!important}
+.lk-ic{display:inline-block;flex:none;width:16px;height:16px;object-fit:contain;vertical-align:-3px;margin-right:4px}
+.lbl .lk-ic{width:12px;height:12px;vertical-align:-1px;margin-right:3px}
+.rvnames{font-size:var(--small);color:var(--muted)}

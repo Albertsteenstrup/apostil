@@ -50,7 +50,6 @@ export class LookInVsCode implements vscode.TreeDataProvider<LookRow> {
       command('apostil.lookActions', () => this.showActions()),
       ...Array.from({ length: 9 }, (_, at) => command(`apostil.lookAction${at + 1}`, () => this.runAction(at))),
       command('apostil.lookPlaces', (key) => this.showPlaces([String(key)])), // a row of a value in the list "Look"
-      command('apostil.lookTarget', (target) => answerTarget(target as Target, this.places)), // a row of a page
       command('apostil.lookMore', (group) => { this.open.add(String(group)); this.changed.fire(); }),
       vscode.window.onDidChangeVisibleTextEditors(() => this.drawMargins()),
       vscode.window.onDidChangeActiveTextEditor(() => this.fileChanged()),

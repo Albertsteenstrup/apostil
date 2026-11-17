@@ -27,6 +27,7 @@ import { githubRepoOf, parsePullRef, pullLink } from '../shared/read-pull-reques
 import { SortAndFilter } from './sort-filter-pick';
 import { TrailRules, WindowTrail, type Step } from './trail';
 import { registerUninstall } from './uninstall-in-vscode';
+import type { Target } from '../shared/look';
 
 let store: Store | undefined;
 // The store files that the watcher looks at. SQLite writes to the "-wal" file first; a folder watch on macOS misses those writes.
@@ -111,6 +112,8 @@ export function activate(context: vscode.ExtensionContext) {
 
   /** The graphs of a folder or file: a row of the Files tree, a file or folder of the Explorer, or the file of the editor. */
   const graphsOf = (target?: unknown): void => {
+    const own = typeof target === 'string' ? files.graphsIconClick(target) : undefined; // the graphs icon of a row of "Files": a click of the look goes to its target
+    if (own) return void answerTarget(own, places);
     const uri = target instanceof vscode.Uri ? target : typeof target === 'string' ? undefined : vscode.window.activeTextEditor?.document.uri;
     const path = typeof target === 'string' ? target : uri && inFolder(uri)?.split(sep).join('/');
     if (!path) return;
@@ -165,6 +168,9 @@ export function activate(context: vscode.ExtensionContext) {
     sendPrompt: (text, diagram) => home.sendPrompt(text, diagram),
   };
   home.onTarget = page.onTarget = (target, diagram) => void answerTarget(target, places, diagram);
+  // The same for a click of the look in the list "Repo" and on a row of the tree "Files" (its item runs this command, which is not in the palette).
+  list.onTarget = (target) => void answerTarget(target, places);
+  context.subscriptions.push(vscode.commands.registerCommand('apostil.lookTarget', (target: Target) => answerTarget(target, places)));
   // The look of the repo in VS Code itself (build 62): the margin, the search with #, the right-click entries and keys, and the list "Look".
   const lookInVsCode = new LookInVsCode(theStore, openFolder, places, (uri) => notes.notesOf(uri)?.result.notes);
   lookInVsCode.register(context);

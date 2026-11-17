@@ -134,6 +134,9 @@ function fitToContent(svg) {
   svg.style.maxWidth = '';
 }
 
+/** What a double click on a surface leaves alone: a double click on an empty place fits the diagram (or goes to the target of the frame of a look). */
+const ON_A_THING = 'g.node, g.image-shape, .f, .go, a';
+
 /** The smallest scale that a wide map opens at: under it the words are smaller than 11 px. */
 const READABLE = 0.85;
 
@@ -215,7 +218,7 @@ function makeSurface(stage, readable = false, stack = false) {
   stage.addEventListener('pointerup', end);
   stage.addEventListener('pointercancel', end);
   stage.addEventListener('click', (event) => { if (dragged) { event.stopPropagation(); event.preventDefault(); } dragged = false; }, true);
-  stage.addEventListener('dblclick', (event) => { if (!event.target.closest('g.node, g.image-shape, .f, .go, a')) fit(true); });
+  stage.addEventListener('dblclick', (event) => { if (!event.target.closest(ON_A_THING)) fit(true); });
   new ResizeObserver(() => (moved ? apply() : fit())).observe(stage);
 
   /** Moves the view so that an element of the diagram is in the middle, when it is outside; with `smooth`, in a short animation. */

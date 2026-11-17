@@ -3,7 +3,7 @@
 // view/media/marks.js, read in Node as view/marks.test.ts does, on the diagrams of Home (homeData) and on the note cards of the map; and on the page of
 // the saved change of the branch and its file tabs (changeThings and fileThings of marks.js, build 60).
 
-import { LOOK_PARTS, nameOf, namesPart, type Look, type LookPartsList, type Pick } from '../shared/look';
+import { an, LOOK_PARTS, nameOf, namesPart, type Look, type LookPartsList, type Pick } from '../shared/look';
 import { currentBranch, repoId, repoRoot } from '../shared/git';
 import type { Store } from '../shared/store';
 import { homeData, type HomeDiagram } from '../view/home-data';
@@ -13,20 +13,27 @@ import { pageData } from '../view/page-data';
 const Marks = require('../../view/media/marks.js');
 
 const LIST: LookPartsList = LOOK_PARTS;
+/** The areas of the parts that the changes do not count: the list and the tree of the side bar, and the page of a pull request. */
+const UNCOUNTED = ['side-bar', 'pull-lines', 'files', 'pull-request', 'conversation', 'vscode'];
 
 type Thing = { kind: string; slots?: Record<string, unknown> } & Record<string, unknown>;
 
 /** The kinds of the page of a change and of its file tabs: they are counted on the saved change of the branch and the files with notes or marks. */
 const PAGE_AREAS = ['change', 'diffs', 'comments', 'file-tab'];
 const onPage = (kind: string): boolean => PAGE_AREAS.includes((LIST.components[kind]?.area ?? ''));
+/** The kinds whose things Home or a graphs page make as they show (a step of the trail, the panels of a graphs page, build 59): not counted either. */
+const UNCOUNTED_KINDS = ['trail-step', 'header', 'frame', 'comment-box', 'count-line', 'panel', 'panel-node', 'panel-title', 'panel-level', 'panel-in'];
 
 /** Counts the things that a pick takes now, as the pages pick them. `page` says whether the branch has a saved change. */
 function counter(store: Store, folder: string): ((pick: Pick) => number) & { page: boolean } {
   const root = repoRoot(folder);
   const home = homeData(store, root);
   const marks = home.look?.marks ?? [];
-  const diagrams = (home.map?.diagrams ?? []).map((diagram: HomeDiagram) => ({ diagram, things: Marks.thingsOf(diagram, { marks, rules: [] }) as Record<string, Thing> }));
-  const things = diagrams.flatMap((one) => Object.values(one.things));
+  const none = { marks, rules: [] };
+  const diagrams = (home.map?.diagrams ?? []).map((diagram: HomeDiagram) => ({ diagram, things: Marks.thingsOf(diagram, none) as Record<string, Thing> }));
+  // The things of a diagram: its nodes, the count line of a step, its boxes (an area box, a file box), and a drawn process as a whole (build 59).
+  const things = diagrams.flatMap(({ diagram, things: own }) => [...Object.values(own), ...Object.values(own).flatMap((thing) => (thing.count ? [thing.count as Thing] : [])),
+    ...Marks.boxesOf(diagram, none), ...[Marks.drawingOf(diagram, none)].filter(Boolean)]);
   // A note card of the file tab stands for the lines of its note. The window of a step is a note in the diagram of the step (view/media/home.js),
   // so a pick of notes that names a diagram takes those windows.
   const map = store.getMap(repoId(root))?.map;
@@ -72,15 +79,16 @@ function gives(rule: Look['rules'][number]): string {
 /** Why a pick takes nothing now: the first part of it that alone takes nothing. */
 function whyNothing(pick: Pick, count: ((pick: Pick) => number) & { page: boolean }): string {
   const { kind, ...rest } = pick;
+  const name = nameOf(kind);
   if (!count({ kind }) && onPage(kind) && !count.page && LIST.components[kind]?.area !== 'file-tab') return 'this branch has no saved change';
-  if (!count({ kind })) return onPage(kind) ? `no page has a ${nameOf(kind)} now` : `the map has no ${kind} now`;
+  if (!count({ kind })) return onPage(kind) ? `no page has a ${name} now` : `the map has no ${name} now`;
   for (const [key, value] of Object.entries(rest) as [string, unknown][]) {
     if (count({ kind, [key]: value } as Pick)) continue;
     const list = Array.isArray(value) ? value.join(', ') : String(value);
-    if (key === 'mark') return `no ${kind} holds a mark "${list}"`;
-    if (key === 'paths') return `no ${kind} lies inside ${list}`;
-    if (key === 'diagram') return `the diagram "${list}" has no ${kind}`;
-    if (key === 'nodes') return kind === 'arrow' ? `no arrow runs between the nodes ${list}` : `no ${kind} is one of the nodes ${list}`;
+    if (key === 'mark') return `no ${name} holds a mark "${list}"`;
+    if (key === 'paths') return `no ${name} lies inside ${list}`;
+    if (key === 'diagram') return `the diagram "${list}" has no ${name}`;
+    if (key === 'nodes') return kind === 'arrow' ? `no arrow runs between the nodes ${list}` : `no ${name} is one of the nodes ${list}`;
     return `no ${nameOf(kind)} fits its "${key}"`;
   }
   return `no ${nameOf(kind)} fits all of its pick at once`;
@@ -92,8 +100,8 @@ export function lookChanges(store: Store, folder: string, look: Look): { changes
   const changes: string[] = [];
   const notes: string[] = [];
   look.rules.forEach((rule, index) => {
-    // A part of VS Code itself (build 62) is one thing of the window, not things of the map.
-    if (LIST.components[rule.pick.kind]?.area === 'vscode') return void changes.push(`Rule ${index + 1}: the ${rule.pick.kind.replace('-', ' ')} of VS Code gets ${gives(rule)}.`);
+    // A part of the side bar or of a pull request is neither in the map nor on the page of the change, so it is not counted (build 61).
+    if (UNCOUNTED.includes(LIST.components[rule.pick.kind]?.area) || UNCOUNTED_KINDS.includes(rule.pick.kind)) return void changes.push(`Rule ${index + 1}: ${an(rule.pick.kind)} that it picks gets ${gives(rule)}.`);
     const picked = count(rule.pick);
     changes.push(`Rule ${index + 1}: ${picked} ${picked === 1 ? `${nameOf(rule.pick.kind)} gets` : `${many(rule.pick.kind)} get`} ${gives(rule)}.`);
     if (!picked) notes.push(`Rule ${index + 1} picks nothing now: ${whyNothing(rule.pick, count)}.`);

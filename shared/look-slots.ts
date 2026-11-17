@@ -48,8 +48,9 @@ function area(id: string): Record<string, unknown> {
     const users = components.filter(([, one]) => one.slots.includes(name));
     return !users.length || users.some(([, one]) => !one.takes?.[name]) ? LIST.slots[name].fields : only(LIST.slots[name].fields, users.flatMap(([, one]) => one.takes![name]));
   };
-  // A slot shows its own example when no example of a component of the area uses it.
+  // A slot shows its own example when no example of a component of the area uses it, and the area takes all of its fields.
   const used = (name: string): boolean => components.some(([, one]) => name in one.example);
+  const all = (name: string): boolean => Object.keys(fieldsOf(name)).length === Object.keys(LIST.slots[name].fields).length;
   const targets = entries(TARGETS).filter(([, target]) => target.area === id);
   const picks = entries(LIST.picks).filter(([, pick]) => typeof pick !== 'string' && pick.area === id);
   // The blocks of a page or a window (build 58): each with its form and the form of a file in its place, the title, the sources and the limits.
@@ -58,7 +59,7 @@ function area(id: string): Record<string, unknown> {
     area: id,
     line: LIST.areas[id],
     // A component of another area that this area names (the margin) is one line that says where it stands.
-    ...(components.length || named.length ? { components: Object.fromEntries([...components.map(([name, one]) => [name, { what: one.what, slots: one.slots, fields: one.fields, example: one.example }]), ...named]) } : {}),
+    ...(components.length || named.length ? { components: Object.fromEntries([...components.map(([name, one]) => [name, { what: one.what, slots: one.slots, ...(Object.keys(one.fields).length ? { fields: one.fields } : {}), example: one.example }]), ...named]) } : {}),
     ...(LIST.sets.area === id ? { sets: { what: LIST.sets.what, form: LIST.sets.form } } : {}),
     ...(LIST.actions.area === id ? { actions: { what: LIST.actions.what, form: LIST.actions.form } } : {}),
     ...(blocks.length ? {
@@ -70,12 +71,13 @@ function area(id: string): Record<string, unknown> {
       slots: Object.fromEntries(names.map((name) => {
         const slot = LIST.slots[name];
         if (!whole.includes(name)) return [name, `the area ${slot.area}${slot.core ? ' (and the core)' : ''} gives its fields`];
-        return [name, { what: slot.what, ...(slot.one ? { one: true } : {}), ...(slot.target ? { target: true } : { fields: fieldsOf(name) }), ...(used(name) || !slot.example ? {} : { example: slot.example }) }];
+        return [name, { what: slot.what, ...(slot.one ? { one: true } : {}), ...(slot.target ? { target: true } : { fields: fieldsOf(name) }), ...(used(name) || !slot.example || !all(name) ? {} : { example: slot.example }) }];
       })),
       values: only(LIST.values, kindsOf(whole.map(fieldsOf))),
       picks: `${Object.keys(LIST.picks).join(', ')}: the core says what each picks`,
     } : {}),
-    ...(picks.length ? { fields: Object.fromEntries(entries(LIST.components).map(([name, one]) => [name, one.fields])) } : {}),
+    // The fields of the components of the core; every other component shows its fields in its own area.
+    ...(picks.length ? { fields: Object.fromEntries(entries(LIST.components).filter(([, one]) => one.core || one.area === id).map(([name, one]) => [name, one.fields])) } : {}),
     ...(targets.length ? { [TARGETS_KEY]: Object.fromEntries(targets.map(([name, target]) => [name, { what: target.what, form: target.form }])) } : {}),
   };
 }
@@ -165,8 +167,8 @@ function find(words: string): Record<string, unknown> {
     .sort((a, b) => b.score - a.score || a.order - b.order).slice(0, MATCHES);
   const cannot = asked.length ? cannotUse(asked, ranked[0]?.score ?? 0) : undefined;
   if (cannot) return { found: cannot };
-  // The index lines alone, each beginning with its area: the answer stays small while areas are added.
-  if (!ranked.length) return { found: `Nothing in the list fits "${words}". Read the index lines; when none fits, tell the owner and leave it out.`, areas: index().map((one) => one.line) };
+  // With nothing found, the ids of the areas only: their index lines are in the first answer, and they would grow this answer with each area.
+  if (!ranked.length) return { found: `Nothing in the list fits "${words}". Look at the index lines of these areas; when none fits, tell the owner and leave it out.`, areas: index().map((one) => one.id) };
   // An example that an earlier match shows already is named, not printed again.
   return {
     matches: ranked.map(({ part: { by: _by, ...match } }, at) => {

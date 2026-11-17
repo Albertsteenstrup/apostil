@@ -29,8 +29,6 @@ test('each new part has an area, other words and an example that passes the chec
   const parts = ['show', 'order', 'text', 'click', 'input', 'window', 'where', 'graphs', 'folder', 'change', 'pull', 'comment'].map((name) => [name, all[name]] as [string, { area: string; words: readonly string[]; example?: unknown }]);
   for (const [name, part] of parts) {
     assert.ok(Object.keys(LOOK_PARTS.areas).includes(part.area) && part.words.length, name);
-    // "order" has no example until a component is a list (the briefs 59 to 61): no component takes it yet.
-    if (name === 'order') { assert.equal(part.example, undefined); continue; }
     assert.deepEqual(problems(fill(part.example)), [], name);
   }
 });
@@ -40,7 +38,7 @@ test('the pick "where": a field that the component does not have names its field
   assert.deepEqual(problems({ pick: { kind: 'step', where: { is: ['step', 'process'], steps: 3 } }, text: { size: 'small' } }), []);
   assert.deepEqual(problems({ pick: { kind: 'node', where: { level: 2 } }, text: { size: 'small' } }), ['Rule 1, "pick": a node has no field "level". Its fields are "title", "files", "down".']);
   assert.deepEqual(problems({ pick: { kind: 'node', where: { file: 'x' } }, text: { size: 'small' } }), ['Rule 1, "pick": a node has no field "file". Its fields are "title", "files", "down". The nearest is "files".']);
-  assert.deepEqual(problems({ pick: { kind: 'step', where: { is: 'task' } }, text: { size: 'small' } }), ['Rule 1, "pick": "task" is no value of "is". The values are step, process.']);
+  assert.deepEqual(problems({ pick: { kind: 'step', where: { is: 'task' } }, text: { size: 'small' } }), ['Rule 1, "pick": "task" is no value of "is". The values are "step", "process".']);
   assert.deepEqual(problems({ pick: { kind: 'node', where: { files: 'many' } }, text: { size: 'small' } }), ['Rule 1, "pick": "files" of a node is a whole number, or a list of them.']);
 });
 
