@@ -61,6 +61,19 @@ test('check runs of every state, with the workflow, the time and the links, besi
   assert.equal(pull.cut.checks, 200);
 });
 
+test('a link that a check, a status or a deployment names is kept only when it is an https address: another product writes it, and a page opens the links of the agent apps', () => {
+  const checks = checkList([
+    run('app link', 'COMPLETED', 'SUCCESS', { detailsUrl: 'claude://claude.ai/new?q=made-up' }),
+    { ...status('plain', 'SUCCESS'), targetUrl: 'http://example.com/status' },
+    { ...status('other app', 'SUCCESS'), targetUrl: 'codex://made-up' },
+    { ...status('no address', 'SUCCESS'), targetUrl: 'not an address' },
+    status('web', 'SUCCESS'),
+  ]);
+  assert.deepEqual(checks.map((check) => check.link), [undefined, undefined, undefined, undefined, 'https://example.com/status']);
+  const [deployment] = deploymentsOf([{ environment: 'preview', state: 'ACTIVE', createdAt: at(1), latestStatus: { state: 'SUCCESS', environmentUrl: 'claude://made-up', createdAt: at(1) } }]);
+  assert.equal(deployment.link, undefined);
+});
+
 test('the side facts: a deployment of each environment, labels, a team as reviewer, Copilot, a milestone, closing issues and tasks', () => {
   const deployments = deploymentsOf([
     { environment: 'preview', state: 'ACTIVE', createdAt: at(1), latestStatus: { state: 'FAILURE', createdAt: at(1) } },
