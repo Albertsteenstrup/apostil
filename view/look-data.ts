@@ -3,7 +3,7 @@
 
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { DEFAULT_RULES, lookFiles, ONE_FIELD_SLOTS, type LookRule } from '../shared/look';
+import { DEFAULT_RULES, lookFiles, ONE_FIELD_SLOTS, withBlockRefs, type LookRule } from '../shared/look';
 import { marksNow, SERVICES, type Mark, type MarkSet } from '../shared/marks';
 import type { Store } from '../shared/store';
 import { dataAddress, iconData, setsOf, valuesOf } from '../store/marks-save';
@@ -26,6 +26,7 @@ export interface LookData {
   values: Record<string, ValueLook>; // by "<set>:<value>"
   marks: MarkHere[];
   files: Record<string, string>; // a kept file of the look, by its name: the address that the page loads
+  pages?: { id: string; title: string }[]; // the pages of the look, by id and title, for the words of a target "page"; their blocks load when a page opens
 }
 
 /** The rules of a look in the order that they apply. The corner of each set is a rule for its kinds, after the default and before the rules of the look. */
@@ -56,7 +57,8 @@ export function lookData(store: Store, repo: string, folder: string, address: (f
       values[`${set.id}:${value.id}`] = { name: value.name, ...(value.site ? { site: value.site } : {}), ...(icon ? { icon } : {}) };
     }
   }
-  const rules = lookRules(sets, stored?.rules);
+  // A section of its own and the window of a target carry only a ref: the page asks for their blocks when the window opens (view/look-blocks.ts).
+  const rules = withBlockRefs(lookRules(sets, stored?.rules));
   const keep = store.lookFolder(repo);
   // A button's icon is a data address, as the icon of a value is; a picture or a film is loaded by its address. A file that is gone has none.
   const files = Object.fromEntries(lookFiles({ rules }).flatMap(({ path: name, use }) => {
@@ -64,7 +66,8 @@ export function lookData(store: Store, repo: string, folder: string, address: (f
     const found = use === 'icon' ? dataAddress(path) : existsSync(path) ? address(path) : undefined;
     return found ? [[name, found]] : [];
   }));
-  return { custom: !!stored, rules, one: ONE_FIELD_SLOTS, sets: sets.map(({ values: _values, rule: _rule, ...set }) => set), values, marks, files };
+  const pages = (stored?.pages ?? []).map(({ id, title }) => ({ id, title }));
+  return { custom: !!stored, rules, one: ONE_FIELD_SLOTS, sets: sets.map(({ values: _values, rule: _rule, ...set }) => set), values, marks, files, ...(pages.length ? { pages } : {}) };
 }
 
 /** The same look data as if no look were saved: the default rules and the services alone. For a page that shows the default beside a look. */

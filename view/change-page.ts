@@ -15,6 +15,7 @@ import type { AppState, RemarkTarget, RemarkTo, Store } from '../shared/store';
 import { startRun } from './agent-run';
 import { codexModel, showRunProblem } from './run-settings';
 import { iconCss } from './state-icons';
+import { blocksAnswer } from './look-blocks';
 import { pullRequestsLater } from './change-list';
 import { reopenStaleRuns } from './list-rows';
 import { answer, filePage, isListening, lookOfPage, marksBeside, notesBeside, pageData, pullLines, pullOnlyPage, takeStart, type PageData, type PullLines } from './page-data';
@@ -64,6 +65,9 @@ export function webviewHtml(webview: vscode.Webview, media: vscode.Uri, file: st
     .replace('<!--base-->', `<base href="${webview.asWebviewUri(media)}/">`)
     .replace('<!--icons-->', `<style>${iconCss(media.fsPath)}</style>`);
 }
+
+/** The address of a kept file of a look in a page of Apostil (a picture in place of a step); every webview of the extension reads it by the same address. */
+const lookAddress = (webview: vscode.Webview | undefined) => (file: string): string => (webview ? webview.asWebviewUri(vscode.Uri.file(file)).toString() : file);
 
 /** Shows the text of a file at the base of a change, for the left side of a diff. */
 export class BaseText implements vscode.TextDocumentContentProvider {
@@ -174,7 +178,7 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
   /** Puts the page into a webview and keeps it in the views. */
   private addView(panel: vscode.WebviewPanel, file?: string, start: { lines?: [number, number]; at?: ChangeAt } = {}, uri?: string): View {
     const view: View = { panel, file, uri, ...start, ready: false, waiting: [] };
-    panel.webview.options = { enableScripts: true, localResourceRoots: [this.media] };
+    panel.webview.options = { enableScripts: true, localResourceRoots: [this.media, vscode.Uri.file(join(this.store.folder, 'looks'))] }; // the kept files of a look
     panel.webview.html = webviewHtml(panel.webview, this.media, 'page.html');
     panel.webview.onDidReceiveMessage((message: Message) => this.receive(message, view));
     panel.onDidChangeViewState(() => {
@@ -254,7 +258,7 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
       this.changeId = this.changeOfFolder();
       // With no change on the branch, the tab shows the code as it is, with the notes of the other changes of the repo beside it.
       this.page = this.changeId !== undefined ? pageData(this.store, this.changeId, this.openFolder(), this.apps) : filePage(this.openFolder());
-      if (this.page) this.page.look = lookOfPage(this.store, this.page);
+      if (this.page) this.page.look = lookOfPage(this.store, this.page, lookAddress(panel.webview));
     }
     const folder = this.page?.folder ?? this.openFolder();
     const key = document.uri.toString();
@@ -416,7 +420,7 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
     this.signature = this.signatureNow();
     this.page = pageData(this.store, this.changeId, this.openFolder(), this.apps);
     if (!this.page) return;
-    this.page.look = lookOfPage(this.store, this.page);
+    this.page.look = lookOfPage(this.store, this.page, lookAddress(this.panel?.webview ?? [...this.views][0]?.panel.webview));
     if (this.panel) this.panel.title = this.page.branch;
     for (const view of this.views) this.post(view, this.dataFor(view));
     this.setState({ changeId: this.changeId });
@@ -489,6 +493,8 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
       }
       case 'ask':
         if (message.question.startsWith('pull:')) this.post(view, { type: 'answer', id: message.id, value: await this.readPull(message.question.slice(5), view) });
+        // The blocks of the window of a target of the look, read when it opens (look-blocks.ts).
+        else if (message.question.startsWith('blocks:')) this.post(view, { type: 'answer', id: message.id, value: blocksAnswer(this.store, page?.folder ?? this.openFolder(), message.question.slice('blocks:'.length), (file) => view.panel.webview.asWebviewUri(vscode.Uri.file(file)).toString()) });
         else this.post(view, { type: 'answer', id: message.id, value: this.page ? answer(this.page, message.question, (path, lines) => notesBeside(this.store, this.page!, path, lines), (path) => marksBeside(this.store, this.page!, path)) : undefined });
         break;
       case 'looked':

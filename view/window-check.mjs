@@ -575,12 +575,38 @@ try {
     return read.words === 'in the look' && read;
   }).catch(() => false), 10000);
   const jobsAfter = await fileRowOf('jobs').count();
-  await shot('3e-the-tree-files-in-a-look');
+  await shot('3f-the-tree-files-in-a-look');
   await fileRowOf('hold_service.py').first().click().catch(() => {});
   const treeTarget = await until(() => page.locator('[id="status.editor.selection"]').textContent({ timeout: 1000 }).then((text) => /^Ln 516\b/.test(text ?? '') && text, () => ''));
   check('the tree "Files" in a look: the folder that a rule leaves out is gone; the file that a rule picks has the icon of the look and its quiet words after the name, and a click on it goes to the target of the rule',
     treeLook && jobsBefore === 1 && jobsAfter === 0 && !!treeRow && /^url\(/.test(treeRow.icon) && !!treeTarget && /night_jobs\.py/.test(await activeTab() ?? ''),
     JSON.stringify({ treeLook, jobsBefore, jobsAfter, treeRow, treeTarget, tab: await activeTab() }));
+
+  // A click whose target is a page of the look (build 58) opens the page as a tab named by its title; its table has the rows of the file, and after the
+  // file changes on disk the table shows the new row. A browser cannot show a tab of VS Code or a file that changes.
+  const branches = path.join(repo, 'data/branches.csv');
+  const branchesText = readFileSync(branches, 'utf8');
+  const pageLook = lookNow({
+    pages: [{ id: 'opening-hours', title: 'Opening hours', blocks: [{ title: 'Branches', table: { file: 'data/branches.csv', columns: ['branch', 'opens', 'closes'] } }] }],
+    rules: [{ pick: { kind: 'node', diagram: 'lib-top', nodes: ['jobs'] }, click: { page: 'opening-hours' } }],
+  });
+  await command('View: Close All Editors');
+  await list?.locator('.home').click();
+  const pageHome = await frameWhere(() => typeof Home === 'object' && Home.data?.look?.pages?.length === 1 && !!document.querySelector('#view g.node[id*="flowchart-jobs-"]'));
+  await pageHome?.locator('#view g.node[id*="flowchart-jobs-"]').click({ timeout: 4000 }).catch(() => {});
+  const pageTabs = await waitTabs(['Home', 'Opening hours']);
+  /** The names of the rows of the table of the page of the look, as its tab shows them. */
+  const pageRows = async () => {
+    const frame = await frameWhere(() => typeof Home === 'object' && Home.data?.kind === 'page', undefined, 3000);
+    return frame ? frame.evaluate(() => [...document.querySelectorAll('.block-table tbody tr')].map((row) => row.cells[0].textContent)) : [];
+  };
+  const firstRows = await until(async () => { const rows = await pageRows(); return rows.length > 0 && rows; }) || [];
+  await shot('3e-a-page-of-the-look');
+  writeFileSync(branches, `${branchesText}Riverside,09:00,15:00,6\n`);
+  const newRows = await until(async () => { const rows = await pageRows(); return rows.length === firstRows.length + 1 && rows; }) || await pageRows();
+  check('a click whose target is a page of the look opens it as a tab named by its title; its table has the rows of the file, and after the file changes on disk it shows the new row',
+    pageLook && pageTabs.join() === 'Home,Opening hours' && firstRows.join() === 'North,Harbour,Old Town,Station' && newRows.at(-1) === 'Riverside', JSON.stringify({ pageLook, pageTabs, firstRows, newRows }));
+  writeFileSync(branches, branchesText);
   lookNow({ rules: [] }); // the default look again for the parts after this one
   await command('View: Close All Editors');
 

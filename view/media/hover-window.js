@@ -40,7 +40,7 @@ const Hover = (() => {
   let shown = null; // { el, anchor }
   let openTimer = 0;
   let hideTimer = 0;
-  let asked = 0; // goes up with each window that is asked for and each close from outside: content that comes late for an older turn opens no window
+  let turn = 0; // goes up with each window that is asked for and each close from outside: content that comes late for an older turn opens no window
   // A tab that shows again gets pointer events at the place where the pointer was before, though the pointer is elsewhere now.
   // So after a close from outside no window opens until the pointer has really moved.
   let point = ''; // the last place of the pointer, as "x,y"
@@ -54,13 +54,15 @@ const Hover = (() => {
     shown = null;
   }
 
-  async function show(anchor, load, around) {
-    if (!anchor.isConnected || !anchor.matches(':hover') || stale !== null) return; // the pointer left, the page drew something new, or the pointer did not move
-    const mine = ++asked;
+  /** `asked` true: a click or a key asked for this window, which opens also when the pointer is elsewhere (on the row of a menu). */
+  async function show(anchor, load, around, asked = false) {
+    const here = () => asked || anchor.matches(':hover');
+    if (!anchor.isConnected || !here() || (stale !== null && !asked)) return; // the pointer left, the page drew something new, or the pointer did not move
+    const mine = ++turn;
     const content = await load();
     const picking = document.body.classList.contains('picking'); // the pointer is a comment icon: the next click sticks a comment
     // A close that came while the content loaded wins: a tab that was hidden meanwhile still says that the pointer is on the anchor.
-    if (!content || mine !== asked || !anchor.matches(':hover') || picking) return;
+    if (!content || mine !== turn || !here() || picking) return;
     hide();
     const frame = windowFrame({ title: content.title, sub: content.sub, width: content.width, actions: content.open ? '<a data-open>Open</a>' : '' });
     if (typeof content.body === 'string') frame.body.innerHTML = content.body;
@@ -133,12 +135,21 @@ const Hover = (() => {
     anchor.addEventListener('click', () => { clearTimeout(timer); timer = 0; });
   }
 
-  /** Opens a window on an element at once, for a click that asks for it (the places of a mark); it stays while the pointer is on it or on the element. */
-  function now(anchor, load, around) {
+  /**
+   * Opens a window on an element at once, for a click that asks for it (the places of a mark); it stays while the pointer is on it or on the element.
+   * `asked`: it opens also when the pointer is not on the element (the window of a target, from a row of a menu).
+   */
+  function now(anchor, load, around, asked = false) {
     clearTimeout(openTimer);
     clearTimeout(hideTimer);
-    return show(anchor, load, around);
+    return show(anchor, load, around, asked);
   }
 
-  return { attach, after, now, hide: () => { clearTimeout(openTimer); asked++; stale = point; hide(); } };
+  const close = () => { clearTimeout(openTimer); turn++; stale = point; hide(); };
+  // Escape closes the window that is open (build 58), unless he types in a field.
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && shown && !event.target.closest?.('[data-field], textarea, input')) close();
+  });
+
+  return { attach, after, now, hide: close };
 })();

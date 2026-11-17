@@ -236,6 +236,10 @@ const Marks = (() => {
 
   // ----- where a click goes: the words of a target -----
 
+  // The titles of the pages of the look, by id, for the words of a target "page" (the page sets them from its data: setPages).
+  const pageTitles = {};
+  const setPages = (pages = []) => { for (const page of pages) pageTitles[page.id] = page.title; };
+
   /** What a target does, in one line: the pointer says it before a click. */
   const targetWords = (target) => (!target ? 'Does nothing.'
     : target.url ? `Opens ${target.url}, after VS Code asks.`
@@ -247,6 +251,8 @@ const Marks = (() => {
     : target.change ? `Opens the change of the branch ${target.change}${target.part ? ` at its part ${target.part}` : ''}.`
     : target.pull ? `Opens pull request #${target.pull}.`
     : target.comment ? 'Opens a comment box on it.'
+    : target.window ? `Opens a window${target.window.title ? ` "${target.window.title}"` : ''} beside it.`
+    : target.page ? `Opens the page "${pageTitles[target.page] ?? target.page}".`
     : `Sends this to the agent of the repo, after VS Code asks: "${target.prompt}"`);
 
   /** One line for the click and each other input of a thing that a rule gives: "Click: Opens …", "Alt+click: …", "Key G: …", "Right click: 2 entries". */
@@ -269,14 +275,35 @@ const Marks = (() => {
    */
   function windowOf({ title, sub = '', width, sections, wrap = (inner) => inner, ready }, slots = {}) {
     const order = slots['window.sections'];
-    const shown = order ? order.map((id) => sections.find((one) => one.id === id)).filter(Boolean) : sections;
+    const shown = order ? order.map((id, at) => (id && typeof id === 'object' ? ownSection(id, at) : sections.find((one) => one.id === id))).filter(Boolean) : sections;
     const does = inputWords(slots);
     const lines = does.length ? `<div class="lk-does">${does.map((line) => `<p>${escapeHtml(line).replace(/"/g, '&quot;')}</p>`).join('')}</div>` : '';
+    // The sections of today stand in their frame (`wrap`); a section of its own stands outside it, at its place among them.
+    const runs = [];
+    for (const one of shown) {
+      if (one.own) runs.push(one);
+      else if (runs.length && !runs.at(-1).own) runs.at(-1).list.push(one);
+      else runs.push({ list: [one] });
+    }
+    if (!runs.some((run) => !run.own)) runs.unshift({ list: [] }); // the frame is there also with no section of today in it
     return {
       title, width: slots['window.width'] ?? width, ids: shown.map((one) => one.id),
       sub: [sub, ...shown.map((one) => one.sub)].filter(Boolean).join(' · '),
-      body: `${lines}${wrap(shown.map((one) => one.html ?? '').join(''))}`,
+      body: `${lines}${runs.map((run) => (run.own ? run.html : wrap(run.list.map((one) => one.html ?? '').join('')))).join('')}`,
       ready: async (body) => { for (const one of shown) await one.ready?.(body); await ready?.(body); },
+    };
+  }
+
+  /**
+   * A section of its own in a window (build 58): its quiet title, and its blocks, which the page asks for when the window opens and Blocks draws
+   * (media/blocks.js). `section.ref` names the blocks; the page carries no blocks before that.
+   */
+  function ownSection(section, at) {
+    const titleHtml = section.title ? `<div class="bk-sectitle">${escapeHtml(section.title)}</div>` : '';
+    return {
+      id: `own-${at}`, own: true,
+      html: `<div class="bk-sec" data-bk-own="${at}">${titleHtml}<div class="bk-hold"></div></div>`,
+      ready: (body) => (typeof Blocks === 'object' ? Blocks.fill(body.querySelector(`[data-bk-own="${at}"] .bk-hold`), section.ref) : undefined),
     };
   }
 
@@ -353,9 +380,126 @@ const Marks = (() => {
     return { light: stand(PAPER.light, [0, 0, 0]), dark: stand(PAPER.dark, [255, 255, 255]) };
   }
 
+  // ----- the things of the page of a change and of a file tab (build 60): what a rule picks there, with their fields -----
+
+  const DATA_FILE = /\.(json|csv|tsv|lock)$|(^|\/)(go\.sum|[^/]*-lock\.ya?ml)$/i; // data files: the list of diffs folds them
+  const POINT_TYPES = { 'note-not-supported': 'note', 'no-note': 'no-note', 'thing-not-supported': 'thing' };
+  const plainText = (html) => String(html).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  const states = () => (typeof States === 'object' ? States : require('./states.js')); // the state words; the tests read this part in Node
+
+  /** The slots that the look gives a thing; none with no look. */
+  const slotsIn = (look, thing) => (look ? resolve(look.rules, thing, look.one) : {});
+
+  /** The remarks grouped by thread, in the order of their first remark. */
+  function threadsOf(remarks) {
+    const groups = new Map();
+    for (const remark of [...remarks].sort((a, b) => a.id - b.id)) groups.set(remark.thread ?? remark.id, [...(groups.get(remark.thread ?? remark.id) ?? []), remark]);
+    return [...groups.values()];
+  }
+
+  /** A thread of comments as a thing: its state in one word, the name of its place, and who wrote it (the page keeps the comments of its owner only). */
+  const threadThing = (thread) => ({
+    kind: 'thread', id: thread[0].id, paths: thread[0].target.file ? [thread[0].target.file] : [],
+    fields: { state: states().threadState(thread), where: thread[0].target.label ?? thread[0].target.kind, author: 'you' },
+  });
+
+  /** An open point as a thing: its type, its file, its part and its diagram. */
+  const pointThing = (point, page) => ({
+    kind: 'open-point', id: point.id, paths: point.file ? [point.file] : [], ...(point.diagram ? { diagram: point.diagram } : {}),
+    fields: { type: POINT_TYPES[point.kind] ?? 'thing', file: point.file ?? '', part: point.part ?? page.parts.find((part) => part.files.includes(point.file))?.id ?? '', diagram: point.diagram ?? '' },
+  });
+
+  /** The steps of the drawing of a part as things, by node id: each with the files of its places and its counts. */
+  const stepThings = (diagram) => Object.fromEntries(Object.entries(diagram.graph?.nodes ?? {}).map(([key, label]) => {
+    const code = diagram.code?.[key];
+    const paths = [...new Set((code?.places ?? []).map((place) => place.file))];
+    return [key, { kind: 'part-step', diagram: diagram.id, node: key, paths, marks: [], fields: { title: plainText(label), added: code?.counts?.added ?? 0, removed: code?.counts?.removed ?? 0 } }];
+  }));
+
+  /** A diagram of a part as a thing: its id, its kind, its function and its title; its paths are its file, or the files of its part. */
+  const diagramThing = (diagram, page) => ({
+    kind: 'part-diagram', id: diagram.id, diagram: diagram.id, paths: diagram.file ? [diagram.file] : page.parts.find((part) => part.id === diagram.part)?.files ?? [],
+    fields: { id: diagram.id, type: diagram.kind, function: diagram.symbol ?? '', title: diagram.title },
+  });
+
+  /**
+   * The things of the page of a change of one kind, or of every kind, from its data (view/page-data.ts): the card, the parts, the box of the files in no
+   * part, the links between parts, the files of the list of diffs, the views, the diagrams of the parts and their steps, the comments window, the threads,
+   * the open points and the comment marks (one for each place with open threads). Each with its kind, its id, its paths and its fields. Worked out each time:
+   * a page changes its data in place.
+   */
+  function changeThings(page, kind) {
+    const fileOf = (path) => page.files.find((file) => file.path === path);
+    const counts = (paths) => Object.fromEntries(['added', 'removed'].map((key) => [key, paths.reduce((sum, path) => sum + (fileOf(path)?.[key] ?? 0), 0)]));
+    const parts = () => page.parts.map((part) => ({ kind: 'part', id: part.id, paths: part.files, fields: { id: part.id, name: part.name, files: part.files.length, ...counts(part.files) } }));
+    const open = () => threadsOf(page.remarks ?? []).filter((thread) => states().threadState(thread) !== 'resolved');
+    const placeOf = (thread) => thread[0].target.label ?? thread[0].target.kind;
+    const generated = new Set(page.checks.generated);
+    const kinds = {
+      'change-card': () => [{ kind: 'change-card', paths: page.files.map((file) => file.path), fields: { title: page.title, files: page.files.length, ...counts(page.files.map((file) => file.path)), checked: !!page.linksChecked, wider: page.diagrams.filter((one) => one.broad).length } }],
+      part: parts,
+      'no-part': () => (page.checks.filesInNoPart.length ? [{ kind: 'no-part', paths: page.checks.filesInNoPart, fields: { files: page.checks.filesInNoPart.length } }] : []),
+      'part-link': () => { const all = parts(); return page.links.map((link, at) => ({
+        kind: 'part-link', id: `link:${at}`, ends: [link.from, link.to].map((id) => all.find((one) => one.id === id)).filter(Boolean),
+        fields: { words: link.label ?? '', added: link.code?.counts?.added ?? 0, removed: link.code?.counts?.removed ?? 0 },
+      })); },
+      'diff-file': () => page.files.map((file) => ({
+        kind: 'diff-file', id: file.path, paths: [file.path],
+        fields: { path: file.path, part: page.parts.find((part) => part.files.includes(file.path))?.id ?? '', type: generated.has(file.path) ? 'generated' : DATA_FILE.test(file.path) ? 'data' : 'code', added: file.added, removed: file.removed },
+      })),
+      'change-view': () => ['diagram', 'diffs', 'conversation'].map((id) => ({ kind: 'change-view', id, fields: { id } })),
+      'part-diagram': () => page.diagrams.filter((one) => !one.broad && one.part).map((diagram) => diagramThing(diagram, page)),
+      'part-step': () => page.diagrams.filter((one) => !one.broad && one.part).flatMap((diagram) => Object.values(stepThings(diagram))),
+      'comments-window': () => [{ kind: 'comments-window', fields: {} }],
+      thread: () => threadsOf(page.remarks ?? []).map(threadThing),
+      'open-point': () => (page.openPoints ?? []).map((point) => pointThing(point, page)),
+      'comment-mark': () => [...new Set(open().map(placeOf))].map((place) => ({ kind: 'comment-mark', fields: { count: open().filter((thread) => placeOf(thread) === place).length } })),
+    };
+    return kind ? kinds[kind]?.() ?? [] : Object.values(kinds).flatMap((build) => build());
+  }
+
+  /** A thing at lines of a file of a file tab: the line of a note, the first line of a function, the margin at a line. Its marks are those at its lines. */
+  function lineThing(kind, path, [from, to], marks, fields = {}) {
+    const thing = { kind, now: true, paths: [path], at: [{ file: path, from, to }], fields };
+    thing.marks = marksIn(thing, marks);
+    return thing;
+  }
+
+  /** The lines of a file with marks, each as a thing of the margin of the code (or of `kind`, the code map): [line, thing], at most `most` lines, the first ones. */
+  function marginThings(path, marks, most = 200, kind = 'margin') {
+    const lines = [...new Set(marks.filter((mark) => mark.file === path).map((mark) => mark.at))].sort((a, b) => a - b).slice(0, most);
+    return lines.map((line) => [line, lineThing(kind, path, [line, line], marks)]);
+  }
+
+  /**
+   * The things of the file tab of one file, for the count of set-look: from its notes in the order of their lines and its marks with their lines now.
+   * The page builds the same things one by one where it draws them (code-notes.js).
+   */
+  function fileThings(path, notes, marks, tests = () => 0) {
+    const things = [{ kind: 'code-map', paths: [path], marks: marks.filter((mark) => mark.file === path), fields: {} }, ...marginThings(path, marks).map(([, thing]) => thing)];
+    if (notes.length) things.push({ kind: 'notes-column', paths: [path], fields: {} });
+    notes.forEach((note, index) => {
+      things.push(lineThing('note-line', path, note.lines, marks));
+      if (note.symbol && notes.findIndex((other) => other.symbol === note.symbol) === index) things.push(lineThing('function-line', path, note.lines, marks, { function: note.symbol, tests: tests(note.symbol) }));
+      if (index && note.symbol && notes[index - 1].symbol === note.symbol) things.push(lineThing('note-order', path, note.lines, marks));
+    });
+    return things;
+  }
+
+  /** The order of a list from the rules of its rows: each field of "order" that a rule gives a row of it, the first row that has it. For orderRows. */
+  function listOrder(rows, look) {
+    const order = {};
+    for (const row of rows) for (const [slot, value] of Object.entries(slotsIn(look, row))) if (slot.startsWith('order.') && !(slot.slice(6) in order)) order[slot.slice(6)] = value;
+    return order;
+  }
+
+  /** The rows of a list that the look shows, in the order that it gives them (no groups): the views of a switch, the diagrams of a part. */
+  const shownInOrder = (rows, look) => (look ? orderRows(rows.filter((row) => slotsIn(look, row)['show.shown'] !== false), listOrder(rows, look))[0].rows : rows);
+
   const pure = {
-    covers, keyOf, holds, marksIn, picks, rankOf, resolve, fieldsOf, fillText, fillWords, orderRows, thingsOf, edgesOf, flowWithout, shownFlow, targetWords, inputWords, windowOf,
+    covers, keyOf, holds, marksIn, picks, rankOf, resolve, fieldsOf, fillText, fillWords, orderRows, thingsOf, edgesOf, flowWithout, shownFlow, targetWords, inputWords, windowOf, setPages,
     spreadOf, stackOf, namedThings, boxColors, lineColors, contrast, parse, SHOWN, READS,
+    DATA_FILE, slotsIn, threadsOf, threadThing, pointThing, stepThings, diagramThing, changeThings, lineThing, marginThings, fileThings, listOrder, shownInOrder,
   };
   if (typeof window !== 'object') return pure;
 
@@ -570,12 +714,26 @@ const Marks = (() => {
    */
   function act(target, el) {
     if (!target) return;
-    if (typeof Hover === 'object') Hover.hide(); // the list "Repo" has no window of the pointer
+    if (target.window) return void (typeof Hover === 'object' && openWindow(target.window, el)); // the list "Repo" has no window of the pointer
+    if (typeof Hover === 'object') Hover.hide();
     if (target.comment) return void (typeof Remarks === 'object' && Remarks.boxOn(el));
     const step = target.place ? { tab: 'home', diagram: target.place.diagram, lit: target.place.node ? [target.place.node] : [], name: target.place.diagram }
-      : target.graphs ? { tab: 'graphs', path: target.graphs, name: target.graphs } : null;
+      : target.graphs ? { tab: 'graphs', path: target.graphs, name: target.graphs }
+      : target.page ? { tab: 'page', page: target.page, name: pageTitles[target.page] ?? target.page } : null;
     if (step && here.walk?.(step)) return;
     tell({ type: 'target', target, ...(here.diagram?.() ? { diagram: here.diagram() } : {}) });
+  }
+
+  /** The name of a drawn node as its words say it, without the letters of the chips in its corners. */
+  const nameOf = (g) => (g.querySelector?.('.nodeLabel, .label') ?? g).textContent.trim();
+
+  /** The window of a target (build 58): it opens beside the thing at once, and its blocks come when it opens. It closes as a window of the pointer does, or with Escape. */
+  function openWindow(win, el) {
+    const name = win.title || nameOf(el) || 'Window';
+    Hover.now(el, () => ({
+      title: name, width: win.width ?? 420, body: '<div class="bk-sec bk-own"></div>',
+      ready: (body) => (typeof Blocks === 'object' ? Blocks.fill(body.querySelector('.bk-own'), win.ref) : undefined),
+    }), undefined, true);
   }
 
   /** A button in a corner: its icon; the pointer says what it does, and a click does it. */
@@ -800,7 +958,16 @@ const Marks = (() => {
     });
   }
 
-  return { ...pure, lookText, decorate, decorateNote, stackWindow, placesHtml, doesWords, act, useHere, bind, inputWindow };
+  // ----- the page of a change and the file tab (build 60) -----
+
+  /** The colour of the words of a rule ("text.color") on an element, in both themes, at a contrast that reads; and an icon before them ("text.icon"). */
+  function paintText(el, look, slots) {
+    if (slots['text.color']) paint(el, 'words', lineColors(slots['text.color'], READS));
+    const icon = look?.files[slots['text.icon']];
+    if (icon && !el.querySelector(':scope > .lk-icon')) el.insertAdjacentHTML('afterbegin', `<img class="lk-icon" src="${esc(icon)}" alt="">`);
+  }
+
+  return { ...pure, lookText, decorate, decorateNote, stackWindow, placesHtml, doesWords, act, useHere, bind, inputWindow, nameOf, paint, paintBox, paintText };
 })();
 
 if (typeof module === 'object') module.exports = Marks; // for the tests in Node

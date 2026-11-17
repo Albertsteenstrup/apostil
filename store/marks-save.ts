@@ -4,7 +4,7 @@
 import { createHash } from 'node:crypto';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { fileText, headCommit, repoFiles, repoId, repoRoot } from '../shared/git';
+import { currentBranch, fileText, headCommit, repoFiles, repoId, repoRoot } from '../shared/git';
 import { apostilCommands, lookFiles, lookProblems, type Look, type LookFile } from '../shared/look';
 import {
   endingOf, fileProblem, isId, isLine, isText, ONE_WORD, readPrints, RELATIONS, SERVICES, siteOf,
@@ -249,7 +249,8 @@ interface LookDraft {
 function readLookDraft(store: Store, folder: string, draft: unknown): LookDraft {
   const repo = repoId(folder);
   const root = repoRoot(folder);
-  const problems = lookProblems(draft, { folder: root, map: store.getMap(repo)?.map, commands: apostilCommands() });
+  const parts = store.findChange(repo, currentBranch(root))?.file.parts.map((part) => part.id); // the parts of the saved change of the branch, when it has one
+  const problems = lookProblems(draft, { folder: root, map: store.getMap(repo)?.map, commands: apostilCommands(), parts });
   if (problems.length) return { problems };
   const look = JSON.parse(JSON.stringify(draft)) as Look;
   const files = lookFiles(look);

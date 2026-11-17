@@ -9,8 +9,8 @@ const PartLook = (() => {
   const Words = typeof States === 'object' ? States : require('./states.js');
   const quote = (text) => String(text).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
-  /** The slots that the rules of a look give one part, by its kind and its fields; `more` adds what a pick reads beside them (paths, marks). */
-  const slotsOf = (look, kind, fields = {}, more = {}) => (look ? Look.resolve(look.rules, { kind, fields, ...more }, look.one) : {});
+  /** The slots that the rules of a look give one part, by its kind and its fields (Marks.slotsIn); `more` adds what a pick reads beside them (paths, marks). */
+  const slotsOf = (look, kind, fields = {}, more = {}) => Look.slotsIn(look, { kind, fields, ...more });
 
   // ----- colours and icons as HTML -----
 
@@ -101,12 +101,8 @@ const PartLook = (() => {
   /** The bits of the status strip in their order: the rule's, else the reviewers (or the review in words when none is asked), the checks and the blocker. */
   const stripBits = (look, pull) => slotsOf(look, 'status-strip', { state: pull.state }).content?.fields ?? [pull.reviewers.length ? 'reviewers' : 'review', 'checks', 'blocker'];
 
-  /** The sections of the side column that show, in their order: the ones of "order.first" first, then the others as before. */
-  function sideSections(look, ids) {
-    const first = slotsOf(look, 'side-section')['order.first'] ?? [];
-    const shown = ids.filter((id) => slotsOf(look, 'side-section', { id })['show.shown'] !== false).map((id) => ({ id }));
-    return Look.orderRows(shown, { first })[0].rows.map((one) => one.id);
-  }
+  /** The sections of the side column that show, in their order: the ones of "order.first" first, then the others as before (Marks.shownInOrder). */
+  const sideSections = (look, ids) => Look.shownInOrder(ids.map((id) => ({ kind: 'side-section', id, fields: { id } })), look).map((one) => one.id);
 
   // The kind of an event (EVENT_KINDS in shared/look.ts), by the icon that the reader gives it (shared/read-pull-request.ts).
   const EVENT_OF = {

@@ -104,7 +104,7 @@ test('the sections of the side column: the ones of the rule first, a section tha
 
 test('each new part has an area with an index line, other words, and an example that passes the check; the look of the example passes too', () => {
   const fill = (rule: unknown): unknown => JSON.parse(JSON.stringify(rule).replaceAll('<folder>/', 'src/library/jobs/').replaceAll('<file>', 'src/library/night_jobs.py')
-    .replaceAll('<set>:<value>', 'services:table-store').replaceAll('<branch>', 'book-holds'));
+    .replaceAll('<set>:<value>', 'services:postgresql').replaceAll('<branch>', 'book-holds'));
   assert.equal(NEW_KINDS.length, 26);
   for (const kind of NEW_KINDS) {
     const part = LOOK_PARTS.components[kind as keyof typeof LOOK_PARTS.components] as { area: string; words?: readonly string[]; example: unknown };
@@ -138,10 +138,10 @@ test('the sentences of the check for the main faults of the new parts, each with
   ];
   assert.deepEqual(lookProblems({ rules }, context), [
     'Rule 3, "content": a row of a change has no field "size". Its fields are "branch", "state", "age", "commits", "files", "added", "removed", "app", "author".',
-    'Rule 4, "pick": "failing" is no state of a pull request. The states are draft, review needed, changes requested, checks failing, conflicts, ready to merge, merged, closed. The nearest is "checks failing".',
+    'Rule 4, "pick": "failing" is no state of a pull request. The states are "draft", "review needed", "changes requested", "checks failing", "conflicts", "ready to merge", "merged", "closed". The nearest is "checks failing".',
     'Rule 7: a folder row has no slot "box". Its slots are "show", "order". VS Code draws the rows of the tree "Files", and a look can change only their icon, the quiet words after the name, the click and the order.',
-    'Rule 9, "pick": "pass" is no state of a check. The states are failed, running, waiting, passed, skipped. The nearest is "passed".',
-    'Rule 10, "order": "label" is no section of the side column. The sections are reviewers, assignees, labels, milestone, closes, tasks. The nearest is "labels".',
+    'Rule 9, "pick": "pass" is no state of a check. The states are "failed", "running", "waiting", "passed", "skipped". The nearest is "passed".',
+    'Rule 10, "order": "label" is no section of the side column. The sections are "reviewers", "assignees", "labels", "milestone", "closes", "tasks". The nearest is "labels".',
     'Rule 15: "badge" is no kind. A look cannot put a badge on a row of "Files". Tell the owner so.',
   ]);
 });
