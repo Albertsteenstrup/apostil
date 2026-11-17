@@ -56,6 +56,12 @@
           "id": "apostil.files",
           "name": "Files",
           "initialSize": 4
+        },
+        {
+          "id": "apostil.look",
+          "name": "Look",
+          "when": "apostil.lookList",
+          "initialSize": 2
         }
       ]
     },
@@ -151,6 +157,71 @@
       {
         "command": "apostil.openLookPage",
         "title": "Apostil: Open a Page of the Look…"
+      },
+      {
+        "command": "apostil.openNoteOnHome",
+        "title": "Open This Note on Home",
+        "category": "Apostil"
+      },
+      {
+        "command": "apostil.showProcessOfLine",
+        "title": "Show the Process of This Line",
+        "category": "Apostil"
+      },
+      {
+        "command": "apostil.showPlacesOfMark",
+        "title": "Show the Other Places of This Mark",
+        "category": "Apostil"
+      },
+      {
+        "command": "apostil.lookActions",
+        "title": "Actions of the Look…",
+        "category": "Apostil"
+      },
+      {
+        "command": "apostil.lookAction1",
+        "title": "Run Action 1 of the Look",
+        "category": "Apostil"
+      },
+      {
+        "command": "apostil.lookAction2",
+        "title": "Run Action 2 of the Look",
+        "category": "Apostil"
+      },
+      {
+        "command": "apostil.lookAction3",
+        "title": "Run Action 3 of the Look",
+        "category": "Apostil"
+      },
+      {
+        "command": "apostil.lookAction4",
+        "title": "Run Action 4 of the Look",
+        "category": "Apostil"
+      },
+      {
+        "command": "apostil.lookAction5",
+        "title": "Run Action 5 of the Look",
+        "category": "Apostil"
+      },
+      {
+        "command": "apostil.lookAction6",
+        "title": "Run Action 6 of the Look",
+        "category": "Apostil"
+      },
+      {
+        "command": "apostil.lookAction7",
+        "title": "Run Action 7 of the Look",
+        "category": "Apostil"
+      },
+      {
+        "command": "apostil.lookAction8",
+        "title": "Run Action 8 of the Look",
+        "category": "Apostil"
+      },
+      {
+        "command": "apostil.lookAction9",
+        "title": "Run Action 9 of the Look",
+        "category": "Apostil"
       }
     ],
     "menus": {
@@ -159,6 +230,11 @@
           "command": "apostil.graphsOf",
           "when": "view == apostil.files && viewItem == apostil.inDiagram",
           "group": "inline"
+        },
+        {
+          "command": "apostil.lookActions",
+          "when": "view == apostil.files && apostil.lookMenu.actions.explorer",
+          "group": "apostil@1"
         }
       ],
       "explorer/context": [
@@ -166,6 +242,11 @@
           "command": "apostil.graphsOf",
           "when": "resourceScheme == file",
           "group": "navigation@90"
+        },
+        {
+          "command": "apostil.lookActions",
+          "when": "apostil.lookMenu.actions.explorer",
+          "group": "apostil@1"
         }
       ],
       "editor/title": [
@@ -198,6 +279,102 @@
         {
           "command": "apostil.openLookPage",
           "when": "apostil.lookHasPages"
+        },
+        {
+          "command": "apostil.openNoteOnHome",
+          "when": "apostil.lookEntry.note"
+        },
+        {
+          "command": "apostil.showProcessOfLine",
+          "when": "apostil.lookEntry.process"
+        },
+        {
+          "command": "apostil.showPlacesOfMark",
+          "when": "apostil.lookEntry.mark"
+        },
+        {
+          "command": "apostil.lookActions",
+          "when": "apostil.lookEntry.actions"
+        },
+        {
+          "command": "apostil.lookAction1",
+          "when": "false"
+        },
+        {
+          "command": "apostil.lookAction2",
+          "when": "false"
+        },
+        {
+          "command": "apostil.lookAction3",
+          "when": "false"
+        },
+        {
+          "command": "apostil.lookAction4",
+          "when": "false"
+        },
+        {
+          "command": "apostil.lookAction5",
+          "when": "false"
+        },
+        {
+          "command": "apostil.lookAction6",
+          "when": "false"
+        },
+        {
+          "command": "apostil.lookAction7",
+          "when": "false"
+        },
+        {
+          "command": "apostil.lookAction8",
+          "when": "false"
+        },
+        {
+          "command": "apostil.lookAction9",
+          "when": "false"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "apostil.openNoteOnHome",
+          "when": "apostil.lookMenu.note.editor && apostil.fileHas.note && resourceScheme == file",
+          "group": "apostil@1"
+        },
+        {
+          "command": "apostil.showProcessOfLine",
+          "when": "apostil.lookMenu.process.editor && apostil.fileHas.process && resourceScheme == file",
+          "group": "apostil@2"
+        },
+        {
+          "command": "apostil.showPlacesOfMark",
+          "when": "apostil.lookMenu.mark.editor && apostil.fileHas.mark && resourceScheme == file",
+          "group": "apostil@3"
+        },
+        {
+          "command": "apostil.lookActions",
+          "when": "apostil.lookMenu.actions.editor",
+          "group": "apostil@4"
+        }
+      ],
+      "webview/context": [
+        {
+          "command": "apostil.openNoteOnHome",
+          "when": "webviewId == 'apostil.file' && webviewSection == 'codeLine' && apostil.lookMenu.note.fileTab",
+          "group": "apostil@1"
+        },
+        {
+          "command": "apostil.showProcessOfLine",
+          "when": "webviewId == 'apostil.file' && webviewSection == 'codeLine' && apostil.lookMenu.process.fileTab",
+          "group": "apostil@2"
+        },
+        {
+          "command": "apostil.showPlacesOfMark",
+          "when": "webviewId == 'apostil.file' && webviewSection == 'codeLine' && apostil.lookMenu.mark.fileTab",
+          "group": "apostil@3"
+        },
+        {
+          "command": "apostil.lookActions",
+          "when": "webviewId == 'apostil.file' && webviewSection == 'codeLine' && apostil.lookMenu.actions.fileTab",
+          "group": "apostil@4"
         }
       ]
     },
@@ -225,6 +402,71 @@
         "key": "ctrl+shift+[Comma]",
         "mac": "cmd+shift+[Comma]",
         "when": "apostil.notesHere && (editorTextFocus || notebookEditorFocused || activeCustomEditorId == 'apostil.file')"
+      },
+      {
+        "command": "apostil.openNoteOnHome",
+        "key": "ctrl+alt+h",
+        "when": "isMac && apostil.lookKey.note && (editorTextFocus || activeCustomEditorId == 'apostil.file')"
+      },
+      {
+        "command": "apostil.showProcessOfLine",
+        "key": "ctrl+alt+s",
+        "when": "isMac && apostil.lookKey.process && (editorTextFocus || activeCustomEditorId == 'apostil.file')"
+      },
+      {
+        "command": "apostil.showPlacesOfMark",
+        "key": "ctrl+alt+m",
+        "when": "isMac && apostil.lookKey.mark && (editorTextFocus || activeCustomEditorId == 'apostil.file')"
+      },
+      {
+        "command": "apostil.lookActions",
+        "key": "ctrl+alt+l",
+        "when": "isMac && apostil.lookKey.actions && (editorTextFocus || activeCustomEditorId == 'apostil.file')"
+      },
+      {
+        "command": "apostil.lookAction1",
+        "key": "ctrl+alt+1",
+        "when": "isMac && apostil.lookKey.action1 && (editorTextFocus || activeCustomEditorId == 'apostil.file')"
+      },
+      {
+        "command": "apostil.lookAction2",
+        "key": "ctrl+alt+2",
+        "when": "isMac && apostil.lookKey.action2 && (editorTextFocus || activeCustomEditorId == 'apostil.file')"
+      },
+      {
+        "command": "apostil.lookAction3",
+        "key": "ctrl+alt+3",
+        "when": "isMac && apostil.lookKey.action3 && (editorTextFocus || activeCustomEditorId == 'apostil.file')"
+      },
+      {
+        "command": "apostil.lookAction4",
+        "key": "ctrl+alt+4",
+        "when": "isMac && apostil.lookKey.action4 && (editorTextFocus || activeCustomEditorId == 'apostil.file')"
+      },
+      {
+        "command": "apostil.lookAction5",
+        "key": "ctrl+alt+5",
+        "when": "isMac && apostil.lookKey.action5 && (editorTextFocus || activeCustomEditorId == 'apostil.file')"
+      },
+      {
+        "command": "apostil.lookAction6",
+        "key": "ctrl+alt+6",
+        "when": "isMac && apostil.lookKey.action6 && (editorTextFocus || activeCustomEditorId == 'apostil.file')"
+      },
+      {
+        "command": "apostil.lookAction7",
+        "key": "ctrl+alt+7",
+        "when": "isMac && apostil.lookKey.action7 && (editorTextFocus || activeCustomEditorId == 'apostil.file')"
+      },
+      {
+        "command": "apostil.lookAction8",
+        "key": "ctrl+alt+8",
+        "when": "isMac && apostil.lookKey.action8 && (editorTextFocus || activeCustomEditorId == 'apostil.file')"
+      },
+      {
+        "command": "apostil.lookAction9",
+        "key": "ctrl+alt+9",
+        "when": "isMac && apostil.lookKey.action9 && (editorTextFocus || activeCustomEditorId == 'apostil.file')"
       }
     ],
     "themes": [
@@ -241,7 +483,7 @@
         "apostil.homeWhenEmpty": {
           "type": "boolean",
           "default": true,
-          "description": "Open Apostil Home when a window on a Git repo has no open tab, in place of the empty editor area."
+          "description": "Open Apostil Home when a window on a Git repo has no open tab, in place of the empty editor area. When the look of the repo has a first page, that page opens instead, and once when the window starts. Off: Apostil opens nothing by itself, also not the first page."
         },
         "apostil.codexModel": {
           "type": "string",
