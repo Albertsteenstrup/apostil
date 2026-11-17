@@ -14,7 +14,9 @@ import { registerFirstStart } from './first-start';
 import { registerReportIssue } from './report-issue';
 import { rowOfFileInFront, treeSteps } from './files-follow';
 import { FilesTree } from './files-tree';
+import { idOf } from './home-data';
 import { HomePages } from './home-page';
+import { answerTarget, type TargetPlaces } from './look-targets';
 import { askOnceInNewRepo } from './new-repo-question';
 import { registerLinks } from './link-handler';
 import { fileOfTab, NotesBesideCode } from './notes-beside-code';
@@ -143,6 +145,22 @@ export function activate(context: vscode.ExtensionContext) {
       }
     })();
   };
+
+  // A click, a key or a menu entry of the look, from any page: one function does what its target says.
+  const places: TargetPlaces = {
+    openFile: (path, line) => void vscode.commands.executeCommand('apostil.openFile', vscode.Uri.file(join(openFolder(), path)), line),
+    openStep: (step) => { trail.start(step); openStep(step); },
+    showInTree: (paths) => home.showInTree(paths, true),
+    changeOfBranch: (branch) => {
+      const repo = idOf(openFolder());
+      const change = repo ? theStore.listChanges(repo).find((one) => one.branch === branch) : undefined;
+      return change && { id: change.id, title: change.file.title, parts: change.file.parts.map(({ id, name }) => ({ id, name })) };
+    },
+    openPull: (number) => void openPullRequest(String(number)),
+    app: apps[0],
+    sendPrompt: (text, diagram) => home.sendPrompt(text, diagram),
+  };
+  home.onTarget = page.onTarget = (target, diagram) => void answerTarget(target, places, diagram);
 
   // The tree "Files" marks the file of the tab in front, as the Explorer of VS Code does: the file of an editor, a notebook or a file tab of Apostil
   // (the choice: rowOfFileInFront).

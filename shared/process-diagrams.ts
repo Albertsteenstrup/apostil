@@ -28,6 +28,9 @@ export interface ProcessNode {
   down?: string; // the diagram one level down: a step that holds steps, or a process
   note?: { title: string; text: string; where: string }; // what the pointer shows: the note of a step, or the summary of a process
   quiet?: true; // a step or a process of another place, or a call out of the repo
+  steps?: number; // a step that holds steps: the count of its inner steps; a process: the count of its steps
+  process?: true; // a process in the drawing of a place, not a step
+  names?: string[]; // a call out of the repo: the names that the code calls it by
 }
 
 /** A drawn process, a step of it, or the processes of a place: a flow chart like any diagram of the map. */
@@ -124,7 +127,7 @@ export function processDrawings(map: MapProcesses, process: Process): ProcessDia
       const note = notes.get(key)!;
       const count = inner(key);
       const id = quietBox ? `x${number.get(key)}` : nodeOf(key);
-      nodes[id] = { kind: 'step', files: [note.file], at: spanOf(note), note: stepWords(note), ...(count ? { down: idOf(key) } : note.cell === undefined ? { line: note.lines[0] } : {}), ...(quietBox ? { quiet: true as const } : {}) };
+      nodes[id] = { kind: 'step', files: [note.file], at: spanOf(note), note: stepWords(note), ...(count ? { down: idOf(key), steps: count } : note.cell === undefined ? { line: note.lines[0] } : {}), ...(quietBox ? { quiet: true as const } : {}) };
       if (quietBox) quiet.push(id);
       return `${id}[${label(quietBox ? `${baseName(note.file)}: ${note.title}` : note.title, count)}]`;
     };
@@ -158,7 +161,7 @@ export function processDrawings(map: MapProcesses, process: Process): ProcessDia
       const box = `o${targets.indexOf(call.to)}`;
       if (!nodes[box]) {
         const names = [...new Set((process.outside ?? []).filter((one) => one.to === call.to).map((one) => one.name))];
-        nodes[box] = { kind: 'call', files: [], calls: [], quiet: true, note: { title: call.to, text: `Called as ${names.join(', ')}.`, where: 'out of the repo' } };
+        nodes[box] = { kind: 'call', files: [], calls: [], quiet: true, note: { title: call.to, text: `Called as ${names.join(', ')}.`, where: 'out of the repo' }, names };
         quiet.push(box);
         lines.push(`  ${box}([${label(call.to)}])`);
       }
@@ -195,7 +198,7 @@ function processNode(map: MapProcesses, process: Process, quiet: boolean): Proce
   const parent = parentsOf(live);
   // Its top steps hold all its lines.
   const at = live.filter((key) => parent.get(key) === undefined).flatMap((key) => spanOf(notes.get(key)!));
-  return { kind: 'step', files: filesOf(process), at, down: processDiagramId(process.id), note: { title: process.title, text: process.summary, where: stepsWord(live.length) }, ...(quiet ? { quiet: true as const } : {}) };
+  return { kind: 'step', files: filesOf(process), at, down: processDiagramId(process.id), note: { title: process.title, text: process.summary, where: stepsWord(live.length) }, steps: live.length, process: true, ...(quiet ? { quiet: true as const } : {}) };
 }
 
 /** The processes of a place: one node for each, joined by their handoffs; a process of another place that hands to or from them is a quiet box. */

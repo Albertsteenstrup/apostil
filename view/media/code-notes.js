@@ -82,23 +82,55 @@ function noteCard(note, first, tone = '') {
 
 const inside = (line, [first, last]) => first <= line && line <= last;
 
+/** A note as a thing of the look: its file and lines, its fields, and the marks at its lines (`marks`: the marks of the file with their lines now). */
+function noteThing(note, marks = []) {
+  const thing = {
+    kind: 'note', now: true, paths: [note.file], at: [{ file: note.file, from: note.lines[0], to: note.lines[1] }],
+    fields: { title: note.title, file: note.file, function: note.symbol ?? '', tests: note.linkedTests ?? 0 },
+  };
+  thing.marks = Marks.marksIn(thing, marks);
+  return thing;
+}
+
+/** The slots that the look gives a note, or none: a removed note and a note with no lines keep the default. */
+const noteSlots = (note, marks) => (App.page?.look && !note.removed && note.lines ? Marks.resolve(App.page.look.rules, noteThing(note, marks), App.page.look.one) : {});
+
 /**
- * The look of a note card (marks.js): the marks at its lines at the corners of its card, one line for each service, and the colour that a rule of
- * the look gives it. `marks` are the marks of the file with their lines now, from the answer to "code:<path>". Returns the card.
+ * The look of a note card (marks.js): the marks at its lines at the corners of its card, one line for each service, the colour that a rule of
+ * the look gives it, its fields in the order of the rule, and where a click and other input go. `marks` are the marks of the file with their lines
+ * now, from the answer to "code:<path>". Returns the card.
  */
 function lookOfNote(card, note, marks = []) {
   const look = App.page?.look;
   if (!look || note.removed || !note.lines) return card;
-  const thing = { kind: 'note', now: true, paths: [note.file], at: [{ file: note.file, from: note.lines[0], to: note.lines[1] }] };
-  thing.marks = Marks.marksIn(thing, marks);
-  const act = (action) => {
-    if (action?.file) App.showCode(action.file, action.line ? [action.line, action.line] : null);
-    else if (action?.url) tell({ type: 'openUrl', url: action.url });
-    else if (action?.command) tell({ type: 'runCommand', command: action.command });
-    else if (action?.place) Trail.take({ tab: 'home', diagram: action.place.diagram, lit: action.place.node ? [action.place.node] : [], name: action.place.diagram }, true);
-  };
-  Marks.decorateNote(card, look, thing, (file, line) => App.showCode(file, [line, line]), act);
+  const thing = noteThing(note, marks);
+  Marks.decorateNote(card, look, thing, (file, line) => App.showCode(file, [line, line]));
+  const slots = noteSlots(note, marks);
+  if (slots.content?.fields) orderCard(card, slots.content.fields);
+  Marks.bind(card, slots, null, note.title);
+  Marks.inputWindow(card, slots, note.title);
   return card;
+}
+
+/**
+ * The fields of a note card in the order of a rule ("content": { "fields": [...] }): its title, its function line, its linked tests, its text and its
+ * service lines; a field that the list does not name is not shown. The tests stand beside the title when they follow it. What a check found stays.
+ */
+function orderCard(card, fields) {
+  const title = card.querySelector(':scope > .t');
+  const tests = title?.querySelector('[data-linked]');
+  tests?.remove();
+  const parts = { function: card.querySelector(':scope > .fn'), title, tests, text: card.querySelector(':scope > .d:not(.from)'), services: card.querySelector(':scope > .mk-lines') };
+  for (const [name, el] of Object.entries(parts)) if (el && name !== 'tests' && !fields.includes(name)) el.remove();
+  let after = null;
+  fields.forEach((name, index) => {
+    let el = parts[name];
+    if (!el) return;
+    if (name === 'tests' && fields[index - 1] === 'title' && title) return void title.append(el);
+    if (name === 'tests') { el = html('<div class="t"></div>'); el.append(tests); }
+    card.insertBefore(el, after ? after.nextSibling : card.firstChild);
+    after = el;
+  });
 }
 
 /**
@@ -340,7 +372,8 @@ const isNarrow = (into) => into.clientWidth < NARROW;
  * map (a whole file: the small code map at the right edge, { top() } the room above it; codeMap in code-map.js).
  */
 function codeWithNotes(holder, options) {
-  const { rows, notes = [], scroller, path, colorOf, narrow = false, focus = null, top = () => -8, map = null } = options;
+  const { rows, notes: written = [], scroller, path, colorOf, narrow = false, focus = null, top = () => -8, map = null } = options;
+  const notes = written.filter((note) => noteSlots(note, options.marks)['show.shown'] !== false); // a note that the look leaves out is not drawn; counts elsewhere keep it
   // The map lies under the column of the notes; a file with no notes has it in a column of its own.
   const side = notes.length ? `<div class="notes${narrow ? ' narrow' : ''}"></div>` : map ? `<div class="mside" style="width:${narrow ? MAP_NARROW : MAP_WIDTH}px"></div>` : '';
   // The class "with-map" is there before the width of the code is measured: narrow, the map takes room beside the marks.

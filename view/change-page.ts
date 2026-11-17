@@ -7,6 +7,7 @@ import { basename, join, relative, sep } from 'node:path';
 import * as vscode from 'vscode';
 import { openSessionCommand, sessionLink, resumeCommand } from '../shared/agents';
 import { rawFileText } from '../shared/git';
+import type { Target } from '../shared/look';
 import { ghPictures, inlinePictures } from '../shared/pull-pictures';
 import { pullRequestFrom, readPullRequest, runGh, type PullRequestView } from '../shared/read-pull-request';
 import { writePullRequest, type Write } from '../shared/write-pull-request';
@@ -85,8 +86,7 @@ type Message =
   | NewRemark
   | { type: 'remarkAction'; id: number; action: RemarkAction }
   | { type: 'openLink'; url: string }
-  | { type: 'runCommand'; command: string }
-  | { type: 'openUrl'; url: string }
+  | { type: 'target'; target: Target; diagram?: string }
   | { type: 'openSession'; id: number }
   | { type: 'connect' }
   | { type: 'walk'; from: Step; to: Step; open: boolean }
@@ -160,6 +160,7 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
   rendered?: Message & { type: 'rendered' }; // what the page last drew, for the check inside VS Code
   renderedFile?: Message & { type: 'rendered'; file?: string }; // what a file tab last drew, for the check inside VS Code
   trail?: WindowTrail; // the path that he followed in this window
+  onTarget: (target: Target, diagram?: string) => void = () => {}; // does what a target of the look says (look-targets.ts); set by the extension
 
   constructor(
     private media: vscode.Uri,
@@ -515,11 +516,8 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
       case 'openSession':
         openRemarkSession(this.store, message.id, this.openFolder());
         break;
-      case 'runCommand': // a button of the look on a note card runs a command of Apostil, and no other command
-        if (message.command.startsWith('apostil.')) void vscode.commands.executeCommand(message.command);
-        break;
-      case 'openUrl': // a button of the look: VS Code asks before it leaves for a web address
-        void askAndOpen(message.url);
+      case 'target': // a click, a key or a menu entry of the look, on a note card: the same place as on Home (look-targets.ts)
+        this.onTarget(message.target, message.diagram);
         break;
       case 'openLink':
         openLink(message.url);

@@ -215,9 +215,12 @@ test('set-look keeps a look and its files in the store, removes its draft files,
   // The look as "apostil look" prints it names the files that Apostil keeps: sent again with one more rule, it saves, with no file in the repo.
   const again = setLook(store, repoFolder, { sets: kept.sets, rules: [...kept.rules, { pick: { kind: 'note' }, note: { color: '#15803d' } }] });
   assert.deepEqual([again.saved, again.problems, again.files], [true, [], 3]);
-  // "apostil look-slots" prints the one list that the check reads: the components with their slots, the picks and every action.
+  // "apostil look-slots" prints the one list that the check reads: the components with their slots, the picks and every target.
   const parts = JSON.parse(runApostil(['look-slots'], { cwd: repoFolder, env }).stdout);
-  assert.deepEqual([Object.keys(parts.components), parts.components.note.slots, Object.keys(parts.actions)], [['node', 'step', 'call', 'arrow', 'note'], ['note', 'corners'], ['file', 'url', 'command', 'prompt', 'place']]);
+  assert.deepEqual([Object.keys(parts.components), parts.components.note.slots, Object.keys(parts.targets)], [
+    ['node', 'step', 'call', 'arrow', 'note'], ['note', 'corners', 'content', 'show', 'click', 'input'],
+    ['file', 'url', 'command', 'prompt', 'place', 'graphs', 'folder', 'change', 'pull', 'comment'],
+  ]);
   // With no look, "apostil look" says that the default applies. (A store of its own: two test repos made in the same second have the same first commit.)
   assert.equal(JSON.parse(runApostil(['look'], { cwd: repoFolder, env: { APOSTIL_HOME: tempFolder('apostil-store-') } }).stdout).look, 'default');
 
@@ -239,7 +242,7 @@ test('set-look keeps a look and its files in the store, removes its draft files,
   assert.match(refused({ pick: { kind: 'node', mark: 'tags:x' }, box: { color: '#000000' } }), /"tags" is no mark set/);
   assert.match(refused({ pick: { kind: 'node' }, corners: { 'upper-right': { set: 'tags' } } }), /must name a mark set/);
   assert.match(refused({ pick: { kind: 'node' }, corners: { middle: null } }), /"corners": "middle" is no field here\. Use only "upper-left"/);
-  assert.match(refused({ pick: { kind: 'node' }, corners: { 'upper-left': { icon: 'x.svg', name: 'Go', action: { run: 'ls' } } } }), /"run" is no field here[\s\S]*exactly one of "file", "url", "command", "prompt", "place"/);
+  assert.match(refused({ pick: { kind: 'node' }, corners: { 'upper-left': { icon: 'x.svg', name: 'Go', action: { run: 'ls' } } } }), /"action": "run" is no target\. The targets are "file", "url", "command", "prompt", "place", "graphs"/);
   assert.match(refused({ pick: { kind: 'node' }, corners: { 'upper-left': { icon: 'x.svg', name: 'Go', action: { command: 'workbench.action.quit' } } } }), /"workbench\.action\.quit" is no command of Apostil/);
   assert.match(refused({ pick: { kind: 'node' }, corners: { 'upper-left': { icon: 'x.svg', name: 'Go', action: { file: 'src/feed.py', line: 99 } } } }), /line 99 is not inside src\/feed\.py/);
   assert.match(refused({ pick: { kind: 'node' }, corners: { 'upper-left': { icon: 'x.svg', name: 'Go', action: { place: { diagram: 'nowhere' } } } } }), /"place" must name a diagram of the map/);

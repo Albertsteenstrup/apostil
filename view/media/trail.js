@@ -81,15 +81,16 @@ const Trail = (() => {
 
   /**
    * He took a step by himself from the view of this page. With `elsewhere` the view is on another page:
-   * inside VS Code the extension opens it in its tab; as a file in a browser that page opens.
+   * inside VS Code the extension opens it in its tab; as a file in a browser that page opens. False when this page shows no step (a file tab).
    */
   function take(to, elsewhere = false) {
-    if (!own) return;
+    if (!own) return false;
     tell({ type: 'walk', from: own, to, open: elsewhere });
     steps = walk(steps, own, to);
-    if (vscodeApi || !elsewhere) return;
+    if (vscodeApi || !elsewhere) return true;
     keepInBrowser();
     location.href = addressOf(to);
+    return true;
   }
 
   /** Back to a step of the line: the path ends there again, and that view shows in its tab with what was lit there. */

@@ -1083,3 +1083,12 @@ body:not(.picking) .stage g.image-shape.go:hover > *{scale:1.03}
   padding:0 0 0 2px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.3)}
 .lk-play[hidden]{display:none}
 .lk-play::before{content:'▶'} /* the mark is drawn here: as words of the button it went into the name of the box in its window */
+/* The words of the look: their size and the place of an icon before them are there while Mermaid measures, the icon comes after the drawing (--lk-icon). */
+.lkSmall .nodeLabel,span.lkSmall{font-size:.85em}
+.lkLarge .nodeLabel,span.lkLarge{font-size:1.25em}
+.lkIcon .nodeLabel p:first-of-type::before{content:'';display:inline-block;width:16px;height:16px;margin-right:6px;vertical-align:-3px;background:var(--lk-icon,transparent) center/contain no-repeat}
+.lk-words{--lk-words:var(--lk-words-l)}body.vscode-dark .lk-words{--lk-words:var(--lk-words-d)}body.vscode-high-contrast .lk-words{--lk-words:var(--d-text)}
+.stage .lk-words :is(span,p){color:var(--lk-words)!important}
+/* What a click and other input of the look do, at the top of a window of the pointer; the menu of a right click. */
+.lk-does{padding:6px 12px 4px;color:var(--muted);font-size:var(--small)}
+.lk-does p{margin:0 0 2px}

@@ -71,8 +71,9 @@ const mapPage = (data) => (data.kind === 'home' && data.map
 // ----- Home -----
 
 /**
- * The window of a node: the folders and files it stands for with their counts, and the changes that touch it. A folder opens in the tree "Files" of the side bar; a file opens in VS Code.
- * The marks of a set that stands in no corner of the node (a rule put something else there) are listed here, each value with its count of places.
+ * The window of a node, from its sections: the folders and files it stands for with their counts ("files"), the changes that touch it ("changes"), and
+ * the marks of a set that stands in no corner of the node ("marks": a rule put something else there), each value with its count of places. A rule of the
+ * look orders the sections and leaves some out. A folder opens in the tree "Files" of the side bar; a file opens in VS Code.
  */
 function nodeWindow(g, node, thing) {
   return () => {
@@ -83,10 +84,15 @@ function nodeWindow(g, node, thing) {
     const look = Home.data.look;
     const hidden = thing ? look.sets.filter((set) => !thing.cornered?.has(set.id)).map((set) => [set, Marks.stackOf(thing.marks, set.id)]).filter(([, stack]) => stack.length) : [];
     const marks = hidden.map(([set, stack]) => `<div class="gp">${esc(set.name)}</div>${stack.map((one) => `<a data-mk-node="${esc(one.key)}"><span>${esc(look.values[one.key]?.name ?? one.value)}</span><i class="c">${plural(one.marks.length, 'place')}</i></a>`).join('')}`).join('');
-    return {
+    return Marks.windowOf({
       title: g.textContent.trim(), width: 520,
       sub: `${plural(node.files, 'file')}${node.changes.length ? ` · ${plural(node.changes.length, 'change')}` : ''}`,
-      body: `<div class="rows"><div class="gp">Folders and files</div>${paths}${changes ? `<div class="gp">Changes</div>${changes}` : ''}${marks}</div>`,
+      sections: [
+        { id: 'files', html: `<div class="gp">Folders and files</div>${paths}` },
+        { id: 'changes', html: changes && `<div class="gp">Changes</div>${changes}` },
+        { id: 'marks', html: marks },
+      ],
+      wrap: (inner) => `<div class="rows">${inner}</div>`,
       ready: (body) => body.addEventListener('click', (event) => {
         const row = event.target.closest('[data-mk-node]');
         const one = row && hidden.flatMap(([, stack]) => stack).find((each) => each.key === row.dataset.mkNode);
@@ -94,19 +100,29 @@ function nodeWindow(g, node, thing) {
         const place = event.target.closest('[data-mk-open]');
         if (place) { Hover.hide(); openAt(place.dataset.mkOpen, Number(place.dataset.mkLine)); }
       }),
-    };
+    }, thing?.slots);
   };
 }
 
-/** The window of a step or a process of a drawn process: its note or its summary, and where it is; with the look of a note and its marks. */
+/**
+ * The window of a step, a process or a call out of the repo of a drawn process, from its sections: its note or its summary ("note"), where it is ("where",
+ * in the quiet line of the title), and the look of a note with its marks ("marks"). A rule of the look orders the sections and leaves some out.
+ */
 function noteWindow(node, thing) {
-  return () => ({
-    title: node.note.title, width: 460, sub: esc(node.note.where), body: `<div class="mk-note">${node.note.text ? `<p class="stepnote">${esc(node.note.text)}</p>` : ''}</div>`,
-    ready: async (body) => {
-      const look = Home.data.look;
-      if (look && thing) await Marks.decorateNote(body.firstChild, look, { ...thing, kind: 'note' }, openAt, act);
-    },
-  });
+  return () => {
+    const look = Home.data.look;
+    const content = Marks.windowOf({
+      title: node.note.title, width: 460,
+      sections: [
+        { id: 'note', html: node.note.text ? `<p class="stepnote">${esc(node.note.text)}</p>` : '' },
+        { id: 'where', sub: esc(node.note.where) },
+        { id: 'marks', html: '<div class="mk-lines"></div>' },
+      ],
+      wrap: (inner) => `<div class="mk-note">${inner}</div>`,
+    }, thing?.slots);
+    const marks = content.ids.includes('marks');
+    return { ...content, ready: async (body) => { if (look && thing) await Marks.decorateNote(body.querySelector('.mk-note'), look, { ...thing, kind: 'note', marks: marks ? thing.marks : [] }, openAt); } };
+  };
 }
 
 // ----- the marks and the look on Home -----
@@ -114,15 +130,16 @@ function noteWindow(node, thing) {
 /** Opens a file of the repo at a line, as a step of a process does. */
 const openAt = (path, line) => tell({ type: 'openFile', path, line });
 
-/** What a button of the look does: open a file at a line, a web address (VS Code asks first), a command of Apostil, a prompt to the agent of the repo, or a place on Home. */
-function act(action) {
-  if (!action) return;
-  if (action.file) openAt(action.file, action.line);
-  else if (action.url) tell({ type: 'openUrl', url: action.url, ask: true });
-  else if (action.command) tell({ type: 'runCommand', command: action.command });
-  else if (action.prompt) tell({ type: 'prompt', text: action.prompt, diagram: Home.at });
-  else if (action.place && diagramOf(action.place.diagram)) walkTo(mapStep(action.place.diagram, action.place.node ? [action.place.node] : []));
-}
+// What Home does itself for a target of the look (Marks.act): a diagram of the map goes one level in this tab, the graphs of a path open as a step;
+// a prompt names the diagram that Home shows.
+Marks.useHere({
+  walk: (step) => {
+    if (step.tab === 'home' && !diagramOf(step.diagram)) return true; // a diagram that the map no longer has: nothing opens
+    walkTo(step.tab === 'home' ? mapStep(step.diagram, step.lit) : step);
+    return true;
+  },
+  diagram: () => Home.at,
+});
 
 /**
  * A click on a value of a mark on a node. When the node has a level under it, Home goes down with the nodes that hold the value lit and a quiet line;
@@ -170,17 +187,23 @@ async function drawHome() {
   let nodes = 0;
   if (!diagram) view.innerHTML = noMapHtml();
   else {
-    // The look: the slots of each node and arrow, and the shapes and contents that go into the text before Mermaid draws.
+    // The look: the slots of each node and arrow, what shows, and the shapes, words and contents that go into the text before Mermaid draws.
     const look = Home.data.look;
     const things = look ? Marks.thingsOf(diagram, look) : {};
-    const shaped = look ? await Marks.shapedText(diagram.mermaid, mapValues(things, (thing) => thing.slots), look, diagram.graph.nodes) : { text: diagram.mermaid, filled: {} };
-    const svg = await drawMermaid(view, shaped.text, undefined, diagram.schema, diagram.id);
-    markDiagram(view, diagram); // each node, each arrow and the diagram as a whole hold a comment
+    const edges = look ? Marks.edgesOf(diagram, look, things) : [];
+    const shaped = look ? await Marks.lookText(diagram, things, edges, look) : { text: diagram.mermaid, filled: {}, graph: diagram.graph, edges };
+    const svg = await drawMermaid(view, shaped.text, shaped.text === diagram.mermaid ? undefined : diagram.mermaid, diagram.schema, diagram.id);
+    const drawn = svg?.hasAttribute('data-plain') ? { graph: diagram.graph, edges } : shaped; // a look whose text does not draw leaves the diagram as it is
+    markDiagram(view, { ...diagram, graph: drawn.graph }); // each node, each arrow and the diagram as a whole hold a comment
     if (look && svg) {
-      const edges = Marks.edgesOf(diagram, look, things);
-      edgeElements(svg, diagram.graph.edges).forEach(({ path, label }, at) => Object.assign(edges[at], { path, label }));
+      edgeElements(svg, drawn.graph.edges).forEach(({ path, label }, at) => Object.assign(drawn.edges[at], { path, label }));
       // With the marks at the corners of the nodes at its edges; a drawing that the look does not touch keeps its frame.
-      if (Marks.decorate(svg, things, edges, look, shaped.filled, { nodeKey, act, open: openAt, pick: pickMark })) fitToContent(svg);
+      if (Marks.decorate(svg, things, drawn.edges, look, shaped.filled, { nodeKey, open: openAt, pick: pickMark })) fitToContent(svg);
+      // The words of an arrow with a click or other input of the look: the pointer says what they do.
+      for (const edge of drawn.edges.filter((one) => one.label)) {
+        if (Marks.bind(edge.label, edge.slots, null, edge.label.textContent.trim())) edge.label.classList.add('go');
+        Marks.inputWindow(edge.label, edge.slots, edge.label.textContent.trim());
+      }
     }
     makeSurface(view, true); // a wide map opens where its words read
     for (const g of view.querySelectorAll('g.node, g.image-shape')) {
@@ -190,18 +213,17 @@ async function drawHome() {
       const thing = things[nodeKey(g)];
       Hover.attach(g, node.note ? noteWindow(node, thing) : nodeWindow(g, node, thing));
       const paths = node.paths.map(({ path }) => path);
-      // A call out of the repo leads nowhere: it is a quiet box with its window only.
-      if (!paths.length) continue;
-      g.classList.add('go');
       // A click on an area with a diagram of its own goes into it, and the tree "Files" of the side bar follows when it shows. An area with none
       // stays on the map and leads to its code: one file opens, and folders open in the tree. A click never opens the graphs of a folder.
       // In a drawn process a step that holds steps goes one level down, and a step with none opens its file at its first line.
-      g.addEventListener('click', () => {
+      // A call out of the repo leads nowhere: it is a quiet box with its window only. A click of the look goes to its target instead.
+      const today = paths.length ? () => {
         if (node.down) { if (!node.note) tell({ type: 'showInTree', paths }); walkTo(mapStep(node.down)); }
         else if (node.line) tell({ type: 'openFile', path: paths[0], line: node.line });
         else if (paths.length === 1 && !paths[0].endsWith('/')) tell({ type: 'openFile', path: paths[0] });
         else tell({ type: 'showInTree', paths, open: true });
-      });
+      } : null;
+      if (Marks.bind(g, thing?.slots ?? {}, today, g.textContent.trim())) g.classList.add('go');
     }
     lightNodes(view, Home.lit);
     const first = view.querySelector('g.node.lit');
@@ -223,17 +245,17 @@ function drawPanel(box, panel) {
   panelQueue = panelQueue.then(async () => {
     if (!box.isConnected) return;
     const look = Home.data.look;
-    const diagram = look && panel.nodes ? { id: panel.id, nodes: panel.nodes, graph: panel.graph, edgeLines: panel.edgeLines } : null;
+    const diagram = look && panel.nodes ? { id: panel.id, nodes: panel.nodes, graph: panel.graph, edgeLines: panel.edgeLines, mermaid: panel.mermaid } : null;
     const things = diagram ? Marks.thingsOf(diagram, look) : {};
-    const shaped = diagram ? await Marks.shapedText(panel.mermaid, mapValues(things, (thing) => thing.slots), look, panel.graph.nodes) : { text: panel.mermaid, filled: {} };
-    const svg = await drawMermaid(box, shaped.text, undefined, panel.schema);
+    const edges = diagram ? Marks.edgesOf(diagram, look, things) : [];
+    const shaped = diagram ? await Marks.lookText(diagram, things, edges, look) : { text: panel.mermaid, filled: {}, edges };
+    const svg = await drawMermaid(box, shaped.text, shaped.text === panel.mermaid ? undefined : panel.mermaid, panel.schema);
     if (!svg) return;
-    if (diagram) {
+    if (diagram && !svg.hasAttribute('data-plain')) {
       // A click on a mark of a panel opens its one place, or lists its places; it never goes down a level, as a click on the panel opens the diagram on Home.
-      const edges = Marks.edgesOf(diagram, look, things);
-      edgeElements(svg, diagram.graph.edges).forEach(({ path, label }, at) => Object.assign(edges[at], { path, label }));
+      edgeElements(svg, shaped.graph.edges).forEach(({ path, label }, at) => Object.assign(shaped.edges[at], { path, label }));
       const pick = (thing, one) => (one.marks.length === 1 ? (openAt(one.marks[0].file, one.marks[0].at), true) : false);
-      if (Marks.decorate(svg, things, edges, look, shaped.filled, { nodeKey, act, open: openAt, pick })) fitToContent(svg);
+      if (Marks.decorate(svg, things, shaped.edges, look, shaped.filled, { nodeKey, open: openAt, pick })) fitToContent(svg);
     }
     svg.removeAttribute('width');
     svg.removeAttribute('height');
@@ -270,8 +292,6 @@ async function drawGraphs() {
 
 // ----- clicks and messages -----
 
-const mapValues = (record, change) => Object.fromEntries(Object.entries(record).map(([key, value]) => [key, change(value)]));
-
 document.addEventListener('click', (event) => {
   const target = event.target;
   if (target.closest('[data-clear-filter]')) return walkTo(mapStep(Home.at)); // the same diagram, with nothing lit and no line of a mark
@@ -303,7 +323,8 @@ document.addEventListener('visibilitychange', drawIfWaiting);
 new ResizeObserver(drawIfWaiting).observe(document.body);
 
 // Start: inside VS Code ask for the data; as a file in a browser, load example-data.js:
-// "?path=<path>" is the graphs page of that path, "?nomap=1" Home with no map, "?diagram=<id>&lit=<ids>" Home at that diagram, "?look=1" Home with the look of the example.
+// "?path=<path>" is the graphs page of that path, "?nomap=1" Home with no map, "?diagram=<id>&lit=<ids>" Home at that diagram, "?look=<name>" Home with a
+// made-up look of the example: "?look=1" the look of build 51 (look.json), "?look=shared" look-shared.json.
 if (vscodeApi) {
   tell({ type: 'ready' });
 } else {
@@ -314,8 +335,8 @@ if (vscodeApi) {
     const example = window.APOSTIL_EXAMPLE;
     const query = new URLSearchParams(location.search);
     const path = query.get('path');
-    // "?look=1": Home with the made-up look of the example; else the default look, with the logos of the services.
-    Home.data = path ? example.graphs[path] ?? { kind: 'graphs', repo: example.home.repo, folder: '', path, panels: [] } : query.get('nomap') ? example.homeNoMap : query.get('look') ? example.homeLook : example.home;
+    // "?look=<name>": Home with a made-up look of the example; else the default look, with the logos of the services.
+    Home.data = path ? example.graphs[path] ?? { kind: 'graphs', repo: example.home.repo, folder: '', path, panels: [] } : query.get('nomap') ? example.homeNoMap : query.get('look') ? example.homeLooks[query.get('look')] : example.home;
     Home.at = query.get('diagram') || null;
     Home.lit = (query.get('lit') ?? '').split(',').filter(Boolean);
     Home.render();
