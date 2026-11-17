@@ -10,6 +10,7 @@ import { diagramsOf, noteCount } from '../shared/repo-map';
 import type { Store } from '../shared/store';
 import { DEFAULT_RULES, type Look } from '../shared/look';
 import { lookSlots } from '../shared/look-slots';
+import { mapFit } from '../shared/map-fit';
 import { markFacts, markGroups, SERVICES } from '../shared/marks';
 import { lookChanges } from './look-changes';
 import { mapForWriters, mapMaterial } from './map-material';
@@ -33,7 +34,7 @@ export const MAP_USAGE: Record<string, string> = {
   'process-groups': 'apostil process-groups [--all]',
   processes: 'apostil processes',
   process: 'apostil process <id>',
-  map: 'apostil map',
+  map: 'apostil map [--fit] (--fit: where the notes and the processes do not fit the diagrams)',
   'diagrams-of': 'apostil diagrams-of <path> [--full]',
   'add-marks': 'apostil add-marks <marks.json> (or - for standard input)',
   'mark-groups': 'apostil mark-groups --set <id> [--all]',
@@ -50,6 +51,7 @@ export interface MapFlags {
   set?: string;
   check?: boolean;
   find?: string;
+  fit?: boolean;
 }
 
 /** Runs one of the map commands. Returns what to print and if the command did its work. */
@@ -111,6 +113,7 @@ export function runMapCommand(store: Store, command: string, argument: string, f
     case 'map': {
       const stored = store.getMap(repoId(folder));
       if (!stored) return NO_MAP;
+      if (flags.fit) return { output: mapFit(stored.map), ok: true };
       // How many notes the map holds and in how many files, and what to do when code files lack notes: an agent that is asked for notes reads this, and does not ask for a commit.
       // The notes of files are not printed: an area writer reads this, and it must stay short.
       const notes = noteCount(stored.map);

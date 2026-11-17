@@ -45,7 +45,7 @@ Run `apostil mark-groups --set services`. Its `values` are the services that Apo
       "group": "<name of your group>",
       "set": "services",
       "files": ["<every path of your group>"],
-      "values": [ { "id": "book-feed", "name": "Book Feed", "site": "book-feed.example.org", "icon": "apostil-icon-book-feed.png" } ],
+      "values": [ { "id": "book-feed", "name": "Book Feed", "site": "book-feed.example.org" } ],
       "marks": [
         { "value": "book-feed", "relation": "calls", "file": "src/feed.py", "line": 12, "name": "requests.get" },
         { "value": "postgresql", "relation": "stores", "file": "src/save.py", "line": 40, "name": "book_row",
@@ -56,8 +56,8 @@ Run `apostil mark-groups --set services`. Its `values` are the services that Apo
 
 1. **value**: the id of the service. Use an id of `values` when it fits. For a service that is not there, add it once under `values`: `id` (small letters, words joined with `-`), `name` (as the company writes it) and `site` (its web address, without `https://`). The tool refuses a second id for a web address that it knows.
    **A database is named by its type**, as the code reaches it: PostgreSQL, MySQL, SQLite, MongoDB, Redis and the like, also when a cloud product hosts it, so its icon is the icon of that type. Find the type in the code: the driver, the connection, the SQL of the migrations. A cloud product is a service of its own only where the code calls its API, for example its storage or its sign-in.
-2. **icon**: for each service of your marks that has no icon yet (`"icon": false`, or new), get the service's own icon yourself, from the service's own website (the web addresses of the service or of its maker). When the service has a well-known icon of its own, take that, not the icon of the company that makes it. Else take the icon that the service shows for itself, for example the favicon of its website. You choose how to get it. Save it as `apostil-icon-<id>.png` (or `.svg`, `.ico`, `.webp`) in the top folder of the repo, at most 100 KB, and give that name in `"icon"` of the service. An SVG may hold no script, no event attribute and no outside address.
-   When its own website refuses you or has no picture, do not take the icon from another site. Leave `icon` out, and add the service to `"iconRefused"` with the address that you tried. Until it has an icon, Apostil shows the first letter of its name.
+2. **icon**: the icon comes before the marks. For each service of your marks that has no icon yet (`"icon": false`, or new), run `apostil icon <id> https://<its site>`. Apostil downloads the picture itself, from the service's own site only, and keeps it. It prints `{ "saved", "problem" }`. Try in three plain ways, and stop at the first that saves: the home page of the service (Apostil reads its `link rel="icon"`), then `https://<its site>/favicon.ico`, then `https://<its site>/apple-touch-icon.png`. For a service that is new, add `--site <its site>` to the command. When the service has a well-known icon of its own, that is the one that its own site gives, not the icon of the company that makes it. Never take an icon from another site: that needs the owner's word, and the main agent asks him.
+   When all three tries fail, add the service to `"iconRefused"` with the address that you tried, and leave `icon` out. Until it has an icon, Apostil shows the first letter of its name. A service with marks and no icon and no `iconRefused` entry makes `apostil add-marks` refuse the save. As a last way, you may name a picture of the service's own website in `"icon"`: a file `apostil-icon-<id>.png` (or `.svg`, `.ico`, `.webp`) in the top folder, at most 100 KB, with no script in an SVG.
 3. **relation**: one of these four.
    - `calls`: the code asks the service and uses the answer.
    - `stores`: the code keeps data in the service, or reads data from it: a table, a bucket, a queue.

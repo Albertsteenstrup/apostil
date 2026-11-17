@@ -15,13 +15,17 @@ Notes do not need a change. `apostil map` says how many notes the map holds (`no
 
 ## Processes for a map
 
-A process is made of notes, so the notes come first. `apostil map` says how many processes the map holds (`processes`), and gives a `hint` when notes are in no process or a process is stale. When the owner asks for processes, or `apostil map` gives that `hint` and no code file needs notes, keep the diagrams and the notes and do only Steps 4 to 7. A second run is small: `apostil process-groups` lists only the groups with work left.
+A process is made of notes, so the notes come first. `apostil map` says how many processes the map holds (`processes`), and gives a `hint` when notes are in no process or a process is stale. When the owner asks for processes, or `apostil map` gives that `hint` and no code file needs notes, keep the diagrams and the notes and do only Steps 4 to 8. A second run is small: `apostil process-groups` lists only the groups with work left.
 
 ## The look and the marks
 
-Apostil draws every repo in the default look: today's look, with the icons of the services at the upper right of each node, step and note whose code reaches a service. Keep the default unless the owner asks for another look. When he asks, in his own words, to change how the diagrams, nodes, arrows or notes of this repo look, write the look yourself with `apostil set-look`, as `look-writer-prompt.md` says. A look is kept for the repo, and every later map run keeps it: never write a look that the owner did not ask for, and never drop one that he asked for. `apostil look` prints the look of the repo, or says that the default applies. When the owner asks only for a look, keep the map and do only that, then Step 6 when the look adds a set of marks.
+Apostil draws every repo in the default look: today's look, with the icons of the services at the upper right of each node, step and note whose code reaches a service. Keep the default unless the owner asks for another look. When he asks, in his own words, to change how the diagrams, nodes, arrows or notes of this repo look, write the look yourself with `apostil set-look`, as `look-writer-prompt.md` says. A look is kept for the repo, and every later map run keeps it: never write a look that the owner did not ask for, and never drop one that he asked for. `apostil look` prints the look of the repo, or says that the default applies. When the owner asks only for a look, keep the map and do only that, then Step 7 when the look adds a set of marks.
 
-Marks are written at lines of code by writers, as notes are. The services are marked on every map run (Step 6). A set that the look adds is marked too. A second run is small: `apostil mark-groups` lists only the files that no writer of the set has read, and the files whose lines changed since. `apostil marks` prints the counts.
+Marks are written at lines of code by writers, as notes are. The services are marked on every map run (Step 7). A set that the look adds is marked too. A second run is small: `apostil mark-groups` lists only the files that no writer of the set has read, and the files whose lines changed since. `apostil marks` prints the counts.
+
+## A big repo, and a run that stops
+
+The top diagram is drawn first, from folders and a few files, so the owner sees it soon. Step 6 corrects it when the notes and the processes show that it is wrong. A run that stops can go on: `apostil note-groups`, `apostil process-groups` and `apostil mark-groups` list only what is left, so a new session starts at Step 3 and does the groups that they list.
 
 ## Why four kinds of writer
 
@@ -55,7 +59,7 @@ Each writer adds its diagram with `apostil add-diagram`. It writes no notes. The
 
 ## Step 3: Start the notes writers
 
-Run `apostil note-groups` in the repo. It prints `{ "groups": [ ... ], "skipped": { ... } }`: each group has a `name` and its `files`, about 900 lines in sum. It lists only the files that need notes. Use `apostil note-groups --all` only when the owner wants the notes of every file written again.
+Run `apostil note-groups` in the repo. It prints `{ "groups": [ ... ], "skipped": { ... } }`: each group has a `name` and its `files`, about 900 lines in sum. It lists only the files that need notes. When it lists more than 40 groups, tell the owner the count of groups and of lines (the sum of `lines` of the files) and ask whether to map all of it or only the paths that he names. Use `apostil note-groups --all` only when the owner wants the notes of every file written again.
 
 Use a small model. Start one notes writer for each group, all at the same time. When the app limits how many run at once, start at most 8 and start the next when one ends.
 
@@ -97,7 +101,13 @@ When `apostil processes` lists stale processes of that group in `stale`, add thi
 
 Do this round once. Then run `apostil processes` again.
 
-## Step 6: Start the service writers and the mark writers
+## Step 6: Correct the top diagram
+
+The top diagram was drawn before the notes and the processes existed. Run `apostil map --fit`. It prints three short lists: `filesInNoNode` (files with notes that stand in no node of a diagram), `nodesWithNoFile` (nodes whose paths hold no file with a note or a process), and `callsWithNoArrow` (calls of the processes between two nodes of the top diagram that have no arrow between them, with an example line for each). Each list has at most 20 entries and the count of the rest.
+
+When all three lists are empty, skip this step. Else start the overview writer once more, with a medium or large model, with the same things as in Step 1, the three lists as `apostil map --fit` printed them, and this sentence: "Correct only what these facts show, and keep the ids of the nodes that stay." Start the area writer of Step 2 again only for an area whose node the top diagram changed (new paths, or a new node). Do this round once.
+
+## Step 7: Start the service writers and the mark writers
 
 Run `apostil mark-groups --set services`. It prints `{ "set", "values", "groups": [ ... ] }`: each group has a `name` and its `files`, each file with its `candidates` (lines that a list of signs found, with the service that each may be). It lists only the files that need work. Use `--all` only when the owner wants all services written again.
 
@@ -111,13 +121,13 @@ Then, for each set of `apostil look` other than `services`, run `apostil mark-gr
 
 Each writer saves its marks with `apostil add-marks`. The command keeps the marks of the other writers. If `groups` is empty, skip that set.
 
-When all writers have ended, run `apostil marks`. When its `iconRefused` is not empty, the own website of each of those services refused the writer its icon. Ask the owner in one message, for all of them, whether you may take each icon from another site, and from which. Fetch nothing from another site without his yes. With his yes, save each icon as `apostil-icon-<id>.png` in the top folder and run `apostil add-marks` with `{ "group": "icons", "set": "services", "values": [ { "id": "<id>", "icon": "apostil-icon-<id>.png" } ], "marks": [] }`.
+When all writers have ended, run `apostil marks`. When its `noIcon` is not empty, each of those services has marks and no icon. Try `apostil icon <id> https://<its site>` once for each, then `/favicon.ico` and `/apple-touch-icon.png` of its site. Run `apostil marks` again. For each service that is left, the own website gave no icon. Ask the owner in one message, for all of them, whether you may take each icon from another site, and from which. Fetch nothing from another site without his yes. With his yes, run `apostil icon <id> <address> --other-site`. Report to the owner in one line the services that are left with no icon: letters stand in their place until he gives one.
 
-## Step 7: Wait for the reports
+## Step 8: Wait for the reports
 
 Run `apostil map` to see the stored map. If a writer failed or left a problem, start that writer again once. Run `apostil note-groups` again: a group that is still listed had a failed writer. Do not draw a diagram, write a note, write a process or write a mark yourself.
 
-## Step 8: Report to the owner
+## Step 9: Report to the owner
 
 Tell the owner in 2 or 3 lines: the map is saved, the areas it shows and which areas have their own diagram, how many notes the map holds and in how many files (`notes` and `notedFiles` of `apostil map`), the counts of `apostil processes` (`processes`, `steps`, `setAside`, `notInProcess.count` and the stale processes), the notes that the writers corrected or added, the services of `apostil marks` and their counts, and what the writers left out and why. Do not repeat the map file.
 

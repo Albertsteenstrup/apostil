@@ -23,6 +23,7 @@ import { changeMaterial, forFreshCheck } from './material';
 import { runHasNoPerson, sentRemarks, waitForRemarks } from './inbox';
 import { LINK_USAGE, linkCommand, linksCommand } from './link-command';
 import { compactJson } from '../shared/look-slots';
+import { saveIcon } from './icon';
 import { MAP_USAGE, runMapCommand } from './map-commands';
 import { openInApp } from './open-in-app';
 import { afterSave, readJson } from './read-input';
@@ -58,6 +59,7 @@ const USAGE: Record<string, string> = {
   issue: 'apostil issue --facts | apostil issue --kind bug|feedback --file <issue.md> [--open] (its first line "# <title>"; or --title <words> with the body on standard input)',
   version: 'apostil --version',
   ...LINK_USAGE,
+  icon: 'apostil icon <service id> <https address> [--site <its site>] [--other-site] (keeps the picture of the service\'s own site as its icon; an address of a web page gives its link rel="icon")',
   ...MAP_USAGE,
 };
 const POINT_KINDS = ['note-not-supported', 'no-note', 'thing-not-supported'];
@@ -94,7 +96,7 @@ function run(store: Store, command: string, [argument = '', ...more]: string[], 
   const part = typeof flags.part === 'string' ? flags.part : undefined;
   if (command in MAP_USAGE) {
     const find = 'find' in flags ? (flagText(flags.find) ?? '') : undefined;
-    return runMapCommand(store, command, argument, folder, { full: flags.full === true, all: flags.all === true, set: flagText(flags.set), check: flags.check === true, find });
+    return runMapCommand(store, command, argument, folder, { full: flags.full === true, all: flags.all === true, set: flagText(flags.set), check: flags.check === true, find, fit: flags.fit === true });
   }
   // --base <commit>: on a main branch, the change is every commit after that one. The save stores it, so later commands need it no more.
   const named = typeof flags.base === 'string' ? namedBase(folder, flags.base) : undefined;
@@ -194,6 +196,13 @@ function hookInput(): { session_id?: string; cwd?: string } {
 }
 
 /** The sent remarks of a session; with --wait, waits for them and wakes the agent with exit code 2. */
+/** `apostil icon`: the one command that reaches the web. It prints { saved, problem }. */
+async function runIcon(store: Store, [id, address]: string[], folder: string, flags: Record<string, string | true>): Promise<Done> {
+  if (!id || !address) return failed(`Usage: ${USAGE.icon}`);
+  const result = await saveIcon(store, folder, id, address, { site: flagText(flags.site), otherSite: flags['other-site'] === true });
+  return done({ saved: result.saved, problem: result.problem ?? null, ...(result.icon ? { icon: result.icon } : {}) }, result.saved);
+}
+
 async function runInbox(store: Store, flags: Record<string, string | true>): Promise<Done> {
   const hook = hookInput();
   const session = flagText(flags.session) ?? hook.session_id;
@@ -270,12 +279,13 @@ export async function main(args: string[]): Promise<void> {
   const flags: Record<string, string | true> = {};
   const rest: string[] = [];
   for (let index = 0; index < words.length; index++) {
-    if (['--folder', '--path', '--part', '--base', '--agent', '--session', '--session-name', '--account', '--timeout', '--set', '--find'].includes(words[index])) flags[words[index].slice(2)] = words[++index];
+    if (['--folder', '--path', '--part', '--base', '--agent', '--session', '--session-name', '--account', '--timeout', '--set', '--find', '--site'].includes(words[index])) flags[words[index].slice(2)] = words[++index];
     else if (words[index] === '--mark-sent') flags['mark-sent'] = true;
     else if (words[index] === '--wait') flags.wait = true;
     else if (words[index] === '--full') flags.full = true;
     else if (words[index] === '--all') flags.all = true;
     else if (words[index] === '--check') flags.check = true;
+    else if (words[index] === '--fit' || words[index] === '--other-site') flags[words[index].slice(2)] = true;
     else if (words[index] === '--all-repos') flags['all-repos'] = true;
     else if (words[index] === '--remove' || words[index] === '--no-open') flags[words[index].slice(2)] = true;
     else rest.push(words[index]);
@@ -283,7 +293,7 @@ export async function main(args: string[]): Promise<void> {
 
   const store = new Store();
   try {
-    const { output, ok, compact } = command === 'inbox' ? await runInbox(store, flags) : run(store, command, rest, resolve(String(flags.folder ?? process.cwd())), flags);
+    const { output, ok, compact } = command === 'inbox' ? await runInbox(store, flags) : command === 'icon' ? await runIcon(store, rest, resolve(String(flags.folder ?? process.cwd())), flags) : run(store, command, rest, resolve(String(flags.folder ?? process.cwd())), flags);
     if (output !== undefined) console.log(compact ? compactJson(output) : JSON.stringify(output, null, 1));
     if (!ok) process.exitCode = 1;
   } catch (error) {
