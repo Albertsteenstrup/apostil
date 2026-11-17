@@ -1,0 +1,18 @@
+{
+ "pages": [
+  { "id": "opening-hours", "title": "Opening hours", "blocks": [ { "text": "The hours of each branch." } ] }
+ ],
+ "actions": [
+  { "id": "night-run", "name": "Open the night run", "target": { "file": "src/library/night_jobs.py", "line": 516 } },
+  { "id": "requests", "name": "Show how a request is answered", "target": { "place": { "diagram": "process:answer-request" } } },
+  { "id": "hours", "name": "Open the opening hours", "target": { "page": "opening-hours" } }
+ ],
+ "rules": [
+  { "pick": { "kind": "margin", "paths": ["src/library/"] }, "show": { "shown": true } },
+  { "pick": { "kind": "symbol-search", "where": { "of": ["note", "process"] } }, "show": { "shown": true } },
+  { "pick": { "kind": "menu-entry", "where": { "entry": ["mark", "actions"] } }, "show": { "shown": true } },
+  { "pick": { "kind": "key", "where": { "entry": ["actions", "action-1"] } }, "show": { "shown": true } },
+  { "pick": { "kind": "first-page" }, "click": { "page": "opening-hours" } },
+  { "pick": { "kind": "look-list" }, "show": { "shown": true } }
+ ]
+}

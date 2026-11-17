@@ -370,15 +370,39 @@ const Remarks = (() => {
   }
 
   let lit = false; // a card lights its place now
+  let pointerLine = null; // the line from the card under the pointer to its thing
 
-  /** Lights the place of a target quietly while the pointer is on its card. */
-  function lightPlace(shown) {
+  /**
+   * A line from a card to its thing on the page, as the line of a note to its code: a drawn thing, or a line of code in view. A thing that is not on the page
+   * or not in view has no line. It is a thin curve with a dot at the thing, drawn once, and it goes when the pointer leaves.
+   */
+  function lineFrom(card, target) {
+    pointerLine?.remove();
+    pointerLine = null;
+    const thing = !target || !card ? null : inCode(target) ? (codeShows(target) ? document.querySelector(`.cn .code .l[data-line="${target.lines?.[0]}"]`) : null) : Places.find(target)[0];
+    const to = thing?.getBoundingClientRect();
+    if (!to || (!to.width && !to.height) || to.bottom < 0 || to.top > innerHeight || to.right < 0 || to.left > innerWidth) return;
+    const from = card.getBoundingClientRect();
+    const [x, y] = [from.left, from.top + Math.min(22, from.height / 2)];
+    const [ex, ey] = [Math.min(Math.max(x, to.left), to.right), Math.min(Math.max(y, to.top), to.bottom)];
+    const mid = (x + ex) / 2;
+    pointerLine = document.createElement('div');
+    pointerLine.className = 'remark-line';
+    pointerLine.innerHTML = `<svg width="${innerWidth}" height="${innerHeight}"><path d="M${x} ${y} C${mid} ${y} ${mid} ${ey} ${ex} ${ey}"/><circle cx="${ex}" cy="${ey}" r="3"/></svg>`;
+    document.body.append(pointerLine);
+  }
+
+  /** Lights the place of a target quietly while the pointer is on its card, and draws the line to it. */
+  function lightPlace(shown, card) {
     const target = shown && placeOf(shown);
     lit = !!target;
     document.querySelectorAll('.near').forEach((el) => el.classList.remove('near'));
     if (Code.shown) Code.mark('near', codeShows(target) ? target : null);
     if (target && !inCode(target)) Places.find(target).forEach((el) => el.classList.add('near'));
+    lineFrom(card, shown); // the thing itself: a thing that is gone has no line, though its light goes to the nearest thing
   }
+  // The page moves under the pointer: the line would stay behind.
+  addEventListener('scroll', () => { pointerLine?.remove(); pointerLine = null; }, true);
 
   /** Opens the window and brings the card of a thread to the top, lit. */
   function bringUp(id) {
@@ -485,6 +509,10 @@ const Remarks = (() => {
 
   /** One message of a thread: who wrote it, when, and the text. */
   const messageHtml = (who, moment, text) => `<div class="msg"><div class="who">${who}<span class="at">${esc(clock(moment))}</span></div><div class="tx">${textHtml(text)}</div></div>`;
+  /** The quiet line under an answer that names the files that its run changed (from Git, kept on the remark); each opens its file. */
+  const changedHtml = (remark) => (remark.answer && remark.changed?.length
+    ? `<div class="changed">${esc(W.changedFiles)} ${remark.changed.map((path) => `<a data-open-file="${esc(path)}" title="${esc(path)}">${esc(baseName(path))}</a>`).join(', ')}</div>` : '');
+
   /** Who answered a remark: the app it was sent to, else the agent of the change. */
   const agentWho = (remark) => {
     const app = remark.to?.app ?? App.page.agent?.app;
@@ -512,12 +540,17 @@ const Remarks = (() => {
 
   const fieldHtml = (key, placeholder) => `<div class="field" contenteditable="true" data-field="${key}" data-placeholder="${esc(placeholder)}"></div>`;
   /** The name of a thing in quiet text; a thing that the change file no longer holds says so. */
-  const whereHtml = (target) => `<span class="where">${esc(target.label ?? target.kind)}${App.page && Places.isGone(target) ? `<span class="gone-place"> · ${esc(W.goneFromDiagram)}</span>` : ''}</span>`;
+  const whereHtml = (target) => {
+    const gone = !!App.page && Places.isGone(target);
+    // A thing that is gone, or names another thing now, keeps the title that it had when the comment was put on it.
+    const words = gone && target.kept && target.label && target.kind !== 'edge' ? target.label.replace(/"[^"]*"/, () => `"${target.kept.title}"`) : target.label ?? target.kind;
+    return `<span class="where">${esc(words)}${gone ? `<span class="gone-place"> · ${esc(W.goneFromDiagram)}</span>` : ''}</span>`;
+  };
 
   /** One card: its place, the comments and answers in order, the state line and the reply field; a rule of the look names which show, in its order ("content.fields"). */
   function cardHtml(thread, slots = {}) {
     const messages = thread.map((remark) => messageHtml(esc(W.you), remark.createdAt, remark.text)
-      + (remark.answer ? messageHtml(agentWho(remark), remark.answeredAt, remark.answer) : '')).join('');
+      + (remark.answer ? messageHtml(agentWho(remark), remark.answeredAt, remark.answer) : '') + changedHtml(remark)).join('');
     const parts = { where: `<div class="ch">${whereHtml(thread[0].target)}<a data-resolve>${esc(W.resolve)}</a></div>`, messages, state: stateOf(States.threadLead(thread)), reply: fieldHtml(thread[0].id, W.reply) };
     return `<div class="thread${thread[0].id === selected ? ' cur' : ''}" data-thread="${thread[0].id}">${(slots.content?.fields ?? Object.keys(parts)).map((field) => parts[field]).join('')}</div>`;
   }
@@ -610,6 +643,8 @@ const Remarks = (() => {
       keep({ shutGroups: [...shut] });
       return draw();
     }
+    const changed = target.closest('[data-open-file]');
+    if (changed) return tell({ type: 'openFile', path: changed.dataset.openFile });
     if (target.closest('[data-resolve]')) return act(id, 'resolve');
     if (target.closest('[data-reopen]')) return act(id, 'reopen');
     if (target.closest('[data-start]')) return act(Number(target.closest('[data-start]').dataset.start), 'start');
@@ -633,7 +668,7 @@ const Remarks = (() => {
   side.addEventListener('mouseover', (event) => {
     const card = event.target.closest('.thread[data-thread], .point');
     const point = card?.classList.contains('point') && points().find((one) => one.id === Number(card.dataset.point));
-    lightPlace(point ? pointTarget(point) : card && !card.classList.contains('gone') ? threadOf(Number(card.dataset.thread))?.[0].target : null);
+    lightPlace(point ? pointTarget(point) : card && !card.classList.contains('gone') ? threadOf(Number(card.dataset.thread))?.[0].target : null, card);
   });
   side.addEventListener('mouseleave', () => lightPlace(null));
   // No leave event comes when the card under the pointer is drawn again or folded away, so the pointer on anything outside the window puts the light out too.

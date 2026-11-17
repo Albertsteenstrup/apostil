@@ -31,6 +31,7 @@ const { noteCodeOf } = own('./out/shared/notes-beside-code.js');
 const { makeNotebookRepo, notebookChangeFile } = own('./out/shared/test-repo.js');
 const { saveDraft } = own('./out/store/save.js');
 const { setLook } = own('./out/store/marks-save.js');
+const { markLineNow } = own('./out/shared/marks.js');
 const { appLink } = own('./out/shared/apostil-link.js');
 const chromium = findChromium();
 
@@ -140,6 +141,9 @@ writeFileSync(settingsFile, JSON.stringify({
   'extensions.confirmedUriHandlerExtensionIds': ['apostil.apostil'],
   'window.dialogStyle': 'custom', // VS Code's own questions are drawn in the window, where the check reads them, not by macOS
 }, null, 2));
+// A key of this window's own for the start step of what opens by itself (a command that is not in the palette), so that the check runs it again.
+const START_KEY = 'Control+Alt+Shift+Digit0';
+writeFileSync(path.join(path.dirname(settingsFile), 'keybindings.json'), JSON.stringify([{ key: 'ctrl+alt+shift+0', command: 'apostil.runStartStep' }]));
 const settingsNow = () => JSON.parse(readFileSync(settingsFile, 'utf8'));
 
 // The places where "Install" would link the command: read before and after, never written by this check.
@@ -859,10 +863,14 @@ try {
   }
   const nodeRemark = await until(() => { const one = remarks().find((remark) => remark.text.startsWith('Explain this.')); return one?.state === 'done' && one; }, 15000);
   const prompt = existsSync(path.join(temp, 'prompt.txt')) ? readFileSync(path.join(temp, 'prompt.txt'), 'utf8') : '';
-  check('a comment on a node of a part\'s diagram reaches the stand-in claude with the lines that say what the node is; in the whole run the stand-in gh got one write, the one send',
+  // The run of that comment was started with the tools to read and edit, and its prompt holds the diagram as text.
+  const lastRun = readFileSync(runs, 'utf8').split(RUN).at(-1).split('\n');
+  const tools = lastRun.slice(lastRun.indexOf('--allowedTools') + 1, lastRun.indexOf('--allowedTools') + 8);
+  check('a comment on a node of a part\'s diagram reaches the stand-in claude with the lines that say what the node is and the diagram as text, started with Edit among its allowed tools; in the whole run the stand-in gh got one write, the one send',
     nodeWords === 'Node "Library open today?", diagram "How one night run offers returned copies"' && nodeRemark?.target.node === 'open'
       && /about what he pointed at:\n {4}In the flow chart "How one night run offers returned copies"\n {4}Node "Library open today\?"\n {4}Arrows come from: "Read the date and the opening hours"\n {4}Arrows go to: "Return: closed today", "Select the returned copies"/.test(prompt)
-      && writesNow().length === 1, `box "${nodeWords}"; prompt "${prompt.slice(0, 300)}"; ${writesNow().length} writes`);
+      && /The diagram as text:\n {4}- [^\n]*\n[\s\S]*- Library open today\?/.test(prompt) && tools.includes('Edit') && tools.includes('Write') && tools.includes('Bash(apostil *)')
+      && writesNow().length === 1, `box "${nodeWords}"; tools ${tools}; prompt "${prompt.slice(0, 300)}"; ${writesNow().length} writes`);
 
   // ---- 6. The quick pick "Sort and filter", the look "VS Code default", the search that stays, a link from outside ----
   for (const name of ['View: Close Editors in Other Groups', 'View: Show Apostil']) await command(name);
@@ -938,6 +946,172 @@ try {
   execFileSync(CODE, [`--user-data-dir=${temp}/u`, '--open-url', '--', `${link}&url=${encodeURIComponent(link)}`], { stdio: 'ignore', timeout: 20000 });
   const opened = await frameWhere(() => document.querySelector('.switch a.on')?.textContent === 'Conversation' && document.querySelector('.conv .ptitle')?.textContent === 'Holds for books that are out #12');
   check('a link opened with "code --open-url" brings up the pull request 12 of the example at "Conversation", from another view of its page', onBefore !== 'Conversation' && !!opened, JSON.stringify({ onBefore, opened: !!opened }));
+
+  // ---- 6b. A look in VS Code itself (build 62): the margin, the search with #, the right-click menu and keys, the first page, the list "Look" ----
+  // The look of the example for this build, saved as a writer saves it, and taken away at the end. Its files open in VS Code's editor ("editor").
+  await setSetting('apostil.notesBesideCode', 'editor');
+  await setSetting('window.menuStyle', 'custom'); // VS Code draws its menus in the window, where the check reads them, not macOS
+  const vscodeLook = lookNow(JSON.parse(readFileSync(path.join(apostil, 'view/check-example/look/look-vscode.json'), 'utf8')));
+  const marksOf = (file) => { const read = new Store(storeFolder); const marks = read.getMap(repoId(repo)).map.marks.filter((mark) => mark.file === file); read.close(); return marks; };
+  /** The lines that have an icon in the margin of each editor in front (each side of a diff), read from the editor itself, with the lines in view. */
+  const margins = () => page.evaluate(() => [...document.querySelectorAll('.editor-group-container.active .monaco-editor')].filter((editor) => editor.getBoundingClientRect().width > 0).map((editor) => {
+    const lineAt = new Map([...editor.querySelectorAll('.margin-view-overlays > div')].map((row) => [row.style.top, Number(row.querySelector('.line-numbers')?.textContent)]));
+    return { side: editor.closest('.editor.original') ? 'base' : 'now', shown: [...lineAt.values()].filter(Boolean), marked: [...editor.querySelectorAll('.cgmr')].map((glyph) => lineAt.get(glyph.style.top)).sort((a, b) => a - b) };
+  }).filter((editor) => editor.shown.length)); // an editor of code, with its line numbers
+  /** The lines of a text where the marks of a file stand, by the text of their lines, within the lines in view. */
+  const expected = (marks, text, shown) => marks.map((mark) => markLineNow(mark, text.split('\n'))).filter((line) => line && shown.includes(line)).sort((a, b) => a - b);
+  /** Waits until the editor in front is a text editor of this tab, with the place of its cursor in the status bar. */
+  const editorOf = (name) => until(async () => (await activeTab() ?? '').startsWith(name) && await page.locator('.editor-group-container.active .monaco-editor .view-lines').count() > 0
+    && /^Ln \d+/.test(await page.locator('[id="status.editor.selection"]').textContent({ timeout: 500 }).catch(() => '')), 6000);
+  // Apostil's diff editor of night_jobs.py, alone in the window so that its sides stand side by side: the marks below line 266 stand one line lower
+  // in the base, and each side has the marks of its own lines.
+  await changeTab.click();
+  await stage.locator('.switch a[data-view="diagram"]').first().click();
+  await pointerToTop();
+  await stage.locator('.f[data-file="src/library/night_jobs.py"]').hover();
+  await stage.locator('.win [data-open]').click({ timeout: 4000 });
+  await editorOf('night_jobs.py (base');
+  await command('View: Close Editors in Other Groups');
+  await goTo(':516');
+  const night = marksOf('src/library/night_jobs.py');
+  const nightNow = readFileSync(path.join(repo, 'src/library/night_jobs.py'), 'utf8');
+  const nightBase = execFileSync('git', ['show', `${base}:src/library/night_jobs.py`], { cwd: repo }).toString();
+  const diffSides = await until(async () => { const sides = await margins(); return sides.length === 2 && sides.every((side) => side.marked.length) && sides; }) || await margins();
+  const sideOf = (name) => diffSides.find((side) => side.side === name) ?? { shown: [], marked: [] };
+  await shot('7b-marks-in-the-diff-editor');
+  await command('View: Close All Editors');
+
+  // The search with #: a note by words of its title, with its file; Enter opens the file at its lines. A process by its title.
+  const searchRows = () => page.evaluate(() => [...document.querySelectorAll('.quick-input-list .monaco-list-row')].filter((row) => row.getBoundingClientRect().height > 0)
+    .map((row) => `${row.querySelector('.label-name')?.textContent ?? ''} | ${row.querySelector('.label-description')?.textContent ?? ''}`));
+  const quickCount = () => page.evaluate(() => Number(document.querySelector('.quick-input-list .monaco-list-row')?.getAttribute('aria-setsize') ?? 0)); // all rows, also those not drawn
+  const searchFor = async (words, wanted) => {
+    await palette();
+    await page.locator('.quick-input-widget .quick-input-box input').fill(`#${words}`);
+    return await until(async () => { const rows = await searchRows(); return (wanted ? rows.some((row) => row.startsWith(wanted)) : rows.length) && rows; }, 5000) || searchRows();
+  };
+  const noteRows = await searchFor('lock requests', 'Lock the requests for the book');
+  await page.keyboard.press('Enter');
+  const noteOpened = await until(async () => /^requests\.py/.test(await activeTab() ?? '') && /^Ln 46,/.test(await page.locator('[id="status.editor.selection"]').textContent().catch(() => '')) && 'yes', 4000);
+  const processRows = await searchFor('answer a book', 'Answer a book request');
+  await shot('7c-search-with-hash');
+  await page.keyboard.press('Escape');
+  check('the search with # and words of a title lists a note with its file, and Enter opens the file at its lines; a process is found by its title',
+    noteRows.some((row) => row.startsWith('Lock the requests for the book | lines 46–49 • src/library/lending/requests.py')) && !!noteOpened
+      && processRows.some((row) => row.startsWith('Answer a book request | process of 14 steps • src/library/web/requests_router.py')),
+    JSON.stringify({ noteRows: noteRows.slice(0, 3), noteOpened, processRows: processRows.slice(0, 3) }));
+
+  // VS Code's editor, with the setting "editor": requests.py around its marks of the table store.
+  await goTo(':62'); // requests.py, which the search opened in VS Code's editor (Go to File would show the file tab that the change page opened)
+  const markedEditor = await until(async () => { const [now] = await margins(); return now?.marked.length >= 3 && now; }) || (await margins())[0] || { shown: [], marked: [] };
+  const requestsText = readFileSync(path.join(repo, 'src/library/lending/requests.py'), 'utf8');
+  await shot('7a-marks-in-the-margin');
+  check('with a rule of the look the icon of a mark stands in the margin of VS Code\'s editor at each marked line in view; in Apostil\'s diff editor each side has the marks of its own lines',
+    !!vscodeLook && markedEditor.marked.join() === expected(marksOf('src/library/lending/requests.py'), requestsText, markedEditor.shown).join() && markedEditor.marked.length >= 3
+      && sideOf('now').marked.includes(516) && sideOf('base').marked.includes(517)
+      && sideOf('now').marked.join() === expected(night, nightNow, sideOf('now').shown).join() && sideOf('base').marked.join() === expected(night, nightBase, sideOf('base').shown).join(),
+    JSON.stringify({ look: vscodeLook, editor: markedEditor.marked, sides: diffSides.map((side) => `${side.side}: ${side.marked.join(' ')}`) }));
+
+  // The right-click menu of the editor (the window draws its menus, window.menuStyle custom): the entry of a mark in a file with marks, on any line
+  // (on a line with no mark it says so), and not in a file with none; its list opens a place. "Actions of the Look…" lists the actions, and the key
+  // of the first action carries it out.
+  const menuAt = async (line) => {
+    await goTo(`:${line}`);
+    const y = await page.evaluate((wanted) => {
+      const row = [...document.querySelectorAll('.editor-group-container.active .margin-view-overlays .line-numbers')].find((one) => one.textContent.trim() === String(wanted))?.parentElement.getBoundingClientRect();
+      return row && row.y + row.height / 2;
+    }, line);
+    const box = await page.locator('.editor-group-container.active .view-lines').first().boundingBox({ timeout: 3000 }).catch(() => null);
+    if (!box || !y) return []; // no text editor in front: no menu to read
+    await page.mouse.click(box.x + 150, y, { button: 'right' });
+    await page.locator('.monaco-menu .action-label').first().waitFor({ timeout: 3000 }).catch(() => {});
+    return (await page.locator('.monaco-menu .action-label').allTextContents()).map((words) => words.trim()).filter(Boolean);
+  };
+  const OTHER_PLACES = 'Show the Other Places of This Mark';
+  const onMarked = await menuAt(46);
+  await page.keyboard.press('Escape');
+  const onPlain = await menuAt(47);
+  await page.locator('.monaco-menu .action-label', { hasText: OTHER_PLACES }).click({ timeout: 3000 }).catch(() => {});
+  const noMarkSaid = await shown(toast('This line has no mark.'), 4000);
+  await goTo('README.md');
+  const inPlainFile = await menuAt(1);
+  await page.keyboard.press('Escape');
+  await closeTab('README.md');
+  await menuAt(46);
+  await shot('7d-the-right-click-menu-of-a-marked-line');
+  await page.locator('.monaco-menu .action-label', { hasText: OTHER_PLACES }).click({ timeout: 3000 }).catch(() => {});
+  const placeCount = await until(async () => { const count = await quickCount(); return count >= 20 && count; }, 4000) || await quickCount();
+  await page.locator('.quick-input-widget .quick-input-box input').fill('139');
+  await until(async () => (await searchRows()).join() === 'src/library/night_jobs.py | line 139', 3000);
+  await page.keyboard.press('Enter');
+  const placeOpened = await until(async () => /^night_jobs\.py/.test(await activeTab() ?? '') && /^Ln 139,/.test(await page.locator('[id="status.editor.selection"]').textContent().catch(() => '')) && 'yes', 4000);
+  await page.keyboard.press('Control+Alt+KeyL');
+  const actionList = await until(async () => { const rows = await searchRows(); return rows.length === 3 && rows; }, 4000) || await searchRows();
+  await page.keyboard.press('Escape');
+  await goTo(':10');
+  await page.keyboard.press('Control+Alt+Digit1');
+  const firstAction = await until(async () => /^Ln 516,/.test(await page.locator('[id="status.editor.selection"]').textContent().catch(() => '')) && 'yes', 4000);
+  // The same entries on a code line of the file tab of Apostil (webview/context), which VS Code draws too: hold_service.py is a file tab since part 3.
+  await goTo('hold_service.py');
+  const servicesTab = await fileTab('hold_service.py');
+  let inFileTab = [];
+  if (servicesTab) {
+    await servicesTab.locator(await lineInView(servicesTab)).click({ button: 'right' });
+    await page.locator('.monaco-menu .action-label').first().waitFor({ timeout: 3000 }).catch(() => {});
+    inFileTab = (await page.locator('.monaco-menu .action-label').allTextContents()).map((words) => words.trim()).filter(Boolean);
+    await page.keyboard.press('Escape');
+    await closeTab('hold_service.py');
+  }
+  check('the right-click menu of the editor has "Show the Other Places of This Mark" in a file with marks, says so on a line with none, and has it not in a file with none; its list opens a place; "Actions of the Look…" lists the actions, and the key of the first action carries it out; the menu of a line of the file tab has the entries too',
+    onMarked.includes(OTHER_PLACES) && onMarked.includes('Actions of the Look…') && onPlain.includes(OTHER_PLACES) && noMarkSaid && inPlainFile.includes('Actions of the Look…') && !inPlainFile.includes(OTHER_PLACES)
+      && placeCount >= 20 && !!placeOpened && actionList.join() === 'Open the night run | ⌃⌥1,Show how a request is answered | ,Open the opening hours | ' && !!firstAction
+      && inFileTab.includes(OTHER_PLACES) && inFileTab.includes('Actions of the Look…'),
+    JSON.stringify({ onMarked, onPlain, noMarkSaid, inPlainFile, placeCount, placeOpened, actionList, firstAction, inFileTab }));
+
+  // The first page: the start step again (its command, by a key of this window's own keybindings.json) opens it beside the tab in front and leaves
+  // the keyboard in the editor; with the setting off nothing opens.
+  await setSetting('apostil.homeWhenEmpty', true);
+  await command('View: Focus Active Editor Group');
+  const keyboardInEditor = () => page.evaluate(() => !!document.activeElement?.closest('.editor-group-container.active .monaco-editor'));
+  await sleep(1000); // VS Code reads the settings file again: nothing on the screen says when
+  await page.keyboard.press(START_KEY);
+  const firstPage = await frameWhere(() => typeof Home === 'object' && Home.data?.kind === 'page' && document.body.textContent.includes('The hours of each branch.'), undefined, 6000);
+  const besideTabs = await page.$$eval('.editor-group-container', (groups) => groups.map((group) => [...group.querySelectorAll('.tab .label-name')].map((el) => el.textContent.trim()).join('+')));
+  const keptKeyboard = await keyboardInEditor() && /^night_jobs\.py/.test(await activeTab() ?? '');
+  await shot('7e-the-first-page-beside-the-tab');
+  await setSetting('apostil.homeWhenEmpty', false);
+  await sleep(1000); // VS Code reads the settings file again
+  await command('View: Close Editors in Other Groups');
+  await page.keyboard.press(START_KEY);
+  await sleep(1500); // calm: nothing must open
+  const offTabs = await tabs();
+  check('the start step with a first page opens that page beside the tab in front and leaves the keyboard where it was; with the setting off nothing opens',
+    !!firstPage && besideTabs.length === 2 && besideTabs[1] === 'Opening hours' && keptKeyboard && offTabs.join('+') === besideTabs[0], JSON.stringify({ firstPage: !!firstPage, besideTabs, keptKeyboard, offTabs }));
+
+  // The list "Look" in Apostil's side bar: a set with its values and their counts, and the page; a click on a value lists its places.
+  await command('View: Show Apostil');
+  const lookPane = page.locator('.pane', { has: page.locator('.pane-header .title', { hasText: /^Look$/ }) });
+  const lookRows = () => lookPane.locator('.monaco-list-row').allTextContents().catch(() => []);
+  const listed = await until(async () => { const rows = await lookRows(); return rows.some((row) => /^PostgreSQL\d+ lines · \d+ files$/.test(row)) && rows; }, 5000) || await lookRows();
+  await lookPane.locator('.monaco-list-row', { hasText: 'PostgreSQL' }).click({ timeout: 3000 }).catch(() => {});
+  const valuePlaces = await until(async () => { const count = await quickCount(); return count >= 20 && count; }, 4000) || await quickCount();
+  await shot('7f-the-list-look-and-the-places-of-a-value');
+  await page.keyboard.press('Escape');
+  // With the rules gone: no icon in the margin, nothing of Apostil in the search, no entry in the menu, no list.
+  lookNow({ rules: [] });
+  const marginGone = await until(async () => { const sides = await margins(); return sides.length && sides.every((side) => !side.marked.length) && sides; }, 5000);
+  const searchGone = await searchFor('answer a book');
+  await page.keyboard.press('Escape');
+  const menuGone = await menuAt(46);
+  await page.keyboard.press('Escape');
+  const listGone = await until(async () => !(await lookPane.count()), 3000);
+  check('the view "Look" is in Apostil\'s side bar only with the rule: a set with a value and its counts, and the page; a click on the value lists its places; with the rules gone no icon, answer, entry or list of the look is left',
+    listed.includes('Services') && listed.includes('Opening hoursfirst page') && valuePlaces >= 20 && !!marginGone && !searchGone.some((row) => row.startsWith('Answer a book request'))
+      && !menuGone.includes(OTHER_PLACES) && !menuGone.includes('Actions of the Look…') && listGone,
+    JSON.stringify({ listed, valuePlaces, marginGone: !!marginGone, searchGone: searchGone.slice(0, 2), menuGone, listGone }));
+  await setSetting('apostil.notesBesideCode', 'tab');
+  await setSetting('window.menuStyle', undefined);
+  await command('View: Close All Editors');
 
   // ---- An open pull request with no stored change (the stand-in gh lists #35, whose branch has no row): the list shows its row under "Pull requests", and a click opens its page ----
   await command('View: Show Apostil');

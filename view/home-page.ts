@@ -2,11 +2,12 @@
 
 import { join } from 'node:path';
 import * as vscode from 'vscode';
+import { keptOnMap, withKept } from '../shared/comment-lines';
 import type { Target } from '../shared/look';
 import type { Store } from '../shared/store';
 import { startMapRun, startRun } from './agent-run';
 import { agentsNeedSetup, runNextStep } from './change-list';
-import { apostilOnPath, appName, codexModel, showRunProblem } from './run-settings';
+import { apostilOnPath, appName, codexModel, commentRuns, showRunProblem } from './run-settings';
 import { openLink, openRemarkSession, webviewHtml, type NewRemark } from './change-page';
 import { graphsData, homeData, idOf, type GraphsData, type HomeData } from './home-data';
 import { blocksAnswer, lookPages, pageData, type CustomPageData } from './look-blocks';
@@ -65,10 +66,13 @@ export class HomePages {
 
   constructor(private media: vscode.Uri, private store: Store, private openFolder: () => string, private apps: string[], private trail: WindowTrail) {}
 
-  /** Opens Home, or shows it; with `go`, at that diagram ('' for the top map) with those nodes lit. `quiet` leaves the keyboard where it is. */
-  openHome(go?: { diagram: string; lit?: string[] }, quiet = false): void {
+  /**
+   * Opens Home, or shows it; with `go`, at that diagram ('' for the top map) with those nodes lit. `quiet` leaves the keyboard where it is; `beside`
+   * opens a new Home beside the tab in front (the first page of a look).
+   */
+  openHome(go?: { diagram: string; lit?: string[] }, quiet = false, beside = false): void {
     if (!this.home) {
-      const show = { viewColumn: vscode.ViewColumn.Active, preserveFocus: quiet };
+      const show = { viewColumn: beside ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active, preserveFocus: quiet };
       this.home = this.addTab(vscode.window.createWebviewPanel('apostil.home', 'Home', show, { retainContextWhenHidden: true }));
       this.home.panel.onDidDispose(() => { this.home = undefined; });
     }
@@ -77,29 +81,34 @@ export class HomePages {
     if (go) this.post(this.home, { type: 'go', go });
   }
 
-  /** Opens the graphs of a folder (ending with "/") or a file, in a tab named after it. */
-  openGraphs(path: string): void {
+  /** Opens the graphs of a folder (ending with "/") or a file, in a tab named after it. `quiet` and `beside` as for Home. */
+  openGraphs(path: string, quiet = false, beside = false): void {
     let tab = this.graphs.get(path);
     if (!tab) {
       const name = path.replace(/\/$/, '').split('/').pop() || path;
-      const created = this.addTab(vscode.window.createWebviewPanel('apostil.graphs', path.endsWith('/') ? `${name}/` : name, vscode.ViewColumn.Active, { retainContextWhenHidden: true }), path);
+      const show = { viewColumn: beside ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active, preserveFocus: quiet };
+      const created = this.addTab(vscode.window.createWebviewPanel('apostil.graphs', path.endsWith('/') ? `${name}/` : name, show, { retainContextWhenHidden: true }), path);
       created.panel.onDidDispose(() => { this.graphs.delete(path); delete this.graphsShown[path]; });
       this.graphs.set(path, (tab = created));
     }
-    tab.panel.reveal();
+    tab.panel.reveal(undefined, quiet);
     this.post(tab, this.graphsMessage(path));
   }
 
-  /** Opens a page of the look of the repo in a tab named by its title, with Apostil's icon, as the graphs of a path open. A page never opens by itself. */
-  openPage(id: string): void {
+  /**
+   * Opens a page of the look of the repo in a tab named by its title, with Apostil's icon, as the graphs of a path open. Only the first page of a look
+   * opens by itself (build 62), with `quiet` and `beside` as for Home.
+   */
+  openPage(id: string, quiet = false, beside = false): void {
     let tab = this.pages.get(id);
     if (!tab) {
       const title = this.pageTitle(id) ?? id;
-      const created = this.addTab(vscode.window.createWebviewPanel('apostil.page', title, vscode.ViewColumn.Active, { retainContextWhenHidden: true }), undefined, id);
+      const show = { viewColumn: beside ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active, preserveFocus: quiet };
+      const created = this.addTab(vscode.window.createWebviewPanel('apostil.page', title, show, { retainContextWhenHidden: true }), undefined, id);
       created.panel.onDidDispose(() => { this.pages.delete(id); delete this.pagesShown[id]; created.follow?.forEach((one) => one.dispose()); });
       this.pages.set(id, (tab = created));
     }
-    tab.panel.reveal();
+    tab.panel.reveal(undefined, quiet);
     this.post(tab, this.pageMessage(id, tab));
   }
 
@@ -149,14 +158,14 @@ export class HomePages {
   saveRemark(message: NewRemark): void {
     const repo = idOf(this.openFolder());
     if (!repo) return;
-    const id = this.store.addRepoRemark(repo, message.target, message.text, message.thread);
+    const id = this.store.addRepoRemark(repo, withKept(message.target, keptOnMap(this.store.getMap(repo)?.map, message.target)), message.text, message.thread); // it keeps what its thing is now
     if (message.to?.kind === 'new') {
       this.store.sendRemark(id, message.to);
       const { app } = message.to;
       startRun(this.store, id, (problem) => {
         if (problem) showRunProblem(problem, { app });
         this.changed();
-      }, app, this.openFolder(), codexModel());
+      }, app, this.openFolder(), codexModel(), commentRuns());
     }
     this.reload();
   }

@@ -39,12 +39,14 @@ const aboutLines = (store: Store, remark: Remark): string[] => {
 };
 
 /** The text that wakes the agent. With the store, a reply carries the earlier lines of its thread, and each remark what it is about. */
-export function inboxText(remarks: Remark[], store?: Store): string {
+export function inboxText(remarks: Remark[], store?: Store, readOnly = false): string {
   const count = remarks.length === 1 ? '1 remark' : `${remarks.length} remarks`;
   return [
-    `The owner sent ${count} in Apostil. For each one: answer a question from the code, make a change that it asks for, check a doubt against the code. `
-      + 'Touch nothing that no remark points at. Then store your answer with: apostil answer <id> "<one to three sentences>". '
-      + 'Follow the skill apostil-review-remarks if you have it; do not search for it.',
+    `The owner sent ${count} in Apostil. You may read the repo. A question gets an answer and no change of code. A remark that asks for a change gets that change and no more. `
+      + 'When a remark shows that a note, a title or a diagram of Apostil is wrong, correct it with the apostil commands of the skill, and say so. '
+      + 'Touch nothing that no remark points at. Then store your answer with: apostil answer <id> "<one to three sentences>". The answer names each file that you changed. '
+      + 'Follow the skill apostil-review-remarks if you have it; do not search for it.'
+      + (readOnly ? ' In this run you may not change any file: say what the change would be.' : ''),
     ...remarks.flatMap((remark) => [`- remark ${remark.id} (${placeOf(remark)}): ${remark.text}`, ...(store ? [...earlierLines(store, remark), ...aboutLines(store, remark)] : [])]),
   ].join('\n');
 }
