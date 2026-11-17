@@ -1050,7 +1050,14 @@ try {
   await closeTab('README.md');
   await menuAt(46);
   await shot('7d-the-right-click-menu-of-a-marked-line');
-  await page.locator('.monaco-menu .action-label', { hasText: OTHER_PLACES }).click({ timeout: 3000 }).catch(() => {});
+  // Under load the menu of VS Code can be gone before the click: the right click is made once more. Without the entry no quick pick opens, and the run would wait on a hidden field.
+  const entry = page.locator('.monaco-menu .action-label', { hasText: OTHER_PLACES });
+  if (!(await entry.click({ timeout: 3000 }).then(() => true, () => false))) {
+    console.log('NOTE  the menu entry was not there for the click; the right click once more');
+    await page.keyboard.press('Escape');
+    await menuAt(46);
+    await entry.click({ timeout: 3000 }).catch(() => {});
+  }
   const placeCount = await until(async () => { const count = await quickCount(); return count >= 20 && count; }, 4000) || await quickCount();
   await page.locator('.quick-input-widget .quick-input-box input').fill('139');
   await until(async () => (await searchRows()).join() === 'src/library/night_jobs.py | line 139', 3000);
