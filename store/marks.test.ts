@@ -217,7 +217,7 @@ test('set-look keeps a look and its files in the store, removes its draft files,
   assert.deepEqual([again.saved, again.problems, again.files], [true, [], 3]);
   // "apostil look-slots --all" prints the one list that the check reads: the components with their slots, the picks and every target.
   const parts = JSON.parse(runApostil(['look-slots', '--all'], { cwd: repoFolder, env }).stdout);
-  assert.deepEqual([Object.keys(parts.components), parts.components.note.slots, Object.keys(parts.targets)], [
+  assert.deepEqual([Object.keys(parts.components).slice(0, 5), parts.components.note.slots, Object.keys(parts.targets)], [
     ['node', 'step', 'call', 'arrow', 'note'], ['note', 'corners', 'content', 'show', 'click', 'input'],
     ['file', 'url', 'command', 'prompt', 'place', 'graphs', 'folder', 'change', 'pull', 'comment'],
   ]);

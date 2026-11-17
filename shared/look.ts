@@ -20,6 +20,10 @@ export const SHAPES = ['rect', 'rounded', 'stadium', 'subproc', 'cyl', 'circle',
 const MAX_WIDTH = 8;
 const WINDOW_WIDTH = [240, 720]; // the narrowest and the widest window of the pointer
 const SIZES = ['small', 'normal', 'large'];
+const HEADS = ['arrow', 'none', 'dot']; // the end of an arrow
+const DIRECTIONS = ['right', 'down']; // a drawn process from left to right, or from top to bottom
+const LEVELS = ['map', 'process', 'wide', 'change', 'part', 'function']; // the levels of a panel of the graphs page
+const TYPES = ['flow', 'sequence', 'state', 'schema']; // the kinds of a diagram
 
 /**
  * The keys that a page of Apostil uses already, so a look cannot take them: J and K (the next and the previous file), Alt with the arrows (the
@@ -59,6 +63,8 @@ const VALUES = {
   ids: 'a list of ids',
   pixels: `a number of pixels from ${WINDOW_WIDTH[0]} to ${WINDOW_WIDTH[1]}`,
   sections: 'a list of the ids of the sections of the window, in the order that they show',
+  head: `one of ${HEADS.join(', ')}`,
+  direction: DIRECTIONS.join(' or '),
 } as const;
 type ValueKind = keyof typeof VALUES;
 /** The kind of a field that a rule reads of a thing: words, a count, true or false, or one of a few fixed values. */
@@ -79,6 +85,7 @@ export interface LookPartsList {
     fields: Readonly<Record<string, FieldKind>>; // what a rule can read of a thing: the pick "where", words in braces, an order
     sections?: readonly string[]; // the sections of its window of the pointer
     shows?: readonly string[]; // the fields that "content.fields" can show, when they are not its fields
+    name?: string; // the component in words, for the sentences of the check, when its kind is not one word: "area box"
   }>>;
   picks: Readonly<Record<string, string | { what: string; area?: string; words?: readonly string[]; example?: Example }>>;
   slots: Readonly<Record<string, {
@@ -111,8 +118,8 @@ export const LOOK_PARTS = {
     },
     step: {
       what: 'a step or process of a drawn process', area: 'processes', core: true, slots: ['box', 'content', 'corners', 'show', 'text', 'click', 'input', 'window'], words: ['process', 'flow', 'job', 'stage', 'task'],
-      takes: { content: ['words', 'picture', 'film'], show: ['shown'], text: ['size', 'icon'] },
-      fields: { title: 'text', file: 'text', steps: 'count', is: ['step', 'process'] }, sections: ['note', 'where', 'marks'],
+      takes: { content: ['words', 'picture', 'film'], show: ['shown', 'folded'], text: ['size', 'icon'] },
+      fields: { title: 'text', file: 'text', steps: 'count', is: ['step', 'process'], quiet: 'yes' }, sections: ['note', 'where', 'marks'],
       example: { pick: { kind: 'step', paths: ['<folder>/'] }, box: { line: AMBER, width: 2 } },
     },
     call: {
@@ -124,7 +131,7 @@ export const LOOK_PARTS = {
     arrow: {
       what: 'an arrow of a diagram', area: 'diagrams', core: true, slots: ['arrow', 'content', 'show', 'text', 'click', 'input'], words: ['edge', 'link', 'line', 'connection', 'label'],
       takes: { content: ['words'], show: ['shown'], text: ['color', 'size'] },
-      fields: { words: 'text', of: 'text' },
+      fields: { words: 'text', of: 'text', is: ['diagram', 'writer', 'handoff', 'branch'] },
       example: { pick: { kind: 'arrow', paths: ['<folder>/'] }, arrow: { color: BLUE, width: 2 } },
     },
     note: {
@@ -132,6 +139,85 @@ export const LOOK_PARTS = {
       takes: { content: ['fields'], show: ['shown'] },
       fields: { title: 'text', file: 'text', function: 'text', tests: 'count' }, shows: ['title', 'function', 'tests', 'text', 'services'],
       example: { pick: { kind: 'note', paths: ['<file>'] }, note: { color: AMBER } },
+    },
+    // Build 59: the rest of Home, the drawn processes and the graphs page.
+    'trail-step': {
+      what: 'a step of the line at the top of Home, the graphs page and the change page', name: 'step of the trail', area: 'home', slots: ['text', 'content'],
+      takes: { text: ['color', 'icon'], content: ['words'] }, words: ['trail', 'breadcrumb', 'path', 'crumb', 'back'],
+      fields: { of: ['map', 'process', 'graphs', 'change', 'part', 'diagram', 'diffs', 'pull'], name: 'text' },
+      example: { pick: { kind: 'trail-step', where: { of: 'process' } }, text: { color: BLUE } },
+    },
+    header: {
+      what: 'the quiet line under the trail of Home ("written 3 commits ago"), or a picture in its place', name: 'header line', area: 'home', slots: ['content', 'show'],
+      takes: { content: ['words', 'picture'], show: ['shown'] }, words: ['header', 'subtitle', 'age', 'summary', 'banner', 'logo'],
+      fields: { repo: 'text', areas: 'count', files: 'count', age: 'text' },
+      example: { pick: { kind: 'header' }, content: { words: '{repo} · {areas} areas · {age}' } },
+    },
+    frame: {
+      what: 'the frame of the diagram on Home: its background, its line, a key or a double click on an empty place', area: 'home', slots: ['box', 'input'],
+      takes: { box: ['color', 'line', 'width'], input: ['key', 'double'] }, words: ['frame', 'background', 'canvas', 'border', 'card'], fields: {},
+      example: { pick: { kind: 'frame' }, box: { line: BLUE }, input: { double: { graphs: '<folder>/' } } },
+    },
+    'area-box': {
+      what: 'a box around a group of nodes of a diagram of the map (a subgraph); folded, one node with its title, and the arrows of its nodes go to it',
+      name: 'area box', area: 'home', slots: ['box', 'text', 'content', 'show'], takes: { box: ['color', 'line'], text: ['color'], content: ['words'], show: ['folded'] },
+      words: ['group', 'subgraph', 'cluster', 'area', 'fold', 'collapse'], fields: { title: 'text', nodes: 'count' },
+      example: { pick: { kind: 'area-box', diagram: '<diagram>' }, box: { color: BLUE }, show: { folded: true } },
+    },
+    'comment-box': {
+      what: 'the comment box: the words that its field starts with', name: 'comment box', area: 'home', slots: ['content'], takes: { content: ['words'] },
+      words: ['comment', 'remark', 'question', 'template', 'start'], fields: { on: 'text' },
+      example: { pick: { kind: 'comment-box' }, content: { words: 'Question: ' } },
+    },
+    'file-box': {
+      what: 'the box of a file around its steps in a drawn process; folded, one node, as an area box', name: 'file box', area: 'drawings', slots: ['box', 'text', 'content', 'show'],
+      takes: { box: ['color', 'line'], text: ['color'], content: ['words'], show: ['folded'] }, words: ['file', 'group', 'subgraph', 'fold', 'name'],
+      fields: { path: 'text', name: 'text', steps: 'count' },
+      example: { pick: { kind: 'file-box', paths: ['<folder>/'] }, content: { words: '{name}' } },
+    },
+    'step-count': {
+      what: 'the count line of a step that holds steps, or of a process ("9 steps")', name: 'count of steps', area: 'drawings', slots: ['content', 'show'],
+      takes: { content: ['words'], show: ['shown'] }, words: ['count', 'steps', 'number'], fields: { steps: 'count' },
+      example: { pick: { kind: 'step-count' }, content: { words: '{steps} inside' } },
+    },
+    'process-drawing': {
+      what: 'a drawn process as a whole: the processes of a place, one process, or a step opened', name: 'drawn process', area: 'drawings', slots: ['layout'],
+      words: ['direction', 'layout', 'vertical', 'horizontal'], fields: { level: ['processes', 'process', 'step'] },
+      example: { pick: { kind: 'process-drawing', where: { level: 'step' } }, layout: { direction: 'right' } },
+    },
+    'count-line': {
+      what: 'the count line of the graphs page ("6 diagrams, the widest first")', name: 'count line', area: 'graphs', slots: ['content', 'show'],
+      takes: { content: ['words'], show: ['shown'] }, words: ['count', 'summary', 'header'], fields: { count: 'count', path: 'text' },
+      example: { pick: { kind: 'count-line' }, content: { words: '{count} diagrams of {path}' } },
+    },
+    panel: {
+      what: 'a small diagram of the graphs page; "order" takes a rule that picks every panel', area: 'graphs', slots: ['show', 'order', 'click'],
+      takes: { show: ['shown'], order: ['by', 'group', 'first'] }, words: ['panel', 'card', 'graph', 'level', 'pin', 'sort'],
+      fields: { id: 'text', level: LEVELS, type: TYPES, branch: 'text', title: 'text' },
+      example: { pick: { kind: 'panel', where: { level: 'change' } }, show: { shown: false } },
+    },
+    'panel-node': {
+      what: 'a node in a panel of the map or of a process; "lit" when it holds the path', name: 'node of a panel', area: 'graphs', slots: ['box', 'show'],
+      takes: { box: ['color', 'line'], show: ['shown'] }, words: ['lit', 'highlight', 'quiet', 'only'], fields: { lit: 'yes' },
+      example: { pick: { kind: 'panel-node', where: { lit: false } }, show: { shown: false } },
+    },
+    'panel-title': {
+      what: 'the title line under a panel', name: 'title of a panel', area: 'panel-lines', slots: ['content', 'text', 'show'],
+      takes: { content: ['words'], text: ['color', 'icon'], show: ['shown'] }, words: ['title', 'caption', 'name'],
+      fields: { title: 'text', level: LEVELS, branch: 'text', path: 'text', where: 'text' },
+      example: { pick: { kind: 'panel-title' }, content: { words: '{title} ({level})' } },
+    },
+    'panel-level': {
+      what: 'the level line under a panel ("the map", "change · branch …")', name: 'level line of a panel', area: 'panel-lines', slots: ['content', 'text', 'show'],
+      takes: { content: ['words'], text: ['color', 'icon'], show: ['shown'] }, words: ['level', 'branch', 'kind'],
+      fields: { title: 'text', level: LEVELS, branch: 'text', path: 'text', where: 'text' },
+      example: { pick: { kind: 'panel-level', where: { level: 'map' } }, show: { shown: false } },
+    },
+    'panel-in': {
+      what: 'the line under a panel that says where the path is ("in: Database")', name: 'in line of a panel', area: 'panel-lines', slots: ['content', 'text', 'show'],
+      takes: { content: ['words'], text: ['color', 'icon'], show: ['shown'] }, words: ['where', 'place', 'in'],
+      fields: { title: 'text', level: LEVELS, branch: 'text', path: 'text', where: 'text' },
+      example: { pick: { kind: 'panel-in' }, text: { color: BLUE } },
     },
   },
   picks: {
@@ -170,9 +256,9 @@ export const LOOK_PARTS = {
       example: { pick: { kind: 'note', mark: '<set>:<value>' }, note: { color: AMBER } },
     },
     arrow: {
-      what: 'the line of an arrow, and a button at its words', core: ['color', 'width', 'dashed'], fields: { color: 'colour', width: 'width', dashed: 'yes', icon: 'button' },
-      words: ['line', 'colour', 'thick', 'thin', 'dotted', 'label', 'button'],
-      gets: { color: 'a colour', width: 'a width', dashed: 'a dashed or solid line', icon: 'a button' },
+      what: 'the line of an arrow, and a button at its words', core: ['color', 'width', 'dashed'], fields: { color: 'colour', width: 'width', dashed: 'yes', icon: 'button', head: 'head' },
+      words: ['line', 'colour', 'thick', 'thin', 'dotted', 'label', 'button', 'head', 'arrowhead', 'tip'],
+      gets: { color: 'a colour', width: 'a width', dashed: 'a dashed or solid line', icon: 'a button', head: 'a head' },
       example: { pick: { kind: 'arrow', diagram: '<diagram>' }, arrow: { color: BLUE, width: 2, dashed: true } },
     },
     show: {
@@ -184,6 +270,7 @@ export const LOOK_PARTS = {
       what: 'the order of the rows of a list: "by" a field, "down" for the largest first, "group" by a field, and the ids that come "first"', area: 'lists',
       fields: { by: 'field', down: 'yes', group: 'field', first: 'ids' }, words: ['sort', 'order', 'group', 'pin', 'first', 'top'],
       gets: { by: 'an order', down: 'an order', group: 'groups', first: 'rows that come first' },
+      example: { pick: { kind: 'panel' }, order: { by: 'level', first: ['<diagram>'] } },
     },
     text: {
       what: 'the words of a thing: their colour, their size, and an icon before them', area: 'diagrams', fields: { color: 'colour', size: 'size', icon: 'icon' },
@@ -206,6 +293,10 @@ export const LOOK_PARTS = {
       area: 'windows', fields: { width: 'pixels', sections: 'sections' },
       words: ['pop-up', 'popup', 'hover', 'tooltip', 'window', 'sections', 'wider'], gets: { width: 'a window width', sections: 'window sections' },
       example: { pick: ONE_NODE, window: { width: 440, sections: ['changes', 'files'] } },
+    },
+    layout: {
+      what: 'the direction of a drawn process: "right" runs from left to right, "down" from top to bottom', area: 'drawings', fields: { direction: 'direction' },
+      words: ['direction', 'layout', 'vertical', 'horizontal', 'rotate', 'turn'], gets: { direction: 'a direction' },
     },
   },
   values: VALUES,
@@ -244,6 +335,10 @@ export const LOOK_PARTS = {
     clicks: 'where a click, Alt+click, Shift+click, double click, key or right-click menu goes; every target',
     windows: 'the window of the pointer: its width, its sections, their order',
     lists: 'what is left out, a pick by a field, the order and groups of rows',
+    home: 'the trail at the top, the header line, the frame, area boxes, the comment box',
+    drawings: 'a drawn process as a whole: its file boxes, step counts, direction',
+    graphs: 'the graphs page: its count line, which panels show, their order, lit nodes',
+    'panel-lines': 'the lines under a panel: its title, its level, where the path is',
   },
   sets: {
     what: 'a new kind of mark: writers mark the lines of code that its rule names, and the icons of its values stand in its corner',
@@ -309,13 +404,14 @@ export interface LookRule {
   content?: { words?: string; fields?: string[]; picture?: string; film?: string };
   corners?: Partial<Record<Corner, CornerFill>>;
   note?: { color?: string };
-  arrow?: { color?: string; width?: number; dashed?: boolean; icon?: Button };
+  arrow?: { color?: string; width?: number; dashed?: boolean; icon?: Button; head?: string };
   show?: { shown?: boolean; folded?: boolean };
   order?: { by?: string; down?: boolean; group?: string; first?: string[] };
   text?: { color?: string; size?: string; icon?: string };
   click?: Target;
   input?: { alt?: Target; shift?: Target; double?: Target; key?: Record<string, Target>; menu?: { name: string; target: Target }[] };
   window?: { width?: number; sections?: string[] };
+  layout?: { direction?: string };
 }
 
 export interface Look {
@@ -408,7 +504,9 @@ export const nearestPart = (word: unknown, known: readonly string[]): string => 
   return near ? ` The nearest is "${near}".` : '';
 };
 
-const an = (word: string): string => `${/^[aeiou]/.test(word) ? 'an' : 'a'} ${word}`;
+/** A kind in words: its name when it has one ("area box"), else the kind itself. */
+export const kindName = (kind: string): string => (LOOK_PARTS.components as LookPartsList['components'])[kind]?.name ?? kind;
+const an = (kind: string): string => { const word = kindName(kind); return `${/^[aeiou]/.test(word) ? 'an' : 'a'} ${word}`; };
 const An = (word: string): string => an(word).replace(/^a/, 'A');
 const listed = (names: readonly string[]): string => names.map((one) => `"${one}"`).join(', ');
 const unknownFields = (value: object, known: readonly string[], at: string): string[] =>
@@ -564,6 +662,8 @@ export function valueProblem(kind: ValueKind, value: unknown, at: string, field:
     case 'yes': return typeof value === 'boolean' ? [] : wrong;
     case 'shape': return SHAPES.includes(value as string) ? [] : [`${at}: "${String(value)}" is no shape. Use one of ${SHAPES.join(', ')}.${nearestPart(String(value), SHAPES)}`];
     case 'size': return SIZES.includes(value as string) ? [] : [`${at}: "${String(value)}" is no size. Use one of ${listed(SIZES)}.`];
+    case 'head': return HEADS.includes(value as string) ? [] : wrong;
+    case 'direction': return DIRECTIONS.includes(value as string) ? [] : wrong;
     case 'text': case 'picture': case 'film': case 'icon': return isText(value) ? [] : wrong;
     case 'words':
       if (!isText(value)) return wrong;

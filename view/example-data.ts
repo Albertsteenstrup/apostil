@@ -107,6 +107,8 @@ const page = examplePage(folder, base, file, points, remarks, agent, apps, map?.
 // with its second set and its marks) is "?look=1", "look-<name>.json" is "?look=<name>". Home and the note cards are read after each save.
 const homeLooks: Record<string, HomeData> = {};
 const pageLooks: Record<string, LookData | undefined> = {};
+const graphsLooks: Record<string, Record<string, GraphsData>> = {}; // the graphs pages of a few paths in each look, for the browser checks
+const LOOK_GRAPHS = ['db/migrations/0042_holds.sql', 'src/library/lending/requests.py'];
 for (const name of put ? readdirSync(EXAMPLE_LOOK).filter((one) => /^look(-[a-z]+)?\.json$/.test(one)).sort() : []) {
   const key = name === 'look.json' ? '1' : name.slice('look-'.length, -'.json'.length);
   const files = putLookFiles(folder);
@@ -115,6 +117,7 @@ for (const name of put ? readdirSync(EXAMPLE_LOOK).filter((one) => /^look(-[a-z]
   files.clean();
   homeLooks[key] = homeData(store, folder, apps, address);
   pageLooks[key] = lookOfPage(store, page);
+  graphsLooks[key] = Object.fromEntries(LOOK_GRAPHS.map((path) => [path, graphsData(store, folder, path, address)]));
 }
 
 // Made up: an earlier change, merged long ago, with a note on code that this change left alone. The file tab shows it beside its lines, with no colour.
@@ -164,6 +167,6 @@ answers['pull:https://example.com/made-up/pull/11'] = { pull: pullRequestFrom(ex
 const pagePulls = pulls[page.branch].slice(0, 2); // the page knows the two that have a made-up conversation
 
 const target = join(__dirname, '../../view/media/example-data.js');
-writeFileSync(target, `// Written by view/example-data.ts. Not in Git.\n${iconScript(join(__dirname, '../../view/media'))}window.APOSTIL_EXAMPLE = ${JSON.stringify({ page, pageLooks, pagePulls, answers, list, home, homeLooks, homeNoMap, graphs })};\n`);
+writeFileSync(target, `// Written by view/example-data.ts. Not in Git.\n${iconScript(join(__dirname, '../../view/media'))}window.APOSTIL_EXAMPLE = ${JSON.stringify({ page, pageLooks, pagePulls, answers, list, home, homeLooks, homeNoMap, graphs, graphsLooks })};\n`);
 example?.remove();
 console.log(`Wrote ${target}: ${page.files.length} files, ${page.parts.length} parts, ${Object.keys(answers).length} answers, ${rows.length} list rows, ${home.map?.diagrams.length ?? 0} map diagrams, ${Object.keys(graphs).length} graphs pages.`);

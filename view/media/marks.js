@@ -31,7 +31,9 @@ const Marks = (() => {
 
   /** True when a rule picks a thing. An arrow is picked by nodes, paths or a mark when both its ends are, or when its own line holds the mark. */
   function picks(pick, thing) {
-    if (pick.kind !== thing.kind || (pick.diagram && pick.diagram !== thing.diagram)) return false;
+    // A drawn process ("process:<id>") holds the drawings of its steps ("process:<id>/<n>") too.
+    const inDiagram = !pick.diagram || pick.diagram === thing.diagram || (pick.diagram.startsWith('process:') && !!thing.diagram?.startsWith(`${pick.diagram}/`));
+    if (pick.kind !== thing.kind || !inDiagram) return false;
     const ends = thing.ends ?? [thing];
     if (pick.nodes && !ends.every((end) => pick.nodes.includes(end.node))) return false;
     if (pick.paths && !ends.every((end) => (end.paths ?? []).some((path) => pick.paths.some((entry) => covers(entry, path))))) return false;
@@ -81,7 +83,7 @@ const Marks = (() => {
   /** The fields of a node of a diagram, from the data of the page (LOOK_PARTS names them for each component). */
   function fieldsOf(kind, key, node, diagram) {
     const label = diagram.graph?.nodes?.[key] ?? key;
-    if (kind === 'step') return { title: node.note?.title ?? label, file: node.paths[0]?.path ?? '', steps: node.steps ?? 0, is: node.process ? 'process' : 'step' };
+    if (kind === 'step') return { title: node.note?.title ?? label, file: node.paths[0]?.path ?? '', steps: node.steps ?? 0, is: node.process ? 'process' : 'step', quiet: !!node.quiet };
     if (kind === 'call') return { name: node.names ?? [], of: node.note?.title ?? label };
     return { title: label, files: node.files ?? 0, down: !!node.down };
   }
@@ -127,6 +129,11 @@ const Marks = (() => {
       const thing = { kind, diagram: diagram.id, node: key, paths: node.paths.map((one) => one.path), fields: fieldsOf(kind, key, node, diagram), ...where };
       thing.marks = marksIn(thing, look.marks, kind === 'call' ? new Set() : leave);
       thing.slots = resolve(look.rules, thing, look.one);
+      // The count line of a step that holds steps, or of a process ("9 steps"): a part of its box with rules of its own.
+      if (kind === 'step' && node.steps) {
+        thing.count = { kind: 'step-count', diagram: diagram.id, node: key, paths: thing.paths, fields: { steps: node.steps } };
+        thing.count.slots = resolve(look.rules, thing.count, look.one);
+      }
       things[key] = thing;
     }
     return things;
@@ -134,10 +141,13 @@ const Marks = (() => {
 
   /** The arrows of a diagram for the look: each with its two ends, the marks at its own line (a drawn process), and its slots. */
   function edgesOf(diagram, look, things) {
-    return diagram.graph.edges.map((edge) => {
+    const tokens = diagram.id?.startsWith('process:') ? flowArrows(diagram.mermaid ?? '') : [];
+    return diagram.graph.edges.map((edge, at) => {
       const lines = diagram.edgeLines?.[`${edge.from}>${edge.to}`] ?? [];
       const marks = look.marks.filter((mark) => lines.some((one) => one.file === mark.file && one.line === mark.line));
-      const thing = { kind: 'arrow', diagram: diagram.id, ends: [things[edge.from], things[edge.to]].filter(Boolean), marks, fields: { words: edge.label ?? '', of: edge.from } };
+      // What the arrow is: of a written diagram, of the writer in a drawn process (a dotted one is a branch), or a handoff between processes.
+      const is = diagram.id?.startsWith('processes:') ? 'handoff' : !diagram.id?.startsWith('process:') ? 'diagram' : /^\s*-\./.test(tokens[at] ?? '') ? 'branch' : 'writer';
+      const thing = { kind: 'arrow', diagram: diagram.id, ends: [things[edge.from], things[edge.to]].filter(Boolean), marks, fields: { words: edge.label ?? '', of: edge.from, is } };
       return { ...edge, marks, fields: thing.fields, slots: resolve(look.rules, thing, look.one) };
     });
   }
@@ -158,40 +168,98 @@ const Marks = (() => {
   };
 
   /**
+   * The parts of one statement of a flow chart: its arrows and its groups of nodes ([whole, id, shape], "a & b" is one group), with the words in
+   * quotes hidden first, so that an arrow inside them does not count; `restore` puts them back.
+   */
+  function statementParts(trimmed) {
+    const quoted = [];
+    const masked = trimmed.replace(/"[^"]*"/g, (words) => `\u0000${quoted.push(words) - 1}\u0000`);
+    const restore = (words) => words.replace(/\u0000(\d+)\u0000/g, (all, index) => quoted[Number(index)]);
+    const arrows = masked.match(new RegExp(FLOW_ARROW.source, 'g')) ?? [];
+    const groups = masked.split(FLOW_ARROW).map((segment) => segment.split(/\s+&\s+/).map((node) => FLOW_NODE.exec(node.trim())).filter(Boolean));
+    return { arrows, groups, restore };
+  }
+
+  /** The parts of each statement of a flow chart that names nodes or arrows, in the order of the text. */
+  const statementsOf = (text) => text.split('\n').flatMap((line) => (/^\s*(flowchart|graph)\b/.test(line) ? [] : line.split(OUTSIDE_QUOTES)
+    .filter((one) => one.trim() && !NOT_A_STATEMENT.test(one)).map((one) => statementParts(one.trim()))));
+
+  /** The arrow of each edge of a flow chart, in the order that flowGraph() counts them: "-->", "-.->|no|", … */
+  const flowArrows = (text) => statementsOf(text).flatMap(({ groups, arrows }) => groups.flatMap((group, index) => (index > 0 ? groups[index - 1].flatMap(() => group.map(() => arrows[index - 1] ?? '-->')) : [])));
+
+  /** A title of Mermaid as plain words: no quotes around it, no HTML, and "#quot;" as a quote. */
+  const plainText = (text) => String(text).trim().replace(/^"([\s\S]*)"$/, '$1').replace(/<[^>]*>/g, ' ').replace(/#quot;/g, '"').replace(/#39;/g, "'")
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+
+  /** The boxes of a flow chart (its subgraphs) that have an id: each with its id, its title, and the nodes inside it, also in the boxes inside it. */
+  function groupsOf(text) {
+    const groups = [];
+    const open = [];
+    text.split('\n').forEach((line) => {
+      const start = /^\s*subgraph\s+([A-Za-z0-9_-]+)\s*(?:\[(.*)\])?\s*$/.exec(line);
+      if (start) { const group = { id: start[1], title: plainText(start[2] ?? start[1]), nodes: [] }; groups.push(group); open.push(group); return; }
+      if (/^\s*subgraph\b/.test(line)) return void open.push(null); // a box whose title is its id: not drawn by a rule
+      if (/^\s*end\s*$/.test(line)) return void open.pop();
+      if (!open.some(Boolean)) return;
+      const ids = statementsOf(line).flatMap((parts) => parts.groups.flat().map(([, id]) => id));
+      for (const group of open.filter(Boolean)) for (const id of ids) if (!group.nodes.includes(id)) group.nodes.push(id);
+    });
+    return groups;
+  }
+
+  /**
    * The Mermaid text of a flow chart without the nodes `hide.nodes` and the arrows `hide.edges` (their numbers in the order of the text), and with new
    * words `hide.words` (by number) on arrows. A statement that holds none of them stays as it was written; one that does is written again as its nodes,
    * then its arrows one by one. A box of a group (a subgraph) that is left empty goes too. The rest is laid out by Mermaid.
+   * Optional: `hide.groups` (a box by its id: { fold, title }) gives a box a new title, or folds it to one node with that title; `hide.into` (a node
+   * inside a folded box: the box) moves the arrows of the node to the box; `hide.rename` (a node: its new id) writes the node with another id;
+   * `hide.plain` (numbers of arrows) writes those arrows plain, with no words.
    */
   function flowWithout(text, hide) {
     let edge = -1;
+    const into = hide.into ?? new Map();
+    const rename = hide.rename ?? new Map();
+    const unwritten = (id) => hide.nodes.has(id) || into.has(id); // a node that is not written: hidden, or inside a folded box
+    const end = (id) => into.get(id) ?? rename.get(id) ?? id; // where an arrow of a node goes
     const rewrite = (statement) => {
       const trimmed = statement.trim();
       if (/^class\s/.test(trimmed)) {
         const [, ids, name] = /^class\s+(\S+)\s+(.*)$/.exec(trimmed) ?? [];
-        const kept = (ids ?? '').split(',').filter((id) => !hide.nodes.has(id));
+        const kept = (ids ?? '').split(',').filter((id) => !unwritten(id)).map(end);
         return !ids ? statement : kept.length ? `  class ${kept.join(',')} ${name}` : '';
       }
-      if (/^(style|click)\s/.test(trimmed)) return hide.nodes.has(trimmed.split(/\s+/)[1]) ? '' : statement;
+      if (/^(style|click)\s/.test(trimmed)) { const id = trimmed.split(/\s+/)[1]; return unwritten(id) ? '' : rename.has(id) ? statement.replace(id, rename.get(id)) : statement; }
       if (!trimmed || NOT_A_STATEMENT.test(statement)) return statement;
-      // Words in quotes are hidden first, so that an arrow inside them does not count.
-      const quoted = [];
-      const masked = trimmed.replace(/"[^"]*"/g, (words) => `\u0000${quoted.push(words) - 1}\u0000`);
-      const restore = (words) => words.replace(/\u0000(\d+)\u0000/g, (all, index) => quoted[Number(index)]);
-      const arrows = masked.match(new RegExp(FLOW_ARROW.source, 'g')) ?? [];
-      const groups = masked.split(FLOW_ARROW).map((segment) => segment.split(/\s+&\s+/).map((node) => FLOW_NODE.exec(node.trim())).filter(Boolean));
+      const { arrows, groups, restore } = statementParts(trimmed);
       const edges = [];
       groups.forEach((group, index) => {
         for (const [, from] of index > 0 ? groups[index - 1] : []) for (const [, to] of group) edges.push({ from, to, at: ++edge, arrow: arrows[index - 1] ?? '-->' });
       });
-      const touched = groups.flat().some(([, id]) => hide.nodes.has(id)) || edges.some((one) => hide.edges.has(one.at) || hide.words.has(one.at));
+      const touched = groups.flat().some(([, id]) => unwritten(id) || rename.has(id)) || edges.some((one) => hide.edges.has(one.at) || hide.words.has(one.at) || hide.plain?.has(one.at));
       if (!touched) return statement;
-      const nodes = [...new Map(groups.flat().filter(([, id]) => !hide.nodes.has(id)).map(([, id, shape]) => [id, `${id}${restore(shape)}`])).values()];
-      const kept = edges.filter((one) => !hide.nodes.has(one.from) && !hide.nodes.has(one.to) && !hide.edges.has(one.at))
-        .map((one) => `${one.from} ${hide.words.has(one.at) ? `${bareArrow(restore(one.arrow))}|"${hide.words.get(one.at).replace(/"/g, '#quot;')}"|` : restore(one.arrow).trim()} ${one.to}`);
+      const nodes = [...new Map(groups.flat().filter(([, id]) => !unwritten(id)).map(([, id, shape]) => [id, `${end(id)}${restore(shape)}`])).values()];
+      // An arrow inside a folded box goes with it; an arrow out of it starts at the box.
+      const kept = edges.filter((one) => !hide.nodes.has(one.from) && !hide.nodes.has(one.to) && !hide.edges.has(one.at) && !(into.has(one.from) && into.get(one.from) === into.get(one.to)))
+        .map((one) => `${end(one.from)} ${hide.plain?.has(one.at) ? '-->' : hide.words.has(one.at) ? `${bareArrow(restore(one.arrow))}|"${hide.words.get(one.at).replace(/"/g, '#quot;')}"|` : restore(one.arrow).trim()} ${end(one.to)}`);
       return [...nodes, ...kept].map((line) => `  ${line}`).join('\n');
     };
     const written = text.split('\n');
-    const lines = written.map((line) => (/^\s*(flowchart|graph)\b/.test(line) ? line : line.split(OUTSIDE_QUOTES).map(rewrite).filter((one, at, all) => one.trim() || all.length === 1).join(';')));
+    const boxes = []; // the boxes that a line is in: true when it, or a box around it, is folded
+    const lines = written.map((line) => {
+      if (/^\s*(flowchart|graph)\b/.test(line)) return line;
+      const start = /^(\s*subgraph\s+)([A-Za-z0-9_-]+)?(.*)$/.exec(line);
+      if (start) {
+        const own = hide.groups?.get(start[2]);
+        const around = boxes.includes(true);
+        boxes.push(around || !!own?.fold);
+        if (around) return '';
+        const title = own && `"${own.title.replace(/"/g, '#quot;')}"`;
+        return own?.fold ? `  ${start[2]}[${title}]` : own ? `${start[1]}${start[2]}[${title}]` : line;
+      }
+      if (/^\s*end\s*$/.test(line) && boxes.length) return boxes.pop() ? '' : line;
+      if (boxes.includes(true) && /^\s*direction\b/.test(line)) return '';
+      return line.split(OUTSIDE_QUOTES).map(rewrite).filter((one, at, all) => one.trim() || all.length === 1).join(';');
+    });
     // A group whose statements all went is left out.
     const open = [];
     const gone = new Set();
@@ -206,29 +274,129 @@ const Marks = (() => {
   /**
    * What a flow chart shows in the look: its Mermaid text without the things and arrows whose rule says "shown": false, the arrows with the words that
    * a rule gives them, and the graph and the arrows that are drawn. A diagram of another kind is drawn as it is.
+   * `boxes` (boxesOf) give a box new words, or fold it to one node with its arrows; `drawing` (drawingOf) turns a drawn process right or down.
    */
-  function shownFlow(diagram, things, edges) {
+  function shownFlow(diagram, things, edges, boxes = [], drawing = null) {
     const whole = { text: diagram.mermaid, graph: diagram.graph, edges };
     if (!/^\s*(?:flowchart|graph)\b/m.test(diagram.mermaid)) return whole;
     const nodes = new Set(Object.values(things).filter((thing) => thing.slots['show.shown'] === false).map((thing) => thing.node));
-    const hidden = new Set(edges.flatMap((one, at) => (one.slots['show.shown'] === false || nodes.has(one.from) || nodes.has(one.to) ? [at] : [])));
+    // A box with new words or folded; a node inside a folded box goes into it.
+    const groups = new Map();
+    const into = new Map();
+    for (const box of boxes) {
+      const fold = box.slots['show.folded'] === true;
+      if (!box.slots.content?.words && !fold) continue;
+      groups.set(box.node, { fold, title: box.slots.content?.words ? fillWords(box.slots.content.words, box.fields) : escapeHtml(box.title) });
+      if (fold) for (const node of box.nodes) if (!nodes.has(node)) into.set(node, box.node);
+    }
+    const inside = (one) => into.has(one.from) && into.get(one.from) === into.get(one.to);
+    const hidden = new Set(edges.flatMap((one, at) => (one.slots['show.shown'] === false || nodes.has(one.from) || nodes.has(one.to) || inside(one) ? [at] : [])));
+    // A branch arrow that a rule leaves out between two steps that follow each other in an opened step stands for their order too: it stays, plain.
+    const order = /^process:.+\//.test(diagram.id ?? '') ? Object.keys(diagram.graph.nodes).filter((id) => things[id]?.kind === 'step' && !things[id].fields.quiet) : [];
+    const plainArrows = new Set([...hidden].filter((at) => { const one = edges[at]; return one.fields?.is === 'branch' && !nodes.has(one.from) && !nodes.has(one.to) && order.includes(one.from) && order.indexOf(one.to) === order.indexOf(one.from) + 1; }));
+    for (const at of plainArrows) hidden.delete(at);
     const words = new Map(edges.flatMap((one, at) => {
+      if (plainArrows.has(at)) return [];
       const given = one.slots.content?.words;
       const size = one.slots['text.size'];
       if (!given && (!size || size === 'normal')) return [];
       const shown = given ? fillWords(given, one.fields) : escapeHtml(one.label ?? '');
       return [[at, size && size !== 'normal' ? `<span class='${size === 'small' ? 'lkSmall' : 'lkLarge'}'>${shown}</span>` : shown]];
     }));
-    if (!nodes.size && !hidden.size && !words.size) return whole;
+    const direction = drawing?.slots['layout.direction'];
+    if (!nodes.size && !hidden.size && !words.size && !groups.size && !direction && !plainArrows.size) return whole;
     // An arrow with new words is found in the drawing by them (edgeElements in diagram-stage.js).
     const plain = (html) => html.replace(/<[^>]*>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
-    const worded = (one, at) => (words.has(at) ? { ...one, label: plain(words.get(at)) } : one);
+    const worded = (one, at) => (words.has(at) ? { ...one, label: plain(words.get(at)) } : plainArrows.has(at) ? { ...one, label: undefined } : one);
+    const moved = (one) => (into.has(one.from) || into.has(one.to) ? { ...one, from: into.get(one.from) ?? one.from, to: into.get(one.to) ?? one.to } : one);
     const kept = (one, at) => !hidden.has(at);
+    const text = flowWithout(diagram.mermaid, { nodes, edges: hidden, words, groups, into, plain: plainArrows });
+    const folded = [...groups].filter(([, group]) => group.fold).map(([id, group]) => [id, plain(group.title)]);
     return {
-      text: flowWithout(diagram.mermaid, { nodes, edges: hidden, words }),
-      graph: { nodes: Object.fromEntries(Object.entries(diagram.graph.nodes).filter(([key]) => !nodes.has(key))), edges: diagram.graph.edges.map(worded).filter(kept) },
-      edges: edges.map(worded).filter(kept),
+      text: direction ? text.replace(/^(\s*(?:flowchart|graph))\s+(?:LR|RL|TB|TD|BT)\b/m, `$1 ${direction === 'down' ? 'TB' : 'LR'}`) : text,
+      graph: { nodes: Object.fromEntries([...Object.entries(diagram.graph.nodes).filter(([key]) => !nodes.has(key) && !into.has(key)), ...folded]), edges: diagram.graph.edges.map(worded).map(moved).filter(kept) },
+      edges: edges.map(worded).map(moved).filter(kept),
     };
+  }
+
+  /**
+   * The boxes of a flow chart for the look (its subgraphs): an area box of a diagram of the map, a file box of a drawn process. Each with its id as
+   * `node`, its title, its nodes, its paths (the paths of its nodes; of a file box its file), its fields, and the slots that the rules give it.
+   */
+  function boxesOf(diagram, look) {
+    if (!/^\s*(?:flowchart|graph)\b/m.test(diagram.mermaid ?? '')) return [];
+    const file = diagram.id?.startsWith('process:');
+    return groupsOf(diagram.mermaid).map((group) => {
+      const own = group.nodes.map((node) => diagram.nodes?.[node]).filter(Boolean);
+      const fields = file ? { path: group.title, name: group.title.split('/').pop(), steps: own.filter((node) => node.kind === 'step').length } : { title: group.title, nodes: group.nodes.length };
+      const paths = file ? [group.title] : [...new Set(own.flatMap((node) => node.paths.map((one) => one.path)))];
+      const box = { kind: file ? 'file-box' : 'area-box', diagram: diagram.id, node: group.id, title: group.title, nodes: group.nodes, paths, fields };
+      box.slots = resolve(look.rules, box, look.one);
+      return box;
+    });
+  }
+
+  /** A drawn process as a whole, for the look: its level (the processes of a place, one process, or a step opened) and its slots. Null for a diagram of the map. */
+  function drawingOf(diagram, look) {
+    const id = diagram.id ?? '';
+    const level = id.startsWith('processes:') ? 'processes' : !id.startsWith('process:') ? null : id.includes('/') ? 'step' : 'process';
+    if (!level) return null;
+    const thing = { kind: 'process-drawing', diagram: id, paths: [...new Set(Object.values(diagram.nodes ?? {}).flatMap((node) => node.paths.map((one) => one.path)))], fields: { level } };
+    return { ...thing, slots: resolve(look.rules, thing, look.one) };
+  }
+
+  /**
+   * A drawn process in which each step that a rule opens ("show": { "folded": false }) is a box of its inner steps, in place, one level deep: its inner
+   * steps and the arrows between them, with ids "<step>_<id>". The quiet boxes and calls of the inner drawing stay out: the arrows of the step keep
+   * going to its box. `find(id)` gives a drawing by its id. Returns the diagram itself when no step opens.
+   */
+  function openSteps(diagram, look, find) {
+    const things = thingsOf(diagram, look);
+    const open = Object.values(things).filter((thing) => thing.kind === 'step' && thing.slots['show.folded'] === false && find(diagram.nodes[thing.node].down ?? ''));
+    if (!open.length) return diagram;
+    const lines = diagram.mermaid.split('\n');
+    const after = []; // the arrows inside the boxes, at the end of the text, so that the arrows of the diagram keep their numbers
+    const opened = { ...diagram, nodes: { ...diagram.nodes }, graph: { nodes: { ...diagram.graph.nodes }, edges: [...diagram.graph.edges] }, edgeLines: { ...(diagram.edgeLines ?? {}) } };
+    for (const thing of open) {
+      const inner = find(diagram.nodes[thing.node].down);
+      const kept = Object.keys(inner.nodes).filter((id) => inner.nodes[id].kind === 'step' && !inner.nodes[id].quiet);
+      const rename = new Map(kept.map((id) => [id, `${thing.node}_${id}`]));
+      const text = flowWithout(inner.mermaid, { nodes: new Set(Object.keys(inner.nodes).filter((id) => !rename.has(id))), edges: new Set(), words: new Map(), rename });
+      const statements = text.split('\n').slice(1).filter((line) => line.trim() && !/^\s*(classDef|class)\b/.test(line));
+      const declared = statements.filter((line) => !statementParts(line.trim()).arrows.length && !/^\s*[\w-]+\s*$/.test(line)); // not the bare ids before its arrows
+      after.push(...statements.filter((line) => statementParts(line.trim()).arrows.length));
+      const at = lines.findIndex((line) => { const parts = statementParts(line.trim()); return !parts.arrows.length && parts.groups.flat().some(([, id]) => id === thing.node); });
+      const title = escapeHtml(thing.fields.title).replace(/"/g, '#quot;');
+      const indent = /^\s*/.exec(lines[at] ?? '')[0];
+      if (at >= 0) lines.splice(at, 1, `${indent}subgraph ${thing.node}["${title}"]`, ...declared.map((line) => `${indent}${line}`), `${indent}end`);
+      for (const id of kept) { opened.nodes[rename.get(id)] = inner.nodes[id]; opened.graph.nodes[rename.get(id)] = inner.graph.nodes[id] ?? id; }
+      delete opened.graph.nodes[thing.node];
+      opened.graph.edges.push(...inner.graph.edges.filter((one) => rename.has(one.from) && rename.has(one.to)).map((one) => ({ ...one, from: rename.get(one.from), to: rename.get(one.to) })));
+      for (const [key, starts] of Object.entries(inner.edgeLines ?? {})) {
+        const [from, to] = key.split('>');
+        if (rename.has(from) && rename.has(to)) opened.edgeLines[`${rename.get(from)}>${rename.get(to)}`] = starts;
+      }
+    }
+    return { ...opened, mermaid: [...lines, ...after].join('\n') };
+  }
+
+  /** The end of an arrow as the look gives it: "none" takes its head away, "dot" puts Mermaid's dot in its place. Returns the new marker-end, or null for none. */
+  const headOf = (marker, head) => (head === 'none' ? null : head === 'dot' ? marker.replace(/pointEnd/, 'circleEnd') : marker);
+
+  /**
+   * A line of words of a page in the look (a step of the trail, the header line, the count line, a line under a panel): the words of the rule with the
+   * fields in braces, an icon before them, their colour, or a picture in place of the line; `text` (plain words) when no rule gives words. Null when a
+   * rule leaves the line out. The words of the rule are escaped as the words of the repo are.
+   */
+  function wordsHtml(text, slots, fields, look) {
+    if (slots['show.shown'] === false) return null;
+    const picture = look.files[slots.content?.picture];
+    if (picture) return `<img class="lk-picture" src="${escapeHtml(picture).replace(/"/g, '&quot;')}" alt="${escapeHtml(text).replace(/"/g, '&quot;')}">`;
+    const words = slots.content?.words !== undefined ? fillWords(escapeHtml(slots.content.words), fields) : escapeHtml(text);
+    const icon = look.files[slots['text.icon']];
+    const colors = slots['text.color'] && lineColors(slots['text.color'], READS);
+    const style = [icon && `--lk-icon:url(&quot;${escapeHtml(icon).replace(/"/g, '')}&quot;)`, colors && `--lk-words-l:${colors.light};--lk-words-d:${colors.dark}`].filter(Boolean);
+    return style.length ? `<span class="${[icon && 'lk-ico', colors && 'lk-words'].filter(Boolean).join(' ')}" style="${style.join(';')}">${words}</span>` : words;
   }
 
   // ----- where a click goes: the words of a target -----
@@ -353,6 +521,7 @@ const Marks = (() => {
   const pure = {
     covers, keyOf, holds, marksIn, picks, rankOf, resolve, fieldsOf, fillWords, orderRows, thingsOf, edgesOf, flowWithout, shownFlow, targetWords, inputWords, windowOf,
     spreadOf, stackOf, namedThings, boxColors, lineColors, contrast, parse, SHOWN, READS,
+    flowArrows, groupsOf, boxesOf, drawingOf, openSteps, headOf, wordsHtml,
   };
   if (typeof window !== 'object') return pure;
 
@@ -398,17 +567,25 @@ const Marks = (() => {
    * and the graph and the arrows that are drawn.
    */
   async function lookText(diagram, things, edges, look) {
-    const shown = shownFlow(diagram, things, edges);
-    if (!/^\s*(?:flowchart|graph)\b/m.test(shown.text)) return { ...shown, filled: {} };
+    const boxes = boxesOf(diagram, look);
+    const shown = shownFlow(diagram, things, edges, boxes, drawingOf(diagram, look));
+    if (!/^\s*(?:flowchart|graph)\b/m.test(shown.text)) return { ...shown, filled: {}, boxes };
     const lines = [];
     const filled = {};
     const classes = { lkSmall: [], lkLarge: [], lkIcon: [] };
     for (const [node, thing] of Object.entries(things)) {
       const slots = thing.slots;
-      if (slots['show.shown'] === false) continue;
+      if (slots['show.shown'] === false || !(node in shown.graph.nodes)) continue; // left out, inside a folded box, or opened as a box
       if (slots['box.shape']) lines.push(`  ${node}@{ shape: ${slots['box.shape']} }`);
       const content = slots.content;
-      if (content?.words) lines.push(`  ${node}@{ label: "${quote(fillWords(content.words, thing.fields))}" }`);
+      const count = thing.count?.slots ?? {};
+      if (Object.keys(count).length) {
+        // The count line of the look under the title (or the words of the step), or none.
+        const title = content?.words ? fillWords(content.words, thing.fields) : escapeHtml((diagram.graph.nodes[node] ?? node).replace(/\s+\d+ steps?$/, ''));
+        const steps = thing.count.fields.steps;
+        const line = count['show.shown'] === false ? '' : `<br><i class='ns'>${count.content?.words ? fillWords(count.content.words, thing.count.fields) : `${steps} ${steps === 1 ? 'step' : 'steps'}`}</i>`;
+        lines.push(`  ${node}@{ label: "${quote(title + line)}" }`);
+      } else if (content?.words) lines.push(`  ${node}@{ label: "${quote(fillWords(content.words, thing.fields))}" }`);
       const file = content && (content.picture ?? content.film);
       const address = file && look.files[file];
       const size = address && await sizeOf(address, !!content.film);
@@ -420,7 +597,7 @@ const Marks = (() => {
       if (look.files[slots['text.icon']]) classes.lkIcon.push(node);
     }
     for (const [name, nodes] of Object.entries(classes)) if (nodes.length) lines.push(`  class ${nodes.join(',')} ${name}`);
-    return { ...shown, text: lines.length ? `${shown.text}\n${lines.join('\n')}` : shown.text, filled };
+    return { ...shown, text: lines.length ? `${shown.text}\n${lines.join('\n')}` : shown.text, filled, boxes };
   }
 
   // ----- drawing: after Mermaid -----
@@ -698,10 +875,19 @@ const Marks = (() => {
   /**
    * Applies the look to a drawn diagram: the box and the corners of each node, the content and the icon that fill a node, the marks of a call out of
    * the repo and of an arrow with its own line, and the slots of the arrows. `things` holds, for each node id, its thing with its marks and its slots.
-   * A diagram with no slot and no mark is left as it was drawn. Returns true when it added or changed something.
+   * A diagram with no slot and no mark is left as it was drawn. Returns true when it added or changed something. `boxes` (boxesOf) get their colours
+   * and the colour of their titles; a folded box is a node, which takes the colours of its box.
    */
-  function decorate(svg, things, edges, look, filled, ctx) {
+  function decorate(svg, things, edges, look, filled, ctx, boxes = []) {
     const before = svg.innerHTML.length;
+    for (const box of boxes) {
+      const folded = box.slots['show.folded'] === true;
+      const g = [...svg.querySelectorAll(folded ? 'g.node' : 'g.cluster')].find((one) => (folded ? ctx.nodeKey(one) : one.id) === box.node);
+      if (!g) continue;
+      paintBox(g, box.slots);
+      const title = g.querySelector(folded ? '.label' : '.cluster-label');
+      if (box.slots['text.color'] && title) paint(title, 'words', lineColors(box.slots['text.color'], READS));
+    }
     const spread = spreadOf(Object.values(things));
     for (const g of svg.querySelectorAll('g.node, g.image-shape')) {
       const thing = things[ctx.nodeKey(g)];
@@ -722,6 +908,11 @@ const Marks = (() => {
       if (slots['arrow.color']) paint(edge.path, 'stroke', lineColors(slots['arrow.color']));
       if (slots['arrow.width']) { edge.path.style.setProperty('--lk-width', `${slots['arrow.width']}px`); edge.path.classList.add('lk-wide'); }
       if (slots['arrow.dashed']) edge.path.classList.add('lk-dashed');
+      if (slots['arrow.head'] && edge.path.hasAttribute('marker-end')) {
+        const marker = headOf(edge.path.getAttribute('marker-end'), slots['arrow.head']);
+        if (marker) edge.path.setAttribute('marker-end', marker);
+        else edge.path.removeAttribute('marker-end');
+      }
       // A mark at the line of an arrow, or a button of a rule, stands at its label, or at the middle of its line.
       const icon = slots['arrow.icon'];
       if (!edge.marks.length && !icon) continue;
@@ -797,7 +988,7 @@ const Marks = (() => {
     });
   }
 
-  return { ...pure, lookText, decorate, decorateNote, stackWindow, placesHtml, doesWords, act, useHere, bind, inputWindow };
+  return { ...pure, lookText, decorate, decorateNote, stackWindow, placesHtml, doesWords, act, useHere, bind, inputWindow, paintBox };
 })();
 
 if (typeof module === 'object') module.exports = Marks; // for the tests in Node

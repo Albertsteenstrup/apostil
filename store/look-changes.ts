@@ -2,7 +2,7 @@
 // for a rule that picks nothing now (not a fault: the marks of a new set come after the save). The picks are the pages' own: the first part of
 // view/media/marks.js, read in Node as view/marks.test.ts does, on the diagrams of Home (homeData) and on the note cards of the map.
 
-import { LOOK_PARTS, type Look, type LookPartsList, type Pick } from '../shared/look';
+import { kindName, LOOK_PARTS, type Look, type LookPartsList, type Pick } from '../shared/look';
 import { repoId, repoRoot } from '../shared/git';
 import type { Store } from '../shared/store';
 import { homeData, type HomeDiagram } from '../view/home-data';
@@ -14,13 +14,19 @@ const LIST: LookPartsList = LOOK_PARTS;
 
 type Thing = { kind: string; slots?: Record<string, unknown> } & Record<string, unknown>;
 
+/** The kinds whose things a page makes as it shows (a step of the trail, the panels of a graphs page): set-look does not count them. */
+const OF_A_PAGE = ['trail-step', 'header', 'frame', 'comment-box', 'count-line', 'panel', 'panel-node', 'panel-title', 'panel-level', 'panel-in'];
+
 /** Counts the things that a pick takes now, as the pages pick them. */
 function counter(store: Store, folder: string): (pick: Pick) => number {
   const root = repoRoot(folder);
   const home = homeData(store, root);
   const marks = home.look?.marks ?? [];
-  const diagrams = (home.map?.diagrams ?? []).map((diagram: HomeDiagram) => ({ diagram, things: Marks.thingsOf(diagram, { marks, rules: [] }) as Record<string, Thing> }));
-  const things = diagrams.flatMap((one) => Object.values(one.things));
+  const none = { marks, rules: [] };
+  const diagrams = (home.map?.diagrams ?? []).map((diagram: HomeDiagram) => ({ diagram, things: Marks.thingsOf(diagram, none) as Record<string, Thing> }));
+  // The things of a diagram: its nodes, the count line of a step, its boxes (an area box, a file box), and a drawn process as a whole.
+  const things = diagrams.flatMap(({ diagram, things: own }) => [...Object.values(own), ...Object.values(own).flatMap((thing) => (thing.count ? [thing.count as Thing] : [])),
+    ...Marks.boxesOf(diagram, none), ...[Marks.drawingOf(diagram, none)].filter(Boolean)]);
   // A note card of the file tab stands for the lines of its note. The window of a step is a note in the diagram of the step (view/media/home.js),
   // so a pick of notes that names a diagram takes those windows.
   const map = store.getMap(repoId(root))?.map;
@@ -38,6 +44,9 @@ function counter(store: Store, folder: string): (pick: Pick) => number {
   };
 }
 
+/** More than one of a kind in words: "area boxes", "steps of the trail". */
+const plural = (name: string): string => name.replace(/^(.*?)(\S+?)((?: of .*)?)$/, (all, before: string, word: string, after: string) => `${before}${word}${/(s|x|ch|sh)$/.test(word) ? 'es' : 's'}${after}`);
+
 const joined = (items: string[]): string => (items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`);
 
 /** What a rule gives the things that it picks, in words, from the `gets` of its slots in LOOK_PARTS; a field with no words there is named. A slot that is one target gives "target". */
@@ -49,10 +58,11 @@ function gives(rule: Look['rules'][number]): string {
 
 /** Why a pick takes nothing now: the first part of it that alone takes nothing. */
 function whyNothing(pick: Pick, count: (pick: Pick) => number): string {
-  const { kind, ...rest } = pick;
-  if (!count({ kind })) return `the map has no ${kind} now`;
+  const { kind: code, ...rest } = pick;
+  const kind = kindName(code);
+  if (!count({ kind: code })) return `the map has no ${kind} now`;
   for (const [key, value] of Object.entries(rest) as [string, unknown][]) {
-    if (count({ kind, [key]: value } as Pick)) continue;
+    if (count({ kind: code, [key]: value } as Pick)) continue;
     const list = Array.isArray(value) ? value.join(', ') : String(value);
     if (key === 'mark') return `no ${kind} holds a mark "${list}"`;
     if (key === 'paths') return `no ${kind} lies inside ${list}`;
@@ -69,8 +79,10 @@ export function lookChanges(store: Store, folder: string, look: Look): { changes
   const changes: string[] = [];
   const notes: string[] = [];
   look.rules.forEach((rule, index) => {
+    const name = kindName(rule.pick.kind);
+    if (OF_A_PAGE.includes(rule.pick.kind)) return void changes.push(`Rule ${index + 1}: each ${name} that it picks gets ${gives(rule)}.`);
     const many = count(rule.pick);
-    changes.push(`Rule ${index + 1}: ${many} ${rule.pick.kind}${many === 1 ? ' gets' : 's get'} ${gives(rule)}.`);
+    changes.push(`Rule ${index + 1}: ${many} ${many === 1 ? `${name} gets` : `${plural(name)} get`} ${gives(rule)}.`);
     if (!many) notes.push(`Rule ${index + 1} picks nothing now: ${whyNothing(rule.pick, count)}.`);
   });
   return { changes, notes };

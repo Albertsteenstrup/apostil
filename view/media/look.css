@@ -1096,3 +1096,17 @@ body:not(.picking) .stage g.image-shape.go:hover > *{scale:1.03}
 .rows.lk-menu a{font:var(--size)/1.6 var(--sans);cursor:pointer}
 /* A thing with a key of the look takes the keyboard; a click of the mouse draws no ring round it */
 .stage [data-lk-keys]:focus:not(:focus-visible){outline:none}
+/* Build 59. The box of a group of nodes (an area box, a file box), the frame of Home, a lit node of a panel, and a line of words of a page in the look. */
+.stage g.cluster.lk-fill > rect{fill:var(--lk-fill)!important}
+.stage g.cluster.lk-line > rect{stroke:var(--lk-line)!important}
+.stage g.cluster.lk-wide > rect{stroke-width:var(--lk-width)!important}
+.view.surface.lk-fill{background:var(--lk-fill)}
+.view.surface.lk-line{border-color:var(--lk-line)}
+.view.surface.lk-wide{border-width:var(--lk-width)}
+.stage[data-lk-keys]:focus:not(:focus-visible){outline:none}
+.stage g.node.lit.lk-fill .label-container{fill:var(--lk-fill)!important}
+.stage g.node.lit.lk-line .label-container{stroke:var(--lk-line)!important}
+span.lk-words{color:var(--lk-words)}
+.lk-ico::before{content:'';display:inline-block;width:14px;height:14px;margin-right:5px;vertical-align:-2px;background:var(--lk-icon) center/contain no-repeat}
+.lk-picture{display:block;max-height:48px;max-width:100%}
+.panels .pgp{grid-column:1/-1;color:var(--muted);font-size:var(--small);margin-top:4px}

@@ -137,7 +137,7 @@ test('the pick "where" picks by a field of a thing, and ranks after a path and b
   assert.deepEqual(things.feed.slots, { 'box.color': '#444444', 'box.dashed': true });
   // A step and a call read their own fields; the names of a call are a list, and "where" finds one of them.
   const step = { kind: 'step', paths: [{ path: 'src/run.py' }], note: { title: 'Run the rows' }, steps: 3 };
-  assert.deepEqual(Marks.fieldsOf('step', 's0', step, diagram), { title: 'Run the rows', file: 'src/run.py', steps: 3, is: 'step' });
+  assert.deepEqual(Marks.fieldsOf('step', 's0', step, diagram), { title: 'Run the rows', file: 'src/run.py', steps: 3, is: 'step', quiet: false });
   assert.equal(Marks.picks({ kind: 'call', where: { name: 'send' } }, { kind: 'call', fields: Marks.fieldsOf('call', 'o0', { paths: [], names: ['send', 'read'], note: { title: 'smtplib' } }, diagram) }), true);
 });
 
