@@ -940,8 +940,8 @@ try {
   await shot('7c-search-with-hash');
   await page.keyboard.press('Escape');
   check('the search with # and words of a title lists a note with its file, and Enter opens the file at its lines; a process is found by its title',
-    noteRows.some((row) => row.startsWith('Lock the requests for the book | src/library/lending/requests.py · lines 46–49')) && !!noteOpened
-      && processRows.some((row) => row.startsWith('Answer a book request | src/library/web/requests_router.py · process of 14 steps')),
+    noteRows.some((row) => row.startsWith('Lock the requests for the book | lines 46–49 • src/library/lending/requests.py')) && !!noteOpened
+      && processRows.some((row) => row.startsWith('Answer a book request | process of 14 steps • src/library/web/requests_router.py')),
     JSON.stringify({ noteRows: noteRows.slice(0, 3), noteOpened, processRows: processRows.slice(0, 3) }));
 
   // VS Code's editor, with the setting "editor": requests.py around its marks of the table store.

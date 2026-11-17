@@ -64,10 +64,10 @@ test('the search with #: a note, a step and a process by their titles, with wher
   notes[0].notes[1].note.lines = [12, 14];
   const all = searchAnswers([on('symbol-search')], notes, [process]);
   assert.deepEqual(all, [
-    { of: 'step', title: 'Answer the request', file: 'src/r.py', line: 10, where: 'src/r.py · step 1 of 3' },
-    { of: 'step', title: 'Lock the rows', file: 'src/r.py', line: 14, where: 'src/r.py · step 2 of 3' },
-    { of: 'note', title: 'Shape a row', file: 'src/r.py', line: 40, where: 'src/r.py · lines 40–42' },
-    { of: 'process', title: 'Answer a book request', file: 'src/r.py', line: 10, where: 'src/r.py · process of 3 steps' },
+    { of: 'step', title: 'Answer the request', file: 'src/r.py', line: 10, where: 'step 1 of 3' },
+    { of: 'step', title: 'Lock the rows', file: 'src/r.py', line: 14, where: 'step 2 of 3' },
+    { of: 'note', title: 'Shape a row', file: 'src/r.py', line: 40, where: 'lines 40–42' },
+    { of: 'process', title: 'Answer a book request', file: 'src/r.py', line: 10, where: 'process of 3 steps' },
   ]);
   // Notes and processes only: a step answers as a note.
   assert.deepEqual(searchAnswers([on('symbol-search', { where: { of: ['note', 'process'] } })], notes, [process]).map((one) => `${one.of} ${one.title}`),

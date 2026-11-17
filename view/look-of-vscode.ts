@@ -105,7 +105,7 @@ export interface Answer { of: Of; title: string; file: string; line: number; whe
 const linesWords = ([first, last]: [number, number]): string => (first === last ? `line ${first}` : `lines ${first}–${last}`);
 
 /**
- * Every answer of the search with # that the rules turn on: the notes that stand now (the notes of each file, as notesInRepo finds them), the steps
+ * Every answer of the search with # that the rules turn on, each with where it is in quiet words ("step 3 of 14"; VS Code adds the path of the file): the notes that stand now (the notes of each file, as notesInRepo finds them), the steps
  * of the processes and the processes, each by its title. A note that is a step answers as a step when steps are on, else as a note. A process
  * opens the first line of its first step.
  */
@@ -120,15 +120,15 @@ export function searchAnswers(rules: LookRule[], notes: { path: string; notes: N
       const key = stepKeyOf(one);
       const step = key ? steps.get(key) : undefined;
       if (key) firstLine.set(key, one.lines[0]);
-      if (step && on.includes('step')) answers.push({ of: 'step', title: one.note.title, file: path, line: one.lines[0], where: `${path} · step ${step.index + 1} of ${step.process.steps.length}` });
-      else if (on.includes('note')) answers.push({ of: 'note', title: one.note.title, file: path, line: one.lines[0], where: `${path} · ${linesWords(one.lines)}` });
+      if (step && on.includes('step')) answers.push({ of: 'step', title: one.note.title, file: path, line: one.lines[0], where: `step ${step.index + 1} of ${step.process.steps.length}` });
+      else if (on.includes('note')) answers.push({ of: 'note', title: one.note.title, file: path, line: one.lines[0], where: linesWords(one.lines) });
     }
   }
   if (on.includes('process')) {
     for (const process of processes) {
       const place = parseKey(process.steps[0]);
       if (!place) continue;
-      answers.push({ of: 'process', title: process.title, file: place.file, line: firstLine.get(process.steps[0]) ?? place.from, where: `${place.file} · process of ${process.steps.length} steps` });
+      answers.push({ of: 'process', title: process.title, file: place.file, line: firstLine.get(process.steps[0]) ?? place.from, where: `process of ${process.steps.length} steps` });
     }
   }
   return answers;
