@@ -1,0 +1,1085 @@
+/* The look of Apostil: paper surface, hairline borders, one teal accent, quiet text controls. Fonts and sizes are VS Code's. */
+:root{--sans:var(--vscode-font-family,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif);--size:var(--vscode-font-size,13px);--small:calc(var(--size) - 1px);
+  --mono:var(--vscode-editor-font-family,"SF Mono",ui-monospace,Menlo,monospace);--code:var(--vscode-editor-font-size,12px);--code-weight:var(--vscode-editor-font-weight,normal);--row:calc(var(--code) * 1.5)}
+
+/* ----- the colours of a look: every colour of a page is one of these ----- */
+/* They are set on the body, where VS Code puts the class of its theme, so that a colour made of other colours follows them in each theme.
+   Apostil: the theme Apostil Light, and a page that is a file in a browser. diagram-stage.js gives the --d- colours to Mermaid. */
+body{--paper:#fffefc;--card:#fff;--cardhead:#faf8f4;--ink:#1a2b24;--soft:#31423b;--muted:#6b6b6b;--faint:#9a978f;--line:#ddd6cc;--line2:#beb6ab;
+  --teal:#0f766e;--tealink:#0b5f58;--tealsoft:#e3f1ee;--tealline:#cfe3df;--teallit:#d3ebe6;--region:#f8f5f0;--seg:#f5f1eb;--add:#047857;--del:#b42318;
+  --field:var(--card);--fieldline:var(--line);--button:#0f766e;--buttonink:#fff;--focus:var(--teal);
+  --shadow:0 10px 28px rgba(26,43,36,.14),0 1px 3px rgba(26,43,36,.10);
+  /* code: keywords, strings; comments are --faint */
+  --kw:#5b4b8a;--str:#8a5a2b;
+  /* diff lines in VS Code's own colours, from the theme that is on; as a file in a browser, VS Code's default light theme */
+  --diff-add-line:var(--vscode-diffEditor-insertedLineBackground,#9bb95533);--diff-del-line:var(--vscode-diffEditor-removedLineBackground,#ff000033);
+  --diff-add-text:var(--vscode-diffEditor-insertedTextBackground,#587c0c26);--diff-del-text:var(--vscode-diffEditor-removedTextBackground,#ad070726);
+  --diff-add-sign:var(--vscode-editorGutter-addedBackground,#587c0c);--diff-del-sign:var(--vscode-editorGutter-deletedBackground,#ad0707);
+  --note-add-edge:color-mix(in srgb,var(--add) 50%,transparent);--note-del-edge:color-mix(in srgb,var(--del) 50%,transparent);
+  /* the state of a pull request; readable on light and dark */
+  --pr-grey:#59636e;--pr-green:#1a7f37;--pr-amber:#9a6700;--pr-red:#cf222e;--pr-purple:#8250df;
+  /* a person with no picture: the background and the letters of six tones */
+  --av0:#f2ddd5;--av0ink:#7b3b2a;--av1:#d9e5ef;--av1ink:#2c4a66;--av3:#e7e4dd;--av3ink:#45443f;--av4:#ece0f3;--av4ink:#5b3a73;--av5:#f3ead0;--av5ink:#6b5414;
+  /* a drawing: node, its border and text, arrow, the text on an arrow (on the page), a group and its border, a title, a lifeline, a message */
+  --d-node:#ffffff;--d-nodeline:var(--line2);--d-text:var(--ink);--d-edge:#a69d90;--d-label:var(--paper);--d-region:var(--region);--d-regionline:var(--line);
+  --d-title:var(--soft);--d-lifeline:#d5cec3;--d-signal:var(--muted);--d-kept:#f1f7f5;--d-dashed:var(--ink);--d-removed:var(--d-nodeline)}
+/* Every other theme of VS Code: its own background, text, borders, rows and fields, with the teal of Apostil as the one accent.
+   A theme that does not give a colour gets the one of the default light or dark theme of VS Code. */
+body:where(.vscode-light:not([data-vscode-theme-id="Apostil Light"]),.vscode-dark,.vscode-high-contrast){
+  --paper:var(--vscode-editor-background,#fff);--card:var(--vscode-editorWidget-background,var(--paper));--ink:var(--vscode-editor-foreground,#202020);
+  --muted:var(--vscode-descriptionForeground,#606060);--line:var(--vscode-widget-border,var(--vscode-editorGroup-border,#e5e5e5));--seg:var(--vscode-list-hoverBackground,rgba(0,0,0,.08));
+  --field:var(--vscode-input-background,var(--paper));--fieldline:var(--vscode-input-border,var(--line));
+  --cardhead:color-mix(in srgb,var(--ink) 4%,var(--card));--soft:color-mix(in srgb,var(--ink) 85%,var(--paper));--faint:var(--muted); /* the quiet text of VS Code: one step quieter would not read on a dark card */
+  --line2:color-mix(in srgb,var(--ink) 24%,var(--paper));--region:color-mix(in srgb,var(--ink) 4%,var(--paper));
+  --tealsoft:color-mix(in srgb,var(--teal) 14%,var(--paper));--tealline:color-mix(in srgb,var(--teal) 40%,var(--paper));--teallit:color-mix(in srgb,var(--teal) 12%,var(--paper));
+  --str:#7a4a1c; /* a little darker than in Apostil, so that it reads on a removed line of VS Code */
+  --d-node:color-mix(in srgb,var(--ink) 5%,var(--paper));--d-edge:color-mix(in srgb,var(--ink) 45%,var(--paper));--d-lifeline:color-mix(in srgb,var(--ink) 18%,var(--paper));
+  --d-kept:color-mix(in srgb,var(--teal) 7%,var(--paper));--d-dashed:var(--muted);--d-removed:var(--muted)}
+/* A dark theme: the same look in dark colours, with every text readable */
+body:where(.vscode-dark,.vscode-high-contrast:not(.vscode-high-contrast-light)){
+  --paper:var(--vscode-editor-background,#121314);--ink:var(--vscode-editor-foreground,#bbbebf);--muted:var(--vscode-descriptionForeground,#8c8c8c);
+  --line:var(--vscode-widget-border,var(--vscode-editorGroup-border,#2a2b2c));--seg:var(--vscode-list-hoverBackground,rgba(255,255,255,.08));
+  --diff-add-line:var(--vscode-diffEditor-insertedLineBackground,rgba(52,125,57,.15));--diff-del-line:var(--vscode-diffEditor-removedLineBackground,rgba(201,60,55,.15));
+  --diff-add-text:var(--vscode-diffEditor-insertedTextBackground,rgba(87,171,90,.3));--diff-del-text:var(--vscode-diffEditor-removedTextBackground,rgba(244,112,103,.3));
+  --diff-add-sign:var(--vscode-editorGutter-addedBackground,#72c892);--diff-del-sign:var(--vscode-editorGutter-deletedBackground,#f28772);
+  --teal:#2fa596;--tealink:#5fc9bd;--add:#4fc08d;--del:#ff7b72;--kw:#b9a7f2;--str:#e0a36a;
+  --shadow:0 10px 28px rgba(0,0,0,.45),0 1px 3px rgba(0,0,0,.4);
+  --pr-grey:#9198a1;--pr-green:#3fb950;--pr-amber:#d29922;--pr-red:#f85149;--pr-purple:#a371f7;
+  --av0:#4d3129;--av0ink:#f2ddd5;--av1:#2b3c4c;--av1ink:#d9e5ef;--av3:#3c3b37;--av3ink:#e7e4dd;--av4:#3f3048;--av4ink:#ece0f3;--av5:#45391b;--av5ink:#f3ead0}
+/* A high-contrast theme: its own borders and focus; a diff line has a tint of the border that the theme gives a diff */
+body:where(.vscode-high-contrast){
+  --line:var(--vscode-contrastBorder,var(--ink));--line2:var(--line);--focus:var(--vscode-contrastActiveBorder,var(--teal));--card:var(--paper);--d-node:var(--paper);--d-edge:var(--ink);
+  --diff-add-sign:var(--vscode-diffEditor-insertedTextBorder,var(--add));--diff-del-sign:var(--vscode-diffEditor-removedTextBorder,var(--del));
+  --diff-add-line:color-mix(in srgb,var(--vscode-diffEditor-insertedTextBorder,var(--add)) 20%,transparent);--diff-del-line:color-mix(in srgb,var(--vscode-diffEditor-removedTextBorder,var(--del)) 20%,transparent);
+  --diff-add-text:color-mix(in srgb,var(--vscode-diffEditor-insertedTextBorder,var(--add)) 34%,transparent);--diff-del-text:color-mix(in srgb,var(--vscode-diffEditor-removedTextBorder,var(--del)) 34%,transparent)}
+body:where(.vscode-high-contrast-light){--teal:#0b5f58;--tealink:#084a44;--add:#03603f;--del:#9a1c12;--kw:#45366f;--str:#6e4520}
+body:where(.vscode-high-contrast:not(.vscode-high-contrast-light)){--teal:#3cc4b2;--tealink:#7ee0d4;--add:#6fe0a8;--del:#ff9b93;--kw:#cbbcff;--str:#f2bb85}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0} /* VS Code gives a webview body a side padding */
+body{background:var(--paper);color:var(--ink);font:var(--size)/1.45 var(--sans);-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none;cursor:pointer}
+p{margin:0}
+i{font-style:normal}
+.paper{padding:14px 20px 28px}
+.p{color:var(--add)}.m{color:var(--del)}
+
+/* the top line: where the owner is, and the switch */
+.bar{display:flex;align-items:baseline;gap:14px;color:var(--muted)}
+.crumb{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.crumb.open{white-space:normal;overflow-wrap:break-word}
+.crumb a:hover{color:var(--ink);text-decoration:underline;text-underline-offset:3px}
+.crumb b{color:var(--ink);font-weight:600}
+.crumb .sep{margin:0 6px;color:var(--faint)}
+.sp{flex:1}
+.switch{display:flex;gap:16px;flex:none}
+.switch a{color:var(--muted);padding-bottom:3px}
+.switch a.on{color:var(--ink);font-weight:600;border-bottom:2px solid var(--teal)}
+.summary{margin-top:6px;color:var(--muted);font-size:var(--small)}
+.summary b{color:var(--ink);font-weight:600}
+.tabs{margin-top:12px;font-size:var(--small);color:var(--muted)}
+.tabs a{margin-right:4px}
+.tabs a.on{color:var(--ink);font-weight:600}
+.tabs a .k{font-style:normal;font-weight:400;color:var(--faint)}
+.tabs a:hover{color:var(--ink)}
+.tabs .title{margin-left:12px}
+.view{margin-top:16px;position:relative}
+.quiet{color:var(--muted);font-size:var(--small)}
+
+/* Mermaid in this look. Label rules are global on purpose: Mermaid measures labels outside the stage. */
+.stage{display:flex;overflow-x:auto}
+.stage svg{display:block;flex:none;margin:0 auto;height:auto}
+.stage .node rect,.stage .node path{rx:6px;ry:6px}
+.stage .cluster rect{rx:8px;ry:8px}
+.stage .edgeLabel{font-size:var(--small)}
+.stage .err{color:var(--del);font:var(--small) var(--mono);white-space:pre-wrap}
+/* Mermaid draws in the colours of the look (lookColors in diagram-stage.js), but for a few light greys of its own: in another theme of VS Code they are the look's */
+body:where(.vscode-light:not([data-vscode-theme-id="Apostil Light"]),.vscode-dark,.vscode-high-contrast) :is(.stage,.mmd) :is(.node circle.state-end,.composit,.alt-composit){stroke:var(--d-region)!important}
+.stage .node.hot rect,.stage .node.hot polygon,.stage .node.hot path{stroke:var(--teal)!important;stroke-width:2px!important}
+.stage .go{cursor:pointer}
+/* a node that a click opens grows a little under the pointer; not under the comment pointer, where a click sticks a comment.
+   Each child grows from the middle of the node, because Mermaid places the node itself with a transform. */
+.stage g.node.go > *{transition:scale .15s ease-out}
+body:not(.picking) .stage g.node.go:hover > *{scale:1.03}
+@media (prefers-reduced-motion:reduce){.stage g.node.go > *{transition:none}}
+.nodeLabel{font-weight:600;line-height:1.35}
+.nodeLabel b{display:block;font-size:var(--size);font-weight:600;margin-bottom:3px;text-align:left}
+/* Room for the count circle of a part, so that a node whose name is its widest line does not cut the circle off. */
+.nodeLabel b[data-part],.nodeLabel b[data-nopart]{padding-right:38px}
+.nodeLabel b[data-part] .rk,.nodeLabel b[data-nopart] .rk{margin-right:-38px}
+.nodeLabel .f{display:block;font:var(--code-weight) var(--code)/1.6 var(--mono);color:var(--soft);white-space:nowrap;text-align:left;cursor:pointer}
+.nodeLabel .f:hover{background:var(--tealsoft);border-radius:3px}
+.nodeLabel .f.more{color:var(--muted);font-family:var(--sans);font-size:var(--small);cursor:default}
+.nodeLabel .p{color:var(--add)}
+.nodeLabel .m{color:var(--del)}
+.nodeLabel .ln{display:block;font:400 var(--small) var(--mono);color:var(--muted);margin-top:2px}
+.rk{display:inline-block;min-width:16px;height:16px;line-height:14px;padding:0 4px;border-radius:8px;box-shadow:inset 0 0 0 1.2px var(--teal);color:var(--teal);font:600 calc(var(--size) - 3px)/14px var(--sans);text-align:center;margin-left:8px;vertical-align:1px;font-style:normal}
+.rk.closed{color:var(--faint);box-shadow:inset 0 0 0 1px var(--line2)}
+.rk.running{animation:pulse 2.4s ease-in-out infinite}
+
+/* a state: quiet words with at most one small dot; the dot of a running remark pulses slowly */
+.state{color:var(--muted);font-size:var(--small);font-weight:400}
+.state a{color:var(--tealink)}
+.state a:hover{text-decoration:underline;text-underline-offset:3px}
+.dot{display:inline-block;width:6px;height:6px;border-radius:3px;background:var(--teal);margin-right:6px;vertical-align:1px}
+.dot.pulse{animation:pulse 2.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+@media (prefers-reduced-motion:reduce){.dot.pulse,.rk.running{animation:none;opacity:.6}}
+
+/* one window frame: hover windows, the file picker, the comment box, the comments window */
+.win,.side,.cbox{background:var(--card);border:1px solid var(--line2);border-radius:8px;box-shadow:var(--shadow)}
+.win{position:fixed;z-index:20;overflow:hidden;display:flex;flex-direction:column;max-height:min(520px,calc(100vh - 24px))}
+.win .tb{display:flex;align-items:baseline;gap:8px;padding:6px 12px;border-bottom:1px solid var(--line);background:var(--cardhead);font-size:var(--small);color:var(--muted);white-space:nowrap;flex:none}
+.win .tb b{color:var(--ink);font-weight:600;font-size:var(--size)}
+.win .tb .sub{overflow:hidden;text-overflow:ellipsis}
+.win .tb .sub a:hover,.win .tb .act a:hover{color:var(--ink)}
+.win .tb .act{margin-left:auto;padding-left:14px}
+.win .wc{padding:8px 0;overflow:auto;min-height:0;overscroll-behavior:contain}
+.win .wc.pad{padding:12px}
+.win .stage svg{max-width:100%;max-height:460px;width:auto}
+
+/* code with notes (code-notes.js): the file tab, each file of "Diffs" and the hover windows of code. Nothing is cut off and nothing scrolls sideways:
+   a long line wraps at any character and goes on at its indent plus 2 (set on each row); the line number and the sign stand beside its first visual row */
+.cn{display:flex;min-width:0}
+.cn .code{flex:1;min-width:0;font:var(--code-weight) var(--code)/var(--row) var(--mono);color:var(--ink)}
+.cn .code .l{display:flex;white-space:pre;min-height:var(--row)}
+.cn .code .n{flex:none;width:52px;text-align:right;padding-right:14px;color:var(--faint);cursor:pointer}
+.cn .code .n:hover{color:var(--teal)}
+.cn .code .g{flex:none;width:22px;text-align:center;color:var(--faint)}
+.cn .code .x{flex:1;min-width:0;padding-right:16px;white-space:break-spaces;line-break:anywhere;tab-size:4}
+.cn .code .gap .x{color:var(--faint)}
+/* the quiet head of a cell of a notebook: "cell 3 · code · id fee", and a quiet word for what the change did to it; a line above it, no height of its own */
+.cn .code .cell{box-shadow:inset 0 1px 0 var(--line)}
+.cn .code .cell .x{font-family:var(--sans);font-size:var(--small);color:var(--muted)}
+.cn .code .cell .x i{font-style:normal;margin-left:12px;color:var(--muted)}
+/* a very long line shows its first rows; the link under them shows all of it */
+.cn .code .more{display:block;font-family:var(--sans);font-size:var(--small);color:var(--tealink);cursor:pointer}
+.cn .code .more:hover{text-decoration:underline;text-underline-offset:3px}
+/* the diff lines in the colours of the look */
+.cn .code .l{background:var(--paper)}
+.cn .code .add{background:var(--diff-add-line)}
+.cn .code .del{background:var(--diff-del-line)}
+.cn .code .add .w{background:var(--diff-add-text)}
+.cn .code .del .w{background:var(--diff-del-text)}
+.cn .code .add .g{color:var(--diff-add-sign)}
+.cn .code .del .g{color:var(--diff-del-sign)}
+.cn .code .lit{background:var(--tealsoft)}
+.cn .code .lit .n{box-shadow:inset 2px 0 var(--teal)}
+/* the notes stand in a column beside the code, never over it */
+.cn .notes{flex:none;width:330px;position:relative;border-left:1px solid var(--line);isolation:isolate}
+/* the small code map of a whole file (code-map.js): it sticks at the right end of the column of the notes, under the cards, as VS Code has it beside its editor */
+.cmap{position:sticky;z-index:-1;height:0;margin-left:auto}
+.cmap canvas{position:absolute;top:0;right:0;width:100%}
+/* the box in view: at rest half as strong as VS Code shows it under the pointer, so that it is soft beside a dark page too */
+.cmap .slider{position:absolute;left:0;right:0;background:var(--vscode-minimapSlider-background,rgba(100,100,100,.2));opacity:.5}
+.cmap:hover .slider{background:var(--vscode-minimapSlider-hoverBackground,rgba(100,100,100,.35));opacity:1}
+.cmap.held .slider{background:var(--vscode-minimapSlider-activeBackground,rgba(0,0,0,.3));opacity:1}
+.cmap .probe{display:none}
+.cmap[hidden],.cn:not(.with-map) .mside{display:none}
+.cn .mside{flex:none;position:relative;isolation:isolate} /* a file with no notes: the map in a column of its own */
+.cn.with-map .notes.narrow{box-sizing:content-box;padding-right:60px} /* narrow: the map at the right of the marks */
+.notes.narrow .cmap{margin-right:-60px}
+/* the lines beside the code: from the lines of a note to its card, and an arrow from a note to the next note of the same function */
+.cn svg.links{position:absolute;left:0;top:0;pointer-events:none;overflow:visible}
+.cn svg.links path{fill:none;stroke:var(--line2);stroke-width:1.2}
+/* the join and the narrow mark of a note have the colour of its code */
+.cn svg.links path.add{stroke:var(--note-add-edge)}
+.cn svg.links path.del{stroke:var(--note-del-edge)}
+.cn svg.links path.cur{stroke:var(--teal);stroke-width:2}
+.cn svg.links path.arrow{fill:var(--line2);stroke:none}
+.cn .notes.narrow{width:14px}
+.cn .mk{position:absolute;left:4px;width:5px;border-radius:3px;background:var(--line2)}
+.cn .mk.add{background:var(--note-add-edge)}
+.cn .mk.del{background:var(--note-del-edge)}
+.cn .mk.cur,.cn .mk:hover{background:var(--teal)}
+/* a file with no text to show: one line that says what it is, or the picture, before and after side by side */
+p.fact{margin:0;padding:8px 12px;color:var(--muted)} /* what a file is, in one line; the facts of a pull request are spans and keep their own look */
+.from{color:var(--muted);font-family:var(--sans);font-size:var(--small);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.pics{display:flex;flex-wrap:wrap;gap:16px;padding:12px}
+.pics figure{margin:0;flex:1 1 200px;min-width:0;text-align:center}
+.pics img{max-width:100%;max-height:420px;border:1px solid var(--line);background:repeating-conic-gradient(#0000000d 0 25%,transparent 0 50%) 0 0/16px 16px}
+.pics figcaption{font-size:var(--small);color:var(--muted);margin-top:4px}
+.cv .pics{padding-top:36px} /* below the control of the files */
+.k{color:var(--kw)}.s{color:var(--str)}.c{color:var(--faint);font-style:italic}
+
+/* lists inside a window */
+.rows a,.rows div.r{display:flex;align-items:baseline;gap:10px;padding:3px 12px;font:var(--code-weight) var(--code)/1.6 var(--mono)}
+.rows a:hover{background:var(--seg)}
+.rows .c{margin-left:auto;font-style:normal;white-space:nowrap}
+.rows .gp,.tgp{font:600 var(--small) var(--sans);color:var(--muted);padding:8px 12px 2px}
+.tgp span{font-weight:400}
+.trw{padding:5px 12px 6px}
+.trw .nm{display:flex;align-items:baseline;gap:10px;font:600 var(--code) var(--mono);color:var(--ink)}
+.trw .nm i{margin-left:auto;font:400 var(--small) var(--sans);color:var(--add)}
+.trw .pt{font-size:var(--small);color:var(--muted);margin-top:1px}
+.trw .tadd{margin:4px -12px 0}
+
+/* the file tab: the whole file scrolls in its own box, as in an editor; the notes stand in a column at its right edge */
+.file-tab .bar,.file-tab .summary,.file-tab .tabs{display:none}
+.file-tab .paper{padding:0}
+.file-tab .view{margin-top:0}
+.cvw{position:relative}
+/* the gutter of the scroll bar is kept, so the box of the code has the same width before and after its rows are drawn */
+.cv{position:relative;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable}
+/* narrow, the control of the files stands over the first row */
+.cv.narrow .code{padding-top:30px}
+.nav{position:absolute;top:0;right:12px;z-index:3;display:flex;align-items:baseline;gap:6px;padding:5px 10px;font-size:var(--small);color:var(--muted);background:var(--paper);white-space:nowrap;border-bottom-left-radius:6px}
+/* over a column of note cards the control is a strip as wide as the column, so that a card that scrolls under it is cut by a straight edge and no title is half covered */
+.cvw:has(.cn .notes:not(.narrow)) > .nav{width:318px;box-sizing:border-box;justify-content:flex-end;border-bottom-left-radius:0}
+.nav a{padding:0 3px;color:var(--muted)}
+.nav a:hover{color:var(--ink)}
+.nav [data-files]{text-decoration:underline;text-decoration-color:var(--line2);text-underline-offset:3px}
+.nav .gap{width:10px}
+.nav .steps{display:contents}
+.nav .steps:not(:empty) + [data-edit]{margin-left:10px}
+.win.files .rows a.on{background:var(--tealsoft)}
+.mc{position:absolute;left:36px;right:10px;border:1px solid var(--line2);border-radius:7px;background:var(--card);padding:8px 12px}
+/* A note has the colour of its code, as long as that code is a diff: green beside added lines, red beside removed lines.
+   A note on lines that the change left alone stays plain. The colours are those of the rows, laid over the card. */
+.mc.add{background:linear-gradient(var(--diff-add-line),var(--diff-add-line)),var(--card);border-color:var(--note-add-edge)}
+.mc.del{background:linear-gradient(var(--diff-del-line),var(--diff-del-line)),var(--card);border-color:var(--note-del-edge)}
+.win .mc{position:relative}
+
+/* the list of diffs: every changed file, part by part. The name of a part stays at the top while its files are in view, the head of the file under it */
+.diffs{--dp:calc(var(--size) + 14px)}
+.diffs .dgroup + .dgroup{margin-top:16px}
+.diffs .dp{position:sticky;top:0;z-index:3;height:var(--dp);box-sizing:border-box;padding:4px 0;line-height:calc(var(--size) + 6px);font-weight:600;color:var(--soft);background:var(--paper);margin:0 0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dfile{border:1px solid var(--line);border-radius:8px;margin-bottom:12px;background:var(--card)}
+.dfile .dh{position:sticky;top:var(--dp,0);z-index:2;display:flex;align-items:baseline;gap:8px;padding:6px 12px;background:var(--cardhead);border-bottom:1px solid var(--line);border-radius:8px 8px 0 0;font:var(--code-weight) var(--code)/1.6 var(--mono);cursor:pointer}
+.dfile .dh:hover{background:var(--seg)}
+/* a closed diff is its head alone; a folded file (data, generated) says so in quiet words */
+.dfile.shut{margin-bottom:6px}
+.dfile.shut .dh{border-bottom:0;border-radius:8px}
+.dfile.quiet .dh{color:var(--muted)}
+.diffs .dmore{display:block;margin:-4px 0 12px;padding:6px 12px;border:1px dashed var(--line2);border-radius:8px;color:var(--muted);cursor:pointer}
+.diffs .dmore:hover{color:var(--ink);background:var(--seg)}
+.dfile .dh a:hover{color:var(--tealink);text-decoration:underline;text-underline-offset:3px}
+.dfile .dh .c{margin-left:auto;font-style:normal;white-space:nowrap;font-family:var(--sans);font-size:var(--small)}
+/* a long path or count wraps in a narrow column */
+.dfile .dh{flex-wrap:wrap}
+.dfile .dh a{min-width:0;overflow-wrap:anywhere}
+.dfile .quiet{padding:6px 12px}
+.mc .t{font-weight:600;line-height:1.3;display:flex;align-items:baseline;gap:8px}
+.mc .t .tc{margin-left:auto;font-size:var(--small);font-weight:400;color:var(--muted);white-space:nowrap;cursor:default}
+.mc .t .tc:hover{color:var(--teal)}
+.mc .fn{font:var(--small) var(--mono);color:var(--muted);margin-bottom:4px}
+.mc .fn .tc{color:var(--muted);cursor:default}
+.mc .fn .tc:hover{color:var(--teal)}
+.mc .d{font-size:var(--small);color:var(--muted);line-height:1.35;margin-top:2px}
+.mc .d.from{margin-top:5px}
+.mc .ck{font-size:var(--small);color:var(--ink);margin-top:5px;line-height:1.35}
+.mc.chk{border:1.2px dashed var(--ink)}
+.mc.cur{border:1.5px solid var(--teal);background:var(--tealsoft)}
+.mc.cur .t{color:var(--tealink)}
+.mc.cur .d{color:var(--soft)}
+/* Where the cards do not fit at their rows, a card shows its title on one line; lit, it opens to its whole text over the cards below it */
+.mc.brief{padding-top:4px;padding-bottom:4px}
+.mc.brief:not(.open) :is(.fn,.d,.ck,.t .tc,.mk-lines){display:none}
+.mc.brief:not(.open) .nt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.mc.open{z-index:2;box-shadow:var(--shadow)}
+
+/* the card of the change diagram: a title row with its total, and the line of the wider diagrams it alters */
+.sec{border:1px solid var(--line);border-radius:8px;background:var(--paper);margin-top:16px}
+.sec:first-child{margin-top:0}
+.sec .sh{display:flex;flex-wrap:wrap;align-items:baseline;column-gap:10px;padding:9px 14px 2px;color:var(--muted)}
+.sec .sh b{color:var(--ink);font-weight:600;min-width:0}
+.sec .sh .total{font-size:var(--small);white-space:nowrap}
+.sec .sh .dfact{margin-left:0}
+.sec .alters{padding:0 14px 2px;font-size:var(--small);color:var(--muted)}
+.sec .alters a{color:var(--soft);text-decoration:underline;text-decoration-color:var(--line2);text-underline-offset:3px}
+.sec .alters a:hover{color:var(--ink)}
+.sec .sb{border-top:1px solid var(--line);margin-top:8px}
+.view.surface,.sec .sb.surface{padding:0}
+/* a diagram as a surface: it fills its card; a drag moves it and the wheel zooms it */
+.surface{display:block;overflow:hidden;cursor:grab;user-select:none;touch-action:none}
+.surface.dragging{cursor:grabbing}
+.surface .f.more{cursor:grab} /* a click on "more files" opens nothing: the open hand of the diagram, not the hand of its part */
+.surface svg{width:100%;height:100%;margin:0}
+.view.surface{border:1px solid var(--line);border-radius:8px}
+/* after the comment key the pointer is a comment icon; the next click sticks the box there */
+.picking,.picking *{cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22' viewBox='0 0 22 22'%3E%3Cpath d='M3 3h16v11H9l-4 4v-4H3z' fill='white' stroke='%230f766e' stroke-width='1.6' stroke-linejoin='round'/%3E%3C/svg%3E") 3 3,crosshair!important}
+
+/* a thing that a comment can be stuck on: under the comment pointer it has a quiet outline (aim);
+   the place of a thread is lit quietly while the pointer is on its card (near), and for a moment after a click (flash) */
+.stage :is(g.node,g.cluster,g:has(> rect.actor)):is(.aim,.near) :is(rect,polygon,path,circle){stroke:var(--teal)!important}
+.stage :is(g.node,g.cluster,g:has(> rect.actor)).flash :is(rect,polygon,path,circle){stroke:var(--teal)!important;stroke-width:2.5px!important}
+.stage :is(path,line):not(.hit):is(.aim,.near){stroke:var(--teal)!important;stroke-width:2px!important}
+.stage :is(path,line):not(.hit).flash{stroke:var(--teal)!important;stroke-width:3px!important}
+.stage path.hit{stroke:transparent!important;stroke-width:12px!important;fill:none!important;pointer-events:stroke}
+.stage text:is(.aim,.near,.flash){fill:var(--tealink)!important}
+.stage .edgeLabel:is(.aim,.near) span.edgeLabel{box-shadow:0 0 0 1.5px var(--teal);border-radius:3px}
+.stage .edgeLabel.flash span.edgeLabel{box-shadow:0 0 0 2px var(--teal);background:var(--tealsoft)!important;border-radius:3px}
+.stage svg:is(.aim,.near,.flash),:is(.sec .sh,.tabs .title,.tabs a.on,.crumb b,.dfile .dh,.trw,.mc,.f):is(.aim,.near){outline:1.5px solid var(--tealline);outline-offset:-1.5px;border-radius:4px}
+:is(.sec .sh,.tabs .title,.tabs a.on,.crumb b,.dfile .dh,.fh,.trw,.mc,.f).flash{outline:2px solid var(--teal);outline-offset:-2px;border-radius:4px}
+.f.near,.cn .code .l.near,.l.aim{background:var(--region)}
+.f.flash,.cn .code .l.flash{background:var(--tealsoft)}
+.cn .code .l[data-thread] .n{box-shadow:inset -2px 0 var(--tealline)}
+.rk.svg circle{fill:var(--card);stroke:var(--teal);stroke-width:1.2px}
+.rk.svg text{fill:var(--teal);font:600 calc(var(--size) - 3px) var(--sans);text-anchor:middle;dominant-baseline:central}
+.rk.svg.closed circle{stroke:var(--line2)}
+.rk.svg{cursor:pointer}
+.where .gone-place{color:var(--faint)}
+
+/* the comments window: its own window at the right edge of the tab, over the full height; hidden when it holds nothing */
+body.with-side .paper{margin-right:336px}
+/* beside code with notes it takes no room of its own: it lies over the notes column, so the code keeps its width; "›" folds it away */
+body.with-side .paper:has(#view > .cvw .notes){margin-right:0}
+body.with-side:has(#view > .cvw .notes) .side{top:var(--notes-top,8px)}
+body.with-rail .paper{margin-right:44px}
+.side{position:fixed;z-index:15;top:8px;right:8px;bottom:8px;width:320px;overflow:auto;overscroll-behavior:contain}
+.side[hidden]{display:none}
+.side.folded{bottom:auto;width:32px;overflow:hidden}
+.side .rail{display:block;padding:8px 0;text-align:center;font-weight:600;font-size:var(--small);color:var(--muted)}
+.side .rail:hover{color:var(--ink)}
+.side .sh{position:sticky;top:0;z-index:1;display:flex;align-items:baseline;gap:8px;padding:8px 12px;background:var(--card);border-bottom:1px solid var(--line)}
+.side .sh + .sh,.side .thread + .sh,.side .point + .sh,.side .resolved + .sh{border-top:1px solid var(--line)}
+.side .sh .grp{display:flex;align-items:baseline;gap:8px;color:var(--muted)}
+.side .sh b{font-size:var(--small);font-weight:600;color:var(--soft)}
+.side .sh .n{font-size:var(--small)}
+.side .sh .chev{width:10px;color:var(--faint);font-size:var(--small)}
+.side .sh .chev::before{content:"▾"}
+.side .sh.shut .chev::before{content:"▸"}
+.side .sh .fold{margin-left:auto;color:var(--faint);line-height:1;padding:0 2px}
+.side .sh .fold:hover,.side .sh .grp:hover{color:var(--ink)}
+.thread,.point{padding:10px 12px;border-bottom:1px solid var(--line);border-left:2px solid transparent;cursor:pointer}
+.thread:hover,.point:hover{background:var(--region)}
+.thread.cur{border-left-color:var(--teal)}
+.thread.gone{cursor:default;color:var(--muted)}
+.ch{display:flex;align-items:baseline;gap:10px;font-size:var(--small);color:var(--muted);margin-bottom:4px}
+.where{min-width:0;overflow-wrap:anywhere}
+.ch a{margin-left:auto;flex:none;color:var(--muted)}
+.ch a:hover{color:var(--ink)}
+.thread .msg + .msg{margin-top:8px}
+.thread .who{display:flex;align-items:center;gap:6px;font-size:var(--small);color:var(--soft);font-weight:600}
+.thread .who .icon{width:14px;height:14px}
+.thread .who .at{color:var(--faint);font-weight:400}
+.tx{margin-top:2px;color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere}
+.thread > .state{display:block;margin-top:6px}
+.thread.gone > .state{margin-top:2px}
+.mention{color:var(--tealink);font-weight:500}
+.field{margin-top:8px;padding:5px 8px;min-height:28px;border:1px solid var(--fieldline);border-radius:6px;background:var(--field);color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere;outline:none;cursor:text}
+.field:focus{border-color:var(--focus)}
+.field:empty::before{content:attr(data-placeholder);color:var(--faint)}
+.side a.resolved{display:block;padding:8px 12px;font-size:var(--small);color:var(--muted)}
+.side a.resolved:hover{color:var(--ink)}
+/* the comment box at the pointer; when saved it moves into the comments window */
+.cbox{position:fixed;z-index:25;width:min(300px,calc(100vw - 16px));padding:8px 10px 10px;transform-origin:0 0}
+.cbox .field{margin-top:6px}
+.cbox.ask{display:flex;align-items:baseline;gap:12px;width:auto;font-size:var(--small);color:var(--ink)}
+.cbox.ask a{color:var(--tealink)}
+.cbox.ask a:hover{text-decoration:underline;text-underline-offset:3px}
+.mentions{position:fixed;z-index:30;min-width:220px;max-width:calc(100vw - 16px);background:var(--card);border:1px solid var(--line2);border-radius:8px;box-shadow:var(--shadow);padding:4px 0}
+.mentions .opt{display:flex;align-items:center;gap:8px;padding:5px 12px}
+.mentions .opt.lit{background:var(--seg)}
+.mentions .opt .icon{width:14px;height:14px;flex:none}
+.mentions .opt .nm{flex:none;color:var(--ink)}
+.mentions .opt .does{margin-left:auto;padding-left:14px;min-width:0;max-width:240px;overflow:hidden;text-overflow:ellipsis;color:var(--muted);font-size:var(--small);white-space:nowrap}
+.ghost{position:fixed;z-index:30;pointer-events:none;color:var(--faint);font:var(--size) var(--sans);white-space:pre}
+.mentions .none{padding:5px 12px;color:var(--muted);font-size:var(--small)}
+@media (max-width:899px){
+  body.with-side .paper,body.with-rail .paper{margin-right:0}
+  .side{width:min(340px,calc(100vw - 16px))}
+  .side.folded{top:auto;bottom:16px;width:32px}
+}
+@media (max-width:640px){.paper{padding:12px 12px 20px}.bar{gap:10px}.switch{gap:12px}.sec .sh,.sec .alters{padding-left:10px;padding-right:10px}}
+
+/* the list of changes in the sidebar: it fills the side bar */
+body.list{--bar:var(--vscode-sideBar-background,var(--paper));background:var(--bar);padding:6px 4px}
+.cl .eyebrow{margin:4px 10px 6px;font-size:var(--small);color:var(--muted);font-weight:600}
+.cl .grp{border-top:1px solid var(--line);padding:2px 0}
+.cl .eyebrow + .grp{border-top:0}
+.cl .row{display:block;padding:7px 10px;cursor:pointer}
+.cl .row .top{display:flex;align-items:baseline;gap:8px}
+.cl .row .nm{font-weight:600;line-height:1.3;word-break:break-all}
+.cl .row .mt{font-size:var(--small);color:var(--muted);margin-top:2px}
+.cl .row .mt .lc{white-space:nowrap} /* the added and removed lines stay on one line together */
+.cl .row:hover{background:var(--region);border-radius:6px}
+.cl .row.sel{background:var(--tealsoft);border-radius:6px}
+.cl .row.sel .nm{color:var(--tealink)}
+.cl .head{display:flex;align-items:baseline;gap:6px;padding:7px 10px 0;font-size:var(--small);color:var(--muted);white-space:nowrap}
+.cl .head .icon{width:13px;height:13px;flex:none;align-self:center}
+.cl .head .ses{min-width:0;overflow:hidden;text-overflow:ellipsis;color:var(--muted);text-decoration:underline;text-decoration-color:var(--line2);text-underline-offset:3px}
+.cl .head a.ses:hover{color:var(--ink)}
+.cl .row .top .state{margin-left:auto;white-space:nowrap}
+.cl .row .top .icon{width:13px;height:13px;flex:none;align-self:center} /* the app of a row in the flat list of a search */
+.cl .row.flat .top .nm{flex-shrink:0;max-width:calc(100% - 5em)} /* there the branch stays whole, and a long state line is cut */
+.cl .row.flat .top .state{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.cl .pr{display:flex;align-items:center;gap:6px;font-size:var(--small);color:var(--muted);margin-top:3px;max-width:100%}
+.cl .pr .pn{color:var(--soft);font-variant-numeric:tabular-nums}
+.cl .pr .pw{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* people on a pull request line: the author at its left, the reviewers small at its right end, lying over each other */
+.cl .av.xs{width:16px;height:16px;font-size:9px}
+.cl .pr .rvs{display:inline-flex;align-items:center;flex:none;margin-left:auto;padding-left:4px}
+.cl .pr .rv{margin-left:-5px}
+.cl .pr .rv:first-child{margin-left:0}
+.cl .row{--ring:var(--bar)}.cl .row:hover{--ring:var(--region)}.cl .row.sel{--ring:var(--tealsoft)} /* the ring between avatars has the colour of the row */
+.cl .pr .rv .av{width:14px;height:14px;font-size:8px;box-shadow:0 0 0 1.5px var(--ring)}
+.cl .pr .rb{position:absolute;right:-2px;bottom:-2px;width:6px;height:6px;border-radius:50%;box-shadow:0 0 0 1px var(--ring)}
+.cl .pr .rvs > i{margin-left:5px;font-style:normal;color:var(--muted)}
+.cl .pr:hover,.cl .more:hover,.cl .fold:hover{color:var(--ink)}
+.cl .row .more{padding:3px 0 0}
+.cl .more{display:block;padding:0 10px 8px;font-size:var(--small);color:var(--muted)}
+.cl .fold{display:flex;align-items:center;gap:6px;padding:4px 10px 6px;font-size:var(--small);color:var(--muted);cursor:pointer}
+.cl .fold .chev{width:10px;color:var(--faint);font-size:var(--small)}
+.cl .home{display:flex;align-items:center;gap:7px;margin:2px 0 6px;padding:6px 10px;border-radius:6px;font-weight:600;cursor:pointer;white-space:nowrap}
+.cl .home:hover{background:var(--region)}
+.cl .home .mark{width:14px;height:14px;flex:none}
+.cl .home .repo{min-width:0;overflow:hidden;text-overflow:ellipsis;font-weight:400;color:var(--muted)}
+/* the search: one field under "Home", with a clear mark and "Sort and filter" at its right end */
+.cl .find{position:relative;margin:0 6px 6px}
+.cl .find .q{box-sizing:border-box;width:100%;height:26px;padding:0 28px 0 8px;border:1px solid var(--fieldline);border-radius:6px;background:var(--field);color:var(--ink);font:var(--size) var(--sans);outline:none}
+.cl .find.typed .q{padding-right:50px}
+.cl .find .q::placeholder{color:var(--muted);opacity:1}
+.cl .find .q:focus{border-color:var(--focus)}
+.cl .find .ends{position:absolute;top:2px;right:2px;display:flex;gap:0}
+.cl .find .ends button{position:relative;display:grid;place-items:center;width:22px;height:22px;padding:0;border:0;border-radius:4px;background:none;color:var(--muted);cursor:pointer}
+.cl .find .ends button:hover{background:var(--seg);color:var(--ink)}
+.cl .find .ends button:focus-visible{outline:1px solid var(--focus);outline-offset:-1px}
+.cl .find .ends .ico{margin:0;color:currentColor}
+.cl .find .ends [hidden]{display:none}
+.cl .find .clear .ico{width:12px;height:12px;-webkit-mask-size:12px 12px;mask-size:12px 12px}
+.cl .find .sf .ico{width:16px;height:16px;-webkit-mask-size:16px 16px;mask-size:16px 16px}
+.cl .find .sf .on{position:absolute;top:2px;right:2px;width:6px;height:6px;border-radius:50%;background:var(--teal);box-shadow:0 0 0 1.5px var(--field)} /* a sort or a filter is on */
+.cl .eyebrow a{color:var(--tealink);font-weight:400;cursor:pointer}
+.cl .eyebrow a:hover{text-decoration:underline;text-underline-offset:3px}
+
+/* a node lit because it is about the path asked for; the rest quiet in a small panel */
+.stage g.node.lit rect,.stage g.node.lit polygon,.stage g.node.lit path,.stage g.node.lit circle,.stage rect.actor.lit{fill:var(--tealsoft)!important;stroke:var(--teal)!important;stroke-width:2px!important}
+.stage.rest g.node:not(.lit),.stage.rest .edgePaths,.stage.rest .edgeLabels{opacity:.4}
+/* the classes that change-diagram.ts writes: in its drawings a lit node has its name in teal, and the arrows to a new node are lit; the part kept whole, the files in no part, a removed node */
+.stage svg.litnames g.node.lit > *{fill:var(--tealsoft)!important;stroke:var(--teal)!important;color:var(--tealink)!important}
+.stage svg.litnames g.node.lit span{color:var(--tealink)!important}
+.stage svg.litnames g.node.lit tspan{fill:var(--tealink)!important}
+.stage path.flowchart-link.lit{stroke:var(--teal)!important}
+.stage g.cluster.kept > rect{fill:var(--d-kept)!important;stroke:var(--teal)!important}
+.stage g.node:is(.nopart,.gone) > *{fill:var(--d-node)!important;stroke:var(--d-dashed)!important}
+.stage g.node:is(.gone,.elsewhere) > *,.stage g.node:is(.gone,.elsewhere) span{color:var(--muted)!important}
+/* a drawn process (shared/process-diagrams.ts): a box of another place or a call out of the repo is quiet, with a light dashed line (its class draws the dashes);
+   "N steps" under the title of a step that holds steps; the note of a step in its window */
+.stage g.node.elsewhere > *{fill:var(--d-node)!important;stroke:var(--d-removed)!important}
+.stage .nodeLabel i.ns{display:block;font-style:normal;font-weight:400;color:var(--muted);margin-top:2px}
+.win .stepnote{margin:0;padding:2px 12px 4px;color:var(--ink);white-space:normal;line-height:1.45}
+
+/* Home: the map, or one calm line when the repo has none */
+.nomap{padding:20px 0;color:var(--muted)}
+.nomap .acts{display:flex;flex-wrap:wrap;gap:4px 18px;margin-top:6px}
+.nomap .acts a{color:var(--tealink)}
+.nomap .acts a:hover{text-decoration:underline;text-underline-offset:3px}
+/* Home with no map: the wordmark, large and quiet, in the middle where VS Code shows its own logo; the next steps under it */
+div.nomap{min-height:calc(100vh - 110px);max-width:480px;margin:0 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+div.nomap p{margin:0 0 6px}
+div.nomap b{font-weight:500;color:var(--ink)}
+/* grey and faint, as VS Code draws its logo; the file keeps the teal of design/logo */
+div.nomap .wordmark{width:min(300px,62vw);height:auto;margin-bottom:32px;filter:grayscale(1);opacity:.28}
+body.vscode-dark div.nomap .wordmark,body.vscode-high-contrast:not(.vscode-high-contrast-light) div.nomap .wordmark{filter:grayscale(1) invert(1);opacity:.3}
+div.nomap .acts{justify-content:center;margin:0 0 6px}
+div.nomap .next{margin-top:18px}
+div.nomap .next a{color:var(--tealink)}
+div.nomap a:hover{text-decoration:underline;text-underline-offset:3px}
+
+/* the graphs of a folder or file: small panels in a grid, each a diagram with one line under it */
+.panels{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
+.pnl{display:block;border:1px solid var(--line);border-radius:8px;background:var(--paper);overflow:hidden;cursor:pointer}
+.pnl:hover{border-color:var(--line2)}
+.pnl .pd{height:180px;padding:10px;pointer-events:none}
+.pnl .pd.stage{display:block;overflow:hidden}
+.pnl .pd svg{width:100%;height:100%;margin:0}
+.pnl .pl{padding:7px 12px 9px;border-top:1px solid var(--line);font-size:var(--small);line-height:1.4}
+.pnl .pl .fr{display:block;color:var(--muted)}
+.pnl .pl .in{color:var(--soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* wide tabs: two panels in a row, so the diagrams are larger */
+/* two large panels in a row from the width that a tab has beside the side bar of VS Code (about 1060 px in a window of 1440) */
+@media (min-width:860px){.panels{grid-template-columns:repeat(2,1fr)}.pnl .pd{height:300px}}
+.tabs .home-link{margin-left:12px;color:var(--soft);text-decoration:underline;text-decoration-color:var(--line2);text-underline-offset:3px}
+.tabs .home-link:hover{color:var(--ink)}
+
+/* the state of a pull request: an icon from icons/ in the colour of its state; the colours are readable on light and dark themes.
+   The rule of each icon (--icon) comes from view/state-icons.ts. */
+.pri,.ico{display:inline-block;flex:none;width:16px;height:16px;background:currentColor;-webkit-mask:var(--icon) center/16px 16px no-repeat;mask:var(--icon) center/16px 16px no-repeat;vertical-align:-3px}
+.ico{width:14px;height:14px;-webkit-mask-size:14px 14px;mask-size:14px 14px;margin-right:5px;color:var(--muted)}
+.ico.ok{color:var(--pr-green)}.ico.bad{color:var(--pr-red)}.ico.wait{color:var(--pr-amber)}.ico.quiet{color:var(--faint)}.ico.done{color:var(--pr-purple)}
+.ico.grey{color:var(--pr-grey)}.ico.green{color:var(--pr-green)}.ico.amber{color:var(--pr-amber)}.ico.red{color:var(--pr-red)}.ico.purple{color:var(--pr-purple)}
+.pri.grey{color:var(--pr-grey)}.pri.green{color:var(--pr-green)}.pri.amber{color:var(--pr-amber)}.pri.red{color:var(--pr-red)}.pri.purple{color:var(--pr-purple)}
+.prw{margin-left:6px}
+.pri:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:3px}
+/* the small dark tooltip of an element with data-tip (Tip in tools.js) */
+.tip{position:fixed;z-index:40;max-width:calc(100vw - 12px);padding:3px 8px;border-radius:6px;background:#24292f;color:#fff;font:600 calc(var(--size) - 1px)/1.4 var(--sans);white-space:nowrap;pointer-events:none;box-shadow:0 2px 6px rgba(0,0,0,.2)}
+
+/* the status strip of a pull request, under the top line */
+.status{display:flex;flex-wrap:wrap;align-items:center;gap:6px 20px;margin-top:10px;padding:6px 12px;background:var(--region);border-radius:7px;font-size:var(--small);color:var(--soft)}
+#status:empty{display:none}
+.status > span{display:inline-flex;align-items:center;min-width:0;overflow-wrap:anywhere}
+.status .dot{flex:none;margin-right:7px;vertical-align:0}
+.status .dot.wait{background:var(--pr-amber)}
+.status .dot.bad{background:var(--pr-red)}
+.status .muted{color:var(--muted);margin-left:5px}
+:is(.status,.cl) .rv{position:relative;display:inline-flex;margin-left:-7px}
+:is(.status,.cl) .rv:first-child{margin-left:0}
+.status .rv .av{box-shadow:0 0 0 1.5px var(--region)}
+:is(.status,.cl) .rvs > i{margin-left:6px}
+.status .rb{position:absolute;right:-1px;bottom:-2px;width:7px;height:7px;border-radius:50%;box-shadow:0 0 0 1.5px var(--region)}
+:is(.status,.cl) .rb.ok{background:var(--pr-green)}:is(.status,.cl) .rb.bad{background:var(--pr-red)}:is(.status,.cl) .rb.wait{background:var(--pr-amber)}:is(.status,.cl) .rb.quiet{display:none}
+.status .others{margin-left:auto;color:var(--tealink)}
+.status .others:hover{text-decoration:underline;text-underline-offset:3px}
+.win.pulls .rows a{font-family:var(--sans);align-items:center}
+.win.pulls .rows a .ttl{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.win.pulls .rows a.on{background:var(--tealsoft)}
+
+/* the view "Conversation" */
+.conv{max-width:880px;margin:0 auto;overflow-wrap:anywhere}
+.conv .ptitle{margin:6px 0 0;font-size:calc(var(--size) + 7px);line-height:1.3;font-weight:600}
+.conv .num{color:var(--faint);font-weight:400}
+.conv .meta{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin-top:8px;color:var(--muted)}
+.conv .meta b{color:var(--ink);font-weight:600}
+.conv .meta .sep{color:var(--faint)}
+.conv .meta .gh,.conv .cutline a,.conv .cut{color:var(--tealink)}
+.conv .meta .gh:hover,.conv .cutline a:hover,.conv .cut:hover{text-decoration:underline;text-underline-offset:3px}
+.conv code{font:var(--code-weight) calc(var(--code) - 0.5px) var(--mono);background:var(--region);border:1px solid var(--line);border-radius:4px;padding:0 4px}
+:is(.conv,.status,.cl) .av{flex:none;display:inline-grid;place-items:center;width:28px;height:28px;border-radius:50%;font:600 10px/1 var(--sans);object-fit:cover;background:var(--region);color:var(--soft)}
+:is(.conv,.status) .av.s{width:20px;height:20px;font-size:8px}
+.conv .av.gap{visibility:hidden}
+:is(.conv,.status,.cl) .av.t0{background:var(--av0);color:var(--av0ink)}:is(.conv,.status,.cl) .av.t1{background:var(--av1);color:var(--av1ink)}:is(.conv,.status,.cl) .av.t2{background:var(--tealsoft);color:var(--tealink)}
+:is(.conv,.status,.cl) .av.t3{background:var(--av3);color:var(--av3ink)}:is(.conv,.status,.cl) .av.t4{background:var(--av4);color:var(--av4ink)}:is(.conv,.status,.cl) .av.t5{background:var(--av5);color:var(--av5ink)}
+.conv .bot{margin-left:5px;padding:0 5px;border:1px solid var(--line2);border-radius:8px;font-size:calc(var(--size) - 3px);color:var(--muted);font-weight:400}
+.conv .about{margin-top:16px;padding:12px 16px;background:var(--region);border-radius:10px}
+.conv .about .folded{max-height:calc(var(--size) * 1.45 * 5);overflow:hidden;-webkit-mask-image:linear-gradient(#000 55%,transparent)}
+.conv .about.open .folded{max-height:none;-webkit-mask-image:none}
+.conv .about-none{margin-top:14px}
+.conv .more,.conv .rest{display:inline-block;margin-top:4px;color:var(--tealink);font-weight:600;font-size:var(--small)}
+[data-box] .hide,[data-box].open .show{display:none}
+[data-box].open .hide{display:inline}
+.conv .head{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;margin-top:22px;padding-bottom:8px;border-bottom:1px solid var(--line);font-size:var(--small);color:var(--muted)}
+.conv .head b{color:var(--soft);font-weight:600}
+.conv .toggle{white-space:nowrap}
+.conv .toggle a{padding:1px 2px}
+.conv .toggle a.on{color:var(--ink);font-weight:600;border-bottom:2px solid var(--teal)}
+.conv .toggle .sep{color:var(--faint);margin:0 4px}
+.conv .cutline{margin-top:6px;font-size:var(--small);color:var(--muted)}
+.conv .feed{padding-bottom:8px}
+.conv .feed > *{content-visibility:auto;contain-intrinsic-size:auto 60px} /* a long conversation lays out only what is near the view */
+.short{display:none;position:fixed;z-index:6;top:0;left:0;right:0;align-items:center;gap:10px;padding:8px 20px;background:var(--paper);border-bottom:1px solid var(--line);box-shadow:0 2px 6px rgba(26,43,36,.06)}
+.short.on{display:flex}
+.short .name{min-width:0;flex:1;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.short .num{margin-right:4px}
+.short .switch a[hidden]{display:none}
+.conv-problem{margin-top:16px;padding:12px 14px;border:1px solid var(--line);border-radius:8px;color:var(--soft)}
+.conv-problem a{display:inline-block;margin-top:6px;color:var(--tealink);font-weight:600}
+.conv-problem a:hover{text-decoration:underline;text-underline-offset:3px}
+
+/* a message: the avatar, then who, when and the text */
+.conv .msg{display:flex;gap:12px;padding:10px 0}
+.conv .msg.same{padding-top:0}
+.conv .msg .body{min-width:0;flex:1}
+.conv .msg .top{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px}
+.conv .msg .top b{font-weight:600}
+.conv .t{font-size:var(--small);color:var(--faint);font-weight:400}
+.conv .msg .verb{font-size:var(--small);color:var(--soft)}
+.conv .msg .verb.ok{color:var(--teal)}
+.conv .msg .verb.ask{color:var(--pr-amber)}
+.md{overflow-wrap:anywhere}
+.md p,.md li,.md h1,.md h2,.md h3,.md h4,.md h5,.md h6,.md td,.md th,.md blockquote,.conv .ptitle{unicode-bidi:plaintext;text-align:start} /* each paragraph takes the direction of its own text: Arabic and Hebrew read from the right */
+.md > :first-child{margin-top:0}
+.md p,.md ul,.md ol,.md pre,.md blockquote,.md table,.md details,.md h1,.md h2,.md h3,.md h4,.md h5,.md h6{margin:6px 0 0}
+.md h1,.md h2{font-size:calc(var(--size) + 3px);font-weight:600}
+.md h3,.md h4,.md h5,.md h6{font-size:var(--size);font-weight:600}
+.md ul,.md ol{padding-left:22px}
+.md li:has(> input){list-style:none}
+.md li > input{margin:0 6px 0 -18px;vertical-align:-1px}
+.md blockquote{padding-left:12px;border-left:3px solid var(--line2);color:var(--muted)}
+/* a note box of GitHub: a coloured bar at the left and its word in bold */
+.md [data-alert]{margin:8px 0 0;padding:2px 12px 6px;border-left:3px solid var(--teal)}
+.md [data-alert="warning"]{border-left-color:#b7791f}
+.md [data-alert="caution"]{border-left-color:var(--del)}
+.md [data-alert="tip"]{border-left-color:var(--add)}
+.md [data-alert-title]{font-weight:600;font-size:var(--small);text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.md pre{padding:8px 10px;background:var(--region);border:1px solid var(--line);border-radius:6px;font:var(--code-weight) var(--code)/1.55 var(--mono);white-space:pre;overflow-x:auto}
+.md pre code{border:0;padding:0;background:none}
+.md table{display:block;max-width:100%;overflow-x:auto;border-collapse:collapse;font-size:var(--small)}
+.md th,.md td{padding:4px 10px;border:1px solid var(--line)}
+.md th{background:var(--region);font-weight:600}
+.md img{max-width:100%;height:auto}
+.md a[data-link]{color:var(--tealink);text-decoration:underline;text-decoration-color:var(--tealline);text-underline-offset:3px}
+.md summary{cursor:pointer;color:var(--soft)}
+.md hr{border:0;border-top:1px solid var(--line);margin:10px 0}
+.conv .tx{margin-top:2px;white-space:normal}
+.conv .long:not(.open) > .tx{max-height:calc(var(--size) * 1.45 * 18);overflow:hidden;-webkit-mask-image:linear-gradient(#000 70%,transparent)}
+.conv .react{margin-top:4px;font-size:var(--small);color:var(--muted)}
+
+/* a review thread: its file and lines, the last lines of its code, its comments */
+.conv .thread{margin-top:8px;border:1px solid var(--line);border-radius:8px;background:var(--card);overflow:hidden;padding:0;cursor:auto}
+.conv .thread:hover{background:var(--card)}
+.conv .thread.outdated{opacity:.75}
+.conv .thread .excerpt{border-bottom:1px solid var(--line)}
+.conv .thread .fh{display:flex;flex-wrap:wrap;gap:4px 10px;padding:4px 10px;font:var(--small)/1.6 var(--mono);color:var(--muted);background:var(--cardhead);border-bottom:1px solid var(--line)}
+.conv .thread .fh a{color:var(--soft)}
+.conv .thread .fh a:hover{color:var(--tealink);text-decoration:underline;text-underline-offset:3px}
+.conv .lab{padding:0 7px;border:1px solid var(--line2);border-radius:10px;font:var(--small) var(--sans);color:var(--muted)}
+.conv .thread .code .dfw{overflow-x:auto}
+.conv .thread .code:not(.open) .early{display:none}
+.conv .thread .rest{margin:3px 10px}
+.conv .sc{padding:8px 12px}
+.conv .sc + .sc{border-top:1px solid var(--line)}
+.conv .sc .top{display:flex;flex-wrap:wrap;align-items:center;gap:2px 8px}
+.conv .sc .top b{font-weight:600}
+.conv .cut{display:block;padding:6px 12px;font-size:var(--small);border-top:1px solid var(--line)}
+.conv .thread.folded{border:0;background:none;opacity:1}
+.conv .thread.folded:not(.open) > .inner{display:none}
+.conv .thread.folded.open > .inner{margin-top:4px;border:1px solid var(--line);border-radius:8px;background:var(--card);overflow:hidden}
+.conv .resolved{display:flex;align-items:center;gap:10px;padding:6px 12px;border-radius:8px;background:var(--region);font-size:var(--small);color:var(--muted);opacity:.72;min-width:0}
+.conv .resolved:hover{opacity:1}
+.conv .resolved .ok{flex:none;color:var(--teal);font-weight:600}
+.conv .resolved .by{flex:none;color:var(--soft)}
+.conv .resolved .at{flex:none;font-family:var(--mono)}
+.conv .resolved .first{min-width:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.conv .resolved .n{flex:none;color:var(--faint)}
+.conv .resolved .go{flex:none;color:var(--faint)}
+.conv .open > .resolved .go{transform:rotate(90deg)}
+
+/* quiet rows: commits, events, folded groups, hidden comments */
+.conv .row{display:flex;align-items:center;gap:10px;padding:6px 0 6px 6px;font-size:var(--small);color:var(--muted);min-width:0}
+.conv .row .ic{flex:none;width:12px;height:12px;border-radius:50%;border:2px solid var(--line2);background:var(--paper)}
+.conv .row code{flex:none;color:var(--soft)}
+.conv .row .what{min-width:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--soft)}
+.conv .row .what b{font-weight:600}
+.conv .row .t{flex:none}
+.conv .commits:not(.open) > .inner{display:none}
+.conv .commits > .inner{padding-left:16px}
+.conv .fold{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:6px 0;padding:8px 12px;border:1px dashed var(--line2);border-radius:8px;font-size:var(--small);color:var(--muted)}
+.conv .fold:hover{color:var(--ink);border-color:var(--teal)}
+.conv .fold .chev{color:var(--faint)}
+.conv .fold .t{margin-left:auto;color:var(--faint)}
+.conv .avs{display:inline-flex}
+.conv .avs .av{border:1.5px solid var(--paper);margin-left:-5px}
+.conv .avs .av:first-child{margin-left:0}
+.conv .hidbox{margin:4px 0}
+.conv .hidbox:not(.open) > .inner{display:none}
+.conv .hid{display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:8px;background:var(--region);font-size:var(--small);color:var(--muted)}
+.conv .hid > span:not(.av):not(.show):not(.hide){min-width:0;flex:1}
+.conv .hid .show,.conv .hid .hide{color:var(--tealink)}
+.conv .new{display:flex;align-items:center;gap:10px;margin:12px 0 2px;color:var(--tealink);font-size:var(--small);font-weight:600;content-visibility:visible}
+.conv .new::before,.conv .new::after{content:"";height:1px;background:var(--teal);flex:1}
+.conv .new::before{flex:none;width:16px}
+
+/* the form "Classic": boxes on a line, as on GitHub */
+.conv .tl{position:relative;margin-top:14px;z-index:0}
+.conv .tl::before{content:"";position:absolute;left:46px;top:0;bottom:0;width:2px;background:var(--line);z-index:-1}
+.conv .item{display:flex;gap:14px;margin:0 0 14px}
+.conv .item > .av{margin-top:2px}
+.conv .gbox{flex:1;min-width:0;border:1px solid var(--line2);border-radius:7px;background:var(--card);overflow:hidden}
+.conv .gbox .gh{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 6px;padding:6px 12px;background:var(--cardhead);border-bottom:1px solid var(--line2);font-size:var(--small);color:var(--muted)}
+.conv .gbox .gh b{color:var(--ink)}
+.conv .gbox .gh .lab{margin-left:auto}
+.conv .gbox .gb{padding:10px 12px}
+.conv .gbox .gb + .gb{border-top:1px solid var(--line)}
+.conv .gbox .gr{padding:0 12px 8px}
+.conv .ev{display:flex;align-items:center;gap:10px;margin:0 0 12px 36px;font-size:var(--small);color:var(--muted);min-width:0}
+.conv .ev .ic{flex:none;width:22px;height:22px;border-radius:50%;background:var(--region);border:1px solid var(--line2);display:grid;place-items:center;font-size:10px;color:var(--soft)}
+.conv .ev .what{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--soft)}
+.conv .ev b{font-weight:600}
+.conv .hidbox.classic{margin:0 0 14px 42px}
+@media (max-width:640px){
+  .conv .tl::before{left:13px}
+  .conv .item > .av{display:none}
+  .conv .ev{margin-left:2px}
+  .conv .hidbox.classic{margin-left:0}
+  .conv .resolved .first{display:none}
+  .short{padding:8px 12px}
+}
+
+
+/* ----- what comes with a pull request (build prompt 19) ----- */
+/* the line of facts under the title wraps between whole facts; no dots hang at the line ends */
+.conv .meta{gap:4px 16px}
+.conv .meta .fact{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;max-width:100%}
+.conv .meta .fact .ico{margin:0 0 0 2px;color:currentColor}
+.conv .br{display:inline-block;max-width:min(40ch,100%);overflow:hidden;text-overflow:ellipsis;vertical-align:bottom;white-space:nowrap}
+/* a label: a pill in its own colour, readable on light and dark */
+.lbl{display:inline-block;max-width:100%;padding:0 8px;border-radius:10px;border:1px solid rgba(var(--lc),.55);background:rgba(var(--lc),.16);
+  color:color-mix(in srgb,rgb(var(--lc)) 45%,var(--ink));font-size:var(--small);font-weight:600;line-height:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:middle}
+.lbls{display:inline-flex;flex-wrap:wrap;gap:4px;min-width:0;max-width:100%}
+/* the side facts of "Messages": one quiet line, and a fold for the details */
+.conv .facts{margin-top:8px;font-size:var(--small);color:var(--muted)}
+.conv .fline{display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px}
+.conv .fline > span{display:inline-flex;align-items:center;min-width:0;max-width:100%}
+.conv .fline > span.lbls,.cside .lbls{display:flex;flex-wrap:wrap}
+.lbls > .lbl{min-width:0}
+.conv .fmore{color:var(--tealink)}
+.conv .facts:not(.open) > .fsec{display:none}
+.conv .fsec{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:4px 20px;margin-top:8px;padding:10px 12px;border:1px solid var(--line);border-radius:8px}
+.conv section h4{margin:0 0 4px;font-size:var(--small);font-weight:600;color:var(--soft)}
+.conv .fsec section,.conv .cside section{padding:6px 0;min-width:0}
+.conv .pp{display:flex;align-items:center;gap:6px;margin:3px 0;min-width:0}
+.conv .pp .pn{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.conv .pp .ps{margin-left:auto;display:inline-flex;align-items:center;gap:2px}
+.conv .pp .pw{font-size:calc(var(--size) - 2px);color:var(--muted);white-space:nowrap}
+.conv .mlink{display:flex;align-items:baseline;gap:2px;margin:2px 0;color:var(--soft);overflow-wrap:anywhere}
+.conv .mlink:hover{color:var(--tealink)}
+/* the status strip: the checks open their list under it; the merge sentence */
+.status .chk{display:inline-flex;align-items:center;color:var(--soft);cursor:pointer;border-radius:5px;padding:0 4px;margin:0 -4px}
+.status .chk:hover,.status .chk.on{background:var(--seg)}
+.status .chev{margin-left:5px;color:var(--faint);font-size:10px}
+.status .msent{font-weight:600;color:var(--soft)}
+.status .msent.ok{color:var(--pr-green)}
+.checks-panel{margin-top:6px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--card);font-size:var(--small)}
+.cg{padding:4px 0}
+.cg + .cg{border-top:1px solid var(--line)}
+.cgh{display:flex;align-items:center;padding:4px 0;color:var(--soft)}
+.ck{display:flex;align-items:center;gap:2px 8px;flex-wrap:wrap;padding:3px 0 3px 4px;min-width:0}
+.ck .ico{margin:0}
+.ck .cn{font-weight:600;color:var(--ink)}
+.ck .cs{color:var(--muted);min-width:0;overflow-wrap:anywhere}
+.ck .cl{margin-left:auto;display:inline-flex;gap:12px}
+.ck .cl a,.deps a,.conv .dep a{color:var(--tealink)}
+.ck.skipped .cn,.ck.quiet .cn{color:var(--muted);font-weight:400}
+.cpass:not(.open) > .inner{display:none}
+.cpass > .ck{cursor:pointer}
+.ann{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;margin:0 0 3px 28px;padding:3px 8px;border-left:2px solid var(--line2);color:var(--soft)}
+.ann.failure{border-color:var(--pr-red)}.ann.warning{border-color:var(--pr-amber)}
+.ann .am{min-width:0;overflow-wrap:anywhere}
+.ann .at{font-family:var(--mono);color:var(--tealink);overflow-wrap:anywhere}
+.deps{display:flex;flex-wrap:wrap;gap:4px 10px;padding:4px 0 6px;color:var(--soft)}
+.dep{display:inline-flex;align-items:center;gap:4px}
+.dep.ok{color:var(--pr-green)}.dep.bad{color:var(--pr-red)}.dep.wait{color:var(--pr-amber)}.dep.quiet{color:var(--muted)}
+.dep .ico{color:currentColor;margin:0}
+.conv .reading{margin-top:8px;font-size:var(--small);color:var(--tealink)}
+.conv .reading::before{content:"";display:inline-block;width:8px;height:8px;margin-right:8px;border-radius:50%;background:var(--teal);animation:pulse 1.6s ease-in-out infinite}
+/* code lines of a thread: a long line wraps and goes on at its indent plus 2 characters; nothing is cut off */
+.conv .tcode{font:var(--code-weight) var(--code)/var(--row) var(--mono);border-top:1px solid var(--line);color:var(--ink)}
+.conv .tcode .l{display:flex;min-height:var(--row)}
+.conv .tcode .no{flex:none;width:46px;text-align:right;padding-right:6px;color:var(--faint);position:static;background:none}
+.conv .tcode .g{flex:none;width:18px;text-align:center;color:var(--faint);position:static;background:none}
+.conv .tcode .x{flex:1;min-width:0;white-space:pre-wrap;overflow-wrap:anywhere;line-break:anywhere;tab-size:4;padding-left:var(--hang);text-indent:calc(-1 * var(--hang));padding-right:10px}
+.conv .tcode .add{background:var(--diff-add-line)}.conv .tcode .del{background:var(--diff-del-line)}
+.conv .tcode .add .g{color:var(--diff-add-sign)}.conv .tcode .del .g{color:var(--diff-del-sign)}
+.conv .tcode:not(.open) > .early{display:none}
+.conv .tcode .rest{margin:3px 10px}
+.conv .fp{font-family:var(--mono);overflow-wrap:anywhere}
+/* pictures: at most about 360 pixels high and never wider than the text; a click shows one large */
+.conv .md img{max-width:100%;max-height:360px;height:auto;width:auto;cursor:zoom-in;border-radius:4px}
+.win img.big{display:block;max-width:100%;height:auto;margin:0 auto}
+.nopic{color:var(--tealink);text-decoration:underline;text-decoration-color:var(--tealline)}
+.conv .mmd{overflow-x:auto;margin-top:6px;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--card)}
+.conv .mmd svg{max-width:100%;height:auto}
+/* "Messages": a modern chat, calm */
+.conv.messages .dayline{display:flex;align-items:center;gap:10px;margin:14px 0 4px;color:var(--faint);font-size:calc(var(--size) - 2px);font-weight:600;letter-spacing:.3px}
+.conv.messages .dayline::before,.conv.messages .dayline::after{content:"";flex:1;height:1px;background:var(--line)}
+.conv.messages .msg{padding:8px 0}
+.conv.messages .msg.same{padding-top:0}
+.conv .mtitle{margin-top:2px;font-weight:600;color:var(--ink)}
+.conv .rep{color:var(--muted)}
+.conv .card{margin-top:6px;padding:8px 12px 10px;border:1px solid var(--line);border-radius:10px;background:var(--region)}
+.conv .card.review.ok{border-color:color-mix(in srgb,var(--pr-green) 35%,var(--line))}
+.conv .card.review.bad{border-color:color-mix(in srgb,var(--pr-red) 35%,var(--line))}
+.conv .verdict{display:flex;align-items:center;font-size:var(--small);font-weight:600}
+.conv .verdict.ok{color:var(--pr-green)}.conv .verdict.bad{color:var(--pr-red)}.conv .verdict.quiet{color:var(--muted)}
+.conv .card .thread{margin-top:8px}
+.conv .chip{display:inline-block;margin-right:4px;padding:0 7px;border:1px solid var(--line);border-radius:10px;background:var(--region);font-size:var(--small);line-height:18px}
+.conv .react{margin-top:5px}
+.conv .row .what{color:var(--muted)}
+.conv .row .what b{color:var(--soft)}
+.conv .row .ico{margin:0;color:var(--faint)}
+.conv .vf{flex:none;padding:0 6px;border:1px solid var(--pr-green);border-radius:9px;color:var(--pr-green);font-size:calc(var(--size) - 3px);line-height:15px}
+.conv .evrun:not(.open) > .inner,.conv .prod:not(.open) > .inner,.conv .prods:not(.open) > .inner{display:none}
+.conv .evrun > .inner{padding-left:18px}
+.conv .go{flex:none;color:var(--faint)}
+.conv .open > a > .go{transform:rotate(90deg)}
+.conv .prod,.conv .prods{margin:4px 0}
+.conv .prow{display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--region);font-size:var(--small);color:var(--muted);min-width:0}
+.conv .prow:hover{border-color:var(--line2)}
+.conv .prow b{flex:none;color:var(--soft)}
+.conv .prow .ptl{min-width:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.conv .prod > .inner{padding:6px 10px 2px 38px}
+.conv .prods > .inner{padding-left:18px}
+:is(.conv,.status,.cl) .av.prodav{background:var(--region);color:var(--soft);border:1px solid var(--line)}
+:is(.conv,.status,.cl) .av.prodav .ico{margin:0;color:var(--soft)}
+/* In the middle of the lower edge: at the right it lay over "Resolve", the switch of looks and the ends of rows. */
+.newest{display:none;position:fixed;z-index:6;left:50%;transform:translateX(-50%);bottom:14px;padding:4px 12px;border-radius:14px;background:var(--button);color:var(--buttonink);font-size:var(--small);font-weight:600;box-shadow:var(--shadow);cursor:pointer}
+.newest.on{display:block}
+/* writing to GitHub: a quiet field on one line that opens to a few lines with its button; Resolve beside it; GitHub's sentence under it */
+.ghw{display:block;min-width:0}
+.conv .thread .ghw{padding:6px 12px 8px;border-top:1px solid var(--line)}
+.ghl{display:flex;align-items:flex-start;gap:10px;min-width:0}
+.ghl.solo{justify-content:flex-end}
+.ghf{flex:1;min-width:0;width:100%;box-sizing:border-box;resize:vertical;padding:4px 8px;border:1px solid var(--fieldline);border-radius:6px;background:var(--field);color:var(--ink);font:var(--size)/1.45 var(--sans);outline:none}
+.ghf::placeholder{color:var(--faint)}
+.ghf:focus{border-color:var(--focus)}
+.ghw:focus-within .ghf,.ghw.on .ghf{min-height:calc(var(--size) * 1.45 * 4 + 10px)}
+.ghf[readonly]{color:var(--muted)}
+.gha{display:none;flex-wrap:wrap;align-items:center;gap:6px 12px;margin-top:6px}
+.ghw:focus-within .gha,.ghw.on .gha{display:flex}
+.ghs{padding:3px 12px;border:1px solid var(--button);border-radius:6px;background:var(--button);color:var(--buttonink);font:600 var(--small)/1.6 var(--sans);cursor:pointer}
+.ghs:disabled{opacity:.6;cursor:default}
+.ghk{color:var(--faint);font-size:var(--small)}
+.ghh{color:var(--muted);font-size:var(--small)}
+.ghr{flex:none;margin-top:4px;color:var(--tealink);font-size:var(--small);cursor:pointer}
+.ghr:hover{text-decoration:underline;text-underline-offset:3px}
+.gherr{margin:6px 0 0;color:var(--del);font-size:var(--small);overflow-wrap:anywhere}
+.conv .ghend{margin-top:14px}
+.ghlock{margin:14px 0 4px;color:var(--muted);font-size:var(--small)}
+.conv .t.ex{padding:0 6px;border:1px dashed var(--line2);border-radius:8px}
+/* the review: a quiet button in the strip, and its panel under the strip */
+.status .rvb{color:var(--tealink);cursor:pointer;border-radius:5px;padding:0 6px;margin:0 -6px;font-weight:600}
+.status .rvb:hover,.status .rvb.on{background:var(--seg)}
+.status .ghpend{color:var(--pr-amber);font-weight:600}
+.review-panel{margin-top:6px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--card);font-size:var(--small)}
+.ghvs{display:flex;flex-wrap:wrap;gap:4px 14px;margin-right:auto}
+.ghv{display:inline-flex;align-items:center;gap:5px;color:var(--soft);cursor:pointer}
+.ghv input{margin:0;accent-color:var(--teal)}
+.ghv.off{color:var(--faint);cursor:default}
+/* the comment box on code: the quiet line about "@github" */
+.cbline{margin:6px 0 0;color:var(--muted);font-size:var(--small);overflow-wrap:anywhere}
+.cbline.err{color:var(--del)}
+.mentions .opt .ico{flex:none;margin:0}
+/* "Classic": the conversation tab of GitHub */
+.conv.classic .cwrap{display:block}
+.conv.classic .cside{margin-top:12px;padding:6px 12px;border:1px solid var(--line);border-radius:8px;font-size:var(--small);display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));column-gap:20px}
+.conv.classic .cside section + section{border-top:0}
+@media (min-width:1000px){
+  .conv.classic{max-width:1180px}
+  .conv.classic .cwrap{display:grid;grid-template-columns:minmax(0,1fr) 240px;gap:28px;align-items:start}
+  .conv.classic .cmain{grid-column:1;grid-row:1}
+  .conv.classic .cside{grid-column:2;grid-row:1}
+  .conv.classic .cside{margin-top:14px;border:0;padding:0;display:block}
+  .conv.classic .cside section + section{border-top:1px solid var(--line)}
+  .conv.classic .cside section{padding:10px 0}
+}
+.conv.classic .gbox .gh .marks{margin-left:auto;display:inline-flex;gap:4px}
+.conv.classic .gbox .gh .lab{margin-left:0}
+.conv.classic .ev .what{white-space:normal}
+.conv.classic .ev.cm .what{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.conv.classic .ev .hash{font-family:var(--mono);color:var(--soft)}
+.conv.classic .ev .ic .ico{margin:0}
+.conv.classic .ev .t{margin-left:4px}
+.conv.classic .ev.rv.ok .ic{background:var(--pr-green);border-color:var(--pr-green)}.conv.classic .ev.rv.ok .ic .ico{color:#fff}
+.conv.classic .ev.rv.bad .ic{background:var(--pr-red);border-color:var(--pr-red)}.conv.classic .ev.rv.bad .ic .ico{color:#fff}
+.conv.classic .gthreads{padding:0 12px 10px}
+.conv.classic .gfold{margin-top:8px;border:1px solid var(--line);border-radius:7px;background:var(--card)}
+.conv.classic .gfold > .inner{border-top:1px solid var(--line)}
+.conv.classic .gfold:not(.open) > .inner{display:none}
+.conv.classic .ghead{display:flex;align-items:center;gap:8px;padding:6px 10px;font-size:var(--small);color:var(--muted)}
+.conv .gbtn{margin-left:auto;padding:1px 10px;border:1px solid var(--line2);border-radius:6px;background:var(--region);color:var(--soft);font-size:var(--small);cursor:pointer}
+.conv.classic .more-row{justify-content:center}
+.conv.classic .more-row .gbtn{margin:0}
+.conv.classic .merge .mic{width:28px;height:28px;-webkit-mask-size:20px 20px;mask-size:20px 20px;margin:2px 0 0}
+.conv.classic .merge .mb{display:flex;gap:10px;padding:10px 12px;align-items:flex-start}
+.conv.classic .merge .mb + .mb{border-top:1px solid var(--line)}
+.conv.classic .merge .mb > .ico{margin-top:2px}
+.conv.classic .merge .mbw{min-width:0;flex:1}
+.conv.classic .merge [data-box]:not(.open) .inner{display:none}
+.conv.classic .merge .more{margin:0 0 0 8px}
+
+/* the time has one place: "Messages" at the right edge of its row, on the first line; "Classic" right after the words */
+.conv.messages .time{margin-left:auto;flex:none;padding-left:10px;white-space:nowrap}
+.conv.messages .msg .top,.conv.messages .sc .top{flex-wrap:nowrap;min-width:0}
+.conv.messages .msg .top > b,.conv.messages .sc .top > b{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.conv.messages .time.tr{float:right;margin-top:2px}
+.conv.messages .row .what{flex:1}
+.conv.messages .row .who{flex:none}
+.conv.classic .time{margin-left:0}
+
+/* ----- a stack of pull requests (build prompt 21) ----- */
+/* where the pull request stands: one quiet line under the title; in "Messages" a click opens the list of the stack */
+.conv .stack,.conv .splace{margin:8px 0 0;font-size:var(--small);color:var(--muted)}
+.conv .splace{display:flex;align-items:center}
+.conv .sline{display:inline-flex;align-items:center;color:var(--soft);cursor:pointer;border-radius:5px;padding:0 4px;margin:0 -4px}
+.conv .sline:hover,.conv .stack.open .sline{background:var(--seg)}
+.conv .stack:not(.open) > .inner{display:none}
+.conv .stack > .inner{margin-top:6px;max-width:560px;border:1px solid var(--line);border-radius:8px;padding:4px 0}
+/* one row for each pull request of the stack, the top first: icon, number, title on one line, "this one" */
+.conv .srow{display:flex;align-items:center;gap:8px;padding:3px 10px;min-width:0;color:var(--soft);font-size:var(--small)}
+a.srow{cursor:pointer}
+a.srow:hover{background:var(--seg)}
+.conv .srow.this{background:var(--tealsoft)}
+.conv .srow .sn{flex:none;color:var(--muted);font-variant-numeric:tabular-nums}
+.conv .srow .st{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.conv .srow .sthis{flex:none;font-style:normal;color:var(--muted)}
+.conv.classic .stackbox .srows{padding:4px 0}
+.conv.classic .stackbox .mic{width:28px;height:28px;-webkit-mask-size:16px 16px;mask-size:16px 16px;margin:2px 0 0;color:var(--muted)}
+@media (max-width:640px){ .conv.classic .stackbox > .mic{display:none} }
+.conv .onpr{color:var(--tealink);cursor:pointer}
+.conv .onpr:hover{text-decoration:underline;text-underline-offset:3px}
+/* the place of a pull request in its stack, in the list of the side bar */
+.cl .pr .place{flex:none;font-style:normal;color:var(--faint);font-variant-numeric:tabular-nums}
+.conv .sline .chev{margin-left:5px;color:var(--faint);font-size:10px}
+
+/* ----- the change on the diagram page (build prompt 23) ----- */
+/* What the change did to a diagram of a part. The owner chose (12 November): nothing in the drawing is coloured by the change, no node and
+   no arrow; only the diff is, the numbers that stand where the line number of a node stood and beside the text of an arrow. A removed node
+   or arrow is back in the drawing, dashed, with quiet text. Mermaid draws in light colours in a dark theme too, so these colours are the light ones. */
+.stage g.node.d-removed :is(rect,polygon,path,circle),.stage rect.actor.d-removed,.stage :is(path,line).d-removed{stroke-dasharray:5 4!important}
+.stage g.node.d-removed > :is(rect,polygon,path,circle),.stage rect.actor.d-removed{stroke:var(--d-removed)!important} /* in a dark theme the dashed line must show */
+.stage g.node.d-removed :is(.nodeLabel,text,tspan){color:var(--muted)!important;fill:var(--muted)!important}
+.stage :is(text.messageText,.edgeLabel).d-removed{opacity:.65}
+/* the diff of a node stands where its line number stood, the diff of an arrow at its label: in the green and red of the file lines of a part */
+.stage .nodeLabel .p,.stage tspan.p{color:var(--add);fill:var(--add)}
+.stage .nodeLabel .m,.stage tspan.m{color:var(--del);fill:var(--del)}
+.stage text.ecount{font:600 calc(var(--size) - 2px) var(--mono);paint-order:stroke;stroke:var(--d-label);stroke-width:4px;stroke-linejoin:round}
+/* the total beside the title of a diagram, its only legend */
+.dchg{color:var(--muted);font-size:var(--small);font-weight:400;white-space:nowrap}
+.tabs .dchg{margin-left:12px}
+/* A schema diagram (schema.js), in the colours of the drawings: a table is a box like a node, its rows in the mono font, a relation a line like an arrow.
+   Nothing is coloured by the change: an added or removed table, column or relation has its sign and its numbers in green and red, a removed one is dashed. */
+.stage svg.schema text{font:400 var(--small) var(--mono);fill:var(--d-text)}
+.stage svg.schema .box{fill:var(--d-node);stroke:var(--d-nodeline);stroke-width:1.2px}
+.stage svg.schema .hl{stroke:var(--d-nodeline);stroke-width:1px}
+.stage svg.schema text.th{font-weight:600}
+.stage svg.schema :is(text.ct,text.ky,text.more,text.none,tspan.was,text.sg){fill:var(--muted)}
+.stage svg.schema tspan.was{text-decoration:line-through}
+.stage svg.schema text.more{cursor:pointer;text-decoration:underline;text-decoration-color:var(--line2)}
+.stage svg.schema .quiet text.th{font-weight:400;fill:var(--soft)}
+.stage svg.schema .row.c-removed text.cn{text-decoration:line-through;fill:var(--muted)}
+.stage svg.schema .relation{fill:none;stroke:var(--d-edge);stroke-width:1.3px}
+.stage svg.schema .tip{fill:var(--d-edge)}
+.stage svg.schema g.node tspan.sg.p,.stage svg.schema g.node tspan.p{fill:var(--add)!important}
+.stage svg.schema g.node tspan.sg.m,.stage svg.schema g.node tspan.m{fill:var(--del)!important}
+.win .tb .sub .dchg{margin-left:6px}
+
+/* two halves on a wide tab, each scrolling by itself: the code or the list (.half.right) in the left column, the diagram or the file (.half.left) in the right one */
+.tabs{display:flow-root}
+.tabs .codeswitch{float:right;margin:0 0 0 16px;color:var(--muted)}
+.tabs .codeswitch:hover{color:var(--ink)}
+.view.split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
+.split > .half{position:relative;min-width:0;grid-row:1}
+.split > .half.right{grid-column:1}
+.split > .half.left{grid-column:2}
+.split > .half.surface{border:1px solid var(--line);border-radius:8px}
+.split > .half.right{overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable}
+.view > .alone{position:relative} /* the file of "Diffs" with no list beside it */
+.split > .half.file-half{border:1px solid var(--line);border-radius:8px;background:var(--card)}
+:is(.file-half,.file-left) .fh{position:sticky;top:0;z-index:3;display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;padding:6px 12px;background:var(--cardhead);border-bottom:1px solid var(--line);font:var(--code-weight) var(--code)/1.6 var(--mono)}
+:is(.file-half,.file-left) .fh a{min-width:0;overflow-wrap:anywhere}
+:is(.file-half,.file-left) .fh a:hover{color:var(--tealink);text-decoration:underline;text-underline-offset:3px}
+:is(.file-half,.file-left) .fh .c{margin-left:auto;font-style:normal;white-space:nowrap;font-family:var(--sans);font-size:var(--small)}
+/* a step and its rows: the rows lit, the step with a teal border, and one line between them */
+.cn .code .step{background:var(--tealsoft)}
+.cn .code .step .n{box-shadow:inset 2px 0 var(--teal)}
+.stage g.node.joined :is(rect,polygon,path,circle){stroke:var(--teal)!important;stroke-width:2px!important}
+.stage :is(path,line):not(.hit).joined{stroke:var(--teal)!important;stroke-width:2.2px!important}
+.stage text.messageText.joined{fill:var(--teal)!important}
+.stage g.joined > rect.actor{stroke:var(--teal)!important;stroke-width:2px!important}
+.stage g.edgeLabel.joined :is(span,p){color:var(--teal)!important;box-shadow:none;outline:none;border:0}
+.split svg.join{position:absolute;left:0;top:0;overflow:visible;pointer-events:none;z-index:4}
+.split svg.join path{fill:none;stroke:var(--teal);stroke-width:1.5}
+/* the part whose diff is at the top of the right half: a darker border, no colour */
+.stage g.node.here > :is(rect,path,polygon){stroke:var(--soft)!important;stroke-width:1.6px!important}
+
+/* ----- the diffs tied to the nodes (build prompt 24) ----- */
+/* a click on the head of a file opens its diff, with a short animation, and closes it again; the small mark turns */
+.dh .tw{flex:none;width:10px;font-style:normal;color:var(--faint)}
+.dh .tw::before{content:"›";display:inline-block;transition:transform .2s ease-out}
+.dfile.open .dh .tw::before{transform:rotate(90deg)}
+/* the file of a diff that he points at, in its node: lit in a short animation, so that the eye goes there */
+.nodeLabel .f{transition:background-color .2s ease-out}
+.stage .nodeLabel .f.lit{background:var(--teallit);border-radius:3px}
+.nodeLabel .f.more.shows{font:var(--code-weight) var(--code)/1.6 var(--mono);color:var(--soft);overflow:hidden;text-overflow:ellipsis}
+@media (prefers-reduced-motion:reduce){.nodeLabel .f,.dh .tw::before{transition:none}}
+
+/* ----- "Diffs" beside the graph that follows them (build prompt 27) ----- */
+/* the left half: the diagrams of the code at the reading line, one under the other, each with a quiet title; it scrolls when they are taller */
+.split > .half.beside{overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain}
+.half.beside .gcard .sh{padding-bottom:4px}
+.half.beside .gcard .sh .gt{color:var(--soft);min-width:0}
+.half.beside .gcard .sh .k{font-style:normal;color:var(--faint);font-size:var(--small)}
+.half.beside .sec .sb{margin-top:4px}
+/* the counter over the whole list, in the form of the control of a file tab, left of "Open all" and "Hide code" or "Hide files" */
+.tabs .nav{position:static;float:right;padding:0;margin-left:16px;background:none;border-radius:0}
+
+/* ----- "Diffs": the file with its notes, and beside it the list of the files as closed rows (build prompt 42) ----- */
+/* the file: as the file view shows it, its notes as cards; it fills its box and scrolls by itself */
+:is(.split > .half,.view > .alone).file-left{border:1px solid var(--line);border-radius:8px;background:var(--card);overflow:hidden}
+.file-left > .cvw,.file-left .cv{height:100%}
+.file-left > p.quiet{padding:8px 12px}
+/* the list: a row is one line, the folder quiet before the name and cut at its left end; a row never opens; the row of the file that shows is marked */
+.diffs.rows .dfile .dh{flex-wrap:nowrap;gap:0;padding:4px 10px}
+.diffs.rows .dh .dir{flex:0 1 auto;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;direction:rtl;text-align:left;color:var(--muted)}
+.diffs.rows .dh .nm{flex:none;max-width:75%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.diffs.rows .dh .c{flex:none;padding-left:10px}
+.diffs.rows .dfile.here .dh{background:var(--tealsoft);box-shadow:inset 2px 0 var(--teal)}
+
+/* ----- the code of each node and arrow (build prompt 25) ----- */
+/* beside the title: the changed lines in no node and no arrow, and whether a second agent read the diagram; quiet words, no colour */
+.dfact{color:var(--muted);font-size:var(--small);font-weight:400;white-space:nowrap;margin-left:12px}
+.dfact.nothing::before{content:"";display:inline-block;width:3px;height:.9em;margin-right:6px;vertical-align:-1px;background:var(--line2)}
+/* a changed line in no node and no arrow: a quiet mark at its number, the same mark as beside the title */
+.cn .code .l.nothing .n{box-shadow:inset 3px 0 var(--line2)}
+/* the places of a thing, one under the other: in a window, or over the right half while the pointer rests on the thing */
+.places-half{position:absolute;z-index:5;overflow-y:auto;overscroll-behavior:contain;background:var(--card);border:1px solid var(--line);border-radius:8px}
+.places .plc{border-bottom:1px solid var(--line)}
+.places .plc:last-child{border-bottom:0}
+.places .plh{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;padding:6px 12px;background:var(--cardhead);font:var(--code-weight) var(--code)/1.6 var(--mono)}
+.places .plh a{min-width:0;overflow-wrap:anywhere}
+.places .plh a:hover{color:var(--tealink);text-decoration:underline;text-underline-offset:3px}
+.places .plh .quiet{font-family:var(--sans);font-size:var(--small)}
+.places .plh .c{margin-left:auto;font-style:normal;white-space:nowrap;font-family:var(--sans);font-size:var(--small)}
+.places > p.quiet{padding:4px 12px}
+.pck{padding:6px 12px;font-size:var(--small);color:var(--ink);border-bottom:1px solid var(--line)}
+.win .why{color:var(--ink)}
+.win .why + .pck{padding:6px 0 0;border:0}
+/* an open point at a node or an arrow: a small quiet ring with a question mark */
+.opt circle{fill:var(--card);stroke:var(--d-edge);stroke-width:1.2px}
+.opt text{fill:var(--muted);font:600 calc(var(--size) - 3px) var(--sans);text-anchor:middle;dominant-baseline:central}
+
+/* ----- marks and the look of a repo (marks.js) ----- */
+/* A stack of marks at a corner: small light round chips that lie over each other, then "+n". The same light chip in every theme, so that a coloured icon reads.
+   The holder takes no pointer: only the chips do, so the node under it keeps its pointer. The pointer on a stack spreads it. */
+.mk-holder{overflow:visible;pointer-events:none}
+.mk-stack{display:flex;align-items:center;height:100%;gap:0}
+.mk-stack.right{justify-content:flex-end}
+.mk-stack > *{pointer-events:auto}
+.mk-chip{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:9px;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.14),0 1px 2px rgba(0,0,0,.12);
+  margin-left:-5px;flex:none;overflow:hidden;font:700 10px/1 var(--sans);color:#3d4a45!important;cursor:pointer;transition:margin .15s ease-out}
+.mk-chip:first-child{margin-left:0}
+.mk-chip img{width:12px;height:12px;display:block}
+.mk-chip.square{border-radius:4px}
+.mk-chip.square img{width:18px;height:18px}
+.mk-chip.letter{background:#f2efe9}
+.mk-stack:hover .mk-chip{margin-left:2px}
+.mk-stack:hover .mk-chip:first-child{margin-left:0}
+@media (prefers-reduced-motion:reduce){.mk-chip{transition:none}}
+.mk-more{margin-left:3px;padding:0 5px;height:16px;border-radius:8px;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.14);font:600 10px/16px var(--sans);color:#3d4a45!important;cursor:pointer;flex:none}
+.mk-button{background:var(--tealsoft);box-shadow:0 0 0 1px var(--tealline)}
+.win .mk-rows .mk-chip{margin:0 2px 0 0;align-self:center}
+.mk-rows a{font-family:var(--sans)}
+.mk-rows .mk-name{font-weight:600}
+.mk-rows .mk-does{color:var(--muted);font-size:var(--small);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px}
+.mk-rows .mk-does:empty{display:none}
+.mk-filter{color:var(--ink)}
+.mk-filter a{color:var(--muted);margin-left:4px;padding:0 4px}
+.mk-filter a:hover{color:var(--ink)}
+/* A note with marks: its corners on the card, its service lines under its text, and the bar of a colour that the look gives it. */
+.mk-at{position:absolute;height:20px}
+.mk-at.upper-left{left:-7px;top:-10px}.mk-at.upper-right{right:-7px;top:-10px}.mk-at.lower-left{left:-7px;bottom:-10px}.mk-at.lower-right{right:-7px;bottom:-10px}
+.mk-note{position:relative}
+.win .mk-note{padding:2px 0}
+.mk-lines{margin-top:6px;display:flex;flex-direction:column;gap:4px}
+.mk-line{font-size:var(--small);color:var(--muted);line-height:1.4}
+.mk-line .mk-chip{margin:0 5px 0 0;vertical-align:-4px;width:16px;height:16px}
+.mk-line .mk-chip img{width:11px;height:11px}
+.mk-line b{color:var(--ink);font-weight:600}
+.mk-line a{color:var(--tealink)}
+.mk-line a:hover{text-decoration:underline;text-underline-offset:3px}
+.mk-links{display:flex;flex-wrap:wrap;gap:2px 10px;margin:2px 0 0 21px;font:var(--small) var(--mono)}
+.lk-bar{border-left:3px solid var(--lk-bar-l)!important}
+body.vscode-dark .lk-bar{border-left-color:var(--lk-bar-d)!important}
+body.vscode-high-contrast .lk-bar{border-left-color:var(--line)!important}
+/* The colours that a rule gives a box, a line or an arrow: the light ones, the dark ones in a dark theme, and the theme's own in a high-contrast theme. */
+.lk-fill{--lk-fill:var(--lk-fill-l)}.lk-ink{--lk-ink:var(--lk-ink-l)}.lk-line{--lk-line:var(--lk-line-l)}.lk-stroke{--lk-stroke:var(--lk-stroke-l)}
+body.vscode-dark .lk-fill{--lk-fill:var(--lk-fill-d)}body.vscode-dark .lk-ink{--lk-ink:var(--lk-ink-d)}body.vscode-dark .lk-line{--lk-line:var(--lk-line-d)}body.vscode-dark .lk-stroke{--lk-stroke:var(--lk-stroke-d)}
+body.vscode-high-contrast .lk-fill{--lk-fill:var(--d-node)}body.vscode-high-contrast .lk-ink{--lk-ink:var(--d-text)}body.vscode-high-contrast .lk-line{--lk-line:var(--d-nodeline)}body.vscode-high-contrast .lk-stroke{--lk-stroke:var(--d-edge)}
+.stage .lk-fill .label-container,.stage .lk-fill .label-container path{fill:var(--lk-fill)!important}
+.stage .lk-line .label-container,.stage .lk-line .label-container path{stroke:var(--lk-line)!important}
+.stage .lk-wide .label-container,.stage .lk-wide .label-container path{stroke-width:var(--lk-width)!important}
+.stage .lk-dashed .label-container,.stage .lk-dashed .label-container path{stroke-dasharray:6 4!important}
+.stage .lk-ink .nodeLabel,.stage .lk-ink .label,.stage .lk-ink text{color:var(--lk-ink)!important;fill:var(--lk-ink)!important}
+.stage path.lk-stroke{stroke:var(--lk-stroke)!important}
+.stage path.lk-wide{stroke-width:var(--lk-width)!important}
+.stage path.lk-dashed{stroke-dasharray:6 4!important}
+/* A node that the look fills with a picture or a film: a node all the same, which grows under the pointer when a click opens it. */
+.stage g.image-shape.go > *{transition:scale .15s ease-out}
+body:not(.picking) .stage g.image-shape.go:hover > *{scale:1.03}
+@media (prefers-reduced-motion:reduce){.stage g.image-shape.go > *{transition:none}}
+.lk-film{position:relative;width:100%;height:100%}
+.lk-film video{width:100%;height:100%;display:block;object-fit:contain;border-radius:4px;background:var(--region)}
+.lk-play{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:30px;height:30px;border-radius:15px;border:0;background:rgba(255,255,255,.9);color:#1a2b24;font:12px/30px var(--sans);
+  padding:0 0 0 2px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.3)}
+.lk-play[hidden]{display:none}
+.lk-play::before{content:'▶'} /* the mark is drawn here: as words of the button it went into the name of the box in its window */

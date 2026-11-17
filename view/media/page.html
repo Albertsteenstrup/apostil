@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- Inside VS Code, change-page.ts puts its own source in place of 'self', a new nonce in place of "apostil", and a base address. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' data: https://avatars.githubusercontent.com https://*.githubusercontent.com https://github.com https://github.githubassets.com; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'nonce-apostil'">
+<!--base-->
+<title>Apostil</title>
+<link rel="stylesheet" href="look.css">
+<!--icons-->
+</head>
+<body>
+<div class="paper">
+  <div class="bar"><span class="crumb" id="crumb"></span><span class="sp"></span><span class="switch"><a data-view="diagram">Diagram</a><a data-view="diffs">Diffs</a><a data-view="conversation" hidden>Conversation</a></span></div>
+  <div id="status"></div>
+  <p class="summary" id="summary"></p>
+  <div class="tabs" id="tabs"></div>
+  <div class="view" id="view"></div>
+</div>
+<aside class="side" id="side"></aside>
+<script nonce="apostil" src="mermaid.min.js"></script>
+<script nonce="apostil" src="tools.js"></script>
+<script nonce="apostil" src="states.js"></script>
+<script nonce="apostil" src="hover-window.js"></script>
+<script nonce="apostil" src="places.js"></script>
+<script nonce="apostil" src="diagram-stage.js"></script>
+<script nonce="apostil" src="schema.js"></script>
+<script nonce="apostil" src="marks.js"></script>
+<script nonce="apostil" src="code-notes.js"></script>
+<script nonce="apostil" src="code-map.js"></script>
+<script nonce="apostil" src="split.js"></script>
+<script nonce="apostil" src="remarks.js"></script>
+<script nonce="apostil" src="conversation.js"></script>
+<script nonce="apostil" src="trail.js"></script>
+<script nonce="apostil" src="page.js"></script>
+</body>
+</html>

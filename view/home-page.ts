@@ -1,0 +1,267 @@
+// The Home tab with the map of the repo, and one tab for the graphs of each folder or file.
+
+import { join } from 'node:path';
+import * as vscode from 'vscode';
+import type { Store } from '../shared/store';
+import { startMapRun, startRun } from './agent-run';
+import { agentsNeedSetup, runNextStep } from './change-list';
+import { apostilOnPath, appName, codexModel, showRunProblem } from './run-settings';
+import { askAndOpen, openLink, openRemarkSession, webviewHtml, type NewRemark } from './change-page';
+import { graphsData, homeData, idOf, type GraphsData, type HomeData } from './home-data';
+import type { Step, WindowTrail } from './trail';
+
+type Message =
+  | { type: 'ready' }
+  | { type: 'walk'; from: Step; to: Step; open: boolean }
+  | { type: 'back'; to: Step }
+  | { type: 'writeMap'; app: string }
+  | NewRemark
+  | { type: 'remarkAction'; id: number; action: 'resolve' | 'reopen' | 'start' }
+  | { type: 'openSession'; id: number }
+  | { type: 'pointer'; on: boolean }
+  | { type: 'openLink'; url: string }
+  | { type: 'openUrl'; url: string }
+  | { type: 'runCommand'; command: string }
+  | { type: 'prompt'; text: string; diagram?: string }
+  | { type: 'openFile'; path: string; line?: number }
+  | { type: 'showInTree'; paths: string[]; open?: boolean }
+  | { type: 'setUp' }
+  | { type: 'rendered'; kind: string; nodes: number; panels: number; drawn: number };
+
+/** One tab of home.html. Messages wait until its scripts are loaded. */
+interface Tab {
+  panel: vscode.WebviewPanel;
+  path?: string; // the folder or file of a graphs tab; missing for Home
+  ready: boolean;
+  waiting: unknown[];
+}
+
+export class HomePages {
+  private home?: Tab;
+  private graphs = new Map<string, Tab>();
+  private writing?: string; // the app that writes the map now
+  private pointerOn?: Tab; // the tab that the pointer is on, so the comment key works there
+  private signature = '';
+  homeShown?: HomeData; // what Home shows now, for the check inside VS Code
+  graphsShown: Record<string, GraphsData> = {}; // what each graphs tab shows now, for the check inside VS Code
+  rendered: Record<string, Message & { type: 'rendered' }> = {}; // what each tab drew last, by "home" or its path
+
+  /** Shows folders and files of the repo in the tree "Files" of the side bar; with `open` also when that tree does not show. Set by the extension, which owns the tree. */
+  showInTree: (paths: string[], open: boolean) => void = () => {};
+
+  constructor(private media: vscode.Uri, private store: Store, private openFolder: () => string, private apps: string[], private trail: WindowTrail) {}
+
+  /** Opens Home, or shows it; with `go`, at that diagram ('' for the top map) with those nodes lit. `quiet` leaves the keyboard where it is. */
+  openHome(go?: { diagram: string; lit?: string[] }, quiet = false): void {
+    if (!this.home) {
+      const show = { viewColumn: vscode.ViewColumn.Active, preserveFocus: quiet };
+      this.home = this.addTab(vscode.window.createWebviewPanel('apostil.home', 'Home', show, { retainContextWhenHidden: true }));
+      this.home.panel.onDidDispose(() => { this.home = undefined; });
+    }
+    this.home.panel.reveal(undefined, quiet);
+    this.post(this.home, this.homeMessage());
+    if (go) this.post(this.home, { type: 'go', go });
+  }
+
+  /** Opens the graphs of a folder (ending with "/") or a file, in a tab named after it. */
+  openGraphs(path: string): void {
+    let tab = this.graphs.get(path);
+    if (!tab) {
+      const name = path.replace(/\/$/, '').split('/').pop() || path;
+      const created = this.addTab(vscode.window.createWebviewPanel('apostil.graphs', path.endsWith('/') ? `${name}/` : name, vscode.ViewColumn.Active, { retainContextWhenHidden: true }), path);
+      created.panel.onDidDispose(() => { this.graphs.delete(path); delete this.graphsShown[path]; });
+      this.graphs.set(path, (tab = created));
+    }
+    tab.panel.reveal();
+    this.post(tab, this.graphsMessage(path));
+  }
+
+  /** Loads Home and the graphs tabs again when the map or the changes in the store are new. True when they were new. */
+  changed(): boolean {
+    if (this.signatureNow() === this.signature) return false;
+    this.reload();
+    return true;
+  }
+
+  reload(): void {
+    this.signature = this.signatureNow();
+    if (this.home) this.post(this.home, this.homeMessage());
+    for (const [path, tab] of this.graphs) this.post(tab, this.graphsMessage(path));
+  }
+
+  /**
+   * The path of the window changed: each tab that shows draws its line again; a hidden tab gets the path when it shows.
+   * A message to a hidden tab just before a new tab opens left the new tab without the keyboard focus.
+   */
+  postTrail(steps: Step[]): void {
+    for (const tab of [this.home, ...this.graphs.values()]) if (tab?.panel.visible) this.post(tab, { type: 'trail', steps });
+  }
+
+  /** True when the comment key belongs to Home: the pointer is on it, or it has the focus. */
+  wantsKey(): boolean {
+    return !!this.pointerOn || !!this.home?.panel.active;
+  }
+
+  /** Cmd+Shift+.: the comment pointer on Home. */
+  askForRemark(): void {
+    if (!this.home) return;
+    this.home.panel.reveal(undefined, false);
+    this.post(this.home, { type: 'remark' });
+  }
+
+  /**
+   * Saves a comment on the map of the repo, or a reply. It belongs to no change. Sent to a new session of an app, it starts that run in the open folder;
+   * Home has no session of a change to send it to.
+   */
+  saveRemark(message: NewRemark): void {
+    const repo = idOf(this.openFolder());
+    if (!repo) return;
+    const id = this.store.addRepoRemark(repo, message.target, message.text, message.thread);
+    if (message.to?.kind === 'new') {
+      this.store.sendRemark(id, message.to);
+      const { app } = message.to;
+      startRun(this.store, id, (problem) => {
+        if (problem) showRunProblem(problem, { app });
+        this.changed();
+      }, app, this.openFolder(), codexModel());
+    }
+    this.reload();
+  }
+
+  private setPointer(tab: Tab | undefined): void {
+    this.pointerOn = tab;
+    void vscode.commands.executeCommand('setContext', 'apostil.pointerOnPage', !!tab);
+  }
+
+  /** Starts a new session of an app that writes the map, and with `describe` then the change; Home shows that it works, and the map when it is saved. */
+  writeMap(app: string, describe = false): void {
+    const folder = this.openFolder();
+    if (!folder || this.writing) return;
+    const again = (): void => this.writeMap(app, describe);
+    // The run saves the map with the command apostil: without it, the fix comes first, not a run that fails at its end.
+    if (!apostilOnPath()) return showRunProblem(`${appName(app)} cannot write the map yet.`, { app, again, folder, noCommand: true });
+    // The other connected agent app, which a toast offers when this one cannot run now.
+    const other = this.apps.find((one) => one !== app && (one === 'claude-code' || one === 'codex'));
+    const instead = other ? { app: other, start: () => this.writeMap(other, describe) } : undefined;
+    const started = startMapRun(app, folder, (problem, facts) => {
+      this.writing = undefined;
+      const id = idOf(folder);
+      // A run that ended well but saved no map says so, with the commands that it was not allowed to use.
+      const why = problem ?? (id && !this.store.getMap(id) ? 'It ended and saved no map.' : undefined);
+      // "codex" stays in small letters at the start: the problem of its model is told by that word.
+      if (why) showRunProblem(`${app === 'codex' ? 'codex' : appName(app)} did not write the map. It said: ${why}`, { app, again, folder, instead, ...facts });
+      this.reload();
+    }, codexModel(), describe);
+    if (!started) return void vscode.window.showWarningMessage(`A new session of ${app} cannot be started from here.`);
+    this.writing = app;
+    this.reload();
+  }
+
+  private homeMessage(): unknown {
+    // A picture or a film of the look is loaded from Apostil's store by its webview address.
+    const webview = this.home?.panel.webview;
+    const data = homeData(this.store, this.openFolder(), this.apps, (file) => (webview ? webview.asWebviewUri(vscode.Uri.file(file)).toString() : file));
+    this.homeShown = { ...data, writing: this.writing, needsSetup: !data.map && agentsNeedSetup(this.openFolder()) };
+    return { type: 'data', data: this.homeShown, trail: this.trail.steps };
+  }
+
+  private graphsMessage(path: string): unknown {
+    const webview = this.graphs.get(path)?.panel.webview;
+    this.graphsShown[path] = graphsData(this.store, this.openFolder(), path, (file) => (webview ? webview.asWebviewUri(vscode.Uri.file(file)).toString() : file));
+    return { type: 'data', data: this.graphsShown[path], trail: this.trail.steps };
+  }
+
+  private signatureNow(): string {
+    const id = idOf(this.openFolder());
+    const changes = id ? this.store.listChanges(id).map((change) => [change.id, change.savedAt]) : [];
+    const remarks = id ? this.store.repoRemarks(id).map((remark) => [remark.id, remark.state, remark.answeredAt, remark.run?.session]) : [];
+    return JSON.stringify([id && this.store.getMap(id)?.savedAt, id && this.store.getLook(id)?.savedAt, changes, remarks, this.writing]);
+  }
+
+  private addTab(panel: vscode.WebviewPanel, path?: string): Tab {
+    const tab: Tab = { panel, path, ready: false, waiting: [] };
+    panel.iconPath = vscode.Uri.joinPath(this.media, 'apostil-icon.svg');
+    // The page may load its own files, and the pictures and films of the looks that Apostil keeps.
+    panel.webview.options = { enableScripts: true, localResourceRoots: [this.media, vscode.Uri.file(join(this.store.folder, 'looks'))] };
+    panel.webview.html = webviewHtml(panel.webview, this.media, 'home.html');
+    panel.webview.onDidReceiveMessage((message: Message) => this.receive(message, tab));
+    panel.onDidChangeViewState(() => {
+      if (!panel.visible && this.pointerOn === tab) this.setPointer(undefined);
+      if (!panel.visible) return; // a hidden tab gets no message: see `postTrail`
+      this.post(tab, { type: 'away' }); // a hover window from before the tab was hidden is closed
+      this.post(tab, { type: 'trail', steps: this.trail.steps });
+    });
+    panel.onDidDispose(() => { if (this.pointerOn === tab) this.setPointer(undefined); });
+    return tab;
+  }
+
+  /** Posts a message to a tab now, or when its scripts are loaded. A newer data message replaces one that waits. */
+  private post(tab: Tab, message: unknown): void {
+    if (tab.ready) void tab.panel.webview.postMessage(message);
+    else tab.waiting.push(message);
+  }
+
+  private receive(message: Message, tab: Tab): void {
+    if (runNextStep(message.type)) return; // "Set up for agents" on Home with no map
+    switch (message.type) {
+      case 'ready': {
+        tab.ready = true;
+        const waiting = tab.waiting.splice(0);
+        const data = waiting.filter((one) => (one as { type: string }).type === 'data').pop();
+        for (const one of waiting) if ((one as { type: string }).type !== 'data' || one === data) this.post(tab, one);
+        if (!data) this.post(tab, tab.path ? this.graphsMessage(tab.path) : this.homeMessage());
+        break;
+      }
+      case 'walk':
+        this.trail.walk(message.from, message.to, message.open);
+        break;
+      case 'back':
+        this.trail.back(message.to);
+        break;
+      case 'writeMap':
+        this.writeMap(message.app);
+        break;
+      case 'remark':
+        this.saveRemark(message);
+        break;
+      case 'remarkAction':
+        if (message.action === 'resolve') this.store.closeThread(message.id);
+        if (message.action === 'reopen') this.store.reopenThread(message.id);
+        this.reload();
+        break;
+      case 'openSession':
+        openRemarkSession(this.store, message.id, this.openFolder());
+        break;
+      case 'pointer':
+        if (message.on) this.setPointer(tab);
+        else if (this.pointerOn === tab) this.setPointer(undefined);
+        break;
+      case 'openLink':
+        openLink(message.url);
+        break;
+      case 'openUrl': // a button of the look: VS Code asks before it leaves for a web address
+        void askAndOpen(message.url);
+        break;
+      case 'runCommand': // a button of the look runs a command of Apostil, and no other command
+        if (message.command.startsWith('apostil.')) void vscode.commands.executeCommand(message.command);
+        break;
+      case 'prompt': { // a button of the look sends its prompt to a new session of the first agent app, as a comment on the diagram is sent; VS Code asks first, since a run spends the user's usage
+        const app = this.apps[0];
+        const send = 'Send';
+        if (app) void vscode.window.showInformationMessage(`Send this to a new session of ${appName(app)}?`, { modal: true, detail: message.text }, send).then((answer) => {
+          if (answer === send) this.saveRemark({ type: 'remark', target: { kind: 'diagram', diagram: message.diagram, label: 'A button of the look' }, text: message.text, to: { kind: 'new', app } } as NewRemark);
+        });
+        break;
+      }
+      case 'openFile': // a file in the window of a node, or a step of a process at its line: it opens as the setting of the notes says, a file with notes in the file tab at once
+        void vscode.commands.executeCommand('apostil.openFile', vscode.Uri.file(join(this.openFolder(), message.path)), message.line);
+        break;
+      case 'showInTree': // he went into an area of the map: the tree "Files" follows
+        this.showInTree(message.paths, !!message.open);
+        break;
+      case 'rendered':
+        this.rendered[tab.path ?? 'home'] = message;
+        break;
+    }
+  }
+}

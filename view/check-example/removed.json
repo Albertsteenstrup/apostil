@@ -1,0 +1,5 @@
+[
+  "scripts/load_branches.py",
+  "web/src/api/generated/model/reservation.ts",
+  "web/src/api/generated/model/reservationNote.ts"
+]

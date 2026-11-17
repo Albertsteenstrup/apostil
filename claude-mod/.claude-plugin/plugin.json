@@ -1,0 +1,7 @@
+{
+  "name": "apostil",
+  "version": "0.1.0",
+  "description": "When the agent opens or edits a pull request, one quiet band above the prompt opens it in Apostil.",
+  "author": { "name": "Apostil" },
+  "types": "./types/index.d.ts"
+}

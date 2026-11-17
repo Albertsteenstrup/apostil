@@ -1,0 +1,230 @@
+{
+  "format": 1,
+  "title": "Adds holds for books that are out",
+  "reason": "A member can wait in line for a book that is out. Holds take the place of the old reservations.",
+  "parts": [
+    {
+      "id": "holds-tab",
+      "name": "Holds tab",
+      "note": "A new tab of the member page: see the holds, place one, pause it or cancel it.",
+      "files": [
+        "web/src/member/HoldDialog.tsx",
+        "web/src/member/HoldsPanel.test.tsx",
+        "web/src/member/HoldsPanel.tsx",
+        "web/src/member/MemberPage.tsx",
+        "web/src/member/holdsApi.ts",
+        "web/src/member/index.ts",
+        "web/src/member/member.css",
+        "web/src/member/memberModel.ts"
+      ]
+    },
+    {
+      "id": "routes",
+      "name": "Routes",
+      "note": "The web routes that the tab calls.",
+      "files": ["src/library/web/holds_router.py"]
+    },
+    {
+      "id": "night-job",
+      "name": "Night job",
+      "note": "Each night the copies that came back go to the first member in line. The old run of reservations is gone.",
+      "files": ["src/library/night_jobs.py"],
+      "notes": [
+        {
+          "file": "src/library/night_jobs.py",
+          "lines": [243, 252],
+          "removed": true,
+          "title": "The reservation run is gone",
+          "text": "It mailed each member whose reserved book came back, and archived the old reservations.",
+          "symbol": "lending_night"
+        }
+      ]
+    },
+    {
+      "id": "desk-screen",
+      "name": "Desk screen",
+      "note": "The desk sees which copies wait on the ready shelf, and for whom.",
+      "files": ["src/library/lending/ready_shelf.py", "web/src/desk/ReadyShelf.tsx"]
+    },
+    {
+      "id": "hold-service",
+      "name": "Hold service",
+      "note": "The rules of holds, in one place for the routes, the night run and the desk.",
+      "files": ["src/library/lending/hold_service.py", "src/library/lending/hold_models.py"],
+      "notes": [
+        { "file": "src/library/lending/hold_service.py", "lines": [208, 212], "title": "Read the date and the opening hours", "symbol": "offer_returned_copies" },
+        { "file": "src/library/lending/hold_service.py", "lines": [214, 217], "title": "Hold back on a closed day", "symbol": "offer_returned_copies", "text": "The run stops when the library is closed, unless a test date is set." },
+        { "file": "src/library/lending/hold_service.py", "lines": [219, 233], "title": "Select the returned copies", "symbol": "offer_returned_copies", "text": "Copies that came back while a member waits for their book, locked for this run." },
+        { "file": "src/library/lending/hold_service.py", "lines": [237, 243], "title": "Pass over a member who left", "symbol": "offer_returned_copies", "text": "The hold is cancelled, and the copy goes to the next member on a later run." },
+        { "file": "src/library/lending/hold_service.py", "lines": [245, 251], "title": "Set the pickup day", "symbol": "offer_returned_copies", "text": "Seven open days of the branch, then the copy goes on the ready shelf." },
+        { "file": "src/library/lending/hold_service.py", "lines": [253, 258], "title": "Send the pickup notice", "symbol": "offer_returned_copies", "text": "When the mail fails, the desk calls the member instead." },
+        { "file": "src/library/lending/hold_service.py", "lines": [260, 260], "title": "Give back what the run did", "symbol": "offer_returned_copies" }
+      ]
+    },
+    {
+      "id": "tables",
+      "name": "Tables",
+      "note": "The tables of holds and of their history. The reservation tables and their client type are gone.",
+      "files": ["db/migrations/0042_holds.sql", "web/src/api/generated/model/reservation.ts"],
+      "notes": [
+        {
+          "file": "web/src/api/generated/model/reservation.ts",
+          "lines": [12, 30],
+          "removed": true,
+          "title": "No client type for reservations",
+          "text": "The generated client drops the reservation, since the server sends holds now."
+        }
+      ]
+    }
+  ],
+  "links": [
+    {
+      "from": "holds-tab",
+      "to": "routes",
+      "lines": [{ "file": "web/src/member/holdsApi.ts", "lines": [31, 32] }, { "file": "src/library/web/holds_router.py", "lines": [17, 17] }]
+    },
+    {
+      "from": "routes",
+      "to": "hold-service",
+      "lines": { "file": "src/library/web/holds_router.py", "lines": [20, 23] }
+    },
+    {
+      "from": "night-job",
+      "to": "hold-service",
+      "lines": { "file": "src/library/night_jobs.py", "lines": [244, 247] }
+    },
+    {
+      "from": "desk-screen",
+      "to": "hold-service",
+      "lines": { "file": "src/library/lending/ready_shelf.py", "lines": [13, 13] }
+    },
+    {
+      "from": "hold-service",
+      "to": "tables",
+      "lines": { "file": "src/library/lending/hold_service.py", "lines": [104, 104] }
+    }
+  ],
+  "diagrams": [
+    {
+      "id": "offer-flow",
+      "kind": "flow",
+      "title": "How one night run offers returned copies",
+      "mermaid": "flowchart TD\n  start[\"Read the date and the opening hours\"]\n  open{\"Library open today?\"}\n  closed([\"Return: closed today\"])\n  pick[\"Select the returned copies\"]\n  each{\"More copies?\"}\n  member{\"Card still active?\"}\n  passed[\"Pass the hold over\"]\n  ready[\"Set the pickup day\"]\n  notice[\"Send the pickup notice\"]\n  done([\"Return what the run did\"])\n  start --> open\n  open -- no --> closed\n  open -- yes --> pick\n  pick --> each\n  each -- yes --> member\n  member -- no --> passed\n  member -- yes --> ready\n  ready --> notice\n  notice -- ok --> each\n  notice -- error --> each\n  passed --> each\n  each -- no --> done\n",
+      "part": "hold-service",
+      "file": "src/library/lending/hold_service.py",
+      "symbol": "offer_returned_copies",
+      "covers": [197, 260],
+      "nodeLines": {
+        "start": [208, 212],
+        "open": [214, 214],
+        "closed": [215, 217],
+        "pick": [219, 233],
+        "each": [235, 236],
+        "member": [237, 239],
+        "passed": [240, 243],
+        "ready": [245, 251],
+        "notice": [253, 255],
+        "done": [260, 260]
+      },
+      "edgeLines": [
+        { "from": "notice", "to": "each", "label": "ok", "lines": [255, 255] },
+        { "from": "notice", "to": "each", "label": "error", "lines": [256, 258] }
+      ]
+    },
+    {
+      "id": "offer-sequence",
+      "kind": "sequence",
+      "title": "The night run, message by message",
+      "mermaid": "sequenceDiagram\n  participant J as Night job\n  participant S as Hold service\n  participant T as Tables\n  J->>S: offer_returned_copies(limit=50)\n  S->>T: select the returned copies\n  T-->>S: rows\n  loop each returned copy\n    S->>T: set the pickup day\n    S->>S: send the notice\n  end\n  S-->>J: checked, offered, passed over\n",
+      "part": "hold-service",
+      "file": "src/library/lending/hold_service.py",
+      "symbol": "offer_returned_copies",
+      "covers": [197, 260],
+      "nodeLines": {
+        "J": { "file": "src/library/night_jobs.py", "lines": [238, 251] },
+        "S": { "file": "src/library/lending/hold_service.py" },
+        "T": { "file": "db/migrations/0042_holds.sql" }
+      },
+      "edgeLines": [
+        { "from": "J", "to": "S", "lines": { "file": "src/library/night_jobs.py", "lines": [246, 251] } },
+        { "from": "S", "to": "T", "label": "select the returned copies", "lines": [220, 231] },
+        { "from": "T", "to": "S", "label": "rows", "lines": [232, 233] },
+        { "from": "S", "to": "T", "label": "set the pickup day", "lines": [245, 246] },
+        { "from": "S", "to": "S", "label": "send the notice", "lines": [253, 255] },
+        { "from": "S", "to": "J", "label": "checked, offered, passed over", "lines": [260, 260] }
+      ]
+    },
+    {
+      "id": "hold-schema",
+      "kind": "schema",
+      "title": "Holds in the database",
+      "mermaid": "erDiagram\n  book_hold {\n    bigint id PK\n    bigint member_id FK\n    bigint book_id FK\n    text branch_id\n    integer position\n    text state\n    timestamptz placed_at\n    bigint copy_id FK\n    timestamptz ready_at\n    date pickup_by\n    date paused_until\n    timestamptz collected_at\n    timestamptz cancelled_at\n    integer notice_count\n    timestamptz last_notice_at\n    text note\n    text placed_by\n    integer revision\n    timestamptz created_at\n    timestamptz updated_at\n    uuid client_key UK\n  }\n  hold_event {\n    bigint id PK\n    bigint hold_id FK\n    bigint member_id FK\n    bigint copy_id FK\n    text kind\n    text from_state\n    text to_state\n    timestamptz happened_at\n    text actor\n    jsonb detail\n  }\n  member {\n    bigint id UK\n  }\n  book {\n    bigint id UK\n  }\n  book_copy {\n    bigint id UK\n    bigint book_id\n  }\n  book_hold }o--|| member : member_id\n  book_hold }o--|| book : book_id\n  book_hold }o--o| book_copy : copy_id\n  hold_event }o--|| book_hold : hold_id\n  hold_event }o--|| member : member_id\n  hold_event }o--o| book_copy : copy_id\n",
+      "part": "tables",
+      "file": "db/migrations/0042_holds.sql",
+      "before": "erDiagram\n  member {\n    bigint id UK\n  }\n  book {\n    bigint id UK\n  }\n  book_copy {\n    bigint id UK\n    bigint book_id\n  }\n  reservation\n  reservation_note\n",
+      "nodeLines": {
+        "book_hold": [5, 32],
+        "hold_event": [38, 49],
+        "reservation": [61, 61],
+        "reservation_note": [60, 60],
+        "member": "outside",
+        "book": "outside",
+        "book_copy": "outside"
+      },
+      "edgeLines": [
+        { "from": "book_hold", "to": "member", "label": "member_id", "lines": [7, 7] },
+        { "from": "book_hold", "to": "book", "label": "book_id", "lines": [8, 8] },
+        { "from": "book_hold", "to": "book_copy", "label": "copy_id", "lines": [14, 14] },
+        { "from": "hold_event", "to": "book_hold", "label": "hold_id", "lines": [40, 40] },
+        { "from": "hold_event", "to": "member", "label": "member_id", "lines": [41, 41] },
+        { "from": "hold_event", "to": "book_copy", "label": "copy_id", "lines": [42, 42] }
+      ]
+    },
+    {
+      "id": "hold-states",
+      "kind": "state",
+      "title": "The states of one hold",
+      "mermaid": "stateDiagram-v2\n  direction LR\n  [*] --> waiting: place\n  waiting --> paused: pause\n  paused --> waiting: resume\n  waiting --> ready: copy offered\n  ready --> waiting: missed pickup\n",
+      "part": "tables",
+      "file": "db/migrations/0042_holds.sql",
+      "nodeLines": {
+        "waiting": [11, 12],
+        "paused": [11, 12],
+        "ready": [11, 12]
+      },
+      "edgeLines": [
+        { "from": "[*]", "to": "waiting", "label": "place", "lines": [
+          { "file": "src/library/lending/hold_service.py", "lines": [86, 115] },
+          { "file": "src/library/lending/hold_models.py", "lines": [113, 113] },
+          [11, 11]
+        ] },
+        { "from": "waiting", "to": "paused", "label": "pause", "lines": [
+          { "file": "src/library/lending/hold_service.py", "lines": [127, 127] },
+          { "file": "src/library/lending/hold_service.py", "lines": [136, 148] }
+        ] },
+        { "from": "paused", "to": "waiting", "label": "resume", "lines": [
+          { "file": "src/library/lending/hold_service.py", "lines": [134, 134] },
+          { "file": "src/library/lending/hold_service.py", "lines": [136, 148] }
+        ] },
+        { "from": "waiting", "to": "ready", "label": "copy offered", "lines": [
+          { "file": "src/library/lending/hold_service.py", "lines": [172, 179] },
+          { "file": "src/library/lending/hold_service.py", "lines": [181, 186] },
+          { "file": "src/library/lending/hold_service.py", "lines": [188, 195] }
+        ] },
+        { "from": "ready", "to": "waiting", "label": "missed pickup", "lines": [
+          { "file": "src/library/lending/hold_service.py", "lines": [262, 272] },
+          { "file": "src/library/lending/hold_service.py", "lines": [274, 282] }
+        ] }
+      ]
+    },
+    {
+      "id": "member-areas",
+      "kind": "flow",
+      "title": "The areas of the member page",
+      "mermaid": "flowchart LR\n  page[\"Member page\"] --> loans[\"Loans: books at home\"]\n  page --> history[\"History: books read before\"]\n  page --> lists[\"Reading lists to share\"]\n  page --> holds[\"Holds: books to wait for\"]\n  loans --> renew[\"Renew a loan\"]\n  lists --> share[\"Share a list with a link\"]\n  holds --> pickup[\"Pick up at the ready shelf\"]\n",
+      "broad": true,
+      "before": "flowchart LR\n  page[\"Member page\"] --> loans[\"Loans: books at home\"]\n  page --> history[\"History: books read before\"]\n  page --> lists[\"Reading lists to share\"]\n  loans --> renew[\"Renew a loan\"]\n  lists --> share[\"Share a list with a link\"]\n"
+    }
+  ],
+  "generated": ["web/src/api/generated/", "web/openapi.json"]
+}

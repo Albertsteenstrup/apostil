@@ -1,0 +1,12 @@
+{
+  "name": "apostil",
+  "owner": { "name": "Apostil" },
+  "description": "The Claude mod of Apostil.",
+  "plugins": [
+    {
+      "name": "apostil",
+      "source": "./claude-mod",
+      "description": "When the agent opens or edits a pull request, one quiet band above the prompt opens it in Apostil."
+    }
+  ]
+}

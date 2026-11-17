@@ -1,0 +1,63 @@
+/* The member page: the head with the name, the tabs, and the panels under them. */
+
+.member-page {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+  font: 15px/1.5 system-ui, sans-serif;
+  color: #1f2328;
+}
+
+.member-head h1 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.member-tabs {
+  display: flex;
+  gap: 4px;
+  margin: 20px 0 16px;
+  border-bottom: 1px solid #d0d7de;
+}
+
+.member-tabs button {
+  padding: 8px 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  font: inherit;
+  color: #57606a;
+  cursor: pointer;
+}
+
+.member-tabs button.on {
+  border-bottom-color: #0f766e;
+  color: #1f2328;
+  font-weight: 600;
+}
+
+.quiet {
+  color: #57606a;
+}
+
+.problem {
+  color: #b42318;
+}
+
+.loans {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.loans li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 10px 0;
+  border-bottom: 1px solid #eaeef2;
+}
+
+.loans li button {
+  margin-left: auto;
+}

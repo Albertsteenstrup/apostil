@@ -1,0 +1,71 @@
+[
+ {
+  "group": "lending-example",
+  "set": "services",
+  "files": ["src/library/lending/notices.py", "src/library/lending/requests.py"],
+  "values": [
+   { "id": "mail-relay", "name": "Mail Relay", "site": "mail-relay.example.org", "icon": "apostil-icon-mail-relay.svg" },
+   { "id": "book-feed", "name": "Book Feed", "site": "book-feed.example.org", "icon": "apostil-icon-book-feed.svg" },
+   { "id": "table-store", "name": "Table Store", "site": "table-store.example.org", "icon": "apostil-icon-table-store.svg" }
+  ],
+  "marks": [
+   { "value": "mail-relay", "file": "src/library/lending/notices.py", "line": 35, "name": "outbox.send", "relation": "sends" },
+   { "value": "book-feed", "file": "src/library/lending/notices.py", "line": 74, "name": "outbox.fetch", "relation": "calls" },
+   { "value": "table-store", "file": "src/library/lending/requests.py", "line": 40, "name": "book_request", "relation": "stores", "thing": { "kind": "table", "name": "book_request" } },
+   { "value": "table-store", "file": "src/library/lending/requests.py", "line": 46, "name": "book_request", "relation": "stores", "thing": { "kind": "table", "name": "book_request" } },
+   { "value": "table-store", "file": "src/library/lending/requests.py", "line": 49, "name": "book_request", "relation": "stores", "thing": { "kind": "table", "name": "book_request" } },
+   { "value": "table-store", "file": "src/library/lending/requests.py", "line": 51, "name": "librarian", "relation": "stores", "thing": { "kind": "table", "name": "librarian" } },
+   { "value": "table-store", "file": "src/library/lending/requests.py", "line": 65, "name": "book_request", "relation": "stores", "thing": { "kind": "table", "name": "book_request" } },
+   { "value": "table-store", "file": "src/library/lending/requests.py", "line": 71, "name": "purchase_order", "relation": "stores", "thing": { "kind": "table", "name": "purchase_order" } },
+   { "value": "table-store", "file": "src/library/lending/requests.py", "line": 76, "name": "member", "relation": "stores", "thing": { "kind": "table", "name": "member" } },
+   { "value": "table-store", "file": "src/library/lending/requests.py", "line": 81, "name": "book_request", "relation": "stores", "thing": { "kind": "table", "name": "book_request" } },
+   { "value": "table-store", "file": "src/library/lending/requests.py", "line": 91, "name": "book", "relation": "stores", "thing": { "kind": "table", "name": "book" } },
+   { "value": "table-store", "file": "src/library/lending/requests.py", "line": 94, "name": "book_request", "relation": "stores", "thing": { "kind": "table", "name": "book_request" } },
+   { "value": "table-store", "file": "src/library/lending/requests.py", "line": 98, "name": "book_request", "relation": "stores", "thing": { "kind": "table", "name": "book_request" } },
+   { "value": "table-store", "file": "src/library/lending/requests.py", "line": 102, "name": "book_request", "relation": "stores", "thing": { "kind": "table", "name": "book_request" } }
+  ]
+ },
+ {
+  "group": "jobs-example",
+  "set": "services",
+  "files": ["src/library/night_jobs.py", "db/migrations/0042_holds.sql"],
+  "values": [
+   { "id": "hours-desk", "name": "Hours Desk", "site": "hours-desk.example.org", "icon": "apostil-icon-hours-desk.svg" },
+   { "id": "night-bell", "name": "Night Bell", "site": "night-bell.example.org" }
+  ],
+  "iconRefused": [ { "value": "night-bell", "tried": "night-bell.example.org" } ],
+  "marks": [
+   { "value": "table-store", "file": "src/library/night_jobs.py", "line": 139, "name": "loan", "relation": "stores", "thing": { "kind": "table", "name": "loan" } },
+   { "value": "table-store", "file": "src/library/night_jobs.py", "line": 156, "name": "loan", "relation": "stores", "thing": { "kind": "table", "name": "loan" } },
+   { "value": "book-feed", "file": "src/library/night_jobs.py", "line": 267, "name": "feed_url", "relation": "calls" },
+   { "value": "table-store", "file": "src/library/night_jobs.py", "line": 281, "name": "book", "relation": "stores", "thing": { "kind": "table", "name": "book" } },
+   { "value": "table-store", "file": "src/library/night_jobs.py", "line": 287, "name": "book", "relation": "stores", "thing": { "kind": "table", "name": "book" } },
+   { "value": "table-store", "file": "src/library/night_jobs.py", "line": 301, "name": "book_copy", "relation": "stores", "thing": { "kind": "table", "name": "book_copy" } },
+   { "value": "table-store", "file": "src/library/night_jobs.py", "line": 326, "name": "book_search_next", "relation": "stores", "thing": { "kind": "table", "name": "book_search_next" } },
+   { "value": "table-store", "file": "src/library/night_jobs.py", "line": 360, "name": "door_count", "relation": "stores", "thing": { "kind": "table", "name": "door_count" } },
+   { "value": "table-store", "file": "src/library/night_jobs.py", "line": 366, "name": "day_count", "relation": "stores", "thing": { "kind": "table", "name": "day_count" } },
+   { "value": "table-store", "file": "src/library/night_jobs.py", "line": 389, "name": "loan_archive", "relation": "stores", "thing": { "kind": "table", "name": "loan_archive" } },
+   { "value": "table-store", "file": "src/library/night_jobs.py", "line": 400, "name": "web_session", "relation": "stores", "thing": { "kind": "table", "name": "web_session" } },
+   { "value": "hours-desk", "file": "src/library/night_jobs.py", "line": 416, "name": "hours", "relation": "calls" },
+   { "value": "table-store", "file": "src/library/night_jobs.py", "line": 435, "name": "reading_list", "relation": "stores", "thing": { "kind": "table", "name": "reading_list" } },
+   { "value": "night-bell", "file": "src/library/night_jobs.py", "line": 516, "name": "run_night", "relation": "runs on" },
+   { "value": "table-store", "file": "db/migrations/0042_holds.sql", "line": 5, "name": "book_hold", "relation": "stores", "thing": { "kind": "table", "name": "book_hold" } },
+   { "value": "table-store", "file": "db/migrations/0042_holds.sql", "line": 38, "name": "hold_event", "relation": "stores", "thing": { "kind": "table", "name": "hold_event" } }
+  ]
+ },
+ {
+  "group": "lending-example",
+  "set": "errors",
+  "files": ["src/library/lending/requests.py"],
+  "marks": [
+   { "value": "state", "file": "src/library/lending/requests.py", "line": 48, "name": "RequestError" },
+   { "value": "state", "file": "src/library/lending/requests.py", "line": 52, "name": "RequestError" },
+   { "value": "field", "file": "src/library/lending/requests.py", "line": 58, "name": "RequestError" },
+   { "value": "state", "file": "src/library/lending/requests.py", "line": 60, "name": "RequestError" },
+   { "value": "field", "file": "src/library/lending/requests.py", "line": 89, "name": "RequestError" },
+   { "value": "field", "file": "src/library/lending/requests.py", "line": 92, "name": "RequestError" },
+   { "value": "state", "file": "src/library/lending/requests.py", "line": 96, "name": "RequestError" },
+   { "value": "state", "file": "src/library/lending/requests.py", "line": 99, "name": "RequestError" }
+  ]
+ }
+]

@@ -1,0 +1,32 @@
+[
+  {
+    "kind": "note-not-supported",
+    "text": "The run also goes on when the library is closed, as long as a test date is set. Line 214.",
+    "file": "src/library/lending/hold_service.py",
+    "lines": [214, 217]
+  },
+  {
+    "kind": "no-note",
+    "text": "A pickup notice that fails still counts as offered. Only the log says that the desk should call.",
+    "file": "src/library/lending/hold_service.py",
+    "lines": [245, 258]
+  },
+  {
+    "kind": "no-note",
+    "text": "The opening hours of the north branch decide for every branch. The other branches are not asked.",
+    "file": "src/library/lending/hold_service.py",
+    "lines": [210, 211]
+  },
+  {
+    "kind": "no-note",
+    "text": "The selected copies are locked. These lines do not show how long the lock lasts.",
+    "file": "src/library/lending/hold_service.py",
+    "lines": [230, 230]
+  },
+  {
+    "kind": "thing-not-supported",
+    "text": "The step asks only whether the library is open, but line 214 also lets the run go on when a test date is set.",
+    "diagram": "offer-flow",
+    "node": "open"
+  }
+]

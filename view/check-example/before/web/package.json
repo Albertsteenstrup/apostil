@@ -1,0 +1,13 @@
+{
+  "name": "library-web",
+  "private": true,
+  "description": "The web pages of the library app: the member page and the desk screen.",
+  "scripts": {
+    "client": "node scripts/write-client.mjs openapi.json src/api/generated",
+    "test": "node scripts/run-tests.mjs"
+  },
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
+}

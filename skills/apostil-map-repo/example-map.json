@@ -1,0 +1,16 @@
+{
+  "format": 1,
+  "diagrams": [
+    {
+      "id": "shop-map",
+      "kind": "flow",
+      "title": "The shop: the web page, the server and the data",
+      "mermaid": "flowchart LR\n  web[\"Web page\"] -->|\"asks for orders\"| api[\"Server\"]\n  api -->|\"reads and writes\"| data[\"Data\"]\n",
+      "nodePaths": {
+        "web": ["frontend/"],
+        "api": ["server/"],
+        "data": ["db/", "scripts/seed.py"]
+      }
+    }
+  ]
+}

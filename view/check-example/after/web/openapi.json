@@ -1,0 +1,129 @@
+{
+  "openapi": "3.1.0",
+  "info": { "title": "The library API", "version": "3.5.0" },
+  "paths": {
+    "/api/member/loans": {
+      "get": {
+        "operationId": "listMyLoans",
+        "responses": { "200": { "description": "The loans of the member", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Loan" } } } } } }
+      }
+    },
+    "/api/member/loans/{loan_id}/renew": {
+      "post": {
+        "operationId": "renewLoan",
+        "parameters": [{ "name": "loan_id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": {
+          "200": { "description": "Renewed" },
+          "409": { "description": "Not renewed", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Problem" } } } }
+        }
+      }
+    },
+    "/api/holds/mine": {
+      "get": {
+        "operationId": "listMyHolds",
+        "responses": { "200": { "description": "The holds of the member, the oldest first", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/HoldList" } } } } }
+      }
+    },
+    "/api/holds/": {
+      "post": {
+        "operationId": "createHold",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/HoldCreate" } } } },
+        "responses": {
+          "200": { "description": "The new hold", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Hold" } } } },
+          "409": { "description": "Refused by the rules", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Problem" } } } },
+          "422": { "description": "A field is wrong", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Problem" } } } }
+        }
+      }
+    },
+    "/api/holds/{hold_id}/pause": {
+      "post": {
+        "operationId": "pauseHold",
+        "parameters": [{ "name": "hold_id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["until"], "properties": { "until": { "type": "string", "format": "date" } } } } } },
+        "responses": { "200": { "description": "The paused hold", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Hold" } } } } }
+      }
+    },
+    "/api/holds/{hold_id}/resume": {
+      "post": {
+        "operationId": "resumeHold",
+        "parameters": [{ "name": "hold_id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "The hold, waiting again", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Hold" } } } } }
+      }
+    },
+    "/api/holds/{hold_id}": {
+      "delete": {
+        "operationId": "cancelHold",
+        "parameters": [{ "name": "hold_id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "The cancelled hold", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Hold" } } } } }
+      }
+    },
+    "/api/books/search": {
+      "get": {
+        "operationId": "searchBooks",
+        "parameters": [
+          { "name": "q", "in": "query", "required": true, "schema": { "type": "string" } },
+          { "name": "only_out", "in": "query", "schema": { "type": "boolean" } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "maximum": 50 } }
+        ],
+        "responses": { "200": { "description": "The books that match", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/BookHit" } } } } } }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Loan": {
+        "type": "object",
+        "required": ["id", "title", "author", "due_on", "renewals", "may_renew"],
+        "properties": {
+          "id": { "type": "integer" },
+          "title": { "type": "string" },
+          "author": { "type": "string" },
+          "due_on": { "type": "string", "format": "date" },
+          "renewals": { "type": "integer" },
+          "may_renew": { "type": "boolean" }
+        }
+      },
+      "Problem": {
+        "type": "object",
+        "required": ["message"],
+        "properties": { "message": { "type": "string" }, "field": { "type": "string" } }
+      },
+      "HoldState": { "type": "string", "enum": ["waiting", "paused", "ready", "collected", "cancelled"] },
+      "Hold": {
+        "type": "object",
+        "required": ["id", "title", "author", "state", "place", "branch_id", "pickup_by", "paused_until"],
+        "properties": {
+          "id": { "type": "integer" },
+          "title": { "type": "string" },
+          "author": { "type": "string" },
+          "state": { "$ref": "#/components/schemas/HoldState" },
+          "place": { "type": "integer", "description": "The place in the line, counted from 1; 0 when the hold does not wait." },
+          "branch_id": { "type": "string" },
+          "pickup_by": { "type": ["string", "null"], "format": "date", "description": "The last day on which a ready copy can be picked up." },
+          "paused_until": { "type": ["string", "null"], "format": "date", "description": "The last day of a pause." }
+        }
+      },
+      "HoldList": { "type": "array", "items": { "$ref": "#/components/schemas/Hold" } },
+      "HoldCreate": {
+        "type": "object",
+        "required": ["book_id", "branch_id"],
+        "properties": {
+          "book_id": { "type": "integer" },
+          "branch_id": { "type": "string" },
+          "note": { "type": "string", "maxLength": 200, "description": "A note for the desk, at most 200 characters." },
+          "member_id": { "type": "integer", "description": "The member, when the desk places the hold for a member." }
+        }
+      },
+      "BookHit": {
+        "type": "object",
+        "required": ["id", "title", "author", "waiting"],
+        "properties": {
+          "id": { "type": "integer" },
+          "title": { "type": "string" },
+          "author": { "type": "string" },
+          "waiting": { "type": "integer", "description": "How many members wait for it now." }
+        }
+      }
+    }
+  }
+}

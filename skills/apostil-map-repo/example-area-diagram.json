@@ -1,0 +1,13 @@
+{
+  "id": "shop-server",
+  "kind": "flow",
+  "title": "The server: routes call services",
+  "mermaid": "flowchart LR\n  routes[\"Routes\"] -->|\"call\"| services[\"Services\"]\n  services -->|\"use\"| models[\"Models\"]\n  config[\"Config\"]\n",
+  "parent": "shop-map",
+  "nodePaths": {
+    "routes": ["server/routes/"],
+    "services": ["server/services/"],
+    "models": ["server/models/"],
+    "config": ["server/app.py", "server/settings.py"]
+  }
+}

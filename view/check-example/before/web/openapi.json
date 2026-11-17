@@ -1,0 +1,89 @@
+{
+  "openapi": "3.1.0",
+  "info": { "title": "The library API", "version": "3.4.0" },
+  "paths": {
+    "/api/member/loans": {
+      "get": {
+        "operationId": "listMyLoans",
+        "responses": { "200": { "description": "The loans of the member", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Loan" } } } } } }
+      }
+    },
+    "/api/member/loans/{loan_id}/renew": {
+      "post": {
+        "operationId": "renewLoan",
+        "parameters": [{ "name": "loan_id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": {
+          "200": { "description": "Renewed" },
+          "409": { "description": "Not renewed", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Problem" } } } }
+        }
+      }
+    },
+    "/api/member/reservations": {
+      "get": {
+        "operationId": "listMyReservations",
+        "responses": { "200": { "description": "The reservations of the member", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Reservation" } } } } } }
+      }
+    },
+    "/api/requests/reservations/{book_id}": {
+      "post": {
+        "operationId": "reserveBook",
+        "parameters": [{ "name": "book_id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": {
+          "200": { "description": "Reserved", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Reservation" } } } },
+          "409": { "description": "Refused", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Problem" } } } }
+        }
+      }
+    },
+    "/api/requests/reservations/{reservation_id}": {
+      "delete": {
+        "operationId": "cancelReservation",
+        "parameters": [{ "name": "reservation_id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "Cancelled" } }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Loan": {
+        "type": "object",
+        "required": ["id", "title", "author", "due_on", "renewals", "may_renew"],
+        "properties": {
+          "id": { "type": "integer" },
+          "title": { "type": "string" },
+          "author": { "type": "string" },
+          "due_on": { "type": "string", "format": "date" },
+          "renewals": { "type": "integer" },
+          "may_renew": { "type": "boolean" }
+        }
+      },
+      "Problem": {
+        "type": "object",
+        "required": ["message"],
+        "properties": { "message": { "type": "string" }, "field": { "type": "string" } }
+      },
+      "Reservation": {
+        "type": "object",
+        "required": ["id", "member_id", "book_id", "state", "created_at"],
+        "properties": {
+          "id": { "type": "integer" },
+          "member_id": { "type": "integer" },
+          "book_id": { "type": "integer" },
+          "state": { "type": "string", "enum": ["open", "told", "archived", "closed"] },
+          "created_at": { "type": "string", "format": "date-time" },
+          "told_on": { "type": ["string", "null"], "format": "date" },
+          "notes": { "type": "array", "items": { "$ref": "#/components/schemas/ReservationNote" } }
+        }
+      },
+      "ReservationNote": {
+        "type": "object",
+        "required": ["id", "reservation_id", "text", "written_at"],
+        "properties": {
+          "id": { "type": "integer" },
+          "reservation_id": { "type": "integer" },
+          "text": { "type": "string" },
+          "written_at": { "type": "string", "format": "date-time" }
+        }
+      }
+    }
+  }
+}

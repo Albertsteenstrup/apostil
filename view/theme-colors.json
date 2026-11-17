@@ -1,0 +1,136 @@
+{
+ "apostil": {
+  "theme": "Apostil Light",
+  "bodyClass": "vscode-light",
+  "bodyData": {
+   "vscodeThemeKind": "vscode-light",
+   "vscodeThemeName": "Apostil Light",
+   "vscodeThemeId": "Apostil Light"
+  },
+  "vars": {
+   "--vscode-diffEditor-insertedLineBackground": "rgba(155, 185, 85, 0.2)",
+   "--vscode-diffEditor-removedLineBackground": "rgba(255, 0, 0, 0.2)",
+   "--vscode-diffEditor-insertedTextBackground": "rgba(88, 124, 12, 0.15)",
+   "--vscode-diffEditor-removedTextBackground": "rgba(173, 7, 7, 0.15)",
+   "--vscode-editorGutter-addedBackground": "#587c0c",
+   "--vscode-editorGutter-deletedBackground": "#ad0707",
+   "--vscode-editor-background": "#fffefc",
+   "--vscode-editorWidget-background": "#fffefc",
+   "--vscode-editor-foreground": "#1a2b24",
+   "--vscode-descriptionForeground": "#6b6b6b",
+   "--vscode-editorGroup-border": "#ddd6cc",
+   "--vscode-list-hoverBackground": "#f8f5f0",
+   "--vscode-input-background": "#fffefc",
+   "--vscode-input-border": "#beb6ab",
+   "--vscode-sideBar-background": "#f3f0ea"
+  }
+ },
+ "light": {
+  "theme": "Light 2026",
+  "bodyClass": "vscode-light",
+  "bodyData": {
+   "vscodeThemeKind": "vscode-light",
+   "vscodeThemeName": "Light 2026",
+   "vscodeThemeId": "Light 2026"
+  },
+  "vars": {
+   "--vscode-diffEditor-insertedLineBackground": "rgba(155, 185, 85, 0.2)",
+   "--vscode-diffEditor-removedLineBackground": "rgba(255, 0, 0, 0.2)",
+   "--vscode-diffEditor-insertedTextBackground": "rgba(88, 124, 12, 0.15)",
+   "--vscode-diffEditor-removedTextBackground": "rgba(173, 7, 7, 0.15)",
+   "--vscode-editorGutter-addedBackground": "#587c0c",
+   "--vscode-editorGutter-deletedBackground": "#ad0707",
+   "--vscode-editor-background": "#ffffff",
+   "--vscode-editorWidget-background": "#fafafd",
+   "--vscode-editor-foreground": "#202020",
+   "--vscode-descriptionForeground": "#606060",
+   "--vscode-widget-border": "#e2e2e5",
+   "--vscode-editorGroup-border": "#e5e5e5",
+   "--vscode-list-hoverBackground": "rgba(0, 0, 0, 0.08)",
+   "--vscode-input-background": "#ffffff",
+   "--vscode-input-border": "rgba(216, 216, 216, 0.4)",
+   "--vscode-sideBar-background": "#fafafd"
+  }
+ },
+ "dark": {
+  "theme": "Dark 2026",
+  "bodyClass": "vscode-dark",
+  "bodyData": {
+   "vscodeThemeKind": "vscode-dark",
+   "vscodeThemeName": "Dark 2026",
+   "vscodeThemeId": "Dark 2026"
+  },
+  "vars": {
+   "--vscode-diffEditor-insertedLineBackground": "rgba(52, 125, 57, 0.15)",
+   "--vscode-diffEditor-removedLineBackground": "rgba(201, 60, 55, 0.15)",
+   "--vscode-diffEditor-insertedTextBackground": "rgba(87, 171, 90, 0.3)",
+   "--vscode-diffEditor-removedTextBackground": "rgba(244, 112, 103, 0.3)",
+   "--vscode-editorGutter-addedBackground": "#72c892",
+   "--vscode-editorGutter-deletedBackground": "#f28772",
+   "--vscode-editor-background": "#121314",
+   "--vscode-editorWidget-background": "#202122",
+   "--vscode-editor-foreground": "#bbbebf",
+   "--vscode-descriptionForeground": "#8c8c8c",
+   "--vscode-widget-border": "#2a2b2c",
+   "--vscode-editorGroup-border": "rgba(255, 255, 255, 0.09)",
+   "--vscode-list-hoverBackground": "rgba(255, 255, 255, 0.08)",
+   "--vscode-input-background": "#191a1b",
+   "--vscode-input-border": "#333536",
+   "--vscode-sideBar-background": "#191a1b"
+  }
+ },
+ "hcDark": {
+  "theme": "Default High Contrast",
+  "bodyClass": "vscode-high-contrast",
+  "bodyData": {
+   "vscodeThemeKind": "vscode-high-contrast",
+   "vscodeThemeName": "Dark High Contrast",
+   "vscodeThemeId": "Default High Contrast"
+  },
+  "vars": {
+   "--vscode-editorGutter-addedBackground": "#487e02",
+   "--vscode-editorGutter-deletedBackground": "#f48771",
+   "--vscode-editor-background": "#000000",
+   "--vscode-editorWidget-background": "#0c141f",
+   "--vscode-editor-foreground": "#ffffff",
+   "--vscode-descriptionForeground": "rgba(255, 255, 255, 0.7)",
+   "--vscode-widget-border": "#6fc3df",
+   "--vscode-editorGroup-border": "#6fc3df",
+   "--vscode-list-hoverBackground": "rgba(255, 255, 255, 0.1)",
+   "--vscode-input-background": "#000000",
+   "--vscode-input-border": "#6fc3df",
+   "--vscode-contrastBorder": "#6fc3df",
+   "--vscode-contrastActiveBorder": "#f38518",
+   "--vscode-diffEditor-insertedTextBorder": "#33ff2e",
+   "--vscode-diffEditor-removedTextBorder": "#ff008f",
+   "--vscode-sideBar-background": "#000000"
+  }
+ },
+ "hcLight": {
+  "theme": "Default High Contrast Light",
+  "bodyClass": "vscode-high-contrast-light vscode-high-contrast",
+  "bodyData": {
+   "vscodeThemeKind": "vscode-high-contrast-light",
+   "vscodeThemeName": "Light High Contrast",
+   "vscodeThemeId": "Default High Contrast Light"
+  },
+  "vars": {
+   "--vscode-editorGutter-addedBackground": "#48985d",
+   "--vscode-editorGutter-deletedBackground": "#b5200d",
+   "--vscode-editor-background": "#ffffff",
+   "--vscode-editorWidget-background": "#ffffff",
+   "--vscode-editor-foreground": "#292929",
+   "--vscode-descriptionForeground": "rgba(41, 41, 41, 0.7)",
+   "--vscode-widget-border": "#0f4a85",
+   "--vscode-editorGroup-border": "#0f4a85",
+   "--vscode-list-hoverBackground": "rgba(15, 74, 133, 0.1)",
+   "--vscode-input-background": "#ffffff",
+   "--vscode-input-border": "#0f4a85",
+   "--vscode-contrastBorder": "#0f4a85",
+   "--vscode-contrastActiveBorder": "#006bbd",
+   "--vscode-diffEditor-insertedTextBorder": "#374e06",
+   "--vscode-diffEditor-removedTextBorder": "#ad0707",
+   "--vscode-sideBar-background": "#ffffff"
+  }
+ }
+}

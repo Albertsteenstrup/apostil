@@ -1,0 +1,49 @@
+/* The desk screen: a large screen behind the desk, read from a step away. */
+
+.desk-screen {
+  padding: 20px 28px;
+  font: 17px/1.45 system-ui, sans-serif;
+  color: #1f2328;
+}
+
+.desk-head h1 {
+  margin: 0 0 4px;
+  font-size: 28px;
+}
+
+.desk-columns {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 28px;
+  margin-top: 16px;
+}
+
+.desk-group h2,
+.desk-queue h2 {
+  margin: 16px 0 6px;
+  font-size: 19px;
+}
+
+.desk-group ul,
+.desk-queue ol,
+.put-aside {
+  margin: 0;
+  padding-left: 22px;
+}
+
+.desk-group li,
+.desk-queue li {
+  padding: 3px 0;
+}
+
+.quiet {
+  color: #57606a;
+}
+
+.problem {
+  color: #b42318;
+}
+
+.small {
+  font-size: 14px;
+}

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="3 0 78 28" fill="none" stroke="#0f766e" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+  <!-- The name in small letters, each drawn from one circle and one stem. -->
+  <circle cx="11.3" cy="13.8" r="5.3"/><path d="M16.6 8.4v10.8"/>
+  <path d="M21.6 8.4v16.4"/><circle cx="26.9" cy="13.8" r="5.3"/>
+  <circle cx="42.4" cy="13.8" r="5.3"/>
+  <path d="M57.9 11.15A2.65 2.65 0 1 0 55.25 13.8A2.65 2.65 0 1 1 52.6 16.45"/>
+  <path d="M65.5 5.2v14M62.8 8.6h5.6"/>
+  <path d="M73.3 8.4v10.8"/>
+  <path d="M78.2 3.6v15.6"/>
+  <circle cx="73.3" cy="3.9" r="1.7" fill="#0f766e" stroke="none"/>
+</svg>

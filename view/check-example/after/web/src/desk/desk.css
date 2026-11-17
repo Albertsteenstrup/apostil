@@ -1,0 +1,96 @@
+/* The desk screen: a large screen behind the desk, read from a step away. */
+
+.desk-screen {
+  padding: 20px 28px;
+  font: 17px/1.45 system-ui, sans-serif;
+  color: #1f2328;
+}
+
+.desk-head h1 {
+  margin: 0 0 4px;
+  font-size: 28px;
+}
+
+.desk-columns {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 28px;
+  margin-top: 16px;
+}
+
+.desk-group h2,
+.desk-queue h2 {
+  margin: 16px 0 6px;
+  font-size: 19px;
+}
+
+.desk-group ul,
+.desk-queue ol,
+.put-aside {
+  margin: 0;
+  padding-left: 22px;
+}
+
+.desk-group li,
+.desk-queue li {
+  padding: 3px 0;
+}
+
+.quiet {
+  color: #57606a;
+}
+
+.problem {
+  color: #b42318;
+}
+
+.small {
+  font-size: 14px;
+}
+
+/* The ready shelf under the queue: the copies that wait for their member, the nearest last day first. */
+
+.desk-side {
+  display: grid;
+  align-content: start;
+  gap: 20px;
+}
+
+.ready-for {
+  color: #04603d;
+}
+
+.ready-shelf h2 {
+  margin: 16px 0 6px;
+  font-size: 19px;
+}
+
+.ready-shelf table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.ready-shelf th,
+.ready-shelf td {
+  padding: 4px 6px;
+  border-bottom: 1px solid #eaeef2;
+  text-align: left;
+}
+
+.ready-shelf tr.last-day td {
+  background: #fff4d6;
+}
+
+.ready-shelf .no-mail {
+  color: #b42318;
+  font-size: 14px;
+}
+
+.ready-shelf .next {
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  background: #fff;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}

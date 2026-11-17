@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+  <!-- The app icon: the mark in paper colour on the brand teal. -->
+  <rect x="4" y="4" width="120" height="120" rx="28" fill="#0f766e"/>
+  <g transform="translate(9.4 1) scale(4.7)" stroke="#fffefc" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="11.2" cy="13.4" r="5.8"/><path d="M17 7.6V19.2"/></g>
+</svg>

@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "rootDir": ".",
+    "outDir": "out",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "include": ["shared/**/*.ts", "store/**/*.ts", "view/**/*.ts", "helper/**/*.ts", "theme/**/*.ts"],
+  "exclude": ["node_modules", "out", "view/media", "view/check-example"]
+}

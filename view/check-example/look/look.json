@@ -1,0 +1,23 @@
+{
+ "sets": [
+  {
+   "id": "errors", "name": "Errors that a member reads",
+   "rule": "Mark each line that raises an error with words that a member reads. Use field when the error names a field of the form, and state when it does not.",
+   "values": [
+    { "id": "field", "name": "A wrong field", "icon": "apostil-look-field.svg" },
+    { "id": "state", "name": "A wrong state", "icon": "apostil-look-state.svg" }
+   ],
+   "corner": { "node": "lower-left", "note": "upper-left" }
+  }
+ ],
+ "rules": [
+  { "pick": { "kind": "node", "paths": ["src/library/lending/"] }, "box": { "color": "#2b6cb0" } },
+  { "pick": { "kind": "node", "diagram": "lib-top", "nodes": ["data"] }, "box": { "shape": "cyl" } },
+  { "pick": { "kind": "node", "diagram": "lib-top", "nodes": ["writing"] }, "content": { "picture": "docs/guide/holds-panel.png" } },
+  { "pick": { "kind": "node", "diagram": "member-areas", "nodes": ["holds"] }, "content": { "film": "apostil-look-shelf.mp4" } },
+  { "pick": { "kind": "node", "diagram": "lib-top", "nodes": ["jobs"] }, "corners": { "upper-left": { "icon": "apostil-look-open.svg", "name": "Open the night run", "action": { "file": "src/library/night_jobs.py", "line": 516 } } } },
+  { "pick": { "kind": "arrow", "diagram": "lib-top", "nodes": ["jobs", "lending"] }, "arrow": { "color": "#2b6cb0", "width": 2.5 } },
+  { "pick": { "kind": "step", "mark": "errors:state" }, "box": { "line": "#b45309", "width": 2 } },
+  { "pick": { "kind": "note", "mark": "errors:*" }, "note": { "color": "#b45309" } }
+ ]
+}

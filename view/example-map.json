@@ -1,0 +1,182 @@
+{
+ "format": 1,
+ "diagrams": [
+  {
+   "id": "lib-top",
+   "kind": "flow",
+   "title": "The library app and its parts",
+   "mermaid": "flowchart LR\n  web[\"Web pages\"] -->|\"calls\"| routes[\"Web routes\"]\n  routes -->|\"hands to\"| lending[\"Lending\"]\n  jobs[\"Night jobs\"] -->|\"wakes each night\"| lending\n  lending -->|\"feeds\"| desk[\"Front desk\"]\n  lending -->|\"saves in\"| data[\"Database\"]\n  desk -->|\"looks up\"| data\n  checks[\"Tests\"] -.->|\"try\"| lending\n  writing[\"Guides and notes\"]\n",
+   "nodePaths": {
+    "web": ["web/"],
+    "routes": ["src/library/web/"],
+    "lending": ["src/library/lending/"],
+    "jobs": ["src/library/night_jobs.py", "src/library/dev_clock.py", "src/library/jobs/"],
+    "desk": ["src/library/desk/"],
+    "data": ["db/", "scripts/"],
+    "checks": ["tests/"],
+    "writing": ["docs/", "README.md"]
+   }
+  },
+  {
+   "id": "lib-lending",
+   "kind": "flow",
+   "title": "Lending: holds, requests and mails",
+   "parent": "lib-top",
+   "mermaid": "flowchart LR\n  shelf[\"Ready shelf\"] -->|\"calls\"| service[\"Hold service\"]\n  service -->|\"uses\"| models[\"Hold models\"]\n  service -->|\"mails through\"| queue[\"Queue and notices\"]\n  requests[\"Book requests\"] -->|\"mail through\"| queue\n  shelf -->|\"checked by\"| perms[\"Permissions\"]\n  queue -->|\"replies with\"| api[\"Answer shapes\"]\n",
+   "nodePaths": {
+    "shelf": ["src/library/lending/ready_shelf.py"],
+    "service": ["src/library/lending/hold_service.py"],
+    "models": ["src/library/lending/hold_models.py"],
+    "queue": ["src/library/lending/notices.py", "src/library/lending/queue.py"],
+    "requests": ["src/library/lending/requests.py", "src/library/lending/request_models.py"],
+    "perms": ["src/library/lending/permissions.py"],
+    "api": ["src/library/lending/answer_shapes.py"]
+   },
+   "notes": [
+    {
+     "file": "src/library/lending/hold_models.py",
+     "lines": [46, 54],
+     "title": "Refuse an unknown branch",
+     "text": "Gives the branch in its stored form, and refuses a branch that lends no books.",
+     "symbol": "validate_branch"
+    },
+    {
+     "file": "src/library/lending/hold_models.py",
+     "lines": [57, 84],
+     "title": "The pickup rules of a branch",
+     "text": "Holds the open days of a branch, and works out the last pickup day from them.",
+     "symbol": "PickupRules"
+    }
+   ]
+  },
+  {
+   "id": "member-areas",
+   "kind": "flow",
+   "title": "The areas of the member page",
+   "parent": "lib-top",
+   "mermaid": "flowchart LR\n  page[\"Member page\"] --> loans[\"Loans: books at home\"]\n  page --> history[\"History: books read before\"]\n  page --> lists[\"Reading lists to share\"]\n  page --> holds[\"Holds: books to wait for\"]\n  loans --> renew[\"Renew a loan\"]\n  lists --> share[\"Share a list with a link\"]\n  holds --> pickup[\"Pick up at the ready shelf\"]\n",
+   "nodePaths": {
+    "page": ["web/src/member/MemberPage.tsx", "web/src/member/memberModel.ts", "web/src/member/index.ts", "web/src/member/member.css"],
+    "holds": ["web/src/member/HoldsPanel.tsx", "web/src/member/HoldDialog.tsx", "web/src/member/holdsApi.ts", "web/src/member/HoldsPanel.test.tsx"]
+   }
+  },
+  {
+   "id": "lib-tables",
+   "kind": "schema",
+   "title": "The tables of holds",
+   "parent": "lib-top",
+   "mermaid": "erDiagram\n  book_hold {\n    bigint id PK\n    bigint member_id FK\n    bigint book_id FK\n  }\n  hold_event {\n    bigint id PK\n    bigint hold_id FK\n    bigint member_id FK\n  }\n  hold_event }o--|| book_hold : hold_id\n",
+   "nodePaths": {
+    "book_hold": ["db/migrations/0042_holds.sql"],
+    "hold_event": ["db/migrations/0042_holds.sql"]
+   }
+  }
+ ],
+ "fileNotes": [
+  { "file": "src/library/web/requests_router.py", "lines": [12, 15], "title": "Build the request service", "text": "Gives each call a RequestService with the database and the mailer of this library." },
+  { "file": "src/library/web/requests_router.py", "lines": [23, 27], "title": "Send the requests of a member", "text": "Returns the requests of one member as plain dicts for the purchase team." },
+  { "file": "src/library/web/requests_router.py", "lines": [30, 38], "title": "Answer one book request", "text": "Takes the answer of a librarian and turns a refusal into an answer with a status." },
+  { "file": "src/library/lending/requests.py", "lines": [31, 36], "title": "Shape one request row", "text": "Builds the BookRequest that the member page and the desk show." },
+  { "file": "src/library/lending/requests.py", "lines": [38, 41], "title": "Read the requests of a member", "text": "Returns the requests of one member, the newest first." },
+  { "file": "src/library/lending/requests.py", "lines": [43, 82], "title": "Answer the request", "text": "Stores the answer of a librarian and tells each member who asked for the same book." },
+  { "file": "src/library/lending/requests.py", "lines": [46, 49], "title": "Lock the requests for the book", "text": "Locks the request and each open request for the same book, in one order." },
+  { "file": "src/library/lending/requests.py", "lines": [51, 52], "title": "Check the librarian", "text": "Refuses a librarian who is not in the purchase team." },
+  { "file": "src/library/lending/requests.py", "lines": [54, 55], "title": "Return an earlier answer", "text": "Returns the stored request when the same answer comes again with its key." },
+  { "file": "src/library/lending/requests.py", "lines": [57, 60], "title": "Refuse an unknown answer", "text": "Refuses an answer that is not in the list, and a request that another librarian answered first." },
+  { "file": "src/library/lending/requests.py", "lines": [62, 67], "title": "Write the answer into the rows", "text": "Writes the answer, the librarian and the key into each open request for the book." },
+  { "file": "src/library/lending/requests.py", "lines": [69, 73], "title": "Order the book", "text": "Adds a purchase order when the library buys or borrows the book." },
+  { "file": "src/library/lending/requests.py", "lines": [75, 76], "title": "Collect the members who asked", "text": "Reads the active members who asked for the same book." },
+  { "file": "src/library/lending/requests.py", "lines": [78, 79], "title": "Mail each member", "text": "Sends each member one mail with the answer of the librarian." },
+  { "file": "src/library/lending/requests.py", "lines": [81, 82], "title": "Give back the answered request", "text": "Reads the request again and returns it with its answer." },
+  { "file": "src/library/lending/requests.py", "lines": [84, 106], "title": "Ask for a book", "text": "Saves one open request of a member after its checks." },
+  { "file": "src/library/lending/requests.py", "lines": [86, 89], "title": "Clean the title and the ISBN", "text": "Takes the dashes out of the ISBN and refuses a request with no title." },
+  { "file": "src/library/lending/requests.py", "lines": [91, 92], "title": "Refuse a book of the library", "text": "Refuses a book that the library has, because a hold fits it better." },
+  { "file": "src/library/lending/requests.py", "lines": [94, 96], "title": "Limit the open requests", "text": "Refuses a new request while the member has five open requests." },
+  { "file": "src/library/lending/requests.py", "lines": [98, 99], "title": "Refuse the same request twice", "text": "Refuses a second open request of the member for the same title." },
+  { "file": "src/library/lending/requests.py", "lines": [101, 104], "title": "Insert the request row", "text": "Inserts the open request with its time and where it came from." },
+  { "file": "src/library/lending/requests.py", "lines": [106, 106], "title": "Give back the new request", "text": "Returns the new request as the member page shows it." },
+  { "file": "src/library/lending/notices.py", "lines": [60, 67], "title": "Send the answer to a member", "text": "Writes the mail for a bought, borrowed or declined book and sends it." }
+ ],
+ "processes": [
+  {
+   "id": "answer-request",
+   "group": "web-requests",
+   "title": "Answer a book request",
+   "summary": "Stores the answer of a librarian and tells each member who asked for the book.",
+   "steps": [
+    "src/library/web/requests_router.py:30-38",
+    "src/library/web/requests_router.py:12-15",
+    "src/library/lending/requests.py:43-82",
+    "src/library/lending/requests.py:46-49",
+    "src/library/lending/requests.py:51-52",
+    "src/library/lending/requests.py:54-55",
+    "src/library/lending/requests.py:57-60",
+    "src/library/lending/requests.py:62-67",
+    "src/library/lending/requests.py:69-73",
+    "src/library/lending/requests.py:75-76",
+    "src/library/lending/requests.py:78-79",
+    "src/library/lending/requests.py:81-82",
+    "src/library/lending/requests.py:31-36",
+    "src/library/lending/notices.py:60-67"
+   ],
+   "arrows": [
+    { "from": "src/library/web/requests_router.py:30-38", "to": "src/library/web/requests_router.py:12-15", "label": "make the service", "fromLine": 33, "toLine": 12, "name": "request_service" },
+    { "from": "src/library/web/requests_router.py:30-38", "to": "src/library/lending/requests.py:43-82", "label": "pass the answer", "fromLine": 35, "toLine": 43, "name": "answer_request" },
+    { "from": "src/library/lending/requests.py:81-82", "to": "src/library/lending/requests.py:31-36", "label": "shape the request", "fromLine": 82, "toLine": 31, "name": "_request_view" },
+    { "from": "src/library/lending/requests.py:78-79", "to": "src/library/lending/notices.py:60-67", "label": "send the mail", "fromLine": 79, "toLine": 60, "name": "send_request_answer" },
+    { "kind": "branch", "from": "src/library/lending/requests.py:54-55", "to": "src/library/lending/requests.py:81-82", "label": "when the key repeats", "fromLine": 54 },
+    { "kind": "branch", "from": "src/library/lending/requests.py:69-73", "to": "src/library/lending/requests.py:75-76", "label": "if it is declined", "fromLine": 69 }
+   ],
+   "outside": [
+    { "from": "src/library/lending/requests.py:62-67", "to": "json", "label": "write the details", "fromLine": 62, "name": "dumps" }
+   ]
+  },
+  {
+   "id": "list-requests",
+   "group": "web-requests",
+   "title": "List the requests of a member",
+   "summary": "Returns the book requests of one member, the newest first.",
+   "steps": [
+    "src/library/web/requests_router.py:23-27",
+    "src/library/web/requests_router.py:12-15",
+    "src/library/lending/requests.py:38-41",
+    "src/library/lending/requests.py:31-36"
+   ],
+   "arrows": [
+    { "from": "src/library/web/requests_router.py:23-27", "to": "src/library/web/requests_router.py:12-15", "label": "make the service", "fromLine": 25, "toLine": 12, "name": "request_service" },
+    { "from": "src/library/web/requests_router.py:23-27", "to": "src/library/lending/requests.py:38-41", "label": "fetch the rows", "fromLine": 26, "toLine": 38, "name": "requests_of" },
+    { "from": "src/library/lending/requests.py:38-41", "to": "src/library/lending/requests.py:31-36", "label": "turn rows into views", "fromLine": 41, "toLine": 31, "name": "_request_view" }
+   ]
+  },
+  {
+   "id": "ask-request",
+   "group": "lending-requests",
+   "title": "Ask the library for a book",
+   "summary": "Checks the book and the member, then saves one open request for the purchase team.",
+   "steps": [
+    "src/library/lending/requests.py:84-106",
+    "src/library/lending/requests.py:86-89",
+    "src/library/lending/requests.py:91-92",
+    "src/library/lending/requests.py:94-96",
+    "src/library/lending/requests.py:98-99",
+    "src/library/lending/requests.py:101-104",
+    "src/library/lending/requests.py:106-106"
+   ],
+   "outside": [
+    { "from": "src/library/lending/requests.py:101-104", "to": "json", "label": "write the details", "fromLine": 103, "name": "dumps" },
+    { "from": "src/library/lending/requests.py:101-104", "to": "Table Store", "label": "insert the row", "fromLine": 102, "name": "book_request" }
+   ]
+  }
+ ],
+ "handoffs": [
+  {
+   "from": "ask-request",
+   "to": "answer-request",
+   "label": "the request row",
+   "name": "book_request",
+   "fromLine": { "file": "src/library/lending/requests.py", "line": 102 },
+   "toLine": { "file": "src/library/lending/requests.py", "line": 46 },
+   "group": "lending-requests"
+  }
+ ]
+}

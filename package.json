@@ -1,0 +1,295 @@
+{
+  "name": "apostil",
+  "displayName": "Apostil",
+  "description": "Review a change from a coding agent as parts, notes and diagrams that point at the code.",
+  "version": "0.3.0",
+  "private": true,
+  "publisher": "apostil",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Albertsteenstrup/apostil.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Albertsteenstrup/apostil/issues"
+  },
+  "icon": "view/media/apostil-icon.png",
+  "engines": {
+    "vscode": "^1.100.0",
+    "node": ">=24"
+  },
+  "main": "./out/view/extension.js",
+  "bin": {
+    "apostil": "./out/store/cli.js",
+    "apostil-helper": "./out/helper/helper.js"
+  },
+  "scripts": {
+    "build": "tsc -p .",
+    "test": "npm run build && node --test \"out/**/*.test.js\"",
+    "check": "node view/check.mjs",
+    "package": "npm run build && vsce package --no-dependencies --allow-missing-repository --skip-license --readme-path skills/README.md",
+    "check-package": "node out/view/package-check.js",
+    "vscode:uninstall": "node ./out/store/uninstall-hook.js"
+  },
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "apostil",
+          "title": "Apostil",
+          "icon": "view/media/apostil.svg"
+        }
+      ]
+    },
+    "views": {
+      "apostil": [
+        {
+          "type": "webview",
+          "id": "apostil.changes",
+          "name": "Repo",
+          "initialSize": 1
+        },
+        {
+          "id": "apostil.files",
+          "name": "Files",
+          "initialSize": 4
+        }
+      ]
+    },
+    "customEditors": [
+      {
+        "viewType": "apostil.file",
+        "displayName": "Apostil: the change in this file",
+        "selector": [
+          {
+            "filenamePattern": "*"
+          }
+        ],
+        "priority": "option"
+      }
+    ],
+    "commands": [
+      {
+        "command": "apostil.openChange",
+        "title": "Apostil: Open the newest change"
+      },
+      {
+        "command": "apostil.remark",
+        "title": "Apostil: Add a comment"
+      },
+      {
+        "command": "apostil.sortAndFilter",
+        "title": "Apostil: Sort and Filter the Changes"
+      },
+      {
+        "command": "apostil.refresh",
+        "title": "Apostil: Load the changes again"
+      },
+      {
+        "command": "apostil.chooseLook",
+        "title": "Apostil: Choose a look"
+      },
+      {
+        "command": "apostil.installCommand",
+        "title": "Apostil: Install the apostil command"
+      },
+      {
+        "command": "apostil.connectClaudeCode",
+        "title": "Apostil: Connect Claude Code"
+      },
+      {
+        "command": "apostil.setUp",
+        "title": "Apostil: Set up for agents"
+      },
+      {
+        "command": "apostil.uninstall",
+        "title": "Apostil: Uninstall…"
+      },
+      {
+        "command": "apostil.openPullRequest",
+        "title": "Apostil: Open pull request…"
+      },
+      {
+        "command": "apostil.reportIssue",
+        "title": "Apostil: Report an Issue"
+      },
+      {
+        "command": "apostil.home",
+        "title": "Apostil: Home",
+        "icon": "view/media/apostil.svg"
+      },
+      {
+        "command": "apostil.graphsOf",
+        "title": "Apostil: Graphs of this folder or file",
+        "icon": "$(type-hierarchy)"
+      },
+      {
+        "command": "apostil.toggleNotes",
+        "title": "Apostil: Hide or show the notes of this tab"
+      },
+      {
+        "command": "apostil.openNoteInTab",
+        "title": "Apostil: Open a note in the file tab"
+      },
+      {
+        "command": "apostil.openBranchChange",
+        "title": "Open the change in Apostil",
+        "category": "Apostil",
+        "icon": "view/media/apostil.svg"
+      },
+      {
+        "command": "apostil.linksOff",
+        "title": "Apostil: Turn off links and nudges"
+      },
+      {
+        "command": "apostil.linksOn",
+        "title": "Apostil: Turn on links and nudges"
+      }
+    ],
+    "menus": {
+      "view/item/context": [
+        {
+          "command": "apostil.graphsOf",
+          "when": "view == apostil.files && viewItem == apostil.inDiagram",
+          "group": "inline"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "apostil.graphsOf",
+          "when": "resourceScheme == file",
+          "group": "navigation@90"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "apostil.graphsOf",
+          "when": "resourceScheme == file",
+          "group": "navigation@90"
+        }
+      ],
+      "scm/title": [
+        {
+          "command": "apostil.openBranchChange",
+          "when": "scmProvider == git && !apostil.linksOff",
+          "group": "navigation@90"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "apostil.openNoteInTab",
+          "when": "false"
+        },
+        {
+          "command": "apostil.linksOff",
+          "when": "!apostil.linksOff"
+        },
+        {
+          "command": "apostil.linksOn",
+          "when": "apostil.linksOff"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "apostil.remark",
+        "key": "ctrl+shift+.",
+        "mac": "cmd+shift+.",
+        "when": "apostil.pointerOnPage || activeWebviewPanelId == 'apostil.change' || activeWebviewPanelId == 'apostil.home' || activeCustomEditorId == 'apostil.file' || apostil.hasChange && editorTextFocus && editorHasSelection"
+      },
+      {
+        "command": "apostil.remark",
+        "key": "ctrl+shift+[Period]",
+        "mac": "cmd+shift+[Period]",
+        "when": "apostil.pointerOnPage || activeWebviewPanelId == 'apostil.change' || activeWebviewPanelId == 'apostil.home' || activeCustomEditorId == 'apostil.file' || apostil.hasChange && editorTextFocus && editorHasSelection"
+      },
+      {
+        "command": "apostil.toggleNotes",
+        "key": "ctrl+shift+,",
+        "mac": "cmd+shift+,",
+        "when": "apostil.notesHere && (editorTextFocus || notebookEditorFocused || activeCustomEditorId == 'apostil.file')"
+      },
+      {
+        "command": "apostil.toggleNotes",
+        "key": "ctrl+shift+[Comma]",
+        "mac": "cmd+shift+[Comma]",
+        "when": "apostil.notesHere && (editorTextFocus || notebookEditorFocused || activeCustomEditorId == 'apostil.file')"
+      }
+    ],
+    "themes": [
+      {
+        "id": "Apostil Light",
+        "label": "Apostil Light",
+        "uiTheme": "vs",
+        "path": "./theme/apostil-light-color-theme.json"
+      }
+    ],
+    "configuration": {
+      "title": "Apostil",
+      "properties": {
+        "apostil.homeWhenEmpty": {
+          "type": "boolean",
+          "default": true,
+          "description": "Open Apostil Home when a window on a Git repo has no open tab, in place of the empty editor area."
+        },
+        "apostil.codexModel": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "The model for the Codex runs that Apostil starts: for a comment to `@codex-new` or `@codex-current`, and for the map. Leave it empty to use the model of your Codex settings. Set it when the command-line Codex refuses that model for your account."
+        },
+        "apostil.notesBesideCode": {
+          "type": "string",
+          "default": "tab",
+          "enum": [
+            "tab",
+            "editor",
+            "off"
+          ],
+          "enumDescriptions": [
+            "A file that has notes opens in the file tab of Apostil by itself: the code, with each note as a card beside its lines. Cmd+Shift+, changes that tab to the editor of VS Code and back. A notebook stays in its own editor, with its notes in its cells.",
+            "The compact way. The notes stand in the editor of VS Code: the title of each note after a line of its code, a thin line at the left of its lines, and the whole note under the pointer.",
+            "No notes beside the code, until you switch them on again."
+          ],
+          "markdownDescription": "Where the notes of Apostil stand when a code file opens the normal way. Cmd+Shift+, (Ctrl+Shift+,) takes the notes of one tab away and brings them back; the next file opens with its notes."
+        }
+      }
+    },
+    "configurationDefaults": {
+      "workbench.colorTheme": "Apostil Light"
+    },
+    "colors": [
+      {
+        "id": "apostil.noteLine",
+        "description": "The thin line at the left of the lines of the note under the pointer.",
+        "defaults": {
+          "light": "#0f766e",
+          "dark": "#3fb5a8",
+          "highContrast": "#5eead4",
+          "highContrastLight": "#0f766e"
+        }
+      },
+      {
+        "id": "apostil.noteTitle",
+        "description": "The quiet title of a note at the end of its first line.",
+        "defaults": {
+          "light": "#5f817b",
+          "dark": "#7fa9a2",
+          "highContrast": "#ffffff",
+          "highContrastLight": "#000000"
+        }
+      }
+    ]
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/vscode": "^1.100.0",
+    "@vscode/vsce": "4.1.0",
+    "typescript": "^5.6.0"
+  },
+  "overrides": {
+    "minimatch": "11.0.8"
+  }
+}

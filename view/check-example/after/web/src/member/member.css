@@ -1,0 +1,193 @@
+/* The member page: the head with the name, the tabs, and the panels under them. */
+
+.member-page {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+  font: 15px/1.5 system-ui, sans-serif;
+  color: #1f2328;
+}
+
+.member-head h1 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.member-tabs {
+  display: flex;
+  gap: 4px;
+  margin: 20px 0 16px;
+  border-bottom: 1px solid #d0d7de;
+}
+
+.member-tabs button {
+  padding: 8px 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  font: inherit;
+  color: #57606a;
+  cursor: pointer;
+}
+
+.member-tabs button.on {
+  border-bottom-color: #0f766e;
+  color: #1f2328;
+  font-weight: 600;
+}
+
+.quiet {
+  color: #57606a;
+}
+
+.problem {
+  color: #b42318;
+}
+
+.loans {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.loans li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 10px 0;
+  border-bottom: 1px solid #eaeef2;
+}
+
+.loans li button {
+  margin-left: auto;
+}
+
+/* The tab "Holds": one row for each hold, the ready ones first, and the dialog that places a hold. */
+
+.holds-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.holds-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.hold {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid #eaeef2;
+}
+
+.hold-book,
+.hold-state {
+  grid-column: 1;
+}
+
+.hold-state {
+  font-size: 14px;
+}
+
+.hold-actions,
+.hold-pause {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hold-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 13px;
+}
+
+.badge {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 10px;
+  background: #eaeef2;
+  font-size: 13px;
+}
+
+.badge-ready {
+  background: #dcf5ec;
+  color: #04603d;
+  font-weight: 600;
+}
+
+.badge-paused {
+  background: #fff4d6;
+  color: #7a4d00;
+}
+
+.quiet-button {
+  border: 0;
+  background: none;
+  color: #57606a;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.hold-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(31, 35, 40, 0.45);
+}
+
+.hold-dialog {
+  width: min(520px, calc(100vw - 32px));
+  padding: 20px 24px;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 8px 32px rgba(31, 35, 40, 0.25);
+}
+
+.hold-dialog .field {
+  display: grid;
+  gap: 4px;
+  margin: 12px 0;
+}
+
+.hold-dialog .count.over,
+.field-problem {
+  color: #b42318;
+}
+
+.hold-dialog .buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.book-hits ul {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.book-hits button {
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.book-hits button:hover {
+  background: #f3f5f7;
+}
