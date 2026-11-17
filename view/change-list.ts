@@ -4,12 +4,14 @@ import { execFile } from 'node:child_process';
 import { homedir } from 'node:os';
 import * as vscode from 'vscode';
 import { tryGit } from '../shared/git';
+import type { Target } from '../shared/look';
 import { ghArguments, pullRequestsFromJson, stackArguments, stackPlacesFromJson, withStacks, type PullRequest, type StackPlace } from '../shared/pull-requests';
 import type { Store } from '../shared/store';
 import { someAppSeesSkills, thisInstall } from '../store/setup';
 import { openLink, webviewHtml } from './change-page';
 import { idOf } from './home-data';
 import { listRows, reopenStaleRuns, sessionGroups, type ListRow } from './list-rows';
+import { savedLook } from './look-data';
 import type { MenuMessage } from './sort-filter';
 
 const KEEP_MS = 60_000;
@@ -76,6 +78,7 @@ export class ChangeList implements vscode.WebviewViewProvider {
   private askWhenDrawn = false; // "Sort and Filter" was asked before the view was there
   shown = 0; // how many rows the view drew last, for the check inside VS Code
   pulls: Record<string, PullRequest[]> = {}; // the pull requests that the view got, by branch, for the check inside VS Code
+  onTarget: (target: Target) => void = () => {}; // a click of the look on a part of the list (look-targets.ts); set by the extension
 
   constructor(
     private media: vscode.Uri, private store: Store, private openFolder: () => string, private openChange: (id: number) => void, private openHome: () => void = () => {},
@@ -87,7 +90,8 @@ export class ChangeList implements vscode.WebviewViewProvider {
     this.view = view;
     view.webview.options = { enableScripts: true, localResourceRoots: [this.media] };
     view.webview.html = webviewHtml(view.webview, this.media, 'list.html');
-    view.webview.onDidReceiveMessage((message: { type: string; id?: number; rows?: number; url?: string; number?: number; search?: ListSearch; values?: MenuMessage['values'] }) => {
+    view.webview.onDidReceiveMessage((message: { type: string; id?: number; rows?: number; url?: string; number?: number; search?: ListSearch; values?: MenuMessage['values']; target?: Target }) => {
+      if (message.type === 'target' && message.target) this.onTarget(message.target);
       if (message.type === 'ready') this.refresh();
       if (message.type === 'open' && message.id !== undefined) this.openChange(message.id);
       if (message.type === 'openPull' && message.id !== undefined && message.number !== undefined) this.openPull(message.id, message.number);
@@ -134,7 +138,9 @@ export class ChangeList implements vscode.WebviewViewProvider {
     this.signature = this.signatureNow();
     this.sentRows = this.rows();
     this.searchKey = `apostil.listSearch:${(folder && idOf(folder)) || folder}`;
-    this.view.webview.postMessage({ type: 'rows', repo, groups: sessionGroups(this.sentRows), search: this.memory?.get<ListSearch>(this.searchKey) });
+    const id = folder ? idOf(folder) : undefined;
+    const look = id ? savedLook(this.store, id, folder) : undefined; // the look of the repo for the rows, when one is saved
+    this.view.webview.postMessage({ type: 'rows', repo, groups: sessionGroups(this.sentRows), search: this.memory?.get<ListSearch>(this.searchKey), look });
   }
 
   /** After the list is drawn: the pull requests of each branch, one message for each branch that has some. */
@@ -156,9 +162,9 @@ export class ChangeList implements vscode.WebviewViewProvider {
   private signatureNow(): string {
     const folder = this.openFolder();
     const id = folder ? idOf(folder) : undefined;
-    return JSON.stringify(id ? this.store.listChanges(id).map((change) => [
+    return JSON.stringify(id ? [this.store.getLook(id)?.savedAt, ...this.store.listChanges(id).map((change) => [
       change.id, change.savedAt, change.head, change.checks.filesInNoPart.length, change.agent,
       this.store.remarks(change.id).map((remark) => remark.state).join(),
-    ]) : []);
+    ])] : []);
   }
 }

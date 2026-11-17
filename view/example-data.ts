@@ -113,7 +113,7 @@ const LOOK_GRAPHS = ['db/migrations/0042_holds.sql', 'src/library/lending/reques
 // The pages of each look (build 58), as "?look=<name>&page=<id>", and the blocks of each section of its own and window of a target, as the page asks for them.
 const lookPages: Record<string, Record<string, CustomPageData>> = {};
 const lookAnswers: Record<string, unknown> = {};
-for (const name of put ? readdirSync(EXAMPLE_LOOK).filter((one) => /^look(-[a-z]+)?\.json$/.test(one)).sort() : []) {
+for (const name of put ? readdirSync(EXAMPLE_LOOK).filter((one) => /^look(-[a-z-]+)?\.json$/.test(one)).sort() : []) {
   const key = name === 'look.json' ? '1' : name.slice('look-'.length, -'.json'.length);
   const files = putLookFiles(folder);
   must(setLook(store, folder, JSON.parse(readFileSync(join(EXAMPLE_LOOK, name), 'utf8'))), name);

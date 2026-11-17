@@ -114,7 +114,7 @@ test('the made-up look of this build passes the check; a fault of a new part has
   assert.deepEqual(problems({ pick: { kind: 'area-box' }, show: { shown: false } }), ['Rule 1, "show": an area box cannot be shown. An area box takes only "folded".']);
   const look = { rules: [{ pick: { kind: 'area-box' as const, diagram: 'lib-top' }, box: { color: '#2b6cb0' } }, { pick: { kind: 'area-box' as const }, show: { folded: true } }, { pick: { kind: 'header' as const }, show: { shown: false } }] };
   assert.deepEqual(lookChanges(store, example.folder, look), {
-    changes: ['Rule 1: 0 area boxes get a colour.', 'Rule 2: 1 area box gets folded or open.', 'Rule 3: each header line that it picks gets shown or hidden.'],
+    changes: ['Rule 1: 0 area boxes get a colour.', 'Rule 2: 1 area box gets folded or open.', 'Rule 3: a header line that it picks gets shown or hidden.'],
     notes: ['Rule 1 picks nothing now: the diagram "lib-top" has no area box.'],
   });
 });

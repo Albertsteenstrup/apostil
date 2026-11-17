@@ -90,11 +90,14 @@ const Marks = (() => {
 
   const escapeHtml = (text) => String(text).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
 
-  /** Words of the look with the fields of a thing in braces filled in: "{title} · {files} files". The values from the repo are escaped. */
-  const fillWords = (words, fields = {}) => words.replace(/\{([^{}]*)\}/g, (all, name) => {
+  /** Words of the look with the fields of a thing in braces filled in, as plain text: a part drawn as HTML escapes the whole of it. */
+  const fillText = (words, fields = {}, each = (text) => text) => words.replace(/\{([^{}]*)\}/g, (all, name) => {
     const value = fields[name.trim()];
-    return value === undefined ? '' : escapeHtml([value].flat().join(', '));
+    return value === undefined ? '' : each([value].flat().join(', '));
   });
+
+  /** Words of the look with the fields of a thing in braces filled in: "{title} · {files} files". The values from the repo are escaped. */
+  const fillWords = (words, fields = {}) => fillText(words, fields, escapeHtml);
 
   /**
    * Rows of a list in the order of the slot "order": the ids of "first" first, in their order, then by the field "by" ("down": the largest first);
@@ -660,7 +663,7 @@ const Marks = (() => {
   const shownInOrder = (rows, look) => (look ? orderRows(rows.filter((row) => slotsIn(look, row)['show.shown'] !== false), listOrder(rows, look))[0].rows : rows);
 
   const pure = {
-    covers, keyOf, holds, marksIn, picks, rankOf, resolve, fieldsOf, fillWords, orderRows, thingsOf, edgesOf, flowWithout, shownFlow, targetWords, inputWords, windowOf, setPages,
+    covers, keyOf, holds, marksIn, picks, rankOf, resolve, fieldsOf, fillText, fillWords, orderRows, thingsOf, edgesOf, flowWithout, shownFlow, targetWords, inputWords, windowOf, setPages,
     spreadOf, stackOf, namedThings, boxColors, lineColors, contrast, parse, SHOWN, READS,
     flowArrows, groupsOf, boxesOf, drawingOf, openSteps, headOf, wordsHtml,
     DATA_FILE, slotsIn, threadsOf, threadThing, pointThing, stepThings, diagramThing, changeThings, lineThing, marginThings, fileThings, listOrder, shownInOrder,
@@ -886,8 +889,8 @@ const Marks = (() => {
    */
   function act(target, el) {
     if (!target) return;
-    if (target.window) return void openWindow(target.window, el);
-    Hover.hide();
+    if (target.window) return void (typeof Hover === 'object' && openWindow(target.window, el)); // the list "Repo" has no window of the pointer
+    if (typeof Hover === 'object') Hover.hide();
     if (target.comment) return void (typeof Remarks === 'object' && Remarks.boxOn(el));
     const step = target.place ? { tab: 'home', diagram: target.place.diagram, lit: target.place.node ? [target.place.node] : [], name: target.place.diagram }
       : target.graphs ? { tab: 'graphs', path: target.graphs, name: target.graphs }

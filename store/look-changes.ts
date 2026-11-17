@@ -3,7 +3,7 @@
 // view/media/marks.js, read in Node as view/marks.test.ts does, on the diagrams of Home (homeData) and on the note cards of the map; and on the page of
 // the saved change of the branch and its file tabs (changeThings and fileThings of marks.js, build 60).
 
-import { LOOK_PARTS, nameOf, namesPart, type Look, type LookPartsList, type Pick } from '../shared/look';
+import { an, LOOK_PARTS, nameOf, namesPart, type Look, type LookPartsList, type Pick } from '../shared/look';
 import { currentBranch, repoId, repoRoot } from '../shared/git';
 import type { Store } from '../shared/store';
 import { homeData, type HomeDiagram } from '../view/home-data';
@@ -13,14 +13,16 @@ import { pageData } from '../view/page-data';
 const Marks = require('../../view/media/marks.js');
 
 const LIST: LookPartsList = LOOK_PARTS;
+/** The areas of the parts that the changes do not count: the list and the tree of the side bar, and the page of a pull request. */
+const UNCOUNTED = ['side-bar', 'pull-lines', 'files', 'pull-request', 'conversation'];
 
 type Thing = { kind: string; slots?: Record<string, unknown> } & Record<string, unknown>;
 
 /** The kinds of the page of a change and of its file tabs: they are counted on the saved change of the branch and the files with notes or marks. */
 const PAGE_AREAS = ['change', 'diffs', 'comments', 'file-tab'];
 const onPage = (kind: string): boolean => PAGE_AREAS.includes((LIST.components[kind]?.area ?? ''));
-/** The kinds whose things Home or a graphs page make as they show (a step of the trail, the panels of a graphs page, build 59): not counted. */
-const UNCOUNTED = ['trail-step', 'header', 'frame', 'comment-box', 'count-line', 'panel', 'panel-node', 'panel-title', 'panel-level', 'panel-in'];
+/** The kinds whose things Home or a graphs page make as they show (a step of the trail, the panels of a graphs page, build 59): not counted either. */
+const UNCOUNTED_KINDS = ['trail-step', 'header', 'frame', 'comment-box', 'count-line', 'panel', 'panel-node', 'panel-title', 'panel-level', 'panel-in'];
 
 /** Counts the things that a pick takes now, as the pages pick them. `page` says whether the branch has a saved change. */
 function counter(store: Store, folder: string): ((pick: Pick) => number) & { page: boolean } {
@@ -98,7 +100,8 @@ export function lookChanges(store: Store, folder: string, look: Look): { changes
   const changes: string[] = [];
   const notes: string[] = [];
   look.rules.forEach((rule, index) => {
-    if (UNCOUNTED.includes(rule.pick.kind)) return void changes.push(`Rule ${index + 1}: each ${nameOf(rule.pick.kind)} that it picks gets ${gives(rule)}.`);
+    // A part of the side bar or of a pull request is neither in the map nor on the page of the change, so it is not counted (build 61).
+    if (UNCOUNTED.includes(LIST.components[rule.pick.kind]?.area) || UNCOUNTED_KINDS.includes(rule.pick.kind)) return void changes.push(`Rule ${index + 1}: ${an(rule.pick.kind)} that it picks gets ${gives(rule)}.`);
     const picked = count(rule.pick);
     changes.push(`Rule ${index + 1}: ${picked} ${picked === 1 ? `${nameOf(rule.pick.kind)} gets` : `${many(rule.pick.kind)} get`} ${gives(rule)}.`);
     if (!picked) notes.push(`Rule ${index + 1} picks nothing now: ${whyNothing(rule.pick, count)}.`);
