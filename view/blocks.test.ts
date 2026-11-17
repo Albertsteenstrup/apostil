@@ -150,9 +150,9 @@ test('Home carries no blocks: lookData() gives a ref for each list of blocks and
 test('a file that changed since the save gives one quiet line in place of its block, and the rest of the page stands', () => {
   const store = new Store(tempFolder('apostil-store-'));
   assert.deepEqual(saveMapDraft(store, example.folder, map).problems, []);
-  const put = putLookFiles(example.folder);
-  assert.deepEqual(setLook(store, example.folder, blocksLook).problems, []);
-  put.clean();
+  // The first three blocks of the page of the example: a diagram would read the whole map each time, which this test does not need.
+  const short = { pages: [{ ...blocksLook.pages[0], blocks: blocksLook.pages[0].blocks.slice(0, 3) }], rules: [] };
+  assert.deepEqual(setLook(store, example.folder, short).problems, []);
   const before = pageData(store, example.folder, 'opening-hours', (file) => file);
   assert.equal(before.title, 'Opening hours');
   assert.ok(before.blocks.every((block) => !block.quiet), JSON.stringify(before.blocks));
