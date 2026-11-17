@@ -65,7 +65,7 @@ test('the colours: one colour gives a light and a dark box whose words read at 4
   assert.deepEqual([blue.light.text, blue.dark.text], ['#1f2328', '#e8eaed']);
 });
 
-test('the roll-up: a node holds the marks under its paths, a step the marks inside its lines, a stack puts the values that few nodes share first, and a call out of the repo whose line is a mark shows it in its box and on its arrow only', () => {
+test('the roll-up: a node holds the marks under its paths, a step the marks inside its lines, a stack puts the values that few nodes share first, and a call out of the repo whose line is a mark shows it in its box only', () => {
   const marks = [
     mark('table-store', 'src/lending/requests.py', 40), mark('table-store', 'src/jobs/night.py', 12), mark('table-store', 'db/one.sql', 5),
     mark('book-feed', 'src/lending/notices.py', 74), mark('book-feed', 'src/jobs/night.py', 30),
@@ -96,7 +96,8 @@ test('the roll-up: a node holds the marks under its paths, a step the marks insi
   const named = Marks.namedThings([{ ...marks[0], thing: { kind: 'table', name: 'book_request' } }, { ...marks[1], thing: { kind: 'table', name: 'loan' } }, { ...marks[2], thing: { kind: 'table', name: 'loan' } }, marks[3]]);
   assert.deepEqual([named.named.map((one: any) => `${one.name}:${one.marks.length}`), named.plain.length], [['book_request:1', 'loan:2'], 1]);
 
-  // A call out of the repo whose line is a mark shows it in its box and on its arrow, and the step that calls gets no second chip for it.
+  // A call out of the repo whose line is a mark shows it in its box, once: the step that calls gets no second chip for it, and its arrow none either
+  // (build 64, tested below).
   {
     const marks = [mark('table-store', 'src/requests.py', 102), mark('table-store', 'src/requests.py', 94)];
     const diagram = {
@@ -113,8 +114,37 @@ test('the roll-up: a node holds the marks under its paths, a step the marks insi
     assert.deepEqual([things.s0.marks.map((one: any) => one.line), things.o0.marks.length, things.o1.marks.map((one: any) => one.line)], [[94], 0, [102]]);
     assert.deepEqual(things.o1.slots, { 'corners.upper-right': { set: 'services' } });
     const edges = Marks.edgesOf(diagram, look, things);
-    assert.deepEqual(edges.map((edge: any) => edge.marks.map((one: any) => one.line)), [[], [102]]);
+    assert.deepEqual(edges.map((edge: any) => edge.marks.map((one: any) => one.line)), [[], []]);
   }
+});
+
+// Build 64: one icon for one service between an arrow and its two ends.
+test('an arrow shows no mark that one of its ends shows already: the call box of that service, or the step that holds the same mark', () => {
+  const marks = [mark('book-feed', 'src/ask.py', 12), mark('table-store', 'src/ask.py', 20), mark('night-bell', 'src/tell.py', 7)];
+  const diagram = {
+    id: 'process:ask', graph: { nodes: {}, edges: [{ from: 's0', to: 'o0' }, { from: 's0', to: 's1' }, { from: 's1', to: 's0' }] },
+    // The first arrow starts at the line that calls the service; the second inside the lines of its step; the third at a line that no end holds.
+    edgeLines: { 's0>o0': [{ file: 'src/ask.py', line: 12 }], 's0>s1': [{ file: 'src/ask.py', line: 20 }], 's1>s0': [{ file: 'src/tell.py', line: 7 }] },
+    nodes: {
+      s0: { kind: 'step', paths: [{ path: 'src/ask.py' }], at: [{ file: 'src/ask.py', from: 10, to: 30 }] },
+      s1: { kind: 'step', paths: [{ path: 'src/tell.py' }], at: [{ file: 'src/tell.py', from: 20, to: 40 }] },
+      o0: { kind: 'call', paths: [], calls: [{ file: 'src/ask.py', line: 12 }] },
+    },
+  };
+  const shown = (rules: unknown[]): number[][] => {
+    const look = { marks, rules };
+    return Marks.edgesOf(diagram, look, Marks.thingsOf(diagram, look)).map((edge: any) => edge.marks.map((one: any) => one.line));
+  };
+  // The call box shows the service of line 12 and the step that of line 20, so their arrows show nothing; the mark of line 7 stands on its arrow only.
+  assert.deepEqual(shown(DEFAULT_RULES), [[], [], [7]]);
+  // The end still holds the use at the line of the arrow: its window lists it.
+  const things = Marks.thingsOf(diagram, { marks, rules: DEFAULT_RULES });
+  assert.deepEqual([things.o0.marks.map((one: any) => one.line), things.s0.marks.map((one: any) => one.line)], [[12], [20]]);
+  // An end that holds the mark and does not show it (a rule gave its corner to another set) leaves the icon to the arrow.
+  assert.deepEqual(shown([...DEFAULT_RULES, { pick: { kind: 'call' }, corners: { 'upper-right': { set: 'errors' } } }]), [[12], [], [7]]);
+  // A rule picks an arrow by a mark at its line also when the arrow does not show it.
+  const picked = Marks.edgesOf(diagram, { marks, rules: [...DEFAULT_RULES, { pick: { kind: 'arrow', mark: 'services:book-feed' }, arrow: { width: 2 } }] }, things);
+  assert.deepEqual(picked.map((edge: any) => edge.slots['arrow.width']), [2, undefined, undefined]);
 });
 
 // ----- the shared kinds of every component (build 57): the fields, what shows, the words, an order, the window of the pointer -----

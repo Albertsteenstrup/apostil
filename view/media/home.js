@@ -29,6 +29,41 @@ const Home = {
 
 const diagramOf = (id) => Home.data.map.diagrams.find((diagram) => diagram.id === id);
 
+// ----- focus on a node (build 64) -----
+
+let focus = null; // { stage, graph, node, diagram }: the drawing with its graph, the node that the focus is on, and on Home the diagram
+
+/**
+ * Focuses a node of a drawing, with its arrows and the nodes at their other ends (focusNode); the same node again, or no node, ends the focus.
+ * One quiet line names the node, with a × that ends it.
+ */
+function focusOn(stage, graph, node, diagram) {
+  const again = focus?.stage === stage && focus.node === node;
+  if (focus) focusNode(focus.stage, focus.graph, null);
+  const name = node && !again ? focusNode(stage, graph, node) : null;
+  focus = name ? { stage, graph, node, diagram } : null;
+  const summary = document.getElementById('summary');
+  summary.querySelector('.fc')?.remove();
+  if (name) summary.insertAdjacentHTML('beforeend', `<span class="mk-filter fc">${summary.textContent.trim() ? ' · ' : ''}Focus: ${esc(name)} · <a data-end-focus title="End the focus (Escape)">×</a></span>`);
+}
+
+/** Option+click on a node of a drawing focuses it; the look wins when it gives that click a target (`lookAlt`). True when the click was taken. */
+function focusClick(event, stage, graph, lookAlt, diagram) {
+  const g = event.altKey && !lookAlt ? event.target.closest('g.node, g.image-shape') : null;
+  if (!g || !stage.contains(g)) return false;
+  event.stopImmediatePropagation(); // not also the click of the node, or of the panel that holds it
+  event.preventDefault();
+  Hover.hide();
+  focusOn(stage, graph, nodeKey(g), diagram);
+  return true;
+}
+
+// Escape ends the focus, when no window is open and no comment is being placed (Escape closes those first), and not in a text field.
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape' || !focus || document.querySelector('.win') || document.body.classList.contains('picking') || event.target.closest?.('[data-field], textarea, input, [contenteditable]')) return;
+  focusOn(null);
+}, true);
+
 // ----- the steps of the path: a diagram of the map, the graphs of a path, a change -----
 
 /** The step of a diagram of the map: the top map is Home. With the line of a mark, the step names the value too. */
@@ -242,14 +277,18 @@ async function drawHome() {
         Marks.inputWindow(edge.label, edge.slots, edge.label.textContent.trim());
       }
     }
-    makeSurface(view, true); // a wide map opens where its words read
+    makeSurface(view, true, false, diagram.id); // a wide map opens where its words read; drawn again with new data, it stays where he left it
     frameLook(view, look, diagram.id);
     for (const g of view.querySelectorAll('g.node, g.image-shape')) {
       const node = nodesOf[nodeKey(g)];
       if (!node) continue;
       nodes++;
       const thing = things[nodeKey(g)];
-      Hover.attach(g, node.note ? noteWindow(node, thing) : nodeWindow(g, node, thing));
+      // The window of the node, with a quiet link that focuses it as Option+click does.
+      const content = node.note ? noteWindow(node, thing) : nodeWindow(g, node, thing);
+      const focusIt = () => focusOn(view, drawn.graph, nodeKey(g), diagram.id);
+      Hover.attach(g, async () => ({ ...(await content()), act: { words: focus?.stage === view && focus.node === nodeKey(g) ? 'End the focus' : 'Focus on this node', run: focusIt } }));
+      g.addEventListener('click', (event) => focusClick(event, view, drawn.graph, thing?.slots['input.alt'], diagram.id)); // before the click of the node (Marks.bind)
       const paths = node.paths.map(({ path }) => path);
       // A click on an area with a diagram of its own goes into it, and the tree "Files" of the side bar follows when it shows. An area with none
       // stays on the map and leads to its code: one file opens, and folders open in the tree. A click never opens the graphs of a folder.
@@ -265,9 +304,14 @@ async function drawHome() {
     }
     lightNodes(view, Home.lit);
     const first = view.querySelector('g.node.lit');
-    if (first) view.surface?.show(first);
+    if (first && !view.surface?.kept) view.surface?.show(first); // not when the same diagram drew again: the view stays where he left it
+    // The same diagram drawn again keeps its focus; another diagram has none.
+    const focused = focus?.diagram === diagram.id ? focus.node : null;
+    focus = null;
+    if (focused) focusOn(view, drawn.graph, focused, diagram.id);
     Remarks.paint(view);
   }
+  if (!diagram) focus = null;
   Remarks.draw();
   tell({ type: 'rendered', kind: 'home', diagram: diagram?.id, nodes, panels: 0, drawn: 0 });
   window.apostilRendered = (window.apostilRendered ?? 0) + 1;
@@ -336,6 +380,7 @@ async function drawGraphs() {
   const view = document.getElementById('view');
   view.className = 'view';
   frameDouble = null;
+  focus = null;
   Trail.show(document.getElementById('crumb'), ownStep(), { look: data.look });
   const { groups, ordered, count } = panelsInLook(data);
   // The count line: the panels that show; "the widest first" while no rule orders them. A rule gives other words, or leaves it out.
@@ -356,6 +401,9 @@ async function drawGraphs() {
     for (const el of view.querySelectorAll('.pnl')) {
       const panel = data.panels[Number(el.dataset.panel)];
       const row = groups.flatMap((group) => group.rows).find((one) => one.panel === panel);
+      // Option+click on a node of a panel focuses it in that panel, in place of the click of the panel.
+      const box = el.querySelector('.pd');
+      if (panel.graph) box.addEventListener('click', (event) => focusClick(event, box, panel.graph, row.slots['input.alt']));
       Marks.bind(el, row.slots, () => walkTo(panel.open), panel.line);
     }
     const seen = new IntersectionObserver((entries) => {
@@ -390,6 +438,7 @@ async function drawPage() {
 document.addEventListener('click', (event) => {
   const target = event.target;
   if (target.closest('[data-clear-filter]')) return walkTo(mapStep(Home.at)); // the same diagram, with nothing lit and no line of a mark
+  if (target.closest('[data-end-focus]')) return focusOn(null);
   const folder = target.closest('[data-tree]');
   if (folder) return tell({ type: 'showInTree', paths: [folder.dataset.tree], open: true });
   const file = target.closest('[data-open]');

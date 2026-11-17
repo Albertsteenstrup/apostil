@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { TrailRules, WindowTrail, type Step } from './trail';
 
-const { HOME, start, upTo, walk, before } = TrailRules;
+const { HOME, start, upTo, walk, before, goTo, next } = TrailRules;
 const lower: Step = { tab: 'home', diagram: 'lending', lit: [], name: 'Lending' };
 const graphs: Step = { tab: 'graphs', path: 'src/lending/', name: 'src/lending/' };
 const change: Step = { tab: 'change', change: 7, go: { level: 'change', lit: ['hold-service'] }, name: 'Adds holds' };
@@ -64,4 +64,46 @@ test('the window keeps one path: each change goes to every tab, and back opens t
   trail.back(graphs);
   assert.deepEqual(told, ['Home › src/lending/', 'Home › src/lending/ › Adds holds', 'Home › src/lending/ › Adds holds › Hold service', 'Home › src/lending/']);
   assert.deepEqual(opened.map((step) => step.name), ['Adds holds', 'src/lending/']); // a step that a page took in its own tab opens nothing
+});
+
+// Build 64: back and forward along the path, as in a browser (Cmd+Left and Cmd+Right on a page).
+test('back keeps the steps that it leaves ahead, forward goes to them again, and a new step drops what was ahead', () => {
+  const opened: string[] = [];
+  const trail = new WindowTrail((step) => opened.push(step.name), () => {});
+  const at = (): string => `${names(trail.steps)} | ${names(trail.ahead)}`;
+  trail.start(graphs);
+  trail.walk(graphs, change, true);
+  trail.walk(change, part);
+  // Back from the part, twice: each step that is left stays ahead, and the view of the step opens.
+  trail.move(-1, part);
+  assert.equal(at(), 'Home › src/lending/ › Adds holds | Hold service');
+  trail.move(-1, change);
+  assert.equal(at(), 'Home › src/lending/ | Adds holds › Hold service');
+  // Forward goes to them again, one at a time; at the end of the path there is nothing ahead, and nothing opens.
+  trail.move(1, graphs);
+  trail.move(1, change);
+  assert.equal(at(), 'Home › src/lending/ › Adds holds › Hold service | ');
+  trail.move(1, part);
+  assert.deepEqual(opened, ['Adds holds', 'Adds holds', 'src/lending/', 'Adds holds', 'Hold service']);
+  // Back to a step of the line (a click on it) leaves all that came after it ahead; on the top map there is no way back.
+  trail.back(HOME);
+  assert.equal(at(), 'Home | src/lending/ › Adds holds › Hold service');
+  trail.move(-1, HOME);
+  assert.equal(opened.length, 6);
+  // A new step drops what was ahead, as in a browser.
+  trail.move(1, HOME);
+  trail.walk(graphs, diffs, true);
+  assert.equal(at(), 'Home › src/lending/ › Diffs | ');
+  assert.equal(next(trail.steps, trail.ahead, diffs, 1), null);
+
+  // A file tab is no step: it stands after the last step of the path, so back shows that step and forward the first step ahead.
+  const [steps, ahead] = [[HOME, graphs], [change, part]];
+  assert.deepEqual([next(steps, ahead, null, -1)?.name, next(steps, ahead, null, 1)?.name], ['src/lending/', 'Adds holds']);
+  // A view whose tab still shows a step that is ahead goes back and forward from its own place; a view that is not on the path has Home before it.
+  assert.deepEqual([next(steps, ahead, change, -1)?.name, next(steps, ahead, change, 1)?.name], ['src/lending/', 'Hold service']);
+  assert.deepEqual([next(steps, ahead, lower, -1)?.name, next(steps, ahead, lower, 1)], ['Home', null]);
+  // The step that he goes to is in the path as it is now (what was lit there), and a step that is nowhere starts a new path.
+  const lit = { ...change, go: { level: 'change' as const, lit: ['queue'] } };
+  assert.deepEqual(goTo(steps, ahead, lit), { steps: [HOME, graphs, lit], ahead: [part] });
+  assert.deepEqual(goTo(steps, ahead, lower), { steps: [HOME, lower], ahead: [] });
 });

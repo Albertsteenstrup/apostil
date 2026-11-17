@@ -133,6 +133,7 @@ body:not(.picking) .stage g.node.go:hover > *{scale:1.03}
 .win .tb .sub{overflow:hidden;text-overflow:ellipsis}
 .win .tb .sub a:hover,.win .tb .act a:hover{color:var(--ink)}
 .win .tb .act{margin-left:auto;padding-left:14px}
+.win .tb .act a + a{margin-left:12px}
 .win .wc{padding:8px 0;overflow:auto;min-height:0;overscroll-behavior:contain}
 .win .wc.pad{padding:12px}
 .win .stage svg{max-width:100%;max-height:460px;width:auto}
@@ -445,6 +446,11 @@ body.list{--bar:var(--vscode-sideBar-background,var(--paper));background:var(--b
 /* a node lit because it is about the path asked for; the rest quiet in a small panel */
 .stage g.node.lit rect,.stage g.node.lit polygon,.stage g.node.lit path,.stage g.node.lit circle,.stage rect.actor.lit{fill:var(--tealsoft)!important;stroke:var(--teal)!important;stroke-width:2px!important}
 .stage.rest g.node:not(.lit),.stage.rest .edgePaths,.stage.rest .edgeLabels{opacity:.4}
+/* Focus on a node (build 64): the node, its arrows and the nodes at their other ends ("tied") are lit, the node itself with a wider line; the rest grows faint, as around lit nodes. */
+.stage.focus :is(g.node,g.image-shape):not(.tied),.stage.focus .edgePaths > :not(.tied),.stage.focus .edgeLabels > :not(.tied){opacity:.4}
+.stage.focus g.node.tied :is(rect,polygon,path,circle),.stage.focus .edgePaths > path.tied:not(.hit){stroke:var(--teal)!important}
+.stage.focus g.node.focused :is(rect,polygon,path,circle),.stage.focus .edgePaths > path.tied:not(.hit){stroke-width:2px!important}
+.stage.focus.rest g.node.tied,.stage.focus.rest .edgePaths,.stage.focus.rest .edgeLabels{opacity:1}
 /* the classes that change-diagram.ts writes: in its drawings a lit node has its name in teal, and the arrows to a new node are lit; the part kept whole, the files in no part, a removed node */
 .stage svg.litnames g.node.lit > *{fill:var(--tealsoft)!important;stroke:var(--teal)!important;color:var(--tealink)!important}
 .stage svg.litnames g.node.lit span{color:var(--tealink)!important}

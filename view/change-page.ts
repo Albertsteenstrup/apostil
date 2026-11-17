@@ -95,6 +95,7 @@ type Message =
   | { type: 'connect' }
   | { type: 'walk'; from: Step; to: Step; open: boolean }
   | { type: 'back'; to: Step }
+  | { type: 'move'; way: -1 | 1; from?: Step } // Cmd+Left and Cmd+Right: one step back or forward
   | { type: 'state'; view: 'diagram' | 'code'; part?: string; file?: string; lines?: [number, number] }
   | { type: 'rendered'; view: string; nodes: number; notes: number; lines?: [number, number]; map?: boolean }
   | { type: 'pointer'; on: boolean }
@@ -538,6 +539,9 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
         break;
       case 'back':
         this.trail?.back(message.to);
+        break;
+      case 'move':
+        this.trail?.move(message.way, message.from);
         break;
       case 'state':
         this.setState({ changeId: this.changeId, view: message.view, part: message.part, file: message.file, lines: message.lines });

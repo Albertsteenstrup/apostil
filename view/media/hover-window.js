@@ -35,7 +35,7 @@ function placeWindow(win, box) {
   Object.assign(win.style, { left: `${left}px`, top: `${top}px` });
 }
 
-/** The hover window: opens after 0.3 seconds, stays while the pointer is on it or on its anchor, and has "Open" when its content can be opened. */
+/** The hover window: opens after 0.3 seconds, stays while the pointer is on it or on its anchor, and has "Open" when its content can be opened, and a quiet link when its content gives one (`act`). */
 const Hover = (() => {
   let shown = null; // { el, anchor }
   let openTimer = 0;
@@ -64,7 +64,9 @@ const Hover = (() => {
     // A close that came while the content loaded wins: a tab that was hidden meanwhile still says that the pointer is on the anchor.
     if (!content || mine !== turn || !here() || picking) return;
     hide();
-    const frame = windowFrame({ title: content.title, sub: content.sub, width: content.width, actions: content.open ? '<a data-open>Open</a>' : '' });
+    // At the right of the title bar: a quiet link of the content (`act`: { words, run }), and "Open".
+    const actions = `${content.act ? `<a data-act>${esc(content.act.words)}</a>` : ''}${content.open ? '<a data-open>Open</a>' : ''}`;
+    const frame = windowFrame({ title: content.title, sub: content.sub, width: content.width, actions });
     if (typeof content.body === 'string') frame.body.innerHTML = content.body;
     else frame.body.append(content.body);
     if (content.pad) frame.body.classList.add('pad');
@@ -77,6 +79,7 @@ const Hover = (() => {
     frame.el.addEventListener('mouseleave', () => { hideTimer = setTimeout(hide, 250); });
     // "Open" of the title bar only: a row of the body may carry data-open for a click of its own.
     if (content.open) frame.el.querySelector('.tb .act [data-open]')?.addEventListener('click', () => { hide(); content.open(); });
+    if (content.act) frame.el.querySelector('.tb .act [data-act]')?.addEventListener('click', () => { hide(); content.act.run(); });
   }
 
   const anchors = new WeakSet(); // the elements that have a hover window or a hover action
