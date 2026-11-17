@@ -1,5 +1,7 @@
 // `apostil icon`: downloads the picture of a service and checks it. It reaches only the service's own site; the fetch is given, so a test needs no network.
 
+import { lookup } from 'node:dns/promises';
+import { isIP } from 'node:net';
 import { fileProblem, iconEndingOf, siteOf } from './marks';
 
 export type Fetcher = (address: string, init: { redirect: 'manual'; signal: AbortSignal }) => Promise<Response>;
@@ -25,6 +27,33 @@ export const hostFits = (host: string, site: string): boolean => {
   const bare = host.toLowerCase().replace(/^www\./, '');
   return bare === base || bare.endsWith(`.${base}`);
 };
+
+/** Is an address one of this computer or of a private network? (IPv4 and IPv6, also an IPv4 address written inside an IPv6 one.) */
+function privateAddress(ip: string): boolean {
+  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(ip);
+  if (mapped) return privateAddress(mapped[1]);
+  if (isIP(ip) === 4) {
+    const [a, b] = ip.split('.').map(Number);
+    return a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127);
+  }
+  const low = ip.toLowerCase();
+  return low === '::' || low === '::1' || /^f[cd]/.test(low) || /^fe[89ab]/.test(low);
+}
+
+/**
+ * Is a host a public website? An icon is never asked of this computer or of its own network: a run that may use only `apostil` must not
+ * reach what a browser of a stranger cannot reach. A host that does not resolve is not public.
+ */
+export async function publicHost(host: string): Promise<boolean> {
+  const name = host.replace(/^\[|\]$/g, '');
+  if (isIP(name)) return !privateAddress(name);
+  try {
+    const found = await lookup(name, { all: true });
+    return found.length > 0 && found.every((one) => !privateAddress(one.address));
+  } catch {
+    return false;
+  }
+}
 
 /** The links of a web page that name an icon, best first: a scalable one, then the largest. */
 export function iconLinks(html: string, page: string): string[] {
@@ -60,7 +89,7 @@ async function readBody(response: Response, most: number): Promise<Buffer | unde
 }
 
 /** What one address gives: the bytes, or a sentence. It follows a redirect only to a host that fits. */
-async function get(address: string, fits: (host: string) => boolean, fetcher: Fetcher, signal: AbortSignal): Promise<{ bytes?: Buffer; type?: string; problem?: string; tooLong?: true }> {
+async function get(address: string, fits: (host: string) => boolean, fetcher: Fetcher, signal: AbortSignal, isPublic: (host: string) => Promise<boolean>): Promise<{ bytes?: Buffer; type?: string; problem?: string; tooLong?: true }> {
   let at = address;
   for (let step = 0; step <= MOST_REDIRECTS; step++) {
     let url: URL;
@@ -71,6 +100,7 @@ async function get(address: string, fits: (host: string) => boolean, fetcher: Fe
     }
     if (url.protocol !== 'https:') return { problem: `${at} is not an https address. Only https is used.` };
     if (!fits(url.hostname)) return { problem: `${url.hostname} is not the site of this service. Use an address on its own site.` };
+    if (!(await isPublic(url.hostname))) return { problem: `${url.hostname} is no public website. An icon comes only from a public website.` };
     const response = await fetcher(at, { redirect: 'manual', signal });
     if (response.status >= 300 && response.status < 400) {
       const next = response.headers.get('location');
@@ -88,13 +118,17 @@ async function get(address: string, fits: (host: string) => boolean, fetcher: Fe
 
 /**
  * The icon at an address of the service's own site: a picture, or a web page that names pictures with link rel="icon" and rel="apple-touch-icon".
- * Without `otherSite` the host must be `site` or a host under it, also after a redirect.
+ * Without `otherSite` the host must be `site` or a host under it, also after a redirect. Every host must be a public website (publicHost).
  */
-export async function fetchIcon(address: string, site: string, otherSite: boolean, fetcher: Fetcher = fetch as Fetcher): Promise<{ icon?: IconPicture; problem?: string }> {
+export async function fetchIcon(
+  address: string, site: string, otherSite: boolean, fetcher?: Fetcher,
+  isPublic: (host: string) => Promise<boolean> = fetcher ? async () => true : publicHost, // a fetch that a test gives reaches no network
+): Promise<{ icon?: IconPicture; problem?: string }> {
+  const ask = fetcher ?? (fetch as Fetcher);
   const signal = AbortSignal.timeout(SECONDS * 1000);
   const fits = (host: string): boolean => otherSite || hostFits(host, site);
   try {
-    const first = await get(address, fits, fetcher, signal);
+    const first = await get(address, fits, ask, signal, isPublic);
     if (first.problem || !first.bytes) return { problem: first.problem };
     const kind = /html/i.test(first.type ?? '') ? undefined : iconEndingOf(first.bytes);
     const asPicture = (bytes: Buffer, at: string): { icon?: IconPicture; problem?: string } => {
@@ -108,7 +142,7 @@ export async function fetchIcon(address: string, site: string, otherSite: boolea
     if (!links.length) return { problem: `${address} names no icon (no link rel="icon" or "apple-touch-icon").` };
     const problems: string[] = [];
     for (const link of links) {
-      const one = await get(link, fits, fetcher, signal);
+      const one = await get(link, fits, ask, signal, isPublic);
       if (one.bytes) {
         const picture = asPicture(one.bytes, link);
         if (picture.icon) return picture;
