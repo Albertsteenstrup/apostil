@@ -26,9 +26,9 @@ function arrowLabel(arrow: string): string | undefined {
 export const escapeLabel = (text: string): string =>
   text.replace(/[\r\n]+/g, ' ').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '#quot;').replace(/'/g, '#39;');
 
-/** A label as plain text: no quotes around it, no HTML, and Mermaid's "#quot;" as a quote. */
+/** A label as plain text: no quotes around it, no HTML, and Mermaid's "#quot;" as a quote. The number of an arrow's order (class "eo") is no part of its words. */
 const plain = (text: string): string =>
-  text.trim().replace(/^"([\s\S]*)"$/, '$1').replace(/<[^>]*>/g, ' ').replace(/#quot;/g, '"').replace(/#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+  text.trim().replace(/^"([\s\S]*)"$/, '$1').replace(/<span class='eo'>\d+<\/span>/g, ' ').replace(/<[^>]*>/g, ' ').replace(/#quot;/g, '"').replace(/#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
 
 /** Reads the nodes and edges of a Mermaid flow chart. Good enough for the diagrams that agents write. */
 export function flowGraph(mermaid: string): FlowGraph {

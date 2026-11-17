@@ -269,6 +269,12 @@ function lightNodes(into, keys, all = false) {
  * "L_<from>_<to>_<n>", a state diagram "edge<n>"; n counts the edges in the order of the text. A label that does not fit is left out.
  */
 function edgeElements(svg, edges) {
+  // The words of a drawn label, without the number of its order: the number is no part of the label of an edge.
+  const wordsOf = (label) => {
+    const copy = label.cloneNode(true);
+    for (const number of copy.querySelectorAll('.eo')) number.remove();
+    return copy.textContent.trim();
+  };
   const found = edges.map(() => ({}));
   const used = new Set();
   for (const group of svg.querySelectorAll('.edgePaths')) {
@@ -281,7 +287,7 @@ function edgeElements(svg, edges) {
       if (at < 0) return;
       used.add(at);
       const label = labels[index];
-      found[at] = { path, label: label && label.textContent.trim() === (edges[at].label ?? '').trim() ? label : null };
+      found[at] = { path, label: label && wordsOf(label) === (edges[at].label ?? '').trim() ? label : null };
     });
   }
   return found;
