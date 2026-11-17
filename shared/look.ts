@@ -15,6 +15,7 @@ import { fileText, repoFiles } from './git';
 import { CORNERS, FILE_USES, isId, isLine, isText, SERVICES, type Corner, type FileUse, type MarkSet } from './marks';
 import { processDiagramId } from './process-diagrams';
 import { listedFiles, readRepoData, readRepoText, type ReadFault } from './repo-data';
+import { STATE_LOOKS } from './pull-requests';
 import type { RepoMap } from './repo-map';
 
 /** The shapes of Mermaid that a box can take. */
@@ -85,7 +86,9 @@ export interface LookPartsList {
     fields: Readonly<Record<string, FieldKind>>; // what a rule can read of a thing: the pick "where", words in braces, an order
     sections?: readonly string[]; // the sections of its window of the pointer
     shows?: readonly string[]; // the fields that "content.fields" can show, when they are not its fields
-    name?: string; // one thing of it in the words of a sentence of the check, when its kind is not plain words ("file of the list")
+    name?: string; // one thing of it in the words of a sentence of the check, when its kind is not plain words ("file of the list"); "the …" for one of a page
+    note?: string; // a sentence after "has no slot", when the component cannot have more slots
+    names?: Readonly<Record<string, string>>; // what a field with fixed values names, for the sentence of a wrong value ("state of a check"); "id" names its rows
   }>>;
   picks: Readonly<Record<string, string | { what: string; area?: string; words?: readonly string[]; example?: Example }>>;
   slots: Readonly<Record<string, {
@@ -106,7 +109,19 @@ export interface LookPartsList {
 
 const BLUE = '#2b6cb0';
 const AMBER = '#b45309';
+const GREY = '#6b7280';
 const ONE_NODE = { kind: 'node', diagram: '<diagram>', nodes: ['<node>'] } as const;
+
+// The fixed values of the fields of the side bar and of the page of a pull request. The pages work them out of their data (view/media/part-look.js).
+/** The state of a row of a change: the agent works, answers to read, comments waiting, or what the row says. */
+export const ROW_STATES = ['working', 'answers', 'waiting', 'out of date', 'in no part', 'open folder', 'no change file', 'none'] as const;
+const PULL_STATES = Object.keys(STATE_LOOKS);
+const CHECK_STATES = ['failed', 'running', 'waiting', 'passed', 'skipped'];
+/** The kinds of the events and commits of a conversation. */
+export const EVENT_KINDS = ['commit', 'push', 'branch', 'deployment', 'label', 'milestone', 'assignee', 'review', 'merge', 'state', 'title', 'mention', 'lock', 'comment', 'other'] as const;
+const SIDE_SECTIONS = ['reviewers', 'assignees', 'labels', 'milestone', 'closes', 'tasks'];
+const CHANGE_FIELDS = { branch: 'text', state: ROW_STATES, age: 'count', commits: 'count', files: 'count', added: 'count', removed: 'count', app: 'text', author: 'text' } as const;
+const TREE_NOTE = 'VS Code draws the rows of the tree "Files", and a look can change only their icon, the quiet words after the name, the click and the order.';
 
 /**
  * The one list of what a look can change. A component is a kind of thing that a rule picks, with its slots; `takes` names the fields of a slot that the
@@ -245,6 +260,130 @@ export const LOOK_PARTS = {
       area: 'file-tab', slots: ['show'], takes: { show: ['shown'] }, words: ['gutter', 'line numbers', 'icon'], fields: {},
       example: { pick: { kind: 'margin', mark: '<set>:<value>' }, show: { shown: true } },
     },
+    // Build 61: the list "Repo" and the tree "Files" of the side bar, and the page of a pull request (view/media/part-look.js draws them).
+    'home-row': {
+      what: 'the Home row of "Repo"', area: 'side-bar', slots: ['text', 'content', 'click'], takes: { text: ['icon'], content: ['words'] },
+      fields: { repo: 'text' }, name: 'the Home row', words: ['home', 'header', 'top'], example: { pick: { kind: 'home-row' }, content: { words: 'Home · {repo}' } },
+    },
+    'list-search': {
+      what: 'the words that the search of "Repo" starts with while the user keeps none', area: 'side-bar', slots: ['content'], takes: { content: ['words'] },
+      fields: {}, name: 'the search field', words: ['search', 'filter', 'start'], example: { pick: { kind: 'list-search' }, content: { words: 'state:"checks failing"' } },
+    },
+    'session-head': {
+      what: 'the head of the rows of an agent session', area: 'side-bar', slots: ['text', 'content'], takes: { text: ['icon'], content: ['words'] },
+      fields: { app: 'text', name: 'text' }, name: 'the head of a session', words: ['session', 'agent', 'group'], example: { pick: { kind: 'session-head' }, content: { words: '{name} · {app}' } },
+    },
+    'change-row': {
+      what: 'a row of a change; its order orders the rows while the user picked no sort', area: 'side-bar', slots: ['box', 'content', 'click', 'order'],
+      takes: { box: ['color'], content: ['fields'] }, fields: CHANGE_FIELDS, name: 'row of a change', words: ['row', 'change', 'branch', 'sort', 'pin'],
+      example: { pick: { kind: 'change-row' }, order: { by: 'added', down: true, first: ['<branch>'] } },
+    },
+    'row-state': {
+      what: 'the state words of a row of a change', area: 'side-bar', slots: ['content', 'text'], takes: { content: ['words'], text: ['icon'] },
+      fields: { state: ROW_STATES }, names: { state: 'state of a row' }, name: 'the state words of a row', words: ['state', 'status'],
+      example: { pick: { kind: 'row-state', where: { state: 'working' } }, content: { words: 'busy' } },
+    },
+    'row-facts': {
+      what: 'the facts line of a row of a change', area: 'side-bar', slots: ['content'], takes: { content: ['fields'] }, fields: {},
+      shows: ['age', 'commits', 'files', 'added', 'removed', 'author'], name: 'the facts line of a row', words: ['facts', 'age', 'commits', 'size'],
+      example: { pick: { kind: 'row-facts' }, content: { fields: ['age', 'added', 'removed'] } },
+    },
+    'pull-line': {
+      what: 'the line of a pull request under a row', area: 'pull-lines', slots: ['text', 'content', 'click'], takes: { text: ['icon', 'color'], content: ['fields'] },
+      fields: { number: 'count', state: PULL_STATES, checks: ['failed', 'running', 'passed', 'none'] }, shows: ['author', 'number', 'state', 'checks', 'stack', 'reviewers'],
+      names: { state: 'state of a pull request', checks: 'state of the checks' }, name: 'pull request line', words: ['pull request', 'PR', 'colour'],
+      example: { pick: { kind: 'pull-line', where: { state: 'checks failing' } }, text: { color: AMBER } },
+    },
+    avatars: {
+      what: 'the avatars of a pull request line', area: 'pull-lines', slots: ['text', 'show'], takes: { text: ['size'], show: ['shown'] },
+      fields: {}, name: 'the avatars', words: ['avatar', 'people', 'faces'], example: { pick: { kind: 'avatars' }, show: { shown: false } },
+    },
+    'more-pulls': {
+      what: 'the older pull requests of a row; "folded": false opens them', area: 'pull-lines', slots: ['show'],
+      fields: {}, name: 'the older pull requests', words: ['older', 'merged', 'closed'], example: { pick: { kind: 'more-pulls' }, show: { folded: false } },
+    },
+    'tree-folder': {
+      what: 'a folder row of "Files"; its order orders the folders in it', area: 'files', slots: ['show', 'order'], takes: { show: ['shown'], order: ['by', 'down'] },
+      fields: { name: 'text', path: 'text', files: 'count' }, note: TREE_NOTE, name: 'folder row', words: ['folder', 'tree', 'hide', 'sort'],
+      example: { pick: { kind: 'tree-folder', paths: ['<folder>/'] }, show: { shown: false } },
+    },
+    'tree-file': {
+      what: 'a file row of "Files": its icon, quiet words after its name, its click', area: 'files', slots: ['text', 'content', 'click'], takes: { text: ['icon'], content: ['words'] },
+      fields: { name: 'text', path: 'text', marks: 'count' }, note: TREE_NOTE, name: 'file row', words: ['file', 'tree', 'description'],
+      example: { pick: { kind: 'tree-file', mark: '<set>:<value>' }, content: { words: '{marks} marks' } },
+    },
+    'graphs-icon': {
+      what: 'the graphs icon of a row of "Files": only its click', area: 'files', slots: ['click'], fields: { path: 'text' }, name: 'the graphs icon',
+      note: 'VS Code draws the graphs icon and decides when it shows, so a look can change only its click.', words: ['graphs', 'icon'],
+      example: { pick: { kind: 'graphs-icon', paths: ['<file>'] }, click: { file: '<file>', line: 1 } },
+    },
+    'status-strip': {
+      what: 'the status strip of a pull request: its bits in their order, the icon of its state', area: 'pull-request', slots: ['content', 'text'],
+      takes: { content: ['fields'], text: ['icon', 'color'] }, fields: { state: PULL_STATES }, shows: ['reviewers', 'review', 'checks', 'blocker'],
+      names: { state: 'state of a pull request' }, name: 'the status strip', words: ['status', 'strip', 'blocker'],
+      example: { pick: { kind: 'status-strip' }, content: { fields: ['checks', 'blocker', 'reviewers'] } },
+    },
+    reviewers: {
+      what: 'the reviewers on the strip: their size, the avatar or the name', area: 'pull-request', slots: ['text', 'content'], takes: { text: ['size'], content: ['fields'] },
+      fields: {}, shows: ['avatar', 'name'], name: 'the reviewers', words: ['reviewer', 'names'], example: { pick: { kind: 'reviewers' }, content: { fields: ['name'] } },
+    },
+    check: {
+      what: 'a check in the list under the strip; the strip counts every check', area: 'pull-request', slots: ['order', 'show', 'text'],
+      takes: { order: ['by', 'down', 'group'], show: ['shown'], text: ['icon'] }, fields: { name: 'text', workflow: 'text', state: CHECK_STATES, time: 'count' },
+      names: { state: 'state of a check' }, words: ['checks', 'CI', 'workflow'],
+      example: { pick: { kind: 'check', where: { state: ['passed', 'skipped'] } }, show: { shown: false } },
+    },
+    'pull-facts': {
+      what: 'the facts under the title of a pull request', area: 'pull-request', slots: ['content'], takes: { content: ['fields'] }, fields: {},
+      shows: ['author', 'branches', 'size', 'github'], name: 'the facts of a pull request', words: ['title', 'branches'],
+      example: { pick: { kind: 'pull-facts' }, content: { fields: ['branches', 'size'] } },
+    },
+    label: {
+      what: 'a label of a pull request', area: 'pull-request', slots: ['box', 'text', 'show'], takes: { box: ['color'], text: ['icon'], show: ['shown'] },
+      fields: { name: 'text' }, name: 'label', words: ['tag', 'chip'], example: { pick: { kind: 'label', where: { name: 'bug' } }, box: { color: BLUE } },
+    },
+    description: {
+      what: 'the description of a pull request; "folded": false opens it', area: 'pull-request', slots: ['show', 'window'], takes: { show: ['shown', 'folded'], window: ['width'] },
+      fields: {}, name: 'the description', words: ['description', 'body'], example: { pick: { kind: 'description' }, show: { folded: false } },
+    },
+    'side-section': {
+      what: 'a section of the side column of "Classic" and of "Details"', area: 'pull-request', slots: ['order', 'show'], takes: { order: ['first'], show: ['shown'] },
+      fields: { id: SIDE_SECTIONS }, names: { id: 'section of the side column' }, name: 'section of the side column', words: ['side', 'column', 'details'],
+      example: { pick: { kind: 'side-section' }, order: { first: ['labels', 'reviewers'] } },
+    },
+    'conversation-look': {
+      what: '"Messages" or "Classic": the one that opens while the user picked none', area: 'conversation', slots: ['order'], takes: { order: ['first'] },
+      fields: { id: ['messages', 'classic'] }, names: { id: 'look of the conversation' }, name: 'the look of the conversation', words: ['messages', 'classic', 'mode'],
+      example: { pick: { kind: 'conversation-look' }, order: { first: ['classic'] } },
+    },
+    message: {
+      what: 'a message of "Messages": its colour, the parts that show', area: 'conversation', slots: ['box', 'content'], takes: { box: ['color'], content: ['fields'] },
+      fields: { author: 'text', type: ['comment', 'review', 'bot'] }, shows: ['avatar', 'name', 'time', 'text', 'reactions'], names: { type: 'kind of message' },
+      name: 'message', words: ['comment', 'bot', 'author'], example: { pick: { kind: 'message', where: { type: 'bot' } }, box: { color: GREY } },
+    },
+    event: {
+      what: 'an event or a commit of the conversation', area: 'conversation', slots: ['text', 'show'], takes: { text: ['icon', 'color'], show: ['shown'] },
+      fields: { of: EVENT_KINDS }, names: { of: 'kind of event' }, words: ['commit', 'push', 'deployment', 'timeline'],
+      example: { pick: { kind: 'event', where: { of: 'commit' } }, show: { shown: false } },
+    },
+    fold: {
+      what: 'a fold: the earlier messages, a run of events or of commits', area: 'conversation', slots: ['show'], takes: { show: ['folded'] },
+      fields: { of: ['earlier', 'events', 'commits'] }, names: { of: 'fold' }, words: ['collapse', 'earlier', 'expand'],
+      example: { pick: { kind: 'fold', where: { of: 'events' } }, show: { folded: false } },
+    },
+    'day-line': {
+      what: 'the line of the day between messages', area: 'conversation', slots: ['content', 'show'], takes: { content: ['words'], show: ['shown'] },
+      fields: { day: 'text', date: 'text' }, name: 'the day line', words: ['day', 'date'], example: { pick: { kind: 'day-line' }, content: { words: '{day} · {date}' } },
+    },
+    reaction: {
+      what: 'the reactions under a message', area: 'conversation', slots: ['show'], takes: { show: ['shown'] }, fields: {},
+      name: 'the reactions', words: ['emoji'], example: { pick: { kind: 'reaction' }, show: { shown: false } },
+    },
+    'classic-box': {
+      what: 'a box of "Classic": its colour and line', area: 'conversation', slots: ['box'], takes: { box: ['color', 'line'] },
+      fields: { type: ['comment', 'review', 'bot', 'description'] }, names: { type: 'kind of box' }, name: 'box of "Classic"', words: ['border'],
+      example: { pick: { kind: 'classic-box', where: { type: 'review' } }, box: { line: BLUE } },
+    },
   },
   picks: {
     kind: 'the component, always given',
@@ -357,19 +496,25 @@ export const LOOK_PARTS = {
     },
   },
   areas: {
-    diagrams: 'nodes and arrows of the map: words and their size, a picture or film, a button on an arrow',
-    processes: 'steps and calls out of the repo of a drawn process: as a node',
-    notes: 'note cards and the window of a step: the bar colour, the corners',
-    marks: 'a new kind of mark at lines of code, its values and icons, its corner, a button in a corner',
-    clicks: 'where a click, Alt+click, Shift+click, double click, key or right-click menu goes; every target',
-    windows: 'the window of the pointer: width, sections, their order, sections of blocks; a window as a target',
-    lists: 'what is left out, a pick by a field, the order and groups of rows',
-    blocks: 'text, fields, table, bars, code, state, links, button, picture, diagram, row; data from a repo file',
-    pages: 'a page of the look that opens as a tab: its blocks, and the target that opens it',
-    change: 'the change page: its card, its parts and the links between them, the drawing of a part',
-    diffs: 'the change page: the list of diffs, the views of its switch, the names of the diagrams of a part',
-    comments: 'the comments window of a page: its threads, the open points, the comment marks',
-    'file-tab': 'the file tab: the first line of a function, the lines to the code, notes column, code map, margin',
+    // One short index line each: the first answer of look-slots and a search that finds nothing print them all (store/look-options.test.ts holds the sizes).
+    diagrams: 'nodes and arrows of the map: words, size, picture, film',
+    processes: 'steps and calls out of the repo of a drawn process',
+    notes: 'note cards and the window of a step: bar colour, corners',
+    marks: 'a new kind of mark at lines of code, its icons and corner',
+    clicks: 'where a click, a key or a menu goes; every target',
+    windows: 'the window of the pointer: width, sections',
+    lists: 'what is left out, a pick by a field, the order of rows',
+    blocks: 'text, table, bars, code, links, picture; data from a file',
+    pages: 'a page of the look as a tab, and the target that opens it',
+    change: 'the change page: its card, its parts and their links',
+    diffs: 'the list of diffs, the views, part diagrams',
+    comments: 'the comments window: threads, open points, marks',
+    'file-tab': 'the file tab: function line, notes column, code map, margin',
+    'side-bar': 'the list "Repo": Home row, search, rows, order',
+    'pull-lines': 'pull requests in "Repo": colour, avatars',
+    files: 'the tree "Files": folders, file icons, words',
+    'pull-request': 'a pull request: strip, checks, labels, side column',
+    conversation: 'pull request messages, events, folds, day lines',
   },
   sets: {
     what: 'a new kind of mark: writers mark the lines of code that its rule names, and the icons of its values stand in its corner',
@@ -426,10 +571,19 @@ export const LOOK_KINDS = Object.keys(LOOK_PARTS.components) as LookKind[];
 type SlotName = keyof typeof LOOK_PARTS.slots;
 type TargetName = keyof typeof TARGETS;
 export const TARGET_NAMES = Object.keys(TARGETS) as TargetName[];
-export type Component = { slots: readonly string[]; takes?: Readonly<Record<string, readonly string[]>>; fields: Readonly<Record<string, FieldKind>>; sections?: readonly string[]; shows?: readonly string[]; name?: string };
+export type Component = {
+  slots: readonly string[]; takes?: Readonly<Record<string, readonly string[]>>; fields: Readonly<Record<string, FieldKind>>; sections?: readonly string[]; shows?: readonly string[];
+  name?: string; note?: string; names?: Readonly<Record<string, string>>;
+};
 const componentOf = (kind: LookKind): Component => LOOK_PARTS.components[kind];
 /** One thing of a kind in the words of a sentence: its name, else the kind. */
 export const nameOf = (kind: string): string => (LOOK_PARTS.components as Readonly<Record<string, Component>>)[kind]?.name ?? kind;
+
+/**
+ * Kinds that a person may ask for and that a look cannot have, each with the sentence that says why. A badge on a row of "Files" is the same kind
+ * as the badge of VS Code's Explorer, which the owner took out.
+ */
+const NO_KINDS: Readonly<Record<string, string>> = { badge: 'A look cannot put a badge on a row of "Files". Tell the owner so.' };
 
 /** A value of a field of a thing, as a rule names it. */
 type FieldValue = string | number | boolean;
@@ -570,15 +724,17 @@ function distance(a: string, b: string): number {
 }
 
 /**
- * The known name that is nearest to a word, when one is close: one or two letters changed, or the same first three letters (small and capital
- * letters count the same). Of several close names, the one with the fewest letters changed, then the first. Undefined when none is close.
+ * The known name that is nearest to a word, when one is close: one or two letters changed, the same first three letters, or a name of several words
+ * that holds the word whole ("failing" in "checks failing"); small and capital letters count the same. Of several close names, the one with the
+ * fewest letters changed, then the first. Undefined when none is close.
  */
 export function nearest(word: string, known: readonly string[]): string | undefined {
   const low = word.toLowerCase();
   let best: { name: string; far: number } | undefined;
   for (const name of known) {
     const far = distance(low, name.toLowerCase());
-    if (far > 2 && low.slice(0, 3) !== name.toLowerCase().slice(0, 3)) continue;
+    const holds = /\s/.test(name) && name.toLowerCase().split(/\s+/).includes(low);
+    if (far > 2 && low.slice(0, 3) !== name.toLowerCase().slice(0, 3) && !holds) continue;
     if (!best || far < best.far) best = { name, far };
   }
   return best?.name;
@@ -590,9 +746,13 @@ export const nearestPart = (word: unknown, known: readonly string[]): string => 
   return near ? ` The nearest is "${near}".` : '';
 };
 
-const an = (kind: string): string => { const word = nameOf(kind); return `${/^[aeiou]/.test(word) ? 'an' : 'a'} ${word}`; };
-const An = (word: string): string => an(word).replace(/^a/, 'A');
+/** One thing of a kind with its article, for a sentence: "a node", "a row of a change", "the status strip". */
+export const an = (kind: string): string => { const word = nameOf(kind); return word.startsWith('the ') ? word : `${/^[aeiou]/.test(word) ? 'an' : 'a'} ${word}`; };
+const An = (kind: string): string => an(kind).replace(/^./, (first) => first.toUpperCase());
 const listed = (names: readonly string[]): string => names.map((one) => `"${one}"`).join(', ');
+/** The sentence of a value that a field with fixed values does not have, when the component names the field: "pass" is no state of a check. */
+const noValue = (at: string, value: unknown, noun: string, known: readonly string[]): string =>
+  `${at}: "${String(value)}" is no ${noun}. The ${noun.split(' ')[0]}s are ${listed(known)}.${nearestPart(value, known)}`;
 const unknownFields = (value: object, known: readonly string[], at: string): string[] =>
   Object.keys(value).filter((key) => !known.includes(key)).map((key) => `${at}: "${key}" is no field here. Use only ${listed(known)}.${nearestPart(key, known)}`);
 
@@ -661,6 +821,7 @@ function ruleProblems(rule: unknown, at: string, context: LookContext, sets: Set
   if (!isObject(rule)) return [`${at}: a rule is an object { "pick": { ... }, and the slots that it changes }.`];
   const problems: string[] = [];
   const pick = rule.pick as Pick | undefined;
+  if (isObject(pick) && typeof pick.kind === 'string' && Object.hasOwn(NO_KINDS, pick.kind)) return [`${at}: "${pick.kind}" is no kind. ${NO_KINDS[pick.kind]}`];
   if (!isObject(pick) || !LOOK_KINDS.includes(pick.kind as LookKind)) return [`${at}: "pick" must name a "kind": one of ${LOOK_KINDS.join(', ')}.${nearestPart(isObject(pick) ? pick.kind : undefined, LOOK_KINDS)}`];
   const ctx: RuleContext = { kind: pick.kind, component: componentOf(pick.kind), context, sets };
   problems.push(...unknownFields(pick as unknown as Record<string, unknown>, Object.keys(LOOK_PARTS.picks), `${at}, "pick"`));
@@ -668,7 +829,7 @@ function ruleProblems(rule: unknown, at: string, context: LookContext, sets: Set
   const slots = Object.keys(rule).filter((key) => key !== 'pick');
   for (const slot of slots) {
     if (!(slot in LOOK_PARTS.slots)) problems.push(`${at}: "${slot}" is no slot. The slots are ${listed(Object.keys(LOOK_PARTS.slots))}.${nearestPart(slot, Object.keys(LOOK_PARTS.slots))}`);
-    else if (!own.includes(slot)) problems.push(`${at}: ${an(pick.kind)} has no slot "${slot}". Its slots are ${listed(own)}.${nearestPart(slot, own)}`);
+    else if (!own.includes(slot)) problems.push(`${at}: ${an(pick.kind)} has no slot "${slot}". Its slots are ${listed(own)}.${nearestPart(slot, own)}${ctx.component.note ? ` ${ctx.component.note}` : ''}`);
     else problems.push(...slotProblems(slot as SlotName, rule[slot], at, ctx));
   }
   if (!slots.length) problems.push(`${at}: it changes nothing. Name the slot that it changes, as "box": { "color": "#2b6cb0" }.`);
@@ -719,6 +880,8 @@ function whereProblems(where: unknown, at: string, ctx: RuleContext): string[] {
     const values = Array.isArray(value) ? value : [value];
     const fits = (one: unknown): boolean => (Array.isArray(kind) ? kind.includes(one as string) : kind === 'count' ? Number.isInteger(one) && (one as number) >= 0 : kind === 'yes' ? typeof one === 'boolean' : isText(one));
     if (values.length && values.every(fits)) return kind === 'part' ? partProblems(values as string[], at, ctx.context) : [];
+    const noun = ctx.component.names?.[field];
+    if (Array.isArray(kind) && noun && values.length) return values.filter((one) => !fits(one)).map((one) => noValue(at, one, noun, kind));
     const wanted = Array.isArray(kind) ? `one of ${listed(kind)}` : kind === 'count' ? 'a whole number' : kind === 'yes' ? 'true or false' : 'words';
     return [`${at}: "${field}" of ${an(ctx.kind)} is ${wanted}, or a list of them.`];
   });
@@ -768,15 +931,16 @@ export function valueProblem(kind: ValueKind, value: unknown, at: string, field:
     case 'fields': {
       const shows = component.shows ?? known;
       if (!Array.isArray(value) || !value.length || !value.every(isText)) return [`${at}: "${field}" must be a list of the fields of ${an(ctx.kind)} that show, in their order: any of ${listed(shows)}.`];
-      return value.filter((name) => !shows.includes(name)).map((name) => `${at}: ${an(ctx.kind)} shows no field "${name}". It shows ${listed(shows)}.${nearestPart(name, shows)}`);
+      // A component that shows its own fields says so as a pick does; one that shows others names what it shows.
+      return value.filter((name) => !shows.includes(name)).map((name) => (component.shows
+        ? `${at}: ${an(ctx.kind)} shows no field "${name}". It shows ${listed(shows)}.${nearestPart(name, shows)}` : noField(at, ctx.kind, name, known)));
     }
     case 'field': return isText(value) && known.includes(value) ? [] : [noField(at, ctx.kind, String(value), known)];
     case 'ids': {
       if (!(Array.isArray(value) && value.length && value.every(isText))) return wrong;
-      // A component whose ids are a few fixed values (the views) names the ones that it has.
+      // A component whose rows have a few fixed ids (the views, the sections of the side column) names the ones that it has.
       const ids = component.fields.id;
-      const name = component.name ?? nameOf(ctx.kind);
-      return Array.isArray(ids) ? value.filter((id) => !ids.includes(id)).map((id) => `${at}: "${id}" is no ${name}. The ${name}s are ${listed(ids)}.${nearestPart(id, ids)}`) : [];
+      return Array.isArray(ids) ? value.filter((id) => !ids.includes(id)).map((id) => noValue(at, id, component.names?.id ?? component.name ?? nameOf(ctx.kind), ids)) : [];
     }
     case 'target': return targetProblems(value, at, context);
     case 'keys': return keyProblems(value, at, context);

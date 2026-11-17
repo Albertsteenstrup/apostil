@@ -3,7 +3,7 @@
 // view/media/marks.js, read in Node as view/marks.test.ts does, on the diagrams of Home (homeData) and on the note cards of the map; and on the page of
 // the saved change of the branch and its file tabs (changeThings and fileThings of marks.js, build 60).
 
-import { LOOK_PARTS, nameOf, namesPart, type Look, type LookPartsList, type Pick } from '../shared/look';
+import { an, LOOK_PARTS, nameOf, namesPart, type Look, type LookPartsList, type Pick } from '../shared/look';
 import { currentBranch, repoId, repoRoot } from '../shared/git';
 import type { Store } from '../shared/store';
 import { homeData, type HomeDiagram } from '../view/home-data';
@@ -13,6 +13,8 @@ import { pageData } from '../view/page-data';
 const Marks = require('../../view/media/marks.js');
 
 const LIST: LookPartsList = LOOK_PARTS;
+/** The areas of the parts that the changes do not count: the list and the tree of the side bar, and the page of a pull request. */
+const UNCOUNTED = ['side-bar', 'pull-lines', 'files', 'pull-request', 'conversation'];
 
 type Thing = { kind: string; slots?: Record<string, unknown> } & Record<string, unknown>;
 
@@ -92,6 +94,8 @@ export function lookChanges(store: Store, folder: string, look: Look): { changes
   const changes: string[] = [];
   const notes: string[] = [];
   look.rules.forEach((rule, index) => {
+    // A part of the side bar or of a pull request is neither in the map nor on the page of the change, so it is not counted (build 61).
+    if (UNCOUNTED.includes(LIST.components[rule.pick.kind]?.area)) return void changes.push(`Rule ${index + 1}: ${an(rule.pick.kind)} that it picks gets ${gives(rule)}.`);
     const picked = count(rule.pick);
     changes.push(`Rule ${index + 1}: ${picked} ${picked === 1 ? `${nameOf(rule.pick.kind)} gets` : `${many(rule.pick.kind)} get`} ${gives(rule)}.`);
     if (!picked) notes.push(`Rule ${index + 1} picks nothing now: ${whyNothing(rule.pick, count)}.`);

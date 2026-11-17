@@ -16,9 +16,17 @@ const Conversation = (() => {
   const CLASSIC_HEAD = 15;
   const CLASSIC_TAIL = 30;
 
-  let mode = kept.conversationMode === 'classic' ? 'classic' : 'messages'; // kept for the window
+  let chosen = kept.conversationMode; // "messages" or "classic" as he chose last, kept for the window
+  let mode = 'messages'; // set by each drawing: his choice, else the look of the repo, else "Messages"
   let checksOpen = false; // the list of checks under the strip
   const earlyRows = new Map(); // the folded code lines of each thread, drawn when he opens them
+
+  // The look of the repo on the parts of a pull request (PartLook in part-look.js, LOOK_PARTS in shared/look.ts). With no rule for a part, it is as before.
+  const pageLook = () => App.page?.look;
+  const own = (kind, fields) => PartLook.slotsOf(pageLook(), kind, fields);
+  const lookIcon = (name) => PartLook.iconHtml(pageLook(), name);
+  /** True when the look does not open a fold of this kind at the start: the earlier messages, a run of events, a run of commits. */
+  const folds = (of) => own('fold', { of })['show.folded'] !== false;
 
   // ----- small parts -----
 
@@ -59,13 +67,17 @@ const Conversation = (() => {
 
   // ico(), avatar(), labelRgb(), REVIEWER_LOOK and reviewerFaces() are in tools.js: the list of the side bar draws people with them too.
   const name = (person) => `<b>${esc(person.login)}</b>${person.bot ? '<i class="bot">bot</i>' : ''}`;
-  const chips = (list) => (list.length ? `<div class="react">${list.map((one) => `<span class="chip">${one.emoji} ${one.count}</span>`).join('')}</div>` : '');
+  /** The reactions as small chips; none when a rule of the look leaves them out. */
+  const chips = (list) => (list.length && own('reaction')['show.shown'] !== false ? `<div class="react">${list.map((one) => `<span class="chip">${one.emoji} ${one.count}</span>`).join('')}</div>` : '');
   const plainText = (markup) => { const box = document.createElement('template'); box.innerHTML = markup; return box.content.textContent.replace(/\s+/g, ' ').trim(); };
 
-  /** A label as a pill in its own colour, readable on light and dark themes; a long name is cut, with the whole name in its title. */
+  /** A label as a pill in its own colour, readable on light and dark themes; a long name is cut, with the whole name in its title. A rule gives it another colour and an icon. */
   function labelPill(label) {
-    return `<span class="lbl" style="--lc:${labelRgb(label)}" title="${esc(label.name)}">${esc(label.name)}</span>`;
+    const look = own('label', { name: label.name });
+    return `<span class="lbl" style="--lc:${labelRgb(PartLook.labelColor(look['box.color']) ?? label)}" title="${esc(label.name)}">${lookIcon(look['text.icon'])}${esc(label.name)}</span>`;
   }
+  /** The labels that no rule leaves out. */
+  const shownLabels = (pull) => pull.labels.filter((label) => own('label', { name: label.name })['show.shown'] !== false);
 
   /** A branch name as a code pill; a long one is cut in the middle, with the whole name in its title. */
   function branchPill(branch) {
@@ -120,25 +132,32 @@ const Conversation = (() => {
   const deploymentsLine = (pull) => pull.deployments.map((one) => `<span class="dep ${DEPLOY_LOOK[one.state]}">${ico('rocket')}${esc(one.environment)}: ${esc(one.state)}`
     + `${one.link ? ` <a data-link="${esc(one.link)}">View deployment</a>` : ''}</span>`).join('<span class="sep"> · </span>');
 
-  /** One check: its state icon, name, words, time, links; a failed one with its annotations. */
+  /** One check: its state icon (or the icon of a rule), name, words, time, links; a failed one with its annotations. */
   function checkRow(check) {
     const [icon, look] = CHECK_LOOK[check.state] ?? ['dot-fill', 'quiet'];
+    const iconOf = lookIcon(own('check', PartLook.checkFields(check))['text.icon']) || ico(icon, look);
     const links = [check.link ? `<a data-link="${esc(check.link)}">${check.runLink ? 'View the log' : 'Details'}</a>` : '', isFailed(check) && check.runLink ? `<a data-link="${esc(check.runLink)}">Run again</a>` : ''].filter(Boolean).join('');
     const notes = isFailed(check) ? check.annotations.map((note) => `<div class="ann ${note.level}">${ico(note.level === 'failure' ? 'x-circle' : note.level === 'warning' ? 'alert' : 'comment')}`
       + `<span class="am">${esc(note.title ? `${note.title}: ` : '')}${esc(note.message)}</span>`
       + `${note.path && note.path !== '.github' ? `<a class="at" data-thread-file="${esc(note.path)}" data-lines="${note.line ? `${note.line},${note.line}` : ''}">${esc(note.path)}${note.line ? `:${note.line}` : ''}</a>` : ''}</div>`).join('') // ".github" is where GitHub hangs its own notes of a job: no file of the repo
       + (check.cutAnnotations ? `<div class="ann quiet">${plural(check.cutAnnotations, 'more note')} on GitHub</div>` : '') : '';
-    return `<div class="ck ${look}${check.state === 'skipped' ? ' skipped' : ''}">${ico(icon, look)}<span class="cn">${esc(check.name)}</span>`
+    return `<div class="ck ${look}${check.state === 'skipped' ? ' skipped' : ''}">${iconOf}<span class="cn">${esc(check.name)}</span>`
       + `<span class="cs">${esc(check.description ?? check.state)}${check.seconds !== undefined ? ` · ${check.seconds < 60 ? `${check.seconds} s` : `${Math.round(check.seconds / 60)} min`}` : ''}</span>`
       + `<span class="cl">${links}</span></div>${notes}`;
   }
 
-  /** The list of checks: under the name of their workflow ("CI · GitHub Actions"), other products under "Other checks". In each: failed, waiting and running, the passed ones as one folded row, skipped ones quiet. */
+  /**
+   * The list of checks: under the name of their workflow ("CI · GitHub Actions"), other products under "Other checks". In each: failed, waiting and running,
+   * the passed ones as one folded row, skipped ones quiet. A rule of the look leaves checks out (the strip still counts them), or orders and groups them.
+   */
   function checksHtml(pull) {
+    const shown = pull.checks.list.filter((check) => PartLook.checkShown(pageLook(), check));
+    const byRule = PartLook.checkGroups(pageLook(), shown);
     const groups = new Map();
-    for (const check of pull.checks.list) groups.set(check.group, [...(groups.get(check.group) ?? []), check]);
+    for (const check of shown) groups.set(check.group, [...(groups.get(check.group) ?? []), check]);
     const worst = (list) => Math.min(...list.map((check) => STATE_ORDER.indexOf(check.state)));
     const ordered = [...groups.entries()].sort(([a, one], [b, two]) => (a === 'Other checks') - (b === 'Other checks') || worst(one) - worst(two));
+    const ruleHtml = ({ title, checks }) => `<div class="cg"><div class="cgh">${ico(title === 'Other checks' ? 'check-circle' : 'workflow')}<b>${esc(title)}</b></div>${checks.map(checkRow).join('')}</div>`;
     const groupHtml = ([title, list]) => {
       const sorted = [...list].sort((a, b) => STATE_ORDER.indexOf(a.state) - STATE_ORDER.indexOf(b.state));
       const passed = sorted.filter((check) => check.state === 'passed' || check.state === 'neutral');
@@ -149,7 +168,8 @@ const Conversation = (() => {
     };
     const cut = pull.cut.checks ? `<p class="quiet">Only the first ${number(pull.checks.list.length)} checks are read. See all on <a data-link="${esc(pull.url)}">GitHub</a>.</p>` : '';
     const deployments = pull.deployments.length ? `<div class="deps">${deploymentsLine(pull)}</div>` : '';
-    return `${deployments}${ordered.map(groupHtml).join('') || '<p class="quiet">No checks ran.</p>'}${cut}`;
+    const rows = byRule ? byRule.map(ruleHtml).join('') : ordered.map(groupHtml).join('');
+    return `${deployments}${rows || (pull.checks.list.length ? '' : '<p class="quiet">No checks ran.</p>')}${cut}`;
   }
 
   const REVIEW_DOTS = { amber: 'wait', red: 'bad', teal: '' };
@@ -168,8 +188,10 @@ const Conversation = (() => {
 
   const bit = (line, more = '', cls = '') => (line ? `<span class="${cls}">${line.dot === 'none' ? '' : `<i class="dot ${REVIEW_DOTS[line.dot] ?? ''}"></i>`}${esc(line.text)}${more}</span>` : '');
 
-  /** The icon of the state of a pull request, with its word when there is room; its tooltip says "#12 · Review needed". */
-  const icon = (pull, word = true) => `${States.pullIcon(pull)}${word ? `<span class="prw">${esc(pull.state)}</span>` : ''}`;
+  /** The icon of the state of a pull request, with its word when there is room; its tooltip says "#12 · Review needed". `slots`: an icon of the look in its place. */
+  const icon = (pull, word = true, slots = {}) => `${lookIcon(slots['text.icon']) || States.pullIcon(pull)}${word ? `<span class="prw">${esc(pull.state)}</span>` : ''}`;
+  /** The first part of the strip, the icon of the state, in the colour of a rule of the look. */
+  const stateBit = (pull, word, slots) => { const color = PartLook.wordsAttrs(slots['text.color']); return `<span${color.cls ? ` class="${color.cls.trim()}"` : ''}${color.style}>${icon(pull, word, slots)}</span>`; };
 
   /**
    * The merge sentence of the strip: the parts that the strip does not say before it. The state word says a draft and conflicts,
@@ -180,25 +202,34 @@ const Conversation = (() => {
     return pull.merge.parts.filter((part) => !said.has(part.about)).map((part) => part.text);
   }
 
-  /** The review of the strip: the reviewers as avatars that lie over each other (reviewerFaces in tools.js), or with no reviewer the review in a few words. */
-  const reviewersBit = (pull) => (pull.reviewers.length ? reviewerFaces(pull.reviewers) : bit(reviewLine(pull)));
+  /** The reviewers of the strip as avatars that lie over each other (reviewerFaces in tools.js); a rule gives them a size, or their names beside or in place of the avatars. */
+  function reviewersHtml(pull) {
+    const look = own('reviewers');
+    const names = () => `<span class="rvnames">${pull.reviewers.map((one) => `<span title="${esc((REVIEWER_LOOK[one.state] ?? REVIEWER_LOOK.reviewed)[2])}">${esc(one.person.login)}</span>`).join(', ')}</span>`;
+    return (look.content?.fields ?? ['avatar']).map((part) => (part === 'avatar' ? reviewerFaces(pull.reviewers, { small: 'xs', large: '' }[look['text.size']] ?? 's') : names())).join('');
+  }
 
   /**
    * The status strip, one short line. `full` is the pull request as read in full, else only the short form from the list of the branch is known.
    * Open: the icon of the state (its word only for a draft and for conflicts, which nothing else on the strip says), the reviewers as avatars with the mark of their state, the checks
    * (a click opens their list, which names the failed ones), and the first thing that still stands before a merge, with a count of the others; the pointer
-   * on it says them all. Merged or closed: who and when, no more.
+   * on it says them all. Merged or closed: who and when, no more. A rule of the look gives the icon of the state another icon and a colour, and names
+   * the bits that show in their order (PartLook.stripBits); the checks bit always counts every check.
    */
   function stripHtml(short, full, others = 0) {
     lastStrip = [short, full, others];
     const choice = others ? `<a class="others" data-pulls>${esc(States.WORDS.morePulls(others))}</a>` : '';
-    if (!full) return `<div class="status"><span>${icon(short, !short.checks.failed)}</span>${short.checks.failed ? bit({ text: States.WORDS.failedChecks(short.checks), dot: 'red' }) : ''}${choice}</div>`;
-    if (!full.open) return `<div class="status"><span>${icon(full)}</span><span class="msent">${esc(full.merge.sentence)}</span>${choice}</div>`;
+    const look = own('status-strip', { state: (full ?? short).state });
+    if (!full) return `<div class="status">${stateBit(short, !short.checks.failed, look)}${short.checks.failed ? bit({ text: States.WORDS.failedChecks(short.checks), dot: 'red' }) : ''}${choice}</div>`;
+    if (!full.open) return `<div class="status">${stateBit(full, true, look)}<span class="msent">${esc(full.merge.sentence)}</span>${choice}</div>`;
     const checks = checksLine(full);
     const checksBit = checks.dot === 'none' ? bit(checks) : `<a class="chk${checksOpen ? ' on' : ''}" data-checks title="Show the checks">${checks.dot === 'none' ? '' : `<i class="dot ${REVIEW_DOTS[checks.dot] ?? ''}"></i>`}${esc(checks.text)}<span class="chev">${checksOpen ? '▾' : '▸'}</span></a>`;
     const [first, ...rest] = stripSentence(full);
     const sentence = first ? `<span class="msent${full.merge.ready ? ' ok' : ''}"${rest.length ? ` title="${esc([first, ...rest].join(' · '))}"` : ''}>${esc(first)}${rest.length ? `<i class="muted">${rest.length} more</i>` : ''}</span>` : '';
-    return `<div class="status"><span>${icon(full, full.state === 'draft' || full.state === 'conflicts')}</span>${reviewersBit(full)}${checksBit}${sentence}${reviewBit(full)}${choice}</div>`
+    // The bits in the order of a rule of the look; "Review" and the choice of pull requests keep their place at the end, since "Review" writes to GitHub.
+    const bits = { reviewers: () => (full.reviewers.length ? reviewersHtml(full) : ''), review: () => bit(reviewLine(full)), checks: () => checksBit, blocker: () => sentence };
+    const shown = PartLook.stripBits(pageLook(), full).map((name) => bits[name]()).join('');
+    return `<div class="status">${stateBit(full, full.state === 'draft' || full.state === 'conflicts', look)}${shown}${reviewBit(full)}${choice}</div>`
       + (checksOpen ? `<section class="checks-panel">${checksHtml(full)}</section>` : '') + reviewHtml(full);
   }
 
@@ -219,28 +250,33 @@ const Conversation = (() => {
   const tasksWords = (tasks) => `${tasks.done} of ${tasks.total} tasks`;
   const milestoneWords = (milestone) => `${milestone.title}${milestone.due ? `, due ${dateWords(milestone.due)}` : ''}`;
 
-  /** The side facts as sections: the side column of "Classic", and the fold of "Messages". */
+  /** The side facts as sections: the side column of "Classic", and the fold of "Messages". A rule of the look leaves sections out and puts some first. */
   function factsSections(pull) {
     const section = (title, body) => `<section><h4>${esc(title)}</h4>${body}</section>`;
     const none = (text) => `<p class="quiet">${esc(text)}</p>`;
-    return section('Reviewers', pull.reviewers.length ? pull.reviewers.map(reviewerRow).join('') : none('No reviewers'))
-      + section('Assignees', pull.assignees.length ? pull.assignees.map((one) => `<div class="pp">${avatar(one, 's')}<span class="pn">${esc(one.login)}</span></div>`).join('') : none('No one'))
-      + section('Labels', pull.labels.length ? `<div class="lbls">${pull.labels.map(labelPill).join('')}</div>` : none('None yet'))
-      + section('Milestone', pull.milestone ? `<a class="mlink" data-link="${esc(pull.milestone.url)}">${ico('milestone')}${esc(milestoneWords(pull.milestone))}</a>` : none('No milestone'))
-      + section('Closes', pull.closes.length ? pull.closes.map((issue) => `<a class="mlink" data-link="${esc(issue.url)}">${ico(issue.open ? 'issue-opened' : 'issue-closed', issue.open ? 'ok' : 'done')}#${issue.number} ${esc(issue.title)}</a>`).join('') : none('No issue'))
-      + (pull.tasks.total ? section('Tasks', `<p>${ico('tasklist')}${esc(tasksWords(pull.tasks))}</p>`) : '');
+    const sections = {
+      reviewers: section('Reviewers', pull.reviewers.length ? pull.reviewers.map(reviewerRow).join('') : none('No reviewers')),
+      assignees: section('Assignees', pull.assignees.length ? pull.assignees.map((one) => `<div class="pp">${avatar(one, 's')}<span class="pn">${esc(one.login)}</span></div>`).join('') : none('No one')),
+      labels: section('Labels', pull.labels.length ? `<div class="lbls">${shownLabels(pull).map(labelPill).join('')}</div>` : none('None yet')),
+      milestone: section('Milestone', pull.milestone ? `<a class="mlink" data-link="${esc(pull.milestone.url)}">${ico('milestone')}${esc(milestoneWords(pull.milestone))}</a>` : none('No milestone')),
+      closes: section('Closes', pull.closes.length ? pull.closes.map((issue) => `<a class="mlink" data-link="${esc(issue.url)}">${ico(issue.open ? 'issue-opened' : 'issue-closed', issue.open ? 'ok' : 'done')}#${issue.number} ${esc(issue.title)}</a>`).join('') : none('No issue')),
+      tasks: pull.tasks.total ? section('Tasks', `<p>${ico('tasklist')}${esc(tasksWords(pull.tasks))}</p>`) : '',
+    };
+    return PartLook.sideSections(pageLook(), Object.keys(sections)).map((id) => sections[id]).join('');
   }
 
-  /** The side facts of "Messages": one quiet line under the title, with a fold for the details. Nothing when there is nothing to say. */
+  /** The side facts of "Messages": one quiet line under the title, with a fold for the details. Nothing when there is nothing to say. The sections of the look order and leave out its bits. */
   function factsLine(pull) {
-    const bits = [
-      pull.labels.length ? `<span class="lbls">${pull.labels.map(labelPill).join('')}</span>` : '',
-      pull.reviewers.length ? `<span>${ico('eye')}${plural(pull.reviewers.length, 'reviewer')}</span>` : '',
-      pull.assignees.length ? `<span>${ico('person')}${esc(pull.assignees.map((one) => one.login).join(', '))}</span>` : '',
-      pull.milestone ? `<span>${ico('milestone')}${esc(milestoneWords(pull.milestone))}</span>` : '',
-      pull.closes.length ? `<span>${ico('issue-opened')}closes ${pull.closes.map((issue) => `#${issue.number}`).join(', ')}</span>` : '',
-      pull.tasks.total ? `<span>${ico('tasklist')}${esc(tasksWords(pull.tasks))}</span>` : '',
-    ].filter(Boolean);
+    const labels = shownLabels(pull);
+    const all = {
+      labels: labels.length ? `<span class="lbls">${labels.map(labelPill).join('')}</span>` : '',
+      reviewers: pull.reviewers.length ? `<span>${ico('eye')}${plural(pull.reviewers.length, 'reviewer')}</span>` : '',
+      assignees: pull.assignees.length ? `<span>${ico('person')}${esc(pull.assignees.map((one) => one.login).join(', '))}</span>` : '',
+      milestone: pull.milestone ? `<span>${ico('milestone')}${esc(milestoneWords(pull.milestone))}</span>` : '',
+      closes: pull.closes.length ? `<span>${ico('issue-opened')}closes ${pull.closes.map((issue) => `#${issue.number}`).join(', ')}</span>` : '',
+      tasks: pull.tasks.total ? `<span>${ico('tasklist')}${esc(tasksWords(pull.tasks))}</span>` : '',
+    };
+    const bits = PartLook.sideSections(pageLook(), Object.keys(all)).map((id) => all[id]).filter(Boolean);
     if (!bits.length) return '';
     return `<div class="facts" data-box><div class="fline">${bits.join('')}<a class="fmore" data-toggle><span class="show">Details</span><span class="hide">Less</span></a></div><div class="inner fsec">${factsSections(pull)}</div></div>`;
   }
@@ -343,55 +379,80 @@ const Conversation = (() => {
 
   // ----- "Messages": the modern look -----
 
+  /**
+   * What the look gives a message of "Messages", by its author and its kind: the class and the colours of its box, and a test for each of its parts
+   * (avatar, name, time, text, reactions) that shows. The threads of a review always show: they hold "Answer" and "Resolve".
+   */
+  function messageLook(item, author) {
+    const look = own('message', { author: author?.login ?? '', type: PartLook.messageType(item, author) });
+    return { box: PartLook.boxAttrs(look['box.color']), shows: PartLook.shows(look.content?.fields) };
+  }
+  const gap = '<span class="av gap"></span>';
+
   /** A message row: avatar, name and a short time on one line, then the title line (a heading at its start), the text, chips, threads. */
   function messageHtml(item, pull, same) {
     if (item.kind === 'thread') {
       const first = item.thread.comments[0];
-      return `<div class="msg">${avatar(first?.author ?? { login: '?' })}<div class="body"><div class="top">${first ? name(first.author) : ''}<span class="t">on code</span>${clock(item.at)}</div>${threadHtml(item.thread, pull)}</div></div>`;
+      const { box, shows } = messageLook(item, first?.author);
+      return `<div class="msg${box.cls}"${box.style}>${shows('avatar') ? avatar(first?.author ?? { login: '?' }) : gap}<div class="body"><div class="top">${first && shows('name') ? name(first.author) : ''}<span class="t">on code</span>${shows('time') ? clock(item.at) : ''}</div>${threadHtml(item.thread, pull)}</div></div>`;
     }
     if (item.kind === 'reply') {
       const { comment, thread } = item;
-      const body = `<div class="msg">${avatar(comment.author)}<div class="body"><div class="top">${name(comment.author)}${edited(comment.edited)}`
-        + `<span class="t">answered on ${esc(baseName(thread.path))} ${esc(linesWord(thread))}</span>${clock(comment.at)}</div>${textHtml(comment.html)}${chips(comment.reactions)}</div></div>`;
+      const { box, shows } = messageLook(item, comment.author);
+      const body = `<div class="msg${box.cls}"${box.style}>${shows('avatar') ? avatar(comment.author) : gap}<div class="body"><div class="top">${shows('name') ? name(comment.author) : ''}${edited(comment.edited)}`
+        + `<span class="t">answered on ${esc(baseName(thread.path))} ${esc(linesWord(thread))}</span>${shows('time') ? clock(comment.at) : ''}</div>${shows('text') ? textHtml(comment.html) : ''}${shows('reactions') ? chips(comment.reactions) : ''}</div></div>`;
       return comment.hidden ? hiddenBox(comment, body) : body;
     }
     const heading = headingOf(item.html);
     const text = heading ? heading.rest : item.html;
     const times = item.repeat ? `<span class="t rep" title="${esc(item.repeat.map(exact).join(', '))}">posted ${item.repeat.length + 1} times, last ${esc(ago(item.repeat.at(-1)))}</span>` : '';
+    const { box, shows } = messageLook(item, item.author);
+    const words = shows('text') ? `${heading ? `<div class="mtitle">${esc(heading.title)}</div>` : ''}${textHtml(text)}` : '';
+    const reactions = shows('reactions') ? chips(item.reactions) : '';
     if (item.kind === 'review') {
-      const [i, look, words] = VERDICTS[item.state] ?? VERDICTS.reviewed;
-      const body = `<div class="msg">${avatar(item.author)}<div class="body"><div class="top">${name(item.author)}${marksOf(item)}${clock(item.at)}</div>`
-        + `<div class="card review ${look}"><div class="verdict ${look}">${ico(i, look)}${esc(words)}</div>${heading ? `<div class="mtitle">${esc(heading.title)}</div>` : ''}${textHtml(text)}${chips(item.reactions)}${item.threads.map((thread) => threadHtml(thread, pull)).join('')}</div></div></div>`;
+      const [i, look, verdict] = VERDICTS[item.state] ?? VERDICTS.reviewed;
+      const body = `<div class="msg${box.cls}"${box.style}>${shows('avatar') ? avatar(item.author) : gap}<div class="body"><div class="top">${shows('name') ? name(item.author) : ''}${marksOf(item)}${shows('time') ? clock(item.at) : ''}</div>`
+        + `<div class="card review ${look}"><div class="verdict ${look}">${ico(i, look)}${esc(verdict)}</div>${words}${reactions}${item.threads.map((thread) => threadHtml(thread, pull)).join('')}</div></div></div>`;
       return item.hidden ? hiddenBox(item, body) : body;
     }
-    const body = `<div class="msg${same ? ' same' : ''}">${same ? '<span class="av gap"></span>' : avatar(item.author)}<div class="body">`
+    const body = `<div class="msg${same ? ' same' : ''}${box.cls}"${box.style}>${same || !shows('avatar') ? gap : avatar(item.author)}<div class="body">`
       // A later message of the same author: its time stands at the right of its first line, with no line of its own.
-      + `${same ? `<span class="t time tr" title="${esc(exact(item.at))}">${esc(new Date(item.at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }))}</span>` : `<div class="top">${name(item.author)}${marksOf(item)}${times}${clock(item.at)}</div>`}`
-      + `${heading ? `<div class="mtitle">${esc(heading.title)}</div>` : ''}${textHtml(text)}${chips(item.reactions)}</div></div>`;
+      + `${same ? (shows('time') ? `<span class="t time tr" title="${esc(exact(item.at))}">${esc(new Date(item.at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }))}</span>` : '') : `<div class="top">${shows('name') ? name(item.author) : ''}${marksOf(item)}${times}${shows('time') ? clock(item.at) : ''}</div>`}`
+      + `${words}${reactions}</div></div>`;
     return item.hidden ? hiddenBox(item, body) : body;
   }
 
-  /** A comment from a product: a compact row with the product, the title of the comment and a fold with the rest. */
+  /** A comment from a product: a compact row with the product, the title of the comment and a fold with the rest. The look of a message gives it its colour and parts. */
   function productRow(item) {
     const heading = headingOf(item.html);
     const title = heading?.title ?? plainText(item.html).slice(0, 140);
-    return `<div class="prod" data-box><a class="prow" data-toggle>${avatar(item.author, 's')}<b>${esc(item.author.login)}</b><span class="ptl">${esc(title)}</span><span class="go">›</span>${clock(item.at)}</a>`
-      + `<div class="inner">${textHtml(heading ? heading.rest : item.html)}${chips(item.reactions)}</div></div>`;
+    const { box, shows } = messageLook(item, item.author);
+    return `<div class="prod" data-box><a class="prow${box.cls}"${box.style} data-toggle>${shows('avatar') ? avatar(item.author, 's') : ''}${shows('name') ? `<b>${esc(item.author.login)}</b>` : ''}<span class="ptl">${esc(title)}</span><span class="go">›</span>${shows('time') ? clock(item.at) : ''}</a>`
+      + `<div class="inner">${shows('text') ? textHtml(heading ? heading.rest : item.html) : ''}${shows('reactions') ? chips(item.reactions) : ''}</div></div>`;
   }
 
   /** Several comments of one product in a row: one row with a count, that opens to their compact rows. */
   function productsHtml(group) {
     if (group.length === 1) return productRow(group[0]);
     const last = group[group.length - 1];
-    return `<div class="prods" data-box><a class="prow" data-toggle>${avatar(last.author, 's')}<b>${esc(last.author.login)}</b><span class="ptl">${plural(group.length, 'comment')} · ${esc(headingOf(last.html)?.title ?? plainText(last.html).slice(0, 100))}</span><span class="go">›</span>${clock(last.at)}</a>`
+    const { box, shows } = messageLook(last, last.author);
+    return `<div class="prods" data-box><a class="prow${box.cls}"${box.style} data-toggle>${shows('avatar') ? avatar(last.author, 's') : ''}${shows('name') ? `<b>${esc(last.author.login)}</b>` : ''}<span class="ptl">${plural(group.length, 'comment')} · ${esc(headingOf(last.html)?.title ?? plainText(last.html).slice(0, 100))}</span><span class="go">›</span>${shows('time') ? clock(last.at) : ''}</a>`
       + `<div class="inner">${group.map(productRow).join('')}</div></div>`;
   }
 
-  const commitRow = (item) => `<div class="row">${ico('git-commit')}<code>${esc(item.hash)}</code><span class="what">${esc(item.subject)}</span>`
-    + `${item.verified ? '<span class="vf">Verified</span>' : ''}<span class="t who">${esc(item.author.login)}${item.author.bot ? ' (bot)' : ''}</span>${clock(item.at)}</div>`;
+  /** What the look gives an event or a commit: an icon in place of its own, and a colour of its words (the class and style of its row). */
+  function eventLook(item) {
+    const look = own('event', { of: PartLook.eventOf(item) });
+    return { icon: lookIcon(look['text.icon']), color: PartLook.wordsAttrs(look['text.color']) };
+  }
+  /** True when no rule of the look leaves the event or the commit out. Other items always show. */
+  const eventShown = (item) => (item.kind !== 'commit' && item.kind !== 'event') || own('event', { of: PartLook.eventOf(item) })['show.shown'] !== false;
+
+  const commitRow = (item) => { const { icon, color } = eventLook(item); return `<div class="row${color.cls}"${color.style}>${icon || ico('git-commit')}<code>${esc(item.hash)}</code><span class="what">${esc(item.subject)}</span>`
+    + `${item.verified ? '<span class="vf">Verified</span>' : ''}<span class="t who">${esc(item.author.login)}${item.author.bot ? ' (bot)' : ''}</span>${clock(item.at)}</div>`; };
 
   function commitsHtml(group) {
-    if (group.length === 1) return commitRow(group[0]);
+    if (group.length === 1 || !folds('commits')) return group.map(commitRow).join('');
     const last = group[group.length - 1];
     return `<div class="commits" data-box><a class="row" data-toggle>${ico('git-commit')}<span class="what"><b>${plural(group.length, 'commit')}</b> ${esc(group[0].subject)} … ${esc(last.subject)}</span>`
       + `${clock(last.at)}</a><div class="inner">${group.map(commitRow).join('')}</div></div>`;
@@ -403,15 +464,19 @@ const Conversation = (() => {
     + `${item.label ? ` ${labelPill(item.label)}` : ''}${item.link ? ` <a data-link="${esc(item.link.url)}">${esc(item.link.text)}</a>` : ''}`
     + `${item.deployment ? ` <span class="dep ${DEPLOY_LOOK[item.deployment.state]}">${esc(DEPLOY_WORDS[item.deployment.state])}</span>${item.deployment.link ? ` <a data-link="${esc(item.deployment.link)}">View deployment</a>` : ''}` : ''}`;
 
-  const eventHtml = (item) => `<div class="row ev">${ico(item.icon)}<span class="what">${eventWords(item)}</span>${clock(item.at)}</div>`;
+  const eventHtml = (item) => { const { icon, color } = eventLook(item); return `<div class="row ev${color.cls}"${color.style}>${icon || ico(item.icon)}<span class="what">${eventWords(item)}</span>${clock(item.at)}</div>`; };
 
   // A run of one kind of event, in words: "8 force pushes".
   const RUN_WORDS = { 'force-pushed the base branch': 'force pushes of the base branch', 'force-pushed': 'force pushes', 'added the label': 'labels added', 'deployed to': 'deployments', 'mentioned it in': 'mentions', 'changed the base': 'changes of the base', assigned: 'assignments' };
   const runKey = (item) => `${item.icon}|${Object.keys(RUN_WORDS).find((start) => item.text.startsWith(start)) ?? item.text}`;
   const runWords = (items) => { const start = Object.keys(RUN_WORDS).find((one) => items[0].text.startsWith(one)); return `${number(items.length)} ${start ? RUN_WORDS[start] : `× ${items[0].text}`}`; };
 
-  /** Events in a row: a run of one kind is one row with a count, and with the days when it spans more than the day of its day line; three or more other events in a row fold into one row. */
+  /**
+   * Events in a row: a run of one kind is one row with a count, and with the days when it spans more than the day of its day line; three or more other events
+   * in a row fold into one row. A rule of the look that opens the fold of events shows each event as its own row.
+   */
   function eventsHtml(items) {
+    if (!folds('events')) return items.map(eventHtml).join('');
     const runs = [];
     for (const item of items) {
       const last = runs[runs.length - 1];
@@ -437,6 +502,7 @@ const Conversation = (() => {
     let run = null;
     for (const raw of pull.items) {
       if (raw.kind === 'reply' && !(since && raw.at > since)) continue;
+      if (!eventShown(raw)) continue; // an event or a commit that a rule of the look leaves out; the lines that count commits still count it
       let item = raw;
       if (item.kind === 'comment' && plainText(item.html).length > 0) {
         const key = `${item.author.login}\n${item.html}`;
@@ -466,13 +532,21 @@ const Conversation = (() => {
     return messageHtml(entry.item, pull, sameAuthor(entry, before));
   }
 
-  /** Entries with a day line where the day changes ("Today", "Yesterday", "3 November"). */
+  /** The line of a day ("Today", "Yesterday", "3 November"); a rule of the look gives it other words (with {day} and {date}) or leaves it out. */
+  function dayLine(iso) {
+    const fields = { day: dayWord(iso), date: dateWords(iso, true) };
+    const look = own('day-line', fields);
+    if (look['show.shown'] === false) return '';
+    return `<div class="dayline"><span>${esc(look.content?.words !== undefined ? Marks.fillText(look.content.words, fields) : fields.day)}</span></div>`;
+  }
+
+  /** Entries with a day line where the day changes. */
   function entriesHtml(entries, pull, dayBefore = '') {
     let day = dayBefore;
     return entries.map((entry, index) => {
-      const line = dayKey(entry.at) !== day ? `<div class="dayline"><span>${esc(dayWord(entry.at))}</span></div>` : '';
+      const newDay = dayKey(entry.at) !== day;
       day = dayKey(entry.at);
-      return line + entryHtml(entry, pull, line ? null : entries[index - 1]);
+      return (newDay ? dayLine(entry.at) : '') + entryHtml(entry, pull, newDay ? null : entries[index - 1]);
     }).join('');
   }
 
@@ -494,7 +568,7 @@ const Conversation = (() => {
     const before = firstNew < 0 ? (since ? entries : []) : entries.slice(0, firstNew);
     const after = firstNew < 0 ? (since ? [] : entries) : entries.slice(firstNew);
     let foldTo = 0;
-    if (before.filter((entry) => entry.message).length > FEW) {
+    if (before.filter((entry) => entry.message).length > FEW && folds('earlier')) {
       let open = 0;
       foldTo = before.length;
       while (foldTo > 0 && open < KEEP_OPEN) if (before[--foldTo].message) open++;
@@ -519,20 +593,24 @@ const Conversation = (() => {
   const marks = (person, pull, role) => [person.bot ? 'bot' : '', !person.bot && person.login === pull.author.login ? 'Author' : '', role && role !== 'Contributor' ? role : '']
     .filter(Boolean).map((mark) => `<span class="lab">${esc(mark)}</span>`).join('');
 
-  /** A box: the avatar beside it, a head bar, its text, its reactions, and what it holds. */
-  const gbox = (person, head, body, more = '', markHtml = '') =>
-    `<div class="item">${avatar(person)}<div class="gbox"><div class="gh"><b>${esc(person.login)}</b> ${head}<span class="marks">${markHtml}</span></div>${body}${more}</div></div>`;
+  /** A box: the avatar beside it, a head bar, its text, its reactions, and what it holds. A rule of the look gives a box of its kind (`type`) a colour and a line. */
+  const gbox = (person, head, body, more = '', markHtml = '', type = person.bot ? 'bot' : 'comment') => {
+    const look = own('classic-box', { type });
+    const box = PartLook.boxAttrs(look['box.color'], look['box.line']);
+    return `<div class="item">${avatar(person)}<div class="gbox${box.cls}"${box.style}><div class="gh"><b>${esc(person.login)}</b> ${head}<span class="marks">${markHtml}</span></div>${body}${more}</div></div>`;
+  };
 
-  /** A small row with its icon on the line. */
-  const gev = (iconName, words, right = '', cls = '') => `<div class="ev${cls ? ` ${cls}` : ''}"><span class="ic">${ico(iconName)}</span><span class="what">${words}</span>${right}</div>`;
+  /** A small row with its icon on the line; `look` is what the look gives an event (eventLook): an icon in place of its own and a colour. */
+  const gev = (iconName, words, right = '', cls = '', look = { icon: '', color: PartLook.NONE }) =>
+    `<div class="ev${cls ? ` ${cls}` : ''}${look.color.cls}"${look.color.style}><span class="ic">${look.icon || ico(iconName)}</span><span class="what">${words}</span>${right}</div>`;
 
   function classicRow(item, pull) {
     if (item.kind === 'reply') return ''; // GitHub shows an answer in its thread
     if (item.kind === 'commit') {
       return gev('git-commit', `${item.author.login ? `<b>${esc(item.author.login)}</b> ` : ''}${esc(item.subject)}`,
-        `${item.verified ? '<span class="vf">Verified</span>' : ''}${item.url ? `<a class="hash" data-link="${esc(item.url)}">${esc(item.hash)}</a>` : `<code>${esc(item.hash)}</code>`}`, 'cm');
+        `${item.verified ? '<span class="vf">Verified</span>' : ''}${item.url ? `<a class="hash" data-link="${esc(item.url)}">${esc(item.hash)}</a>` : `<code>${esc(item.hash)}</code>`}`, 'cm', eventLook(item));
     }
-    if (item.kind === 'event') return gev(item.icon, `${eventWords(item)} ${when(item.at)}`);
+    if (item.kind === 'event') return gev(item.icon, `${eventWords(item)} ${when(item.at)}`, '', '', eventLook(item));
     if (item.kind === 'thread') {
       const first = item.thread.comments[0] ?? { author: { login: '?' } };
       return gbox(first.author, `commented on code ${when(item.at)}`, `<div class="gb">${threadHtml(item.thread, pull, true)}</div>`, '', marks(first.author, pull, first.role));
@@ -545,7 +623,7 @@ const Conversation = (() => {
       const [i, look, , words] = VERDICTS[item.state] ?? VERDICTS.reviewed;
       const threads = item.threads.length ? `<div class="gthreads">${item.threads.map((thread) => threadHtml(thread, pull, true)).join('')}</div>` : '';
       html = gev(i, `<b>${esc(item.author.login)}</b>${item.author.bot ? '<i class="bot">bot</i>' : ''} ${esc(words)} ${when(item.at)}`, '', `rv ${look}`)
-        + (body || threads ? gbox(item.author, `left a comment ${when(item.at)}`, body, `${reactions}${threads}`, `${marks(item.author, pull, item.role)}${edited}`) : '');
+        + (body || threads ? gbox(item.author, `left a comment ${when(item.at)}`, body, `${reactions}${threads}`, `${marks(item.author, pull, item.role)}${edited}`, 'review') : '');
     } else {
       html = gbox(item.author, `commented ${when(item.at)}`, body || '<div class="gb quiet">No text</div>', reactions, `${marks(item.author, pull, item.role)}${edited}`);
     }
@@ -568,9 +646,11 @@ const Conversation = (() => {
 
   /** The form "Classic": GitHub's order and form. Nothing is folded apart from what GitHub folds: resolved, outdated, hidden, and the middle of a long conversation. */
   function classicHtml(pull) {
-    const description = gbox(pull.author, `commented ${when(pull.openedAt)}`, `<div class="gb">${pull.html ? `<div class="md">${pull.html}</div>` : '<span class="quiet">No description provided.</span>'}</div>`, '', marks(pull.author, pull));
-    const rows = pull.items.filter((item) => item.kind !== 'reply');
-    const hidden = rows.length > CLASSIC_LONG ? rows.slice(CLASSIC_HEAD, rows.length - CLASSIC_TAIL) : [];
+    const about = own('description');
+    const box = gbox(pull.author, `commented ${when(pull.openedAt)}`, `<div class="gb">${pull.html ? `<div class="md">${pull.html}</div>` : '<span class="quiet">No description provided.</span>'}</div>`, '', marks(pull.author, pull), 'description');
+    const description = about['show.shown'] === false ? '' : about['window.width'] ? `<div style="max-width:${Number(about['window.width'])}px">${box}</div>` : box;
+    const rows = pull.items.filter((item) => item.kind !== 'reply' && eventShown(item));
+    const hidden = rows.length > CLASSIC_LONG && folds('earlier') ? rows.slice(CLASSIC_HEAD, rows.length - CLASSIC_TAIL) : [];
     const shown = (list) => list.map((item) => classicRow(item, pull)).join('');
     const middle = hidden.length ? `<div class="ev more-row"><a class="gbtn" data-classic-more>Show ${number(hidden.length)} more</a></div>` : '';
     classicHidden = { rows: hidden, pull };
@@ -926,20 +1006,23 @@ const Conversation = (() => {
     return lines.map((line) => `<p class="cutline">${line}</p>`).join('');
   }
 
-  /** The title, one line of facts that wraps between whole facts, and the description. */
+  /** The title, one line of facts that wraps between whole facts, and the description. A rule of the look names the facts that show, and opens, widens or leaves out the description. */
   function topHtml(pull) {
-    const facts = [
-      `<span class="fact">${avatar(pull.author, 's')}${name(pull.author)}<span>opened ${esc(ago(pull.openedAt))}</span></span>`,
-      `<span class="fact">${branchPill(pull.head)} → ${branchPill(pull.base)}${belowLink(pull)}</span>`,
-      `<span class="fact"><i class="p">+${number(pull.added)}</i> <i class="m">−${number(pull.removed)}</i> in ${plural(pull.fileCount, 'file')}</span>`,
-      `<span class="fact"><a class="gh" data-link="${esc(pull.url)}">GitHub ${ico('link-external')}</a></span>`,
-    ];
-    const about = mode === 'classic' ? '' // Classic has the description as its first box
-      : pull.html
-        ? `<section class="about" data-box><div class="md folded">${pull.html}</div><a class="more" data-toggle><span class="show">Show more</span><span class="hide">Show less</span></a></section>`
-        : '<p class="about-none quiet">No description</p>';
+    const facts = {
+      author: `<span class="fact">${avatar(pull.author, 's')}${name(pull.author)}<span>opened ${esc(ago(pull.openedAt))}</span></span>`,
+      branches: `<span class="fact">${branchPill(pull.head)} → ${branchPill(pull.base)}${belowLink(pull)}</span>`,
+      size: `<span class="fact"><i class="p">+${number(pull.added)}</i> <i class="m">−${number(pull.removed)}</i> in ${plural(pull.fileCount, 'file')}</span>`,
+      github: `<span class="fact"><a class="gh" data-link="${esc(pull.url)}">GitHub ${ico('link-external')}</a></span>`,
+    };
+    const look = own('description');
+    const width = look['window.width'] ? ` style="max-width:${Number(look['window.width'])}px"` : '';
+    const about = mode === 'classic' || look['show.shown'] === false ? '' // Classic has the description as its first box
+      : !pull.html ? '<p class="about-none quiet">No description</p>'
+      : look['show.folded'] === false ? `<section class="about"${width}><div class="md">${pull.html}</div></section>`
+      : `<section class="about" data-box${width}><div class="md folded">${pull.html}</div><a class="more" data-toggle><span class="show">Show more</span><span class="hide">Show less</span></a></section>`;
     const place = mode === 'messages' ? stackLine(pull) : pull.stack ? `<p class="splace">${ico('git-branch')}${esc(stackWords(pull))}</p>` : '';
-    return `<h1 class="ptitle">${esc(pull.title)} <span class="num">#${pull.number}</span></h1><div class="meta">${facts.join('')}</div>${place}${mode === 'messages' ? factsLine(pull) : ''}${about}`;
+    const shown = own('pull-facts').content?.fields ?? Object.keys(facts);
+    return `<h1 class="ptitle">${esc(pull.title)} <span class="num">#${pull.number}</span></h1><div class="meta">${shown.map((one) => facts[one]).join('')}</div>${place}${mode === 'messages' ? factsLine(pull) : ''}${about}`;
   }
 
   /**
@@ -973,6 +1056,8 @@ const Conversation = (() => {
    */
   function draw(into, pull, since, progress) {
     earlyRows.clear();
+    // His last choice of "Messages" or "Classic" wins; with none, the look that a rule of the look puts first.
+    mode = chosen === 'classic' || chosen === 'messages' ? chosen : own('conversation-look')['order.first']?.[0] === 'classic' ? 'classic' : 'messages';
     const messages = mode === 'messages' ? messagesHtml(pull, since) : null;
     const reading = progress ? `<p class="reading">Reading the conversation: ${number(progress.read)} of about ${number(progress.total)} items</p>` : '';
     const main = `${cutLines(pull)}${reading}<div class="feed">${messages ? messages.html : classicHtml(pull)}</div>`;
@@ -994,8 +1079,8 @@ const Conversation = (() => {
     }, { once: true });
     conv.querySelectorAll('[data-mode]').forEach((link) => link.addEventListener('click', () => {
       if (link.dataset.mode === mode) return;
-      mode = link.dataset.mode;
-      keep({ conversationMode: mode });
+      chosen = link.dataset.mode;
+      keep({ conversationMode: chosen });
       draw(into, pull, since, progress);
     }));
     void drawMermaidBlocks(conv);

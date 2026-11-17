@@ -47,8 +47,9 @@ function area(id: string): Record<string, unknown> {
     const users = components.filter(([, one]) => one.slots.includes(name));
     return !users.length || users.some(([, one]) => !one.takes?.[name]) ? LIST.slots[name].fields : only(LIST.slots[name].fields, users.flatMap(([, one]) => one.takes![name]));
   };
-  // A slot shows its own example when no example of a component of the area uses it.
+  // A slot shows its own example when no example of a component of the area uses it, and the area takes all of its fields.
   const used = (name: string): boolean => components.some(([, one]) => name in one.example);
+  const all = (name: string): boolean => Object.keys(fieldsOf(name)).length === Object.keys(LIST.slots[name].fields).length;
   const targets = entries(TARGETS).filter(([, target]) => target.area === id);
   const picks = entries(LIST.picks).filter(([, pick]) => typeof pick !== 'string' && pick.area === id);
   // The blocks of a page or a window (build 58): each with its form and the form of a file in its place, the title, the sources and the limits.
@@ -56,7 +57,7 @@ function area(id: string): Record<string, unknown> {
   return {
     area: id,
     line: LIST.areas[id],
-    ...(components.length ? { components: Object.fromEntries(components.map(([name, one]) => [name, { what: one.what, slots: one.slots, fields: one.fields, example: one.example }])) } : {}),
+    ...(components.length ? { components: Object.fromEntries(components.map(([name, one]) => [name, { what: one.what, slots: one.slots, ...(Object.keys(one.fields).length ? { fields: one.fields } : {}), example: one.example }])) } : {}),
     ...(LIST.sets.area === id ? { sets: { what: LIST.sets.what, form: LIST.sets.form } } : {}),
     ...(blocks.length ? {
       blocks: Object.fromEntries(blocks.map(([name, one]) => [name, { what: one.what, form: one.form, ...(one.file ? { file: one.file } : {}) }])),
@@ -67,12 +68,13 @@ function area(id: string): Record<string, unknown> {
       slots: Object.fromEntries(names.map((name) => {
         const slot = LIST.slots[name];
         if (!whole.includes(name)) return [name, `the area ${slot.area}${slot.core ? ' (and the core)' : ''} gives its fields`];
-        return [name, { what: slot.what, ...(slot.one ? { one: true } : {}), ...(slot.target ? { target: true } : { fields: fieldsOf(name) }), ...(used(name) || !slot.example ? {} : { example: slot.example }) }];
+        return [name, { what: slot.what, ...(slot.one ? { one: true } : {}), ...(slot.target ? { target: true } : { fields: fieldsOf(name) }), ...(used(name) || !slot.example || !all(name) ? {} : { example: slot.example }) }];
       })),
       values: only(LIST.values, kindsOf(whole.map(fieldsOf))),
       picks: `${Object.keys(LIST.picks).join(', ')}: the core says what each picks`,
     } : {}),
-    ...(picks.length ? { fields: Object.fromEntries(entries(LIST.components).map(([name, one]) => [name, one.fields])) } : {}),
+    // The fields of the components of the core; every other component shows its fields in its own area.
+    ...(picks.length ? { fields: Object.fromEntries(entries(LIST.components).filter(([, one]) => one.core || one.area === id).map(([name, one]) => [name, one.fields])) } : {}),
     ...(targets.length ? { [TARGETS_KEY]: Object.fromEntries(targets.map(([name, target]) => [name, { what: target.what, form: target.form }])) } : {}),
   };
 }

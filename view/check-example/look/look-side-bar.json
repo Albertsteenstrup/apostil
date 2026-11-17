@@ -1,0 +1,31 @@
+{
+ "sets": [
+  {
+   "id": "errors", "name": "Errors that a member reads",
+   "rule": "Mark each line that raises an error with words that a member reads. Use field when the error names a field of the form, and state when it does not.",
+   "values": [
+    { "id": "field", "name": "A wrong field", "icon": "apostil-look-field.svg" },
+    { "id": "state", "name": "A wrong state", "icon": "apostil-look-state.svg" }
+   ],
+   "corner": { "node": "lower-left", "note": "upper-left" }
+  }
+ ],
+ "rules": [
+  { "pick": { "kind": "home-row" }, "content": { "words": "Home · {repo}" } },
+  { "pick": { "kind": "list-search" }, "content": { "words": "state:\"checks failing\"" } },
+  { "pick": { "kind": "change-row" }, "content": { "fields": ["branch", "state", "age", "files"] }, "order": { "by": "added", "down": true, "first": ["book-holds"] } },
+  { "pick": { "kind": "pull-line", "where": { "state": "checks failing" } }, "text": { "color": "#b45309" } },
+  { "pick": { "kind": "avatars" }, "show": { "shown": false } },
+  { "pick": { "kind": "more-pulls" }, "show": { "folded": false } },
+  { "pick": { "kind": "tree-folder", "paths": ["web/src/api/generated/"] }, "show": { "shown": false } },
+  { "pick": { "kind": "tree-file", "mark": "errors:*" }, "content": { "words": "{marks} errors" } },
+  { "pick": { "kind": "status-strip" }, "content": { "fields": ["checks", "blocker", "reviewers"] } },
+  { "pick": { "kind": "check", "where": { "state": ["passed", "skipped"] } }, "show": { "shown": false } },
+  { "pick": { "kind": "side-section" }, "order": { "first": ["labels", "reviewers"] } },
+  { "pick": { "kind": "event", "where": { "of": "commit" } }, "show": { "shown": false } },
+  { "pick": { "kind": "message", "where": { "type": "bot" } }, "box": { "color": "#6b7280" } },
+  { "pick": { "kind": "day-line" }, "content": { "words": "{day} · {date}" } },
+  { "pick": { "kind": "conversation-look" }, "order": { "first": ["classic"] } },
+  { "pick": { "kind": "description" }, "show": { "folded": false } }
+ ]
+}

@@ -73,6 +73,13 @@ export function lookData(store: Store, repo: string, folder: string, address: (f
 /** The same look data as if no look were saved: the default rules and the services alone. For a page that shows the default beside a look. */
 export const asDefault = (data: LookData): LookData => ({ ...data, custom: false, rules: lookRules([SERVICES]), sets: data.sets.filter((set) => set.id === SERVICES.id) });
 
+/**
+ * The look of a repo for a part that shows only a saved look (the list "Repo" and the tree "Files", build 61): undefined while no look is saved, so
+ * that the part costs nothing then. A file of the look keeps its own name, which the part finds in the folder of the look.
+ */
+export const savedLook = (store: Store, repo: string, folder: string, withMarks = false): LookData | undefined =>
+  (store.getLook(repo) ? lookData(store, repo, folder, (file) => file, withMarks) : undefined);
+
 /** The marks that still stand at the text of their lines, each with its line now. */
 export function standingMarks(folder: string, marks: Mark[]): MarkHere[] {
   return marksNow(folder, marks).flatMap(({ mark: { code: _code, group: _group, ...rest }, at }) => (at === undefined ? [] : [{ ...rest, at }]));
