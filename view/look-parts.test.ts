@@ -38,7 +38,7 @@ test('the pick "where": a field that the component does not have names its field
   assert.deepEqual(problems({ pick: { kind: 'step', where: { is: ['step', 'process'], steps: 3 } }, text: { size: 'small' } }), []);
   assert.deepEqual(problems({ pick: { kind: 'node', where: { level: 2 } }, text: { size: 'small' } }), ['Rule 1, "pick": a node has no field "level". Its fields are "title", "files", "down".']);
   assert.deepEqual(problems({ pick: { kind: 'node', where: { file: 'x' } }, text: { size: 'small' } }), ['Rule 1, "pick": a node has no field "file". Its fields are "title", "files", "down". The nearest is "files".']);
-  assert.deepEqual(problems({ pick: { kind: 'step', where: { is: 'task' } }, text: { size: 'small' } }), ['Rule 1, "pick": "is" of a step is one of "step", "process", or a list of them.']);
+  assert.deepEqual(problems({ pick: { kind: 'step', where: { is: 'task' } }, text: { size: 'small' } }), ['Rule 1, "pick": "task" is no value of "is". The values are "step", "process".']);
   assert.deepEqual(problems({ pick: { kind: 'node', where: { files: 'many' } }, text: { size: 'small' } }), ['Rule 1, "pick": "files" of a node is a whole number, or a list of them.']);
 });
 

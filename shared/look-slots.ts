@@ -39,6 +39,7 @@ function core(): Record<string, unknown> {
 /** One area: its components with their slots and examples, the fields of those slots with the kinds of their values, the picks, and what else is in it. */
 function area(id: string): Record<string, unknown> {
   const components = entries(LIST.components).filter(([, one]) => one.area === id);
+  const named = entries(LIST.components).filter(([, one]) => one.also === id).map(([name, one]) => [name, `the area ${one.area} gives it`] as const);
   const names = [...new Set([...components.flatMap(([, one]) => one.slots), ...entries(LIST.slots).filter(([, slot]) => slot.area === id).map(([name]) => name)])];
   // A slot of another area is one line that names that area, where its fields stand; the slots of this area come whole.
   const whole = names.filter((name) => !LIST.slots[name].area || LIST.slots[name].area === id);
@@ -57,8 +58,10 @@ function area(id: string): Record<string, unknown> {
   return {
     area: id,
     line: LIST.areas[id],
-    ...(components.length ? { components: Object.fromEntries(components.map(([name, one]) => [name, { what: one.what, slots: one.slots, ...(Object.keys(one.fields).length ? { fields: one.fields } : {}), example: one.example }])) } : {}),
+    // A component of another area that this area names (the margin) is one line that says where it stands.
+    ...(components.length || named.length ? { components: Object.fromEntries([...components.map(([name, one]) => [name, { what: one.what, slots: one.slots, ...(Object.keys(one.fields).length ? { fields: one.fields } : {}), example: one.example }]), ...named]) } : {}),
     ...(LIST.sets.area === id ? { sets: { what: LIST.sets.what, form: LIST.sets.form } } : {}),
+    ...(LIST.actions.area === id ? { actions: { what: LIST.actions.what, form: LIST.actions.form } } : {}),
     ...(blocks.length ? {
       blocks: Object.fromEntries(blocks.map(([name, one]) => [name, { what: one.what, form: one.form, ...(one.file ? { file: one.file } : {}) }])),
       title: LIST.blockTitle, sources: LIST.sources, limits: LIST.limits,
@@ -84,7 +87,7 @@ function area(id: string): Record<string, unknown> {
 /** A part that the search can find, with the words that it is found by: its name, its other words, and the rest of its text. */
 interface Part {
   name: string;
-  is: 'component' | 'slot' | 'field' | 'pick' | 'target' | 'set' | 'block' | 'page';
+  is: 'component' | 'slot' | 'field' | 'pick' | 'target' | 'set' | 'block' | 'page' | 'actions';
   area: string;
   line: string;
   example?: Example;
@@ -129,6 +132,8 @@ function parts(): Part[] {
     found.push({ name, is: 'block', area: block.area, line: `${block.what}: ${block.form}${block.file ? `; a file in its place: ${block.file}` : ''}`, example: block.example, by: { name: wordsOf(name), words: wordsOf(...(block.words ?? [])), other: wordsOf(block.what) } });
   }
   found.push({ name: 'pages', is: 'page', area: LIST.pages.area, line: `${LIST.pages.what}; its area gives its form`, example: LIST.pages.example, by: { name: wordsOf('page', 'pages'), words: wordsOf(...(LIST.pages.words ?? [])), other: wordsOf(LIST.pages.what) } });
+  const { actions } = LIST;
+  found.push({ name: 'actions', is: 'actions', area: actions.area, line: `${actions.what}: ${actions.form}`, by: { name: wordsOf('actions'), words: wordsOf(...(actions.words ?? [])), other: wordsOf(actions.what) } });
   return found;
 }
 
@@ -142,11 +147,26 @@ function hit(asked: string, word: string): number {
 const score = (part: Part, asked: string[]): number =>
   asked.reduce((sum, one) => sum + Math.max(0, ...part.by.name.map((word) => 3 * hit(one, word)), ...part.by.words.map((word) => 2 * hit(one, word)), ...part.by.other.map((word) => hit(one, word))), 0);
 
+/**
+ * A part of VS Code that no look can use (the list "never"), when the words name it better than any part of the list: every word hits it, and it
+ * scores more than the best part, its words counting twice as the other words of a part do.
+ */
+function cannotUse(asked: string[], best: number): string | undefined {
+  const fits = Object.entries(LIST.never).map(([id, part]) => {
+    const own = wordsOf(id, ...part.words);
+    const hits = asked.map((one) => Math.max(0, ...own.map((word) => 2 * hit(one, word))));
+    return { part, score: hits.every((one) => one > 0) ? hits.reduce((sum, one) => sum + one, 0) : 0 };
+  }).sort((a, b) => b.score - a.score)[0];
+  return fits && fits.score > best ? `A look cannot use ${fits.part.name}. Tell the owner so.` : undefined;
+}
+
 /** The best matches of the words over every part, or one sentence and the index when nothing fits. */
 function find(words: string): Record<string, unknown> {
   const asked = wordsOf(words).filter((word) => word.length >= 3 && !IGNORED.has(word));
   const ranked = parts().map((part, order) => ({ part, order, score: score(part, asked) })).filter((one) => one.score > 0)
     .sort((a, b) => b.score - a.score || a.order - b.order).slice(0, MATCHES);
+  const cannot = asked.length ? cannotUse(asked, ranked[0]?.score ?? 0) : undefined;
+  if (cannot) return { found: cannot };
   // With nothing found, the ids of the areas only: their index lines are in the first answer, and they would grow this answer with each area.
   if (!ranked.length) return { found: `Nothing in the list fits "${words}". Look at the index lines of these areas; when none fits, tell the owner and leave it out.`, areas: index().map((one) => one.id) };
   // An example that an earlier match shows already is named, not printed again.
