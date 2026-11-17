@@ -142,13 +142,7 @@ function fileLook(path, notes, marks = []) {
   const whole = Marks.slotsIn(look, { kind: 'code-map', paths: [path], marks: [], fields: {} })['box.color'];
   const tints = new Map(Marks.marginThings(path, marks, Infinity, 'code-map').map(([line, thing]) => [line, Marks.slotsIn(look, thing)['box.color']]).filter(([, color]) => color));
   // The margin: at each line whose rule shows it, the icon of the first value of the stack there, as on a node.
-  const shown = Marks.marginThings(path, marks).filter(([, thing]) => Marks.slotsIn(look, thing)['show.shown'] === true);
-  const spread = Marks.spreadOf(shown.map(([, thing]) => thing));
-  const margin = new Map(shown.map(([line, thing]) => {
-    const set = look.sets.find((one) => thing.marks.some((mark) => mark.set === one.id))?.id ?? thing.marks[0].set;
-    const [first] = Marks.stackOf(thing.marks, set, spread);
-    return [line, { key: first.key, name: look.values[first.key]?.name ?? first.value, icon: look.values[first.key]?.icon }];
-  }));
+  const margin = new Map(Marks.marginIcons(look, path, marks).map(([line, key]) => [line, { key, name: look.values[key]?.name ?? key.split(':')[1], icon: look.values[key]?.icon }]));
   // The order of a rule on the notes ranks them: a card that ranks before the next card keeps its whole text when not all fit.
   const things = notes.filter((note) => note.lines && !note.removed).map((note) => ({ ...noteThing(note, marks), note }));
   const order = Marks.listOrder(things, look);
@@ -468,8 +462,9 @@ function codeWithNotes(holder, options) {
     const thread = row.now && marks.threads.get(row.now);
     const mark = row.now && row.kind !== 'del' && looks.margin.get(row.now); // the icon of a mark in the margin, when a rule shows it
     const icon = mark ? `<span class="mg" data-mg="${row.now}" data-tip="${esc(mark.name)}">${mark.icon ? `<img src="${esc(mark.icon)}" alt="">` : esc(mark.name[0] ?? '?')}</span>` : '';
-    // A removed row has its line in the file as it was: a comment on it goes on the old side of the diff.
-    return `<div class="l ${kinds}" data-row="${index}"${row.now ? ` data-line="${row.now}"` : row.kind === 'del' ? ` data-old="${row.line}"` : ''}${thread ? ` data-thread="${thread}"` : ''}>`
+    // A removed row has its line in the file as it was: a comment on it goes on the old side of the diff. A line of the file now tells VS Code its
+    // number for the right-click entries of a look in the file tab (data-vscode-context, read by VS Code itself).
+    return `<div class="l ${kinds}" data-row="${index}"${row.now ? ` data-line="${row.now}" data-vscode-context='{"webviewSection":"codeLine","line":${row.now}}'` : row.kind === 'del' ? ` data-old="${row.line}"` : ''}${thread ? ` data-thread="${thread}"` : ''}>`
       + `<span class="n">${icon}${row.num ?? row.line}</span><span class="g">${row.kind === 'add' ? '+' : row.kind === 'del' ? '−' : ''}</span>`
       + `<span class="x" style="padding-left:${hang}ch;text-indent:-${hang}ch">${text}</span></div>`;
   };
