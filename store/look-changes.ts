@@ -69,6 +69,8 @@ export function lookChanges(store: Store, folder: string, look: Look): { changes
   const changes: string[] = [];
   const notes: string[] = [];
   look.rules.forEach((rule, index) => {
+    // A part of VS Code itself (build 62) is one thing of the window, not things of the map.
+    if (LIST.components[rule.pick.kind]?.area === 'vscode') return void changes.push(`Rule ${index + 1}: the ${rule.pick.kind.replace('-', ' ')} of VS Code gets ${gives(rule)}.`);
     const many = count(rule.pick);
     changes.push(`Rule ${index + 1}: ${many} ${rule.pick.kind}${many === 1 ? ' gets' : 's get'} ${gives(rule)}.`);
     if (!many) notes.push(`Rule ${index + 1} picks nothing now: ${whyNothing(rule.pick, count)}.`);

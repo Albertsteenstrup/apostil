@@ -218,7 +218,7 @@ test('set-look keeps a look and its files in the store, removes its draft files,
   // "apostil look-slots --all" prints the one list that the check reads: the components with their slots, the picks and every target.
   const parts = JSON.parse(runApostil(['look-slots', '--all'], { cwd: repoFolder, env }).stdout);
   assert.deepEqual([Object.keys(parts.components), parts.components.note.slots, Object.keys(parts.targets)], [
-    ['node', 'step', 'call', 'arrow', 'note'], ['note', 'corners', 'content', 'show', 'click', 'input'],
+    ['node', 'step', 'call', 'arrow', 'note', 'margin', 'symbol-search', 'menu-entry', 'key', 'first-page', 'look-list'], ['note', 'corners', 'content', 'show', 'click', 'input'],
     ['file', 'url', 'command', 'prompt', 'place', 'graphs', 'folder', 'change', 'pull', 'comment'],
   ]);
   // With no look, "apostil look" says that the default applies. (A store of its own: two test repos made in the same second have the same first commit.)

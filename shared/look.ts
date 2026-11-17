@@ -79,6 +79,9 @@ export interface LookPartsList {
     fields: Readonly<Record<string, FieldKind>>; // what a rule can read of a thing: the pick "where", words in braces, an order
     sections?: readonly string[]; // the sections of its window of the pointer
     shows?: readonly string[]; // the fields that "content.fields" can show, when they are not its fields
+    why?: string; // a part of VS Code: why it takes only its own slots, for the sentence of a slot that it does not take
+    targets?: readonly string[]; // the only targets that its click takes, when it takes fewer than all
+    targetsWhy?: string; // the sentence of another target; <targets> stands for those it takes
   }>>;
   picks: Readonly<Record<string, string | { what: string; area?: string; words?: readonly string[]; example?: Example }>>;
   slots: Readonly<Record<string, {
@@ -89,6 +92,9 @@ export interface LookPartsList {
   values: Readonly<Record<string, string>>;
   [TARGETS_KEY]: Readonly<Record<string, { what: string; form: string; asks?: boolean; core?: boolean; area?: string; words?: readonly string[]; example?: Example }>>;
   sets: { what: string; form: string; area: string; words?: readonly string[] };
+  actions: { what: string; form: string; area: string; most: number; name: number; words?: readonly string[] };
+  // What no look can use, each with the words that a person may use for it: `name` for "A look cannot use <name>.", `cannot` for the check.
+  never: Readonly<Record<string, { name: string; cannot: string; words: readonly string[] }>>;
 }
 
 const BLUE = '#2b6cb0';
@@ -132,6 +138,44 @@ export const LOOK_PARTS = {
       takes: { content: ['fields'], show: ['shown'] },
       fields: { title: 'text', file: 'text', function: 'text', tests: 'count' }, shows: ['title', 'function', 'tests', 'text', 'services'],
       example: { pick: { kind: 'note', paths: ['<file>'] }, note: { color: AMBER } },
+    },
+    // The parts of VS Code's own editor and frame (build 62). Each is off until a rule turns it on.
+    margin: {
+      what: 'the margin of the code, in the file tab of Apostil and in the editor and the diff editor of VS Code: the icon of a mark at each line that has one',
+      area: 'vscode', slots: ['show'], takes: { show: ['shown'] }, fields: {}, words: ['gutter', 'margin', 'line icon', 'glyph', 'editor', 'diff'],
+      why: 'VS Code draws the margin, and a look can only say which marks stand there.',
+      example: { pick: { kind: 'margin', mark: '<set>:<value>' }, show: { shown: true } },
+    },
+    'symbol-search': {
+      what: 'the search with # of VS Code (Go to Symbol in Workspace): notes, steps and processes by their titles', area: 'vscode', slots: ['show'], takes: { show: ['shown'] },
+      fields: { of: ['note', 'step', 'process'] }, words: ['search', 'symbol', 'find', 'quick open', 'go to', 'hash'],
+      why: 'VS Code draws the search, and a look can only say what it finds.',
+      example: { pick: { kind: 'symbol-search', where: { of: ['note', 'process'] } }, show: { shown: true } },
+    },
+    'menu-entry': {
+      what: 'an entry of a right-click menu of VS Code: the note of the line on Home, its process, the other places of its mark, the actions of the look',
+      area: 'vscode', slots: ['show'], takes: { show: ['shown'] }, fields: { entry: ['note', 'process', 'mark', 'actions'], in: ['editor', 'file-tab', 'explorer'] },
+      words: ['right click', 'context menu', 'menu', 'entry'], why: 'VS Code draws its menus with fixed words, and a look can only say which entries stand there.',
+      example: { pick: { kind: 'menu-entry', where: { entry: ['mark', 'actions'] } }, show: { shown: true } },
+    },
+    key: {
+      what: 'a key of VS Code for an entry of the right-click menu, or for one of the actions action-1 to action-9', area: 'vscode', slots: ['show'], takes: { show: ['shown'] },
+      fields: { entry: ['note', 'process', 'mark', 'actions', ...Array.from({ length: 9 }, (_, at) => `action-${at + 1}`)] },
+      words: ['shortcut', 'keyboard', 'hotkey', 'key'], why: 'VS Code gives each key fixed words, and a look can only say which keys work.',
+      example: { pick: { kind: 'key', where: { entry: ['actions', 'action-1'] } }, show: { shown: true } },
+    },
+    'first-page': {
+      what: 'the view of Apostil that opens by itself when a window starts on the repo, and in an empty editor area', area: 'vscode', slots: ['click'], fields: {},
+      targets: ['place', 'graphs', 'page'], words: ['start', 'startup', 'welcome', 'landing', 'open first'],
+      targetsWhy: 'the first page must open a view of Apostil: use <targets>. A file, a web address, a command and a prompt cannot be the first page.',
+      why: 'VS Code opens it, and a look can only say which view of Apostil it is.',
+      example: { pick: { kind: 'first-page' }, click: { place: { diagram: '<diagram>' } } },
+    },
+    'look-list': {
+      what: 'the list "Look" in the side bar of Apostil: each mark set with its values and their places, and the pages of the look', area: 'vscode', slots: ['show'], takes: { show: ['shown'] },
+      fields: { group: ['marks', 'pages'] }, words: ['side bar', 'sidebar', 'tree', 'list', 'view', 'panel'],
+      why: 'VS Code draws the list, and a look can only say which groups stand there.',
+      example: { pick: { kind: 'look-list', where: { group: 'marks' } }, show: { shown: true } },
     },
   },
   picks: {
@@ -244,11 +288,37 @@ export const LOOK_PARTS = {
     clicks: 'where a click, Alt+click, Shift+click, double click, key or right-click menu goes; every target',
     windows: 'the window of the pointer: its width, its sections, their order',
     lists: 'what is left out, a pick by a field, the order and groups of rows',
+    vscode: 'VS Code, off until a rule shows it: margin marks, # search, menus, keys, first page, side bar list',
   },
   sets: {
     what: 'a new kind of mark: writers mark the lines of code that its rule names, and the icons of its values stand in its corner',
     form: '{ "id": "<small letters and ->", "name": "<a short name>", "rule": "<one or two plain sentences that tell a writer which lines to mark, and which value each gets>", "values": [ { "id": "<id>", "name": "<name>", "icon": "<file of an icon>" } ], "corner": { "node": "<corner>", "note": "<corner>" } }',
     area: 'marks', words: ['mark', 'marks', 'tag', 'category', 'icon'],
+  },
+  actions: {
+    what: 'the actions of the look: the list of the entry "Actions of the Look…", and the keys action-1 to action-9',
+    form: '"actions": [ { "id": "<small letters and ->", "name": "<at most 40 characters>", "target": <target> } ], at most 12',
+    area: 'vscode', most: 12, name: 40, words: ['action', 'actions', 'command list'],
+  },
+  never: {
+    codelens: { name: 'a line above code (CodeLens)', cannot: 'put a line above code (CodeLens)', words: ['codelens', 'code lens', 'line above code', 'above a function'] },
+    'inline-words': { name: 'words inside or after a code line', cannot: 'put words inside or after a code line', words: ['inline', 'end of line', 'after the line', 'ghost text', 'virtual text', 'blame'] },
+    'line-tint': { name: 'a tint of code lines', cannot: 'tint code lines', words: ['tint', 'highlight line', 'line background', 'heatmap'] },
+    'code-hover': { name: 'a window of the pointer over code (a hover)', cannot: 'open a window of the pointer over code (a hover)', words: ['hover over code', 'code hover', 'editor hover'] },
+    'explorer-badge': { name: 'a badge in the Explorer', cannot: 'put a badge in the Explorer', words: ['explorer badge', 'file badge', 'file decoration'] },
+    'status-bar': { name: 'the status bar', cannot: 'put anything in the status bar', words: ['status bar', 'statusbar', 'status item'] },
+    'scroll-bar': { name: 'marks in the scroll bar', cannot: 'put marks in the scroll bar', words: ['scroll bar', 'scrollbar', 'overview ruler', 'minimap'] },
+    timeline: { name: 'the Timeline', cannot: 'put anything in the Timeline', words: ['timeline', 'history view'] },
+    'terminal-links': { name: 'links in the terminal', cannot: 'put links in the terminal', words: ['terminal', 'terminal link', 'console'] },
+    breadcrumbs: { name: 'notes in the path above the code', cannot: 'put notes in the path above the code', words: ['breadcrumbs', 'breadcrumb', 'path above the code'] },
+    outline: { name: 'symbols in the outline', cannot: 'put symbols in the outline', words: ['outline', 'document symbols', 'symbols of a file'] },
+    'inlay-hints': { name: 'words that VS Code lays into code (inlay hints)', cannot: 'lay words into code (inlay hints)', words: ['inlay hints', 'inlay', 'parameter names'] },
+    problems: { name: 'problems with lines under code', cannot: 'put problems with lines under code', words: ['problems', 'squiggle', 'underline', 'diagnostics'] },
+    'scm-badges': { name: 'badges in Source Control', cannot: 'put badges in Source Control', words: ['source control', 'scm'] },
+    'icon-count': { name: 'a count on the icon of Apostil', cannot: 'put a count on the icon of Apostil', words: ['activity bar', 'icon count', 'number on the icon'] },
+    'comment-threads': { name: 'comment threads inside code', cannot: 'put comment threads inside code', words: ['comment thread', 'review thread', 'inline comment'] },
+    'notebook-status': { name: 'status items on notebook cells', cannot: 'put status items on notebook cells', words: ['cell status', 'notebook status'] },
+    testing: { name: 'the Testing view', cannot: 'put anything in the Testing view', words: ['testing', 'testing view'] },
   },
 } as const satisfies LookPartsList;
 
@@ -260,7 +330,10 @@ export const LOOK_KINDS = Object.keys(LOOK_PARTS.components) as LookKind[];
 type SlotName = keyof typeof LOOK_PARTS.slots;
 type TargetName = keyof typeof TARGETS;
 export const TARGET_NAMES = Object.keys(TARGETS) as TargetName[];
-export type Component = { slots: readonly string[]; takes?: Readonly<Record<string, readonly string[]>>; fields: Readonly<Record<string, FieldKind>>; sections?: readonly string[]; shows?: readonly string[] };
+export type Component = {
+  slots: readonly string[]; takes?: Readonly<Record<string, readonly string[]>>; fields: Readonly<Record<string, FieldKind>>; sections?: readonly string[]; shows?: readonly string[];
+  why?: string; targets?: readonly string[]; targetsWhy?: string;
+};
 const componentOf = (kind: LookKind): Component => LOOK_PARTS.components[kind];
 
 /** A value of a field of a thing, as a rule names it. */
@@ -318,9 +391,17 @@ export interface LookRule {
   window?: { width?: number; sections?: string[] };
 }
 
+/** An action of the look: a row of "Actions of the Look…", and the target of a key action-1 to action-9 (build 62). */
+export interface LookAction {
+  id: string;
+  name: string;
+  target: Target;
+}
+
 export interface Look {
   sets?: MarkSet[];
   rules: LookRule[];
+  actions?: LookAction[];
 }
 
 /** The default look, as rules: the icons of the services at the upper right of a node, a step, a call out of the repo and a note. It is always the first rule. */
@@ -422,7 +503,9 @@ export function lookProblems(value: unknown, context: LookContext): string[] {
   if (!isObject(value)) return ['The look must be a JSON object: { "sets"?: [ ... ], "rules": [ ... ] }.'];
   const look = value as unknown as Look;
   const problems: string[] = [];
-  for (const key of Object.keys(value)) if (key !== 'sets' && key !== 'rules') problems.push(`The look: "${key}" is no field of a look. Use "sets" and "rules".`);
+  const fields = ['sets', 'rules', 'pages', 'actions'];
+  for (const key of Object.keys(value)) if (!fields.includes(key)) problems.push(`The look: "${key}" is no field of a look. Use ${listed(fields)}.${nearestPart(key, fields)}`);
+  problems.push(...pageProblems(value.pages), ...actionProblems(value.actions, context));
   if (!Array.isArray(look.rules)) problems.push('"rules" must be a list of rules. Write an empty list for the default look.');
   if (look.sets !== undefined && !Array.isArray(look.sets)) problems.push('"sets" must be a list of mark sets.');
   const sets = new Set([SERVICES.id]);
@@ -451,6 +534,42 @@ export function lookProblems(value: unknown, context: LookContext): string[] {
   return problems;
 }
 
+/** The pages of a look, as far as the parts of VS Code need them: a list of { "id", "title", "blocks" }. Build 58 checks the rest of a page. */
+function pageProblems(pages: unknown): string[] {
+  if (pages === undefined) return [];
+  if (!Array.isArray(pages)) return ['"pages" must be a list of pages: { "id", "title", "blocks" }.'];
+  return pages.flatMap((page, index) => (isObject(page) && isId(page.id) && isText(page.title) ? []
+    : [`Page ${index + 1}: a page is { "id", "title", "blocks" }, the id in small letters, digits and "-".`]));
+}
+
+/** The actions of a look: at most 12, each { "id", "name", "target" } with an id once, a name of at most 40 characters and one target of the list. */
+function actionProblems(actions: unknown, context: LookContext): string[] {
+  if (actions === undefined) return [];
+  const { most, name: longest, form } = LOOK_PARTS.actions;
+  if (!Array.isArray(actions)) return [`"actions" must be a list: ${form}.`];
+  const problems = actions.length > most ? [`The look: it has ${actions.length} actions. The list holds at most ${most}.`] : [];
+  const ids = new Set<string>();
+  actions.forEach((action, index) => {
+    const at = `Action ${isObject(action) && isText(action.id) ? `"${action.id}"` : index + 1}`;
+    if (!isObject(action)) return void problems.push(`${at}: an action is { "id", "name", "target" }.`);
+    problems.push(...unknownFields(action, ['id', 'name', 'target'], at));
+    if (!isId(action.id)) problems.push(`${at}: "id" must use small letters, digits and "-".`);
+    else if (ids.has(action.id)) problems.push(`${at}: the id is used twice. Give each action its own id.`);
+    ids.add(action.id);
+    if (!isText(action.name)) problems.push(`${at}: "name" is missing: what the row of the list says.`);
+    else if (action.name.length > longest) problems.push(`${at}: the name has ${action.name.length} characters. A name holds at most ${longest}.`);
+    problems.push(...targetProblems(action.target, at, context));
+  });
+  return problems;
+}
+
+/** The entry of the "never" list that a word names (as "status-bar" or "status bar"), or undefined. */
+export function neverPart(word: unknown): (typeof LOOK_PARTS.never)[keyof typeof LOOK_PARTS.never] | undefined {
+  if (typeof word !== 'string') return undefined;
+  const plain = (text: string): string => text.toLowerCase().replace(/[-_\s]+/g, ' ').trim();
+  return Object.entries(LOOK_PARTS.never).find(([id, part]) => [id, ...part.words].some((one) => plain(one) === plain(word)))?.[1];
+}
+
 /** The ids of the diagrams that a rule or a place may name: the written diagrams of the map and the drawn processes. */
 function diagramIds(map?: RepoMap): Set<string> {
   return new Set([...(map?.diagrams ?? []).map((diagram) => diagram.id), ...(map?.processes ?? []).map((process) => processDiagramId(process.id))]);
@@ -476,6 +595,8 @@ function ruleProblems(rule: unknown, at: string, context: LookContext, sets: Set
   if (!isObject(rule)) return [`${at}: a rule is an object { "pick": { ... }, and the slots that it changes }.`];
   const problems: string[] = [];
   const pick = rule.pick as Pick | undefined;
+  const never = neverPart(isObject(pick) ? pick.kind : undefined);
+  if (never) return [`${at}: "${String(pick!.kind)}" is no kind. A look cannot ${never.cannot}. Tell the owner so.`];
   if (!isObject(pick) || !LOOK_KINDS.includes(pick.kind as LookKind)) return [`${at}: "pick" must name a "kind": one of ${LOOK_KINDS.join(', ')}.${nearestPart(isObject(pick) ? pick.kind : undefined, LOOK_KINDS)}`];
   const ctx: RuleContext = { kind: pick.kind, component: componentOf(pick.kind), context, sets };
   problems.push(...unknownFields(pick as unknown as Record<string, unknown>, Object.keys(LOOK_PARTS.picks), `${at}, "pick"`));
@@ -483,6 +604,7 @@ function ruleProblems(rule: unknown, at: string, context: LookContext, sets: Set
   const slots = Object.keys(rule).filter((key) => key !== 'pick');
   for (const slot of slots) {
     if (!(slot in LOOK_PARTS.slots)) problems.push(`${at}: "${slot}" is no slot. The slots are ${listed(Object.keys(LOOK_PARTS.slots))}.${nearestPart(slot, Object.keys(LOOK_PARTS.slots))}`);
+    else if (!own.includes(slot) && ctx.component.why) problems.push(`${at}, "${slot}": the ${pick.kind} takes only ${listed(own)}. ${ctx.component.why}`);
     else if (!own.includes(slot)) problems.push(`${at}: ${an(pick.kind)} has no slot "${slot}". Its slots are ${listed(own)}.${nearestPart(slot, own)}`);
     else problems.push(...slotProblems(slot as SlotName, rule[slot], at, ctx));
   }
@@ -523,6 +645,12 @@ function whereProblems(where: unknown, at: string, ctx: RuleContext): string[] {
     const values = Array.isArray(value) ? value : [value];
     const fits = (one: unknown): boolean => (Array.isArray(kind) ? kind.includes(one as string) : kind === 'count' ? Number.isInteger(one) && (one as number) >= 0 : kind === 'yes' ? typeof one === 'boolean' : isText(one));
     if (values.length && values.every(fits)) return [];
+    // A word that is no value of a field with fixed values: the values, and the nearest one. A key goes to the first nine actions only.
+    const wrongWord = Array.isArray(kind) ? values.find((one) => typeof one === 'string' && !fits(one)) as string | undefined : undefined;
+    if (wrongWord !== undefined) {
+      const nine = /^action-\d+$/.test(wrongWord) && kind.includes('action-1') ? ' A key goes to the first nine actions: action-1 to action-9.' : '';
+      return [`${at}: "${wrongWord}" is no value of "${field}".${nine || ` The values are ${(kind as readonly string[]).join(', ')}.${nearestPart(wrongWord, kind as readonly string[])}`}`];
+    }
     const wanted = Array.isArray(kind) ? `one of ${listed(kind)}` : kind === 'count' ? 'a whole number' : kind === 'yes' ? 'true or false' : 'words';
     return [`${at}: "${field}" of ${an(ctx.kind)} is ${wanted}, or a list of them.`];
   });
@@ -532,6 +660,11 @@ function whereProblems(where: unknown, at: string, ctx: RuleContext): string[] {
 function slotProblems(slot: SlotName, given: unknown, at: string, ctx: RuleContext): string[] {
   const about = LOOK_PARTS.slots[slot] as { one?: boolean; target?: boolean; fields: Record<string, ValueKind> };
   const where = `${at}, "${slot}"`;
+  const only = ctx.component.targets;
+  if (about.target && only && isObject(given) && !Object.keys(given).some((key) => only.includes(key))) {
+    const names = only.map((one) => `"${one}"`);
+    return [`${where}: ${ctx.component.targetsWhy?.replace('<targets>', `${names.slice(0, -1).join(', ')} or ${names.at(-1)}`)}`];
+  }
   if (about.target) return targetProblems(given, where, ctx.context);
   const fields = Object.keys(about.fields);
   const takes = ctx.component.takes?.[slot] ?? fields;

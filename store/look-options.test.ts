@@ -79,8 +79,8 @@ test('look-slots <area> prints only the parts of that area; an unknown area name
   assert.deepEqual([Object.keys(clicks.slots), Object.keys(clicks.targets)], [['click', 'input'], Object.keys(LOOK_PARTS.targets)]);
   const wrong = runApostil(['look-slots', 'diagram'], home);
   assert.equal(wrong.status, 1);
-  assert.deepEqual(JSON.parse(wrong.stdout).problems, ['"diagram" is no area. The areas are diagrams, processes, notes, marks, clicks, windows, lists. The nearest is "diagrams".']);
-  assert.deepEqual(JSON.parse(runApostil(['look-slots', 'colours'], home).stdout).problems, ['"colours" is no area. The areas are diagrams, processes, notes, marks, clicks, windows, lists.']);
+  assert.deepEqual(JSON.parse(wrong.stdout).problems, ['"diagram" is no area. The areas are diagrams, processes, notes, marks, clicks, windows, lists, vscode. The nearest is "diagrams".']);
+  assert.deepEqual(JSON.parse(runApostil(['look-slots', 'colours'], home).stdout).problems, ['"colours" is no area. The areas are diagrams, processes, notes, marks, clicks, windows, lists, vscode.']);
 });
 
 test('look-slots --find finds a part by a word of its "what" and by one of its "words"; words that fit nothing say so and print the index', () => {
@@ -143,7 +143,7 @@ test('set-look --check saves nothing and removes no file; a wrong kind, slot, fi
   assert.deepEqual(JSON.parse(wrong.stdout), {
     ok: false, changes: [], notes: [],
     problems: [
-      'Rule 1: "pick" must name a "kind": one of node, step, call, arrow, note. The nearest is "node".',
+      'Rule 1: "pick" must name a "kind": one of node, step, call, arrow, note, margin, symbol-search, menu-entry, key, first-page, look-list. The nearest is "node".',
       'Rule 2: "boxes" is no slot. The slots are "box", "content", "corners", "note", "arrow", "show", "order", "text", "click", "input", "window". The nearest is "box".',
       'Rule 3, "box": "colour" is no field here. Use only "color", "line", "width", "dashed", "shape". The nearest is "color".',
       'Rule 4: the diagram "lib-top" has no node "job". Its nodes are web, routes, lending, jobs, desk, data, checks, writing. The nearest is "jobs".',

@@ -51,6 +51,7 @@ function area(id: string): Record<string, unknown> {
     line: LIST.areas[id],
     ...(components.length ? { components: Object.fromEntries(components.map(([name, one]) => [name, { what: one.what, slots: one.slots, fields: one.fields, example: one.example }])) } : {}),
     ...(LIST.sets.area === id ? { sets: { what: LIST.sets.what, form: LIST.sets.form } } : {}),
+    ...(LIST.actions.area === id ? { actions: { what: LIST.actions.what, form: LIST.actions.form } } : {}),
     slots: Object.fromEntries(names.map((name) => {
       const slot = LIST.slots[name];
       if (!whole.includes(name)) return [name, `the area ${slot.area}${slot.core ? ' (and the core)' : ''} gives its fields`];
@@ -68,7 +69,7 @@ function area(id: string): Record<string, unknown> {
 /** A part that the search can find, with the words that it is found by: its name, its other words, and the rest of its text. */
 interface Part {
   name: string;
-  is: 'component' | 'slot' | 'field' | 'pick' | 'target' | 'set';
+  is: 'component' | 'slot' | 'field' | 'pick' | 'target' | 'set' | 'actions';
   area: string;
   line: string;
   example?: Example;
@@ -109,6 +110,8 @@ function parts(): Part[] {
     found.push({ name, is: 'target', area: target.area ?? 'core', line: `${target.what}: ${target.form}`, example: target.example ?? exampleWith('action'), by: { name: wordsOf(name), words: wordsOf(...(target.words ?? [])), other: wordsOf(target.what, target.form) } });
   }
   found.push({ name: 'sets', is: 'set', area: LIST.sets.area, line: `${LIST.sets.what}; its area gives its form`, example: exampleWith('set'), by: { name: wordsOf('set'), words: wordsOf(...(LIST.sets.words ?? [])), other: wordsOf(LIST.sets.what) } });
+  const { actions } = LIST;
+  found.push({ name: 'actions', is: 'actions', area: actions.area, line: `${actions.what}: ${actions.form}`, by: { name: wordsOf('actions'), words: wordsOf(...(actions.words ?? [])), other: wordsOf(actions.what) } });
   return found;
 }
 
@@ -122,11 +125,26 @@ function hit(asked: string, word: string): number {
 const score = (part: Part, asked: string[]): number =>
   asked.reduce((sum, one) => sum + Math.max(0, ...part.by.name.map((word) => 3 * hit(one, word)), ...part.by.words.map((word) => 2 * hit(one, word)), ...part.by.other.map((word) => hit(one, word))), 0);
 
+/**
+ * A part of VS Code that no look can use (the list "never"), when the words name it better than any part of the list: every word hits it, and it
+ * scores more than the best part, its words counting twice as the other words of a part do.
+ */
+function cannotUse(asked: string[], best: number): string | undefined {
+  const fits = Object.entries(LIST.never).map(([id, part]) => {
+    const own = wordsOf(id, ...part.words);
+    const hits = asked.map((one) => Math.max(0, ...own.map((word) => 2 * hit(one, word))));
+    return { part, score: hits.every((one) => one > 0) ? hits.reduce((sum, one) => sum + one, 0) : 0 };
+  }).sort((a, b) => b.score - a.score)[0];
+  return fits && fits.score > best ? `A look cannot use ${fits.part.name}. Tell the owner so.` : undefined;
+}
+
 /** The best matches of the words over every part, or one sentence and the index when nothing fits. */
 function find(words: string): Record<string, unknown> {
   const asked = wordsOf(words).filter((word) => word.length >= 3 && !IGNORED.has(word));
   const ranked = parts().map((part, order) => ({ part, order, score: score(part, asked) })).filter((one) => one.score > 0)
     .sort((a, b) => b.score - a.score || a.order - b.order).slice(0, MATCHES);
+  const cannot = asked.length ? cannotUse(asked, ranked[0]?.score ?? 0) : undefined;
+  if (cannot) return { found: cannot };
   if (!ranked.length) return { found: `Nothing in the list fits "${words}". Read the index lines; when none fits, tell the owner and leave it out.`, areas: index() };
   // An example that an earlier match shows already is named, not printed again.
   return {
