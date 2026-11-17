@@ -63,8 +63,19 @@ export function claudeDefaultMode(folder?: string, home = homedir()): string | u
 /** The mode of a Claude Code run that Apostil starts: the default of the person when a run can work alone in it (as "auto"), else acceptEdits, the least that a run needs to write its drafts. */
 export const claudeRunMode = (preferred?: string): string => (preferred && RUN_ALONE.includes(preferred) ? preferred : 'acceptEdits');
 
-/** What a Claude Code run may do: its mode, and the command apostil, with which it saves what it writes. */
-const claudeRights = (mode?: string): string[] => ['--permission-mode', claudeRunMode(mode), '--allowedTools', 'Bash(apostil *)'];
+/** The values of the setting `apostil.commentRuns`: what a run that a comment starts may do in the repo. */
+export const COMMENT_RUNS = ['read and edit', 'read only'] as const;
+const READ_TOOLS = ['Read', 'Grep', 'Glob'];
+
+/**
+ * What a Claude Code run may do: its mode, and the command apostil, with which it saves what it writes. A run that a comment starts (`commentRuns` set) also
+ * reads the repo and, with "read and edit", edits it: no other command. "Read only" takes the editing tools away also when the mode would accept edits.
+ */
+const claudeRights = (mode?: string, commentRuns?: string): string[] => [
+  '--permission-mode', claudeRunMode(mode),
+  '--allowedTools', 'Bash(apostil *)', ...(commentRuns === undefined ? [] : commentRuns === 'read only' ? READ_TOOLS : [...READ_TOOLS, 'Edit', 'Write']),
+  ...(commentRuns === 'read only' ? ['--disallowedTools', 'Edit', 'Write', 'NotebookEdit'] : []),
+];
 
 /**
  * The sandbox that the person set for Codex: `sandbox_mode` in config.toml (in CODEX_HOME, else ~/.codex), in the profile that it names, else at its top.
@@ -103,6 +114,7 @@ export interface RunOptions {
   codexModel?: string; // empty: Codex takes the model of its own settings
   claudeMode?: string; // the default permission mode of the person for Claude Code (claudeDefaultMode)
   codexSandbox?: string; // the sandbox of the person for Codex (codexDefaultSandbox)
+  commentRuns?: string; // set for a run that a comment starts: "read and edit" or "read only" (Claude Code); Codex keeps its sandbox
 }
 
 /** The options of a run in a folder: the store, the model for Codex, and the modes that the person set as default for Claude Code and Codex. */
@@ -115,7 +127,7 @@ const codexWords = ({ store, codexModel, codexSandbox }: RunOptions): string[] =
 export function resumeCommand(agent: AgentSession, prompt: string, options: RunOptions = {}): string[] | undefined {
   const { session } = agent;
   if (!session) return undefined;
-  if (agent.app === 'claude-code') return ['claude', '-p', '--resume', session, prompt, '--output-format', 'json', ...claudeRights(options.claudeMode)];
+  if (agent.app === 'claude-code') return ['claude', '-p', '--resume', session, prompt, '--output-format', 'json', ...claudeRights(options.claudeMode, options.commentRuns)];
   if (agent.app === 'codex') return ['codex', 'exec', 'resume', session, prompt, '--json', ...codexWords(options)];
   if (agent.app === 'antigravity') return ['agy', '-p', prompt, '--conversation', session];
   return undefined;
@@ -236,7 +248,7 @@ export function runProblem(problem: string, has: { app?: string; again?: boolean
 
 /** The command and arguments that start a new session of an app with a prompt, or undefined. The run may edit files and give its answer, and nothing more. */
 export function newRunCommand(app: string, prompt: string, options: RunOptions = {}): string[] | undefined {
-  if (app === 'claude-code') return ['claude', '-p', prompt, '--output-format', 'json', ...claudeRights(options.claudeMode)];
+  if (app === 'claude-code') return ['claude', '-p', prompt, '--output-format', 'json', ...claudeRights(options.claudeMode, options.commentRuns)];
   if (app === 'codex') return ['codex', 'exec', prompt, '--json', ...codexWords(options)];
   if (app === 'antigravity') return ['agy', '-p', prompt, '--mode', 'accept-edits'];
   if (app === 'opencode') return ['opencode', 'run', prompt];

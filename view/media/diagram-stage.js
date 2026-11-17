@@ -174,14 +174,15 @@ function makeSurface(stage, readable = false, stack = false) {
     const [w, h] = [stage.clientWidth, stage.clientHeight];
     if (!w || !h) return;
     let scale = Math.min(1, w / width, h / height);
-    const wide = (readable || half) && (half || w / width < h / height) && scale < READABLE;
+    const columns = stage.classList.contains('columns'); // a long chain in columns: tall, but it opens where its words read, at its top
+    const wide = (readable || half) && (half || columns || w / width < h / height) && scale < READABLE;
     if (wide && !whole) scale = READABLE;
     const middle = { x: x0 - (w / scale - width) / 2, y: y0 - (h / scale - height) / 2 };
     // The start of a wide flow: its left end when it goes from left to right, else its top in the middle.
     const across = stage.classList.contains('across');
     // In a half, a diagram wider than the half starts at its left end too.
     const fromLeft = across || (half && w / scale < width);
-    view = wide && !whole ? { scale, x: fromLeft ? x0 : middle.x, y: across || h / scale >= height ? middle.y : y0 } : { scale, ...middle };
+    view = wide && !whole ? { scale, x: fromLeft ? x0 : middle.x, y: (across && !columns) || h / scale >= height ? middle.y : y0 } : { scale, ...middle };
     moved = false;
     apply();
   };

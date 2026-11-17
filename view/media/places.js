@@ -86,13 +86,16 @@ const Places = (() => {
     return `data-remark="${esc(JSON.stringify(whole))}" data-rk="${esc(keyOf(whole))}"`;
   };
 
+  const sameTitle = (now, kept) => now === kept || now.startsWith(`${kept} `);
+
   /** True when the change file that the page shows no longer holds the thing: the change was saved again. */
   function isGone(target) {
     const diagram = target.diagram && diagramOf(target.diagram);
     if (target.diagram && !diagram) return true;
     if (target.kind === 'part' || (target.kind === 'more-files' && target.part)) return !partOf(target.part);
     if (target.kind === 'file') return !page().files.some((file) => file.path === target.file) && !page().parts.some((part) => part.files.includes(target.file));
-    if (target.kind === 'node') return !(target.node in (diagram ? diagram.graph.nodes : {}));
+    // A node whose id now names another thing (the map was written again) is as gone as one with no id; a box that holds steps adds their count to its title.
+    if (target.kind === 'node') return !(target.node in (diagram ? diagram.graph.nodes : {})) || (!!target.kept && !sameTitle(diagram.graph.nodes[target.node], target.kept.title));
     if (target.kind === 'edge' && diagram) return !diagram.graph.edges.some((edge) => edge.from === target.edge[0] && edge.to === target.edge[1]);
     if (target.kind === 'edge') return !page().links.some((link) => link.from === target.edge[0] && link.to === target.edge[1]);
     return false;

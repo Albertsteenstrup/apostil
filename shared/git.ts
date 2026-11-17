@@ -26,6 +26,30 @@ export function tryGit(folder: string, ...args: string[]): string | undefined {
 
 export const repoRoot = (folder: string): string => git(folder, 'rev-parse', '--show-toplevel');
 
+const MAX_FINGERPRINTS = 5000; // more files than this that differ from the index: the run is not followed
+
+/**
+ * Each file of the repo that is changed, new or deleted in the working tree (not the ignored ones), by its path from the root of the repo, with a hash
+ * of its content now ("gone" for a deleted file). Two of these, one before and one after a run, say which files the run changed. Undefined when it is no Git repo.
+ */
+export function workingFiles(folder: string): Map<string, string> | undefined {
+  const root = tryGit(folder, 'rev-parse', '--show-toplevel');
+  if (!root) return undefined;
+  const listed = (tryGit(root, 'ls-files', '--modified', '--others', '--deleted', '--exclude-standard') ?? '').split('\n').filter(Boolean);
+  const paths = [...new Set(listed)];
+  if (paths.length > MAX_FINGERPRINTS) return undefined;
+  const present = paths.filter((path) => existsSync(join(root, path)) && lstatSync(join(root, path)).isFile());
+  let hashes: string[] = [];
+  try {
+    hashes = present.length ? execFileSync('git', ['hash-object', '--stdin-paths'], { cwd: root, encoding: 'utf8', input: present.join('\n'), maxBuffer: 64 * 1024 * 1024 }).split('\n') : [];
+  } catch { /* a file that cannot be read: it has no hash, and shows as changed when it appears or goes */ }
+  return new Map(paths.map((path) => [path, hashes[present.indexOf(path)] || 'gone']));
+}
+
+/** The files that differ between two of these fingerprints, sorted: those that are in one only, or have another hash. */
+export const changedBetween = (before: Map<string, string>, after: Map<string, string>): string[] =>
+  [...new Set([...before.keys(), ...after.keys()])].filter((path) => before.get(path) !== after.get(path)).sort();
+
 /** The commits of a range such as "base..head", from one call of git: how many, and when the first one was written (ISO). None when git fails. */
 export function commitsOf(folder: string, range: string): { count: number; first?: string } {
   const dates = (tryGit(folder, 'log', '--format=%aI', range) ?? '').split('\n').filter(Boolean);

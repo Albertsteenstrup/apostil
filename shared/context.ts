@@ -2,12 +2,14 @@
 // The command line and the helper both call these functions.
 
 import type { Diagram, Note } from './change-file';
+import { diagramText, keptInChange, keptLines, keptOnMap, mapDrawing } from './comment-lines';
 import { inNoThingWords, linksChecked, linkThings, REASON_WORDS, thingsOf, type Place, type ThingCode } from './diagram-code';
 import { cellsIn, inNoThingPlaces, linesInNoThingOf, rangesText } from './checks';
 import { diagramGraph } from './diagram-graph';
 import { changedFiles, currentBranch, fileText, repoId, type ChangedFile } from './git';
 import { cellOfLine, cellsOfText, inCellText, isNotebookPath } from './notebook';
 import { diagramsOf, type RepoMap } from './repo-map';
+import type { ProcessDiagram } from './process-diagrams';
 import type { AppState, OpenPoint, Remark, RemarkTarget, Store, StoredChange } from './store';
 
 /** The change of the branch that a folder has checked out. */
@@ -58,7 +60,7 @@ const gone = (what: string, where = 'the change file'): string[] => [`${what}. I
  * The lines of a node, an arrow or a whole diagram, from the diagram that holds it: the same for a diagram of a change and of the map.
  * A node that stands for folders and files names them.
  */
-function aboutInDiagram(diagram: Diagram | undefined, target: RemarkTarget, where: string, more: string[] = []): string[] {
+function aboutInDiagram(diagram: Diagram | undefined, target: RemarkTarget, where: string, more: string[] = [], process?: ProcessDiagram): string[] {
   const graph = diagram && diagramGraph(diagram);
   const words = KIND_WORDS[diagram?.kind ?? 'flow'];
   const label = (id: string): string => `"${graph?.nodes[id] ?? id}"`;
@@ -66,23 +68,30 @@ function aboutInDiagram(diagram: Diagram | undefined, target: RemarkTarget, wher
   const things = diagram ? thingsOf(diagram).things.filter((thing) => !thing.removed) : [];
   if (target.kind === 'diagram') {
     if (!diagram) return gone(`Diagram "${target.diagram}"`, where);
-    return [`Diagram "${diagram.title}", a ${words.kind}`, ...more, 'Its Mermaid text:', ...diagram.mermaid.split('\n')];
+    return [`Diagram "${diagram.title}", a ${words.kind}`, ...more, 'The diagram as text:', ...diagramText(diagram, process)];
   }
   if (target.kind === 'edge') {
     const [from, to] = target.edge ?? ['?', '?'];
     if (!graph || !graph.edges.some((edge) => edge.from === from && edge.to === to)) return gone(`${words.edge} from "${from}" to "${to}"`, where);
     const thing = things.find((one) => one.from === from && one.to === to && (target.name === undefined || one.name === target.name));
-    return [...inDiagram, `${words.edge} from ${label(from)} to ${label(to)}${target.name ? `, with the label "${target.name}"` : ''}`, ...codeWords(thing?.code)];
+    const start = process?.edgeLines?.[`${from}>${to}`]?.[0];
+    return [...inDiagram, `${words.edge} from ${label(from)} to ${label(to)}${target.name ? `, with the label "${target.name}"` : ''}`, ...codeWords(thing?.code),
+      ...(start ? [`Its code: ${start.file}, line ${start.line}`] : []), 'The diagram as text:', ...diagramText(diagram, process)];
   }
   if (!diagram || !graph || !target.node || !(target.node in graph.nodes)) return gone(`${words.node} "${target.node}"`, where);
   const from = [...new Set(graph.edges.filter((edge) => edge.to === target.node).map((edge) => label(edge.from)))];
   const to = [...new Set(graph.edges.filter((edge) => edge.from === target.node).map((edge) => label(edge.to)))];
   const paths = diagram.nodePaths?.[target.node];
+  const step = process?.nodes[target.node];
   return [
     ...inDiagram, `${words.node} ${label(target.node)}`,
+    ...(step?.note?.text ? [`Its note: ${step.note.text}`] : []),
     ...(from.length ? [`Arrows come from: ${from.join(', ')}`] : []), ...(to.length ? [`Arrows go to: ${to.join(', ')}`] : []),
     ...codeWords(things.find((thing) => thing.key === target.node)?.code),
+    ...(step?.at ?? []).slice(0, 3).map((span) => `Its code: ${span.file}, ${span.from === span.to ? `line ${span.from}` : `lines ${span.from}–${span.to}`}`),
+    ...(step?.names ? [`Called as: ${step.names.join(', ')}`] : []),
     ...(paths?.length ? [`It stands for: ${paths.join(', ')}`] : []),
+    'The diagram as text:', ...diagramText(diagram, process),
   ];
 }
 
@@ -109,8 +118,8 @@ function aboutDiagramOfChange(change: StoredChange, diagram: Diagram | undefined
 
 /** What a remark on the map of a repo is about: a node, an arrow or a diagram of the stored map. */
 export function aboutMapTarget(map: RepoMap | undefined, target: RemarkTarget): string[] {
-  const diagram = map?.diagrams.find((candidate) => candidate.id === target.diagram);
-  return ['On the map of the repo', ...aboutInDiagram(diagram, target, 'the map')];
+  const drawn = mapDrawing(map, target.diagram); // a written diagram, or a drawn process (a step of it has an id such as "s21" that changes when the map is written again)
+  return ['On the map of the repo', ...keptLines(target, keptOnMap(map, target), 'map'), ...aboutInDiagram(drawn?.diagram, target, 'the map', [], drawn?.process)];
 }
 
 /**
@@ -203,7 +212,7 @@ export function diagramsOfFile(store: Store, folder: string, file: string): stri
 
 /** What a remark on a change is about, for the agent: the lines of its thing, and for a file the diagrams that the file is in. */
 export const aboutInChange = (store: Store, change: StoredChange, target: RemarkTarget, files?: ChangedFile[]): string[] =>
-  [...aboutTarget(change, target, files), ...(target.kind === 'file' && target.file ? diagramsOfFile(store, change.folder, target.file) : [])];
+  [...keptLines(target, keptInChange(change, target), 'change file'), ...aboutTarget(change, target, files), ...(target.kind === 'file' && target.file ? diagramsOfFile(store, change.folder, target.file) : [])];
 
 export interface ReviewContext {
   change?: { id: number; branch: string; title: string; reason: string; base: string };

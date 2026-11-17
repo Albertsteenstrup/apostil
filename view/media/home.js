@@ -120,6 +120,7 @@ function noteWindow(node, thing) {
       title: node.note.title, width: 460,
       sections: [
         { id: 'note', html: node.note.text ? `<p class="stepnote">${esc(node.note.text)}</p>` : '' },
+        { id: 'callers', html: ProcessDrawing.callersHtml(node) },
         { id: 'where', sub: esc(node.note.where) },
         { id: 'marks', html: '<div class="mk-lines"></div>' },
       ],
@@ -228,13 +229,16 @@ async function drawHome() {
   else {
     // The look: the slots of each node and arrow, what shows, and the shapes, words and contents that go into the text before Mermaid draws.
     // A step that a rule opens holds its inner steps in place.
-    const shown = look ? Marks.openSteps(diagram, look, diagramOf) : diagram;
+    // A drawn process with a long chain is drawn in columns (ProcessDrawing); a text that does not draw falls back to the drawing of the map.
+    const laid = ProcessDrawing.laidOut(diagram, look);
+    ProcessDrawing.link(summary, diagram, laid);
+    const shown = look ? Marks.openSteps(laid, look, diagramOf) : laid;
     const things = look ? Marks.thingsOf(shown, look) : {};
     const edges = look ? Marks.edgesOf(shown, look, things) : [];
-    const shaped = look ? await Marks.lookText(shown, things, edges, look) : { text: diagram.mermaid, filled: {}, graph: diagram.graph, edges };
+    const shaped = look ? await Marks.lookText(shown, things, edges, look) : { text: laid.mermaid, filled: {}, graph: laid.graph, edges };
     const svg = await drawMermaid(view, shaped.text, shaped.text === diagram.mermaid ? undefined : diagram.mermaid, diagram.schema, diagram.id);
     const plain = svg?.hasAttribute('data-plain'); // a look whose text does not draw leaves the diagram as it is
-    const drawn = plain ? { graph: diagram.graph, edges: shown === diagram ? edges : Marks.edgesOf(diagram, look, Marks.thingsOf(diagram, look)), boxes: [] } : shaped;
+    const drawn = plain ? { graph: diagram.graph, edges: look && shown !== diagram ? Marks.edgesOf(diagram, look, Marks.thingsOf(diagram, look)) : edges, boxes: [] } : shaped;
     const nodesOf = plain ? diagram.nodes : shown.nodes;
     markDiagram(view, { ...diagram, graph: drawn.graph }); // each node, each arrow and the diagram as a whole hold a comment
     if (look && svg) {
@@ -247,6 +251,7 @@ async function drawHome() {
         Marks.inputWindow(edge.label, edge.slots, edge.label.textContent.trim());
       }
     }
+    if (svg) ProcessDrawing.decorate(svg, laid, diagram);
     makeSurface(view, true); // a wide map opens where its words read
     frameLook(view, look, diagram.id);
     for (const g of view.querySelectorAll('g.node, g.image-shape')) {
@@ -398,7 +403,7 @@ document.addEventListener('click', (event) => {
   const folder = target.closest('[data-tree]');
   if (folder) return tell({ type: 'showInTree', paths: [folder.dataset.tree], open: true });
   const file = target.closest('[data-open]');
-  if (file) return tell({ type: 'openFile', path: file.dataset.open });
+  if (file) return tell({ type: 'openFile', path: file.dataset.open, ...(file.dataset.line ? { line: Number(file.dataset.line) } : {}) });
   const change = target.closest('[data-change-id]');
   if (change) return walkTo({ tab: 'change', change: Number(change.dataset.changeId), go: { level: 'change' }, name: change.dataset.title });
 });

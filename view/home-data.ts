@@ -41,6 +41,7 @@ export interface HomeNode {
   steps?: ProcessNode['steps']; // a step that holds steps, or a process: the count of its steps
   process?: true; // a process in the drawing of a place
   names?: string[]; // a call out of the repo: the names that the code calls it by
+  callers?: ProcessNode['callers']; // a box that three or more boxes call: who calls it, and where
 }
 
 export interface HomeDiagram {
@@ -53,6 +54,9 @@ export interface HomeDiagram {
   nodes: Record<string, HomeNode>;
   schema?: SchemaDrawing; // a schema diagram: its tables, which the page draws itself
   edgeLines?: ProcessDiagram['edgeLines']; // a drawn process: the line where each arrow starts
+  order?: ProcessDiagram['order']; // a drawn process: the number of an arrow that leaves a box with two or more
+  dots?: ProcessDiagram['dots']; // a drawn process: the boxes that a box calls with a dot in place of an arrow
+  columns?: { mermaid: string; graph: DiagramGraph; columns: string[][]; dots: Record<string, string[]> }; // a drawn process with a long chain: its drawing in columns
 }
 
 export interface HomeData {
@@ -191,15 +195,26 @@ export function homeData(store: Store, folder: string, apps: string[] = [], addr
       drawn.push(placeDrawing(stored.map, home.down, `Processes of ${diagram.graph.nodes[node] ?? node}`, starting));
     }
   }
-  homeDiagrams.push(...drawn.map((one) => ({
-    id: one.id, kind: 'flow' as const, title: one.title, mermaid: one.mermaid, graph: diagramGraph({ kind: 'flow', mermaid: one.mermaid }), nodes: mapValues(one.nodes, processHomeNode),
-    ...(one.edgeLines ? { edgeLines: one.edgeLines } : {}),
-  })));
+  homeDiagrams.push(...drawn.map(processHomeDiagram));
   const top = diagrams.find((diagram) => !diagram.parent) ?? diagrams[0];
   return { ...base, map: { top: top.id, diagrams: homeDiagrams, written: writtenLine(folder, stored.commit), files: files.length }, look: lookData(store, id, folder, address) };
 }
 
 const mapValues = <A, B>(record: Record<string, A>, change: (value: A) => B): Record<string, B> => Object.fromEntries(Object.entries(record).map(([key, value]) => [key, change(value)]));
+
+/** A drawn process as a diagram of Home. The boxes that hold the columns are no part of its graph. */
+export const processHomeDiagram = (one: ProcessDiagram): HomeDiagram => {
+  const graph = (mermaid: string): DiagramGraph => {
+    const whole = diagramGraph({ kind: 'flow', mermaid });
+    const column = (id: string): boolean => /^col\d+$/.test(id);
+    return { nodes: Object.fromEntries(Object.entries(whole.nodes).filter(([id]) => !column(id))), edges: whole.edges.filter((edge) => !column(edge.from) && !column(edge.to)) };
+  };
+  return {
+    id: one.id, kind: 'flow', title: one.title, mermaid: one.mermaid, graph: graph(one.mermaid), nodes: mapValues(one.nodes, processHomeNode),
+    ...(one.edgeLines ? { edgeLines: one.edgeLines } : {}), ...(one.order ? { order: one.order } : {}), ...(one.dots ? { dots: one.dots } : {}),
+    ...(one.columns ? { columns: { ...one.columns, graph: graph(one.columns.mermaid) } } : {}),
+  };
+};
 
 /** A node of a drawn process as a node of Home: its file, where a click goes, and what the pointer shows. */
 const processHomeNode = (node: ProcessNode): HomeNode => ({
@@ -207,6 +222,7 @@ const processHomeNode = (node: ProcessNode): HomeNode => ({
   ...(node.down ? { down: node.down } : {}), ...(node.line ? { line: node.line } : {}), ...(node.note ? { note: node.note } : {}), ...(node.quiet ? { quiet: true as const } : {}),
   ...(node.at?.length ? { at: node.at } : {}), ...(node.calls?.length ? { calls: node.calls } : {}),
   ...(node.steps ? { steps: node.steps } : {}), ...(node.process ? { process: true as const } : {}), ...(node.names ? { names: node.names } : {}),
+  ...(node.callers ? { callers: node.callers } : {}),
 });
 
 /** The tables of a schema diagram, which the page draws itself; nothing for the other kinds. */
