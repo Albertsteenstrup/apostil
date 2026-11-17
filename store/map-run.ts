@@ -36,7 +36,7 @@ export function mapWorkLeft(store: Store, folder: string, run: MapRun): boolean 
 
 /**
  * After a save of a writer: the first save starts the record when none is open, with the session from the environment; each save adds its part.
- * The record ends at the save that leaves no work for the writers: in a run of the whole skill, the last `apostil add-marks` of its Step 6.
+ * The record ends at the save that leaves no work for the writers: in a run of the whole skill, the last `apostil add-marks` of its Step 7 (the service writers and the mark writers).
  */
 export function recordMapSave(store: Store, folder: string, save: MapSave, env: Record<string, string | undefined> = process.env, now = new Date()): void {
   const repo = repoId(folder);
