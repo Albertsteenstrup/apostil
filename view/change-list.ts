@@ -103,12 +103,11 @@ export class ChangeList implements vscode.WebviewViewProvider {
 
   resolveWebviewView(view: vscode.WebviewView): void {
     this.view = view;
-    this.repoPulls = undefined; // a new view has nothing yet
     view.webview.options = { enableScripts: true, localResourceRoots: [this.media] };
     view.webview.html = webviewHtml(view.webview, this.media, 'list.html');
     view.webview.onDidReceiveMessage((message: { type: string; id?: number; rows?: number; url?: string; number?: number; search?: ListSearch; values?: MenuMessage['values']; target?: Target }) => {
       if (message.type === 'target' && message.target) this.onTarget(message.target);
-      if (message.type === 'ready') this.refresh();
+      if (message.type === 'ready') { this.repoPulls = undefined; this.refresh(); } // a view that starts has none of the pull requests yet
       if (message.type === 'open' && message.id !== undefined) this.openChange(message.id);
       if (message.type === 'openPull' && message.id !== undefined && message.number !== undefined) this.openPull(message.id, message.number);
       if (message.type === 'openRepoPull' && message.number !== undefined) this.openRepoPull(message.url ?? String(message.number));
