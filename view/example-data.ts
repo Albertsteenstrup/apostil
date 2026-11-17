@@ -108,6 +108,8 @@ const page = examplePage(folder, base, file, points, remarks, agent, apps, map?.
 // with its second set and its marks) is "?look=1", "look-<name>.json" is "?look=<name>". Home and the note cards are read after each save.
 const homeLooks: Record<string, HomeData> = {};
 const pageLooks: Record<string, LookData | undefined> = {};
+const graphsLooks: Record<string, Record<string, GraphsData>> = {}; // the graphs pages of a few paths in each look, for the browser checks
+const LOOK_GRAPHS = ['db/migrations/0042_holds.sql', 'src/library/lending/requests.py'];
 // The pages of each look (build 58), as "?look=<name>&page=<id>", and the blocks of each section of its own and window of a target, as the page asks for them.
 const lookPages: Record<string, Record<string, CustomPageData>> = {};
 const lookAnswers: Record<string, unknown> = {};
@@ -122,6 +124,7 @@ for (const name of put ? readdirSync(EXAMPLE_LOOK).filter((one) => /^look(-[a-z-
   const ids = (JSON.parse(readFileSync(join(EXAMPLE_LOOK, name), 'utf8')).pages ?? []).map((one: { id: string }) => one.id) as string[];
   lookPages[key] = Object.fromEntries(ids.map((id) => [id, pageData(store, folder, id, address)]));
   for (const [, ref] of JSON.stringify([homeLooks[key].look, lookPages[key]]).matchAll(/"ref":"([0-9a-f]+)"/g)) lookAnswers[`blocks:${ref}`] = blocksAnswer(store, folder, ref, address);
+  graphsLooks[key] = Object.fromEntries(LOOK_GRAPHS.map((path) => [path, graphsData(store, folder, path, address)]));
 }
 
 // Made up: an earlier change, merged long ago, with a note on code that this change left alone. The file tab shows it beside its lines, with no colour.
@@ -172,6 +175,6 @@ answers['pull:https://example.com/made-up/pull/11'] = { pull: pullRequestFrom(ex
 const pagePulls = pulls[page.branch].slice(0, 2); // the page knows the two that have a made-up conversation
 
 const target = join(__dirname, '../../view/media/example-data.js');
-writeFileSync(target, `// Written by view/example-data.ts. Not in Git.\n${iconScript(join(__dirname, '../../view/media'))}window.APOSTIL_EXAMPLE = ${JSON.stringify({ page, pageLooks, pagePulls, answers, list, home, homeLooks, homeNoMap, graphs, lookPages })};\n`);
+writeFileSync(target, `// Written by view/example-data.ts. Not in Git.\n${iconScript(join(__dirname, '../../view/media'))}window.APOSTIL_EXAMPLE = ${JSON.stringify({ page, pageLooks, pagePulls, answers, list, home, homeLooks, homeNoMap, graphs, lookPages, graphsLooks })};\n`);
 example?.remove();
 console.log(`Wrote ${target}: ${page.files.length} files, ${page.parts.length} parts, ${Object.keys(answers).length} answers, ${rows.length} list rows, ${home.map?.diagrams.length ?? 0} map diagrams, ${Object.keys(graphs).length} graphs pages.`);

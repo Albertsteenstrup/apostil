@@ -70,7 +70,7 @@ const App = {
 
 /** The map as the comments read it: every diagram is one of the map; there are no parts, files or notes. */
 const mapPage = (data) => (data.kind === 'home' && data.map
-  ? { map: true, title: data.repo, diagrams: data.map.diagrams, remarks: data.remarks, apps: data.apps, parts: [], files: [], notes: [], links: [], openPoints: [], checks: { filesInNoPart: [] } }
+  ? { map: true, title: data.repo, diagrams: data.map.diagrams, remarks: data.remarks, apps: data.apps, parts: [], files: [], notes: [], links: [], openPoints: [], checks: { filesInNoPart: [] }, look: data.look }
   : null);
 
 // ----- Home -----
@@ -151,6 +151,26 @@ Marks.useHere({
 });
 
 /**
+ * The frame of the diagram on Home in the look (a rule of "frame"): its background, its line and its width, a key while the pointer is on it, and a
+ * double click on an empty place, which goes to its target in place of the fit.
+ */
+let frameDouble = null;
+function frameLook(view, look, diagram) {
+  const slots = look ? Marks.resolve(look.rules, { kind: 'frame', diagram, fields: {} }, look.one) : {};
+  view.removeAttribute('data-lk-keys'); // the key of an earlier drawing
+  view.removeAttribute('tabindex');
+  frameDouble = slots['input.double'] ?? null;
+  Marks.paintBox(view, slots);
+  if (slots['input.key']) Marks.bind(view, { 'input.key': slots['input.key'] }, null);
+}
+// Before the double click of diagram-stage.js, which would fit the diagram.
+document.getElementById('view').addEventListener('dblclick', (event) => {
+  if (!frameDouble || event.target.closest(ON_A_THING)) return;
+  event.stopImmediatePropagation();
+  Marks.act(frameDouble, event.currentTarget.querySelector('svg') ?? event.currentTarget);
+}, true);
+
+/**
  * A click on a value of a mark on a node. When the node has a level under it, Home goes down with the nodes that hold the value lit and a quiet line;
  * else one place opens at once. Returns false when the value has several places and no level under the node: its window lists them.
  */
@@ -188,26 +208,34 @@ async function drawHome() {
   const diagram = map && (diagramOf(Home.at) ?? diagramOf(map.top));
   if (diagram) Home.at = diagram.id;
   App.page = mapPage(Home.data);
-  Trail.show(document.getElementById('crumb'), ownStep());
+  const look = Home.data.look;
+  Trail.show(document.getElementById('crumb'), ownStep(), { look });
   const summary = document.getElementById('summary');
   summary.textContent = map?.written ?? '';
+  // The header line of the look: words with the fields of the repo, a picture in its place, or nothing.
+  const headFields = diagram && { repo: Home.data.repo, areas: Object.keys(diagramOf(map.top).graph.nodes).length, files: map.files ?? 0, age: map.written ?? 'written at this commit' };
+  const head = diagram && look ? Marks.resolve(look.rules, { kind: 'header', diagram: diagram.id, fields: headFields }, look.one) : {};
+  if (Object.keys(head).length) summary.innerHTML = Marks.wordsHtml(map.written ?? '', head, headFields, look) ?? '';
   // After a click on a mark: the quiet line of the value, which the × clears.
   if (Home.filter && diagram) summary.insertAdjacentHTML('beforeend', `${map.written ? ' · ' : ''}<span class="mk-filter">${esc(Home.filter.text)} <a data-clear-filter title="Clear">×</a></span>`);
   let nodes = 0;
   if (!diagram) view.innerHTML = noMapHtml();
   else {
     // The look: the slots of each node and arrow, what shows, and the shapes, words and contents that go into the text before Mermaid draws.
-    const look = Home.data.look;
-    const things = look ? Marks.thingsOf(diagram, look) : {};
-    const edges = look ? Marks.edgesOf(diagram, look, things) : [];
-    const shaped = look ? await Marks.lookText(diagram, things, edges, look) : { text: diagram.mermaid, filled: {}, graph: diagram.graph, edges };
+    // A step that a rule opens holds its inner steps in place.
+    const shown = look ? Marks.openSteps(diagram, look, diagramOf) : diagram;
+    const things = look ? Marks.thingsOf(shown, look) : {};
+    const edges = look ? Marks.edgesOf(shown, look, things) : [];
+    const shaped = look ? await Marks.lookText(shown, things, edges, look) : { text: diagram.mermaid, filled: {}, graph: diagram.graph, edges };
     const svg = await drawMermaid(view, shaped.text, shaped.text === diagram.mermaid ? undefined : diagram.mermaid, diagram.schema, diagram.id);
-    const drawn = svg?.hasAttribute('data-plain') ? { graph: diagram.graph, edges } : shaped; // a look whose text does not draw leaves the diagram as it is
+    const plain = svg?.hasAttribute('data-plain'); // a look whose text does not draw leaves the diagram as it is
+    const drawn = plain ? { graph: diagram.graph, edges: shown === diagram ? edges : Marks.edgesOf(diagram, look, Marks.thingsOf(diagram, look)), boxes: [] } : shaped;
+    const nodesOf = plain ? diagram.nodes : shown.nodes;
     markDiagram(view, { ...diagram, graph: drawn.graph }); // each node, each arrow and the diagram as a whole hold a comment
     if (look && svg) {
       edgeElements(svg, drawn.graph.edges).forEach(({ path, label }, at) => Object.assign(drawn.edges[at], { path, label }));
       // With the marks at the corners of the nodes at its edges; a drawing that the look does not touch keeps its frame.
-      if (Marks.decorate(svg, things, drawn.edges, look, shaped.filled, { nodeKey, open: openAt, pick: pickMark })) fitToContent(svg);
+      if (Marks.decorate(svg, things, drawn.edges, look, shaped.filled, { nodeKey, open: openAt, pick: pickMark }, drawn.boxes)) fitToContent(svg);
       // The words of an arrow with a click or other input of the look: the pointer says what they do.
       for (const edge of drawn.edges.filter((one) => one.label)) {
         if (Marks.bind(edge.label, edge.slots, null, edge.label.textContent.trim())) edge.label.classList.add('go');
@@ -215,8 +243,9 @@ async function drawHome() {
       }
     }
     makeSurface(view, true); // a wide map opens where its words read
+    frameLook(view, look, diagram.id);
     for (const g of view.querySelectorAll('g.node, g.image-shape')) {
-      const node = diagram.nodes[nodeKey(g)];
+      const node = nodesOf[nodeKey(g)];
       if (!node) continue;
       nodes++;
       const thing = things[nodeKey(g)];
@@ -256,6 +285,11 @@ function drawPanel(box, panel) {
     const look = Home.data.look;
     const diagram = look && panel.nodes ? { id: panel.id, nodes: panel.nodes, graph: panel.graph, edgeLines: panel.edgeLines, mermaid: panel.mermaid } : null;
     const things = diagram ? Marks.thingsOf(diagram, look) : {};
+    // A node of the panel has rules of its own too ("panel-node"): its box, and whether it shows, by whether it is lit.
+    for (const thing of Object.values(things)) {
+      const own = Marks.resolve(look.rules, { ...thing, kind: 'panel-node', fields: { lit: !panel.lit.length || panel.lit.includes(thing.node) } }, look.one);
+      Object.assign(thing.slots, own);
+    }
     const edges = diagram ? Marks.edgesOf(diagram, look, things) : [];
     const shaped = diagram ? await Marks.lookText(diagram, things, edges, look) : { text: panel.mermaid, filled: {}, edges };
     const svg = await drawMermaid(box, shaped.text, shaped.text === panel.mermaid ? undefined : panel.mermaid, panel.schema);
@@ -264,8 +298,11 @@ function drawPanel(box, panel) {
       // A click on a mark of a panel opens its one place, or lists its places; it never goes down a level, as a click on the panel opens the diagram on Home.
       edgeElements(svg, shaped.graph.edges).forEach(({ path, label }, at) => Object.assign(shaped.edges[at], { path, label }));
       const pick = (thing, one) => (one.marks.length === 1 ? (openAt(one.marks[0].file, one.marks[0].at), true) : false);
-      if (Marks.decorate(svg, things, shaped.edges, look, shaped.filled, { nodeKey, open: openAt, pick })) fitToContent(svg);
+      if (Marks.decorate(svg, things, shaped.edges, look, shaped.filled, { nodeKey, open: openAt, pick }, shaped.boxes)) fitToContent(svg);
     }
+    // A drawing that a rule left with few nodes is drawn at most half again its size, not blown up to the panel.
+    const natural = Object.values(things).some((thing) => thing.slots['show.shown'] === false) && [Number(svg.getAttribute('width')), Number(svg.getAttribute('height'))];
+    if (natural?.[0]) Object.assign(svg.style, { maxWidth: `${natural[0] * 1.5}px`, maxHeight: `${natural[1] * 1.5}px`, margin: '0 auto' });
     svg.removeAttribute('width');
     svg.removeAttribute('height');
     box.classList.toggle('rest', panel.lit.length > 0); // only the lit part stands out
@@ -275,18 +312,52 @@ function drawPanel(box, panel) {
   });
 }
 
+/**
+ * The panels of the graphs page in the look: each with its slots ("panel"), those that show, in the order that the rules give the list (Marks.listOrder)
+ * and in its groups, and the HTML of its lines (a title, a level line and an "in" line, each with rules of its own). With no look, every panel as it was.
+ */
+function panelsInLook(data) {
+  const look = data.look;
+  const base = (panel) => ({ title: panel.line, level: panel.level, branch: panel.branch ?? '', path: data.path, where: panel.where });
+  const one = (panel) => {
+    const fields = { id: panel.id ?? '', level: panel.level, type: panel.type ?? '', branch: panel.branch ?? '', title: panel.line };
+    const thing = { kind: 'panel', diagram: panel.nodes ? panel.id : undefined, paths: [data.path], fields };
+    const lineOf = (kind, text) => (look ? Marks.wordsHtml(text, Marks.slotsIn(look, { ...thing, kind, fields: base(panel) }), base(panel), look) : esc(text));
+    return { ...thing, panel, id: fields.id, slots: Marks.slotsIn(look, thing), title: lineOf('panel-title', panel.line), level: lineOf('panel-level', panel.from), where: lineOf('panel-in', panel.where) };
+  };
+  const all = data.panels.map(one);
+  const rows = all.filter((row) => row.slots['show.shown'] !== false);
+  const order = look ? Marks.listOrder(all, look) : {};
+  return { groups: Object.keys(order).length ? Marks.orderRows(rows, order) : [{ rows }], ordered: Object.keys(order).length > 0, count: rows.length };
+}
+
 async function drawGraphs() {
   const { data } = Home;
   const view = document.getElementById('view');
   view.className = 'view';
-  Trail.show(document.getElementById('crumb'), ownStep());
-  document.getElementById('summary').textContent = data.panels.length ? `${plural(data.panels.length, 'diagram')}, the widest first` : '';
+  frameDouble = null;
+  Trail.show(document.getElementById('crumb'), ownStep(), { look: data.look });
+  const { groups, ordered, count } = panelsInLook(data);
+  // The count line: the panels that show; "the widest first" while no rule orders them. A rule gives other words, or leaves it out.
+  const summary = document.getElementById('summary');
+  const countText = count ? `${plural(count, 'diagram')}${ordered ? '' : ', the widest first'}` : '';
+  const countFields = { count, path: data.path };
+  const countSlots = data.look ? Marks.resolve(data.look.rules, { kind: 'count-line', paths: [data.path], fields: countFields }, data.look.one) : {};
+  if (Object.keys(countSlots).length && count) summary.innerHTML = Marks.wordsHtml(countText, countSlots, countFields, data.look) ?? '';
+  else summary.textContent = countText;
   drawnPanels = 0;
   if (!data.panels.length) {
     view.innerHTML = `<p class="nomap">${esc(data.path)} is a part of no diagram yet.</p>`;
   } else {
-    view.innerHTML = `<div class="panels">${data.panels.map((panel, index) => `<a class="pnl" data-panel="${index}"><div class="pd"></div>`
-      + `<div class="pl"><span class="t">${esc(panel.line)}</span> <span class="fr">${esc(panel.from)}</span><div class="in">${esc(panel.where)}</div></div></a>`).join('')}</div>`;
+    const line = (cls, html, tag = 'span') => (html === null ? '' : `<${tag} class="${cls}">${html}</${tag}>`);
+    view.innerHTML = `<div class="panels">${groups.map((group) => (group.group !== undefined ? `<div class="pgp">${esc(group.group)}</div>` : '') + group.rows.map((row) => `<a class="pnl" data-panel="${data.panels.indexOf(row.panel)}"><div class="pd"></div>`
+      + `<div class="pl">${line('t', row.title)} ${line('fr', row.level)}${line('in', row.where, 'div')}</div></a>`).join('')).join('')}</div>`;
+    // A click opens the panel at its level, or goes to the target of the look.
+    for (const el of view.querySelectorAll('.pnl')) {
+      const panel = data.panels[Number(el.dataset.panel)];
+      const row = groups.flatMap((group) => group.rows).find((one) => one.panel === panel);
+      Marks.bind(el, row.slots, () => walkTo(panel.open), panel.line);
+    }
     const seen = new IntersectionObserver((entries) => {
       for (const entry of entries.filter((one) => one.isIntersecting)) {
         seen.unobserve(entry.target);
@@ -325,8 +396,6 @@ document.addEventListener('click', (event) => {
   if (file) return tell({ type: 'openFile', path: file.dataset.open });
   const change = target.closest('[data-change-id]');
   if (change) return walkTo({ tab: 'change', change: Number(change.dataset.changeId), go: { level: 'change' }, name: change.dataset.title });
-  const panel = target.closest('[data-panel]');
-  if (panel) walkTo(Home.data.panels[Number(panel.dataset.panel)].open);
 });
 
 // Messages from VS Code: new data with the path, a new path, a diagram of the map to show (a step back along the path), and the comment key.
@@ -348,7 +417,8 @@ new ResizeObserver(drawIfWaiting).observe(document.body);
 
 // Start: inside VS Code ask for the data; as a file in a browser, load example-data.js:
 // "?path=<path>" is the graphs page of that path, "?nomap=1" Home with no map, "?diagram=<id>&lit=<ids>" Home at that diagram, "?look=<name>" Home with a
-// made-up look of the example: "?look=1" the look of build 51 (look.json), "?look=shared" look-shared.json; "?look=blocks&page=<id>" a page of that look.
+// made-up look of the example: "?look=1" the look of build 51 (look.json), "?look=shared" look-shared.json; "?look=blocks&page=<id>" a page of that look;
+// "?look=home" look-home.json, also with "?path=".
 if (vscodeApi) {
   tell({ type: 'ready' });
 } else {
@@ -361,7 +431,8 @@ if (vscodeApi) {
     const path = query.get('path');
     const page = query.get('page') && example.lookPages[query.get('look')]?.[query.get('page')];
     // "?look=<name>": Home with a made-up look of the example; else the default look, with the logos of the services.
-    Home.data = page || (path ? example.graphs[path] ?? { kind: 'graphs', repo: example.home.repo, folder: '', path, panels: [] } : query.get('nomap') ? example.homeNoMap : query.get('look') ? example.homeLooks[query.get('look')] : example.home);
+    const graphs = (query.get('look') && example.graphsLooks?.[query.get('look')]) || example.graphs; // the graphs pages in a made-up look, for a few paths
+    Home.data = page || (path ? graphs[path] ?? example.graphs[path] ?? { kind: 'graphs', repo: example.home.repo, folder: '', path, panels: [] } : query.get('nomap') ? example.homeNoMap : query.get('look') ? example.homeLooks[query.get('look')] : example.home);
     Home.at = query.get('diagram') || null;
     Home.lit = (query.get('lit') ?? '').split(',').filter(Boolean);
     Home.render();

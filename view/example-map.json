@@ -22,7 +22,7 @@
    "kind": "flow",
    "title": "Lending: holds, requests and mails",
    "parent": "lib-top",
-   "mermaid": "flowchart LR\n  shelf[\"Ready shelf\"] -->|\"calls\"| service[\"Hold service\"]\n  service -->|\"uses\"| models[\"Hold models\"]\n  service -->|\"mails through\"| queue[\"Queue and notices\"]\n  requests[\"Book requests\"] -->|\"mail through\"| queue\n  shelf -->|\"checked by\"| perms[\"Permissions\"]\n  queue -->|\"replies with\"| api[\"Answer shapes\"]\n",
+   "mermaid": "flowchart LR\n  subgraph holding[\"Holds\"]\n    service[\"Hold service\"]\n    models[\"Hold models\"]\n  end\n  shelf[\"Ready shelf\"] -->|\"calls\"| service\n  service -->|\"uses\"| models[\"Hold models\"]\n  service -->|\"mails through\"| queue[\"Queue and notices\"]\n  requests[\"Book requests\"] -->|\"mail through\"| queue\n  shelf -->|\"checked by\"| perms[\"Permissions\"]\n  queue -->|\"replies with\"| api[\"Answer shapes\"]\n",
    "nodePaths": {
     "shelf": ["src/library/lending/ready_shelf.py"],
     "service": ["src/library/lending/hold_service.py"],

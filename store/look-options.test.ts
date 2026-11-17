@@ -104,9 +104,13 @@ test('every component has an area with an index line, and each example of the li
   const fill = (rule: unknown): unknown => JSON.parse(JSON.stringify(rule).replaceAll('<folder>/', 'src/library/lending/').replaceAll('<file>', 'src/library/night_jobs.py')
     .replaceAll('<diagram>', 'lib-top').replaceAll('<node>', 'jobs').replaceAll('<set>:<value>', 'services:postgresql'));
   const context = { folder, map: store.getMap(repoId(folder))?.map, commands: apostilCommands() };
-  // "order" has no example until a component is a list (briefs 59 to 61); every other part has one.
+  // Every part has an example, but a slot that the example of a component already shows (the slot "layout" of a drawn process).
   const examples: Record<string, { example?: unknown }> = { ...LOOK_PARTS.components, ...Object.fromEntries(Object.entries(LOOK_PARTS.slots).map(([name, slot]) => [`slot ${name}`, slot])) };
-  for (const [name, part] of Object.entries(examples).filter(([name]) => name !== 'slot order')) assert.deepEqual(lookProblems({ rules: [fill(part.example)] }, context), [], name);
+  const shown = (name: string): boolean => name.startsWith('slot ') && Object.values(LOOK_PARTS.components).some((one) => name.slice(5) in one.example);
+  for (const [name, part] of Object.entries(examples)) {
+    if (!part.example && shown(name)) continue;
+    assert.deepEqual(lookProblems({ rules: [fill(part.example)] }, context), [], name);
+  }
   for (const [name, component] of Object.entries(LOOK_PARTS.components)) assert.ok(AREAS.includes(component.area), name);
 });
 
@@ -145,7 +149,7 @@ test('set-look --check saves nothing and removes no file; a wrong kind, slot, fi
     ok: false, changes: [], notes: [],
     problems: [
       `Rule 1: "pick" must name a "kind": one of ${LOOK_KINDS.join(', ')}. The nearest is "node".`,
-      'Rule 2: "boxes" is no slot. The slots are "box", "content", "corners", "note", "arrow", "show", "order", "text", "click", "input", "window". The nearest is "box".',
+      `Rule 2: "boxes" is no slot. The slots are ${Object.keys(LOOK_PARTS.slots).map((one) => `"${one}"`).join(', ')}. The nearest is "box".`,
       'Rule 3, "box": "colour" is no field here. Use only "color", "line", "width", "dashed", "shape". The nearest is "color".',
       'Rule 4: the diagram "lib-top" has no node "job". Its nodes are web, routes, lending, jobs, desk, data, checks, writing. The nearest is "jobs".',
       'Rule 5: "process:ask-requests" is no diagram of the map. apostil map lists the ids of the diagrams; a process is "process:<id>". The nearest is "process:ask-request".',

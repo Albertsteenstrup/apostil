@@ -1,0 +1,19 @@
+{
+ "rules": [
+  { "pick": { "kind": "header" }, "content": { "words": "{repo} · {areas} areas · {age}" } },
+  { "pick": { "kind": "trail-step", "where": { "of": "process" } }, "text": { "color": "#2b6cb0" } },
+  { "pick": { "kind": "frame" }, "box": { "line": "#2b6cb0" }, "input": { "key": { "g": { "graphs": "src/library/lending/" } } } },
+  { "pick": { "kind": "arrow", "diagram": "lib-top" }, "arrow": { "head": "none" } },
+  { "pick": { "kind": "area-box", "diagram": "lib-lending" }, "box": { "color": "#2b6cb0" }, "show": { "folded": true } },
+  { "pick": { "kind": "comment-box" }, "content": { "words": "Question: " } },
+  { "pick": { "kind": "file-box", "paths": ["src/library/lending/"] }, "content": { "words": "{name}" } },
+  { "pick": { "kind": "call" }, "show": { "shown": false } },
+  { "pick": { "kind": "arrow", "diagram": "process:answer-request", "where": { "is": "branch" } }, "show": { "shown": false } },
+  { "pick": { "kind": "process-drawing", "where": { "level": "step" } }, "layout": { "direction": "right" } },
+  { "pick": { "kind": "panel", "where": { "level": "change" } }, "show": { "shown": false } },
+  { "pick": { "kind": "panel" }, "order": { "by": "level", "first": ["lib-tables"] } },
+  { "pick": { "kind": "panel-node", "where": { "lit": false } }, "show": { "shown": false } },
+  { "pick": { "kind": "panel-title" }, "content": { "words": "{title} ({level})" } },
+  { "pick": { "kind": "node", "diagram": "lib-tables" }, "corners": { "upper-right": null } }
+ ]
+}

@@ -175,7 +175,7 @@ const App = {
     // The path that he followed; a file shown on the page (a removed one) is a bold name after it. The large view of a wider diagram has its title there.
     if (!this.tab) {
       const broad = state.view === 'diagram' && state.level === 'broad' && broadOf(state);
-      Trail.show(document.getElementById('crumb'), this.ownStep(), { attrs: broad ? Places.attrs({ kind: 'diagram', diagram: broad.id }) : '', extra: state.view === 'code' ? baseName(state.file) : '' });
+      Trail.show(document.getElementById('crumb'), this.ownStep(), { attrs: broad ? Places.attrs({ kind: 'diagram', diagram: broad.id }) : '', extra: state.view === 'code' ? baseName(state.file) : '', look: this.page?.look });
     }
     document.getElementById('summary').innerHTML = this.tab || page.pullOnly ? '' : summaryHtml();
     drawSwitch();

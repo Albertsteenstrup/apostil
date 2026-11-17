@@ -57,7 +57,7 @@ export interface HomeData {
   kind: 'home';
   repo: string;
   folder: string;
-  map?: { top: string; diagrams: HomeDiagram[]; written?: string }; // written: "written 12 commits ago" when the folder has moved on
+  map?: { top: string; diagrams: HomeDiagram[]; written?: string; files?: number }; // written: "written 12 commits ago" when the folder has moved on; files: of the repo
   look?: LookData; // the look of the repo and its marks: the default look when none is saved
   apps: string[]; // the agent apps whose program is on the path: each can write the map, and "@" offers a new session of each
   writing?: string; // the app that writes the map now
@@ -75,6 +75,8 @@ export interface GraphPanel {
   where: string; // where the path is, in words: "in: Dev server", "in 3 nodes" or "in the whole diagram"
   open: Step; // where a click goes: a diagram of the map on Home, or a diagram of a change on its page
   schema?: SchemaDrawing; // a schema diagram: its tables, which the page draws itself
+  type: Diagram['kind']; // the kind of the diagram; a change is a flow chart
+  branch?: string; // the branch of the change that the diagram is of
   // A diagram of the map or a process, which the look of the repo applies to: its id, what each node stands for, its arrows and the lines where they start.
   id?: string;
   nodes?: Record<string, Pick<HomeNode, 'paths'> & Partial<HomeNode>>;
@@ -178,7 +180,7 @@ export function homeData(store: Store, folder: string, apps: string[] = [], addr
     ...(one.edgeLines ? { edgeLines: one.edgeLines } : {}),
   })));
   const top = diagrams.find((diagram) => !diagram.parent) ?? diagrams[0];
-  return { ...base, map: { top: top.id, diagrams: homeDiagrams, written: writtenLine(folder, stored.commit) }, look: lookData(store, id, folder, address) };
+  return { ...base, map: { top: top.id, diagrams: homeDiagrams, written: writtenLine(folder, stored.commit), files: files.length }, look: lookData(store, id, folder, address) };
 }
 
 const mapValues = <A, B>(record: Record<string, A>, change: (value: A) => B): Record<string, B> => Object.fromEntries(Object.entries(record).map(([key, value]) => [key, change(value)]));
@@ -205,7 +207,7 @@ export function graphsData(store: Store, folder: string, path: string, address: 
       const diagram = entry.diagram!;
       const drawn = entry.drawn!;
       return {
-        level: 'process', line: entry.line, from: FROM.process, mermaid: diagram.mermaid, lit: entry.lit, where: whereLine(nodeNames(diagram, entry.lit).map((name) => name.replace(/ \d+ steps?$/, '')), 'steps'), open: { tab: 'home', diagram: diagram.id, lit: entry.lit, name: diagram.title },
+        level: 'process', type: 'flow', line: entry.line, from: FROM.process, mermaid: diagram.mermaid, lit: entry.lit, where: whereLine(nodeNames(diagram, entry.lit).map((name) => name.replace(/ \d+ steps?$/, '')), 'steps'), open: { tab: 'home', diagram: diagram.id, lit: entry.lit, name: diagram.title },
         id: drawn.id, nodes: mapValues(drawn.nodes, processHomeNode), graph: diagramGraph(diagram), ...(drawn.edgeLines ? { edgeLines: drawn.edgeLines } : {}),
       };
     }
@@ -213,7 +215,7 @@ export function graphsData(store: Store, folder: string, path: string, address: 
       const diagram = entry.diagram!;
       const open: Step = diagram.parent ? { tab: 'home', diagram: diagram.id, lit: entry.lit, name: diagram.title } : { tab: 'home', diagram: '', lit: entry.lit, name: 'Home' };
       const nodes = mapValues(diagram.nodePaths ?? {}, (paths) => ({ paths: paths.map((path) => ({ path, files: 0 })) }));
-      return { level: 'map', line: entry.line, from: FROM.map, mermaid: diagram.mermaid, lit: entry.lit, where: whereLine(nodeNames(diagram, entry.lit)), open, ...schemaOf(diagram), id: diagram.id, nodes, graph: diagramGraph(diagram) };
+      return { level: 'map', type: diagram.kind, line: entry.line, from: FROM.map, mermaid: diagram.mermaid, lit: entry.lit, where: whereLine(nodeNames(diagram, entry.lit)), open, ...schemaOf(diagram), id: diagram.id, nodes, graph: diagramGraph(diagram) };
     }
     const change = entry.changeId !== undefined ? store.getChange(entry.changeId) : byBranch.get(entry.branch!);
     if (!change) return undefined;
@@ -225,12 +227,12 @@ export function graphsData(store: Store, folder: string, path: string, address: 
       const mermaid = changeMermaid({ parts: change.file.parts, links: change.file.links, files, filesInNoPart: change.checks.filesInNoPart });
       const lit = entry.lit.map((part) => nodeId(change.file.parts.findIndex((candidate) => candidate.id === part)));
       const names = entry.lit.map((part) => change.file.parts.find((candidate) => candidate.id === part)?.name ?? part);
-      return { level: 'change', line: entry.line, from, mermaid, lit, where: whereLine(names, 'parts'), open: { tab: 'change', change: change.id, go: { level: 'change', lit: entry.lit }, name: change.file.title } };
+      return { level: 'change', type: 'flow', branch: change.branch, line: entry.line, from, mermaid, lit, where: whereLine(names, 'parts'), open: { tab: 'change', change: change.id, go: { level: 'change', lit: entry.lit }, name: change.file.title } };
     }
     const diagram = entry.diagram!;
     const where = whereLine(nodeNames(diagram, entry.lit));
     if (entry.level === 'wide') {
-      return { level: 'wide', line: entry.line, from, mermaid: diagram.mermaid, lit: entry.lit, where, open: { tab: 'change', change: change.id, go: { level: 'broad', diagram: diagram.id, lit: entry.lit }, name: diagram.title }, ...schemaOf(diagram) };
+      return { level: 'wide', type: diagram.kind, branch: change.branch, id: diagram.id, line: entry.line, from, mermaid: diagram.mermaid, lit: entry.lit, where, open: { tab: 'change', change: change.id, go: { level: 'broad', diagram: diagram.id, lit: entry.lit }, name: diagram.title }, ...schemaOf(diagram) };
     }
     // A diagram of a part or of a function: its part is the one it names, else the part that holds its file.
     const part = change.file.parts.find((candidate) => candidate.id === diagram.part)
@@ -238,7 +240,7 @@ export function graphsData(store: Store, folder: string, path: string, address: 
     const open: Step = part
       ? { tab: 'change', change: change.id, go: { level: 'part', part: part.id, diagram: diagram.id, lit: entry.lit }, name: part.name }
       : { tab: 'change', change: change.id, go: { level: 'change', lit: [] }, name: change.file.title };
-    return { ...schemaOf(diagram), level: entry.level, line: entry.line, from, mermaid: partMermaid(diagram.kind, diagram.mermaid, Object.fromEntries(thingsOf(diagram).things.flatMap((thing) => (thing.code ? [[thing.key, thing.code]] : [])))), lit: entry.lit, where, open };
+    return { ...schemaOf(diagram), level: entry.level, type: diagram.kind, branch: change.branch, id: diagram.id, line: entry.line, from, mermaid: partMermaid(diagram.kind, diagram.mermaid, Object.fromEntries(thingsOf(diagram).things.flatMap((thing) => (thing.code ? [[thing.key, thing.code]] : [])))), lit: entry.lit, where, open };
   }).filter((panel): panel is GraphPanel => !!panel);
   const look = id && store.getMap(id) ? lookData(store, id, folder, address) : undefined;
   return { kind: 'graphs', repo: repoName(folder), folder, path: asked, panels, ...(look ? { look } : {}) };
