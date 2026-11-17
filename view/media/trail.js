@@ -47,7 +47,7 @@ const Trail = (() => {
 
   let steps = [HOME]; // the path of the window, as this page got it last
   let own = null; // the view that this page shows, as a step
-  let line = null; // { el, attrs, extra }: where the line is drawn, the mark of its last step, and a bold name after it
+  let line = null; // { el, attrs, extra, look }: where the line is drawn, the mark of its last step, a bold name after it, and the look of the repo
   let openHere = null; // opens a step in this page when it can: the page gives it
 
   // As a file in a browser no extension keeps the path: the page keeps it for the next page it opens, which has "walk" in its address.
@@ -77,11 +77,27 @@ const Trail = (() => {
     draw();
   }
 
-  /** Draws the line of the view that the page shows now. attrs: the mark of the last step; extra: a bold name after it that is not a step. */
-  function show(el, step, { attrs = '', extra = '' } = {}) {
+  /**
+   * Draws the line of the view that the page shows now. attrs: the mark of the last step; extra: a bold name after it that is not a step; look: the look
+   * of the repo (view/look-data.ts), whose rules of "trail-step" give a step its words, an icon and a colour.
+   */
+  function show(el, step, { attrs = '', extra = '', look } = {}) {
     own = step;
-    line = { el, attrs, extra };
+    line = { el, attrs, extra, look };
     draw();
+  }
+
+  /** What a step shows: map, process, graphs, change, part, diagram, diffs or pull (the field "of" of a step of the trail in a look). */
+  const ofStep = (step) => (step.tab === 'home' ? (/^process(es)?:/.test(step.diagram ?? '') ? 'process' : 'map') : step.tab === 'graphs' ? 'graphs'
+    : step.tab === 'pull' || step.go?.view === 'conversation' ? 'pull' : step.go?.view === 'diffs' ? 'diffs' : step.go?.level === 'part' ? 'part'
+    : step.go?.level === 'broad' ? 'diagram' : 'change');
+
+  /** The words of a step in the line, in the look of the repo (Marks.wordsHtml); its name with no look. */
+  function stepHtml(step) {
+    const look = line.look;
+    if (!look || typeof Marks !== 'object') return esc(step.name);
+    const fields = { of: ofStep(step), name: step.name };
+    return Marks.wordsHtml(step.name, Marks.resolve(look.rules, { kind: 'trail-step', diagram: step.diagram, fields }, look.one), fields, look) ?? esc(step.name);
   }
 
   /**
@@ -110,8 +126,8 @@ const Trail = (() => {
   function lineHtml(shown, fold) {
     const sep = '<span class="sep">›</span>';
     const items = shown.map((step, index) => (index === shown.length - 1 && !line.extra
-      ? `<b ${line.attrs}>${esc(step.name)}</b>`
-      : `<a data-trail="${index}">${esc(step.name)}</a>`));
+      ? `<b ${line.attrs}>${stepHtml(step)}</b>`
+      : `<a data-trail="${index}">${stepHtml(step)}</a>`));
     if (fold) items.splice(1, fold, `<a data-unfold title="${esc(shown.slice(1, fold + 1).map((step) => step.name).join(' › '))}">…</a>`);
     if (line.extra) items.push(`<b>${esc(line.extra)}</b>`);
     return items.join(sep);

@@ -36,7 +36,8 @@ const Remarks = (() => {
   document.addEventListener('mousedown', (event) => {
     swallow = false;
     if (!draft || draft.sending || draft.el.contains(event.target) || mentions?.el.contains(event.target) || asking?.contains(event.target)) return;
-    if (!draft.el.querySelector('[data-field]').innerText.trim()) return closeBox();
+    const typedNow = draft.el.querySelector('[data-field]').innerText.trim();
+    if (!typedNow || typedNow === draft.start) return closeBox(); // nothing, or only the words that the look starts it with
     event.preventDefault();
     swallow = true;
     askToDiscard();
@@ -151,6 +152,15 @@ const Remarks = (() => {
     document.body.append(el);
     placeBox(el, at);
     draft = { target: place, point, el };
+    // The words that the field starts with, from a rule of "comment-box" of the look of the repo.
+    const look = App.page?.look;
+    const fields = { on: place.label ?? '' };
+    const words = look && typeof Marks === 'object' && Marks.resolve(look.rules, { kind: 'comment-box', diagram: place.diagram, fields }, look.one).content?.words;
+    if (words) {
+      const field = el.querySelector('[data-field="new"]');
+      field.innerHTML = Marks.fillWords(esc(words), fields);
+      draft.start = field.innerText.trim(); // only these words in the field count as nothing typed
+    }
     focusField(el, 'new');
   }
 

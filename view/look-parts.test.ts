@@ -29,8 +29,6 @@ test('each new part has an area, other words and an example that passes the chec
   const parts = ['show', 'order', 'text', 'click', 'input', 'window', 'where', 'graphs', 'folder', 'change', 'pull', 'comment'].map((name) => [name, all[name]] as [string, { area: string; words: readonly string[]; example?: unknown }]);
   for (const [name, part] of parts) {
     assert.ok(Object.keys(LOOK_PARTS.areas).includes(part.area) && part.words.length, name);
-    // "order" has no example until a component is a list (the briefs 59 to 61): no component takes it yet.
-    if (name === 'order') { assert.equal(part.example, undefined); continue; }
     assert.deepEqual(problems(fill(part.example)), [], name);
   }
 });

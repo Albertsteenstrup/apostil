@@ -2,12 +2,13 @@
 // click and a right-click entry go, the sections of a window, and the fields of a note card. A group of view/browser-check.mjs; alone:
 //   node view/browser/custom.mjs [--pictures] [<folder for pictures>]
 // It runs in the look "Apostil", on the made-up look "?look=shared" (view/check-example/look/look-shared.json). The later briefs add their checks here:
-// build 58 the blocks of a page of the look and of a window, on "?look=blocks" (look-blocks.json), also in the dark default theme; build 63 the icons
-// of the services on the diagrams of a change, in the default look.
+// build 58 the blocks of a page of the look and of a window, on "?look=blocks" (look-blocks.json), also in the dark default theme; build 61 the list "Repo"
+// and the page of a pull request, on "?look=side-bar" (look-side-bar.json); build 63 the icons of the services on the diagrams of a change, in the
+// default look.
 
 import { fileURLToPath } from 'node:url';
 import { lookOfPage, THEMES, wearTheme } from '../theme-look.mjs';
-import { check, errors, finish, newPage, openPage, pageFile, takePicture } from './tools.mjs';
+import { check, errors, finish, listFile, newPage, openPage, pageFile, takePicture } from './tools.mjs';
 
 const homeFile = fileURLToPath(new URL('../media/home.html', import.meta.url));
 const node = (key) => `#view :is(g.node, g.image-shape)[id*="flowchart-${key}-"]`;
@@ -123,6 +124,97 @@ try {
   await takePicture(one, '573-custom-note-card-fields.png');
   check('a note card shows its fields in the order of the rule: the title, then the text; the function line and the service line that the rule leaves out are not shown',
     card.parts.join() === 't,d', JSON.stringify(card));
+
+  // ----- build 59: the rest of Home, the drawn processes and the graphs page, on the made-up look "?look=home" (look-home.json) -----
+  const blue = await one.evaluate(() => Marks.lineColors('#2b6cb0')); // the line colour of the rules, in the light theme of the page
+  const crumbWords = () => one.evaluate(() => { const el = document.querySelector('#crumb b .lk-words'); return el ? `${el.textContent}:${getComputedStyle(el).color}` : ''; });
+  const rgb = (hex) => `rgb(${[1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16)).join(', ')})`;
+  await one.goto(`file://${homeFile}?look=home`);
+  await drawn(one);
+  const top = await one.evaluate(() => ({
+    summary: document.getElementById('summary').textContent, frame: getComputedStyle(document.getElementById('view')).borderTopColor,
+    heads: [...document.querySelectorAll('#view .edgePaths > path:not(.hit)')].map((path) => path.getAttribute('marker-end')), crumb: document.getElementById('crumb').innerHTML,
+  }));
+  await one.evaluate(() => Marks.act({ comment: true }, document.querySelector('#view g.node[id*="flowchart-desk-"]')));
+  const startWords = await one.evaluate(() => document.querySelector('.cbox [data-field="new"]')?.innerText.trim());
+  await takePicture(one, '590-custom-home-header-frame-arrows.png');
+  check('Home in a look: the header line has the words of the rule with the fields of the repo, the frame its line colour, the arrows of the map no head, and the comment box starts with the words of the rule',
+    top.summary === 'library-app · 8 areas · written at this commit' && top.frame === rgb(blue.light) && top.heads.length === 7 && top.heads.every((head) => head === null)
+      && top.crumb === '<b>Home</b>' && startWords === 'Question:', JSON.stringify({ top, startWords }));
+
+  // An area box folded to one node with its colour, the arrows of its nodes at it; the key of the frame, with the pointer on an empty place, opens its target.
+  await one.goto(`file://${homeFile}?look=home&diagram=lib-lending`);
+  await drawn(one);
+  const folded = await one.evaluate(() => ({
+    nodes: [...document.querySelectorAll('#view g.node')].map((g) => `${nodeKey(g)}${g.classList.contains('lk-fill') ? '*' : ''}`).sort(),
+    arrows: [...document.querySelectorAll('#view .edgePaths > path:not(.hit)')].map((path) => path.id.replace(/_\d+$/, '')).sort(), boxes: document.querySelectorAll('#view g.cluster').length,
+  }));
+  await takePicture(one, '591-custom-area-box-folded.png');
+  const frame = await one.locator('#view').boundingBox();
+  await one.mouse.move(frame.x + 30, frame.y + 30, { steps: 2 });
+  await one.keyboard.press('g');
+  const keyed = await one.waitForURL(/path=src%2Flibrary%2Flending%2F/, { timeout: 5000 }).then(() => drawn(one)).then(() => one.evaluate(() => `${Home.data.kind}:${Home.data.path}`), () => one.url());
+  check('an area box folded by a rule is one node with its title and its colour, and the arrows of its nodes go to it; the key of the frame opens its target',
+    folded.nodes.join() === 'api,holding*,perms,queue,requests,shelf' && folded.boxes === 0 && folded.arrows.join() === 'L_holding_queue,L_queue_api,L_requests_queue,L_shelf_holding,L_shelf_perms'
+      && keyed === 'graphs:src/library/lending/', JSON.stringify({ folded, keyed }));
+
+  // A drawn process: the file boxes in the folder of the rule show the name of their file, the calls out of the repo are hidden, the step of the trail is blue;
+  // an opened step runs from left to right, with its branch arrows hidden and its steps still in their order.
+  await one.goto(`file://${homeFile}?look=home&diagram=${encodeURIComponent('process:answer-request')}`);
+  await drawn(one);
+  const drawnProcess = await one.evaluate(() => ({
+    boxes: [...document.querySelectorAll('#view g.cluster')].map((g) => g.textContent.trim()).sort(), calls: document.querySelectorAll('#view g.node.elsewhere').length,
+  }));
+  const processCrumb = await crumbWords();
+  await takePicture(one, '592-custom-process-file-boxes.png');
+  await one.goto(`file://${homeFile}?look=home&diagram=${encodeURIComponent('process:answer-request/2')}`);
+  await drawn(one);
+  const step = await one.evaluate(() => {
+    const at = (key) => document.querySelector(`#view g.node[id*="flowchart-${key}-"]`).getBoundingClientRect();
+    return { dotted: document.querySelectorAll('#view path[class*="dotted"]:not(.hit)').length, order: !!document.querySelector('#view path[id^="L_s8_s9_"]'), across: at('s3').right < at('s11').left, calls: document.querySelectorAll('#view g.node[id*="flowchart-o0-"]').length };
+  });
+  check('a drawn process in a look: the file boxes of the folder of the rule show the name of their file, the calls out of the repo are hidden, the step of the trail takes its colour; an opened step runs from left to right with no branch arrow, its steps in their order',
+    drawnProcess.boxes.join('|') === 'notices.py|requests.py|src/library/web/requests_router.py' && drawnProcess.calls === 0 && processCrumb === `Answer a book request:${rgb(blue.light)}`
+      && step.dotted === 0 && step.order && step.across && step.calls === 0, JSON.stringify({ drawnProcess, processCrumb, step }));
+
+  // The graphs page: the panels of the change left out, the tables first, then by level; only the lit nodes; the titles from the words of the rule;
+  // a rule that picks the diagram of the tables takes its corner away there, and the map keeps its corner.
+  const panelsDrawn = () => one.waitForFunction(() => document.querySelectorAll('.pnl').length && document.querySelectorAll('.pnl .pd[data-lit]').length === document.querySelectorAll('.pnl').length, null, { timeout: 15000 });
+  await one.goto(`file://${homeFile}?look=home&path=${encodeURIComponent('db/migrations/0042_holds.sql')}`);
+  await drawn(one);
+  await panelsDrawn();
+  const graphsPage = await one.evaluate(() => ({
+    summary: document.getElementById('summary').textContent, titles: [...document.querySelectorAll('.pnl .pl .t')].map((el) => el.textContent),
+    levels: [...document.querySelectorAll('.pnl')].map((el) => Home.data.panels[Number(el.dataset.panel)].level),
+    map: (() => { const el = [...document.querySelectorAll('.pnl')].find((one) => one.querySelector('.t').textContent.startsWith('The library app')); return { nodes: el.querySelectorAll('.pd g.node').length, corners: el.querySelectorAll('.pd .mk-stack').length }; })(),
+    tables: document.querySelector('.pnl').querySelectorAll('.pd .mk-stack').length,
+  }));
+  await takePicture(one, '593-custom-graphs-page.png', true);
+  check('the graphs page in a look: the panels of the change are left out, the tables come first, then by level; a panel of the map shows only its lit node; the titles have the words of the rule; a rule of the diagram of the tables takes its corner away there only',
+    graphsPage.summary === '5 diagrams' && graphsPage.levels.join() === 'map,function,function,function,map' && !graphsPage.levels.includes('change') && graphsPage.titles[0] === 'The tables of holds (map)'
+      && graphsPage.titles.at(-1) === 'The library app and its parts (map)' && graphsPage.map.nodes === 1 && graphsPage.map.corners === 1 && graphsPage.tables === 0, JSON.stringify(graphsPage));
+
+  // With no look, Home, a process and the graphs page are drawn as before: Mermaid gets the written texts, and the lines of the page carry nothing of a look.
+  const asBefore = async (query) => {
+    await one.goto(`file://${homeFile}${query}`);
+    await drawn(one);
+    return one.evaluate(async () => {
+      const texts = [];
+      const render = mermaid.render;
+      mermaid.render = (id, text) => { texts.push(text); return render.call(mermaid, id, text); };
+      await Home.render();
+      if (Home.data.kind === 'graphs') await new Promise((done) => { const wait = () => (document.querySelectorAll('.pnl .pd[data-lit]').length === Home.data.panels.length ? done() : setTimeout(wait, 50)); wait(); });
+      const written = Home.data.kind === 'graphs' ? Home.data.panels.filter((panel) => !panel.schema).map((panel) => panel.mermaid) : [Home.data.map.diagrams.find((one) => one.id === Home.at).mermaid];
+      return {
+        same: JSON.stringify(texts.sort()) === JSON.stringify(written.sort()), summary: document.getElementById('summary').innerHTML,
+        look: document.querySelectorAll('#crumb .lk-words, #summary span, .pnl .pl span span, #view.lk-line, #view.lk-fill, .pgp').length,
+        heads: [...document.querySelectorAll('#view .edgePaths > path:not(.hit)')].every((path) => path.hasAttribute('marker-end')),
+      };
+    });
+  };
+  const noLook = { top: await asBefore(''), lending: await asBefore('?diagram=lib-lending'), step: await asBefore(`?diagram=${encodeURIComponent('process:answer-request/2')}`), graphs: await asBefore(`?path=${encodeURIComponent('db/migrations/0042_holds.sql')}`) };
+  check('with no look, Home, an area with its box, an opened step and the graphs page are drawn as before: Mermaid gets the written texts, the header and the count line are as they were, and no part carries a look',
+    Object.values(noLook).every((one) => one.same && one.look === 0 && one.heads) && noLook.top.summary === '' && noLook.graphs.summary === '6 diagrams, the widest first', JSON.stringify(noLook));
   await one.close();
 
   // ----- build 58: blocks, on the made-up look "?look=blocks" (view/check-example/look/look-blocks.json) -----
@@ -352,7 +444,111 @@ try {
       && plain.rows >= 30 && plainFile.looked === 0 && plainFile.map && plainFile.head === 'offer_returned_copies · 3 tests', JSON.stringify({ plain, plainFile }));
   await two.close();
 
+  // ----- Build 61: the list "Repo" and the page of a pull request in the made-up look "?look=side-bar" (view/check-example/look/look-side-bar.json) -----
+  {
+  const openList = async (look) => {
+    const page = await openPage({ viewport: { width: 400, height: 760 }, deviceScaleFactor: 2 });
+    page.on('pageerror', (error) => errors.push(error.message));
+    await page.goto(`file://${listFile}${look ? `?look=${look}` : ''}`);
+    await page.waitForFunction(() => window.apostilListDone, null, { timeout: 5000 });
+    return page;
+  };
+  const conversation = `go=${encodeURIComponent(JSON.stringify({ view: 'conversation' }))}`;
+  const openPull = async (look) => {
+    const page = await openPage({ viewport: { width: 1300, height: 1000 }, deviceScaleFactor: 2 });
+    page.on('pageerror', (error) => errors.push(error.message));
+    await page.goto(`file://${pageFile}?${look ? `look=${look}&` : ''}${conversation}`);
+    await page.waitForFunction(() => (window.apostilConversations ?? 0) >= 1 && !!document.querySelector('#status .status'), null, { timeout: 15000 });
+    return page;
+  };
+  /** Does `act` in the page of a pull request and waits until the page has drawn the conversation again. */
+  const redrawn = async (page, act) => { const before = await page.evaluate(() => window.apostilConversations); await act(); await page.waitForFunction((at) => window.apostilConversations > at, before, { timeout: 8000 }); };
+  /** Shows "Messages" or "Classic" in the page of a pull request. */
+  const lookOfConversation = (page, mode) => page.click(`[data-mode="${mode}"]`).then(() => page.waitForSelector(`.conv.${mode}`, { timeout: 5000 }));
+
+  // The search at the start: the words of the rule while VS Code keeps no search; then his own search (the field emptied) wins, and the rows stand in the order of the rule.
+  const side = await openList('side-bar');
+  const start = await side.evaluate(() => ({ field: document.querySelector('.find .q').value, line: document.querySelector('.eyebrow').textContent, rows: [...document.querySelectorAll('.row .nm')].map((nm) => nm.textContent) }));
+  await takePicture(side, '610-custom-list-search-at-start.png');
+  await side.click('.find .clear', { timeout: 3000 }).catch(() => {}); // with no words in the field there is nothing to clear
+  const rows = await side.evaluate(() => [...document.querySelectorAll('.row')].map((row) => ({
+    branch: row.querySelector('.nm')?.textContent, facts: row.querySelector('.mt')?.textContent, pulls: [...row.querySelectorAll('.pr .pn')].map((pn) => `${pn.textContent} ${getComputedStyle(pn).color}`),
+    avatars: row.querySelectorAll('.av').length, more: !!row.querySelector('.more'),
+  })));
+  await takePicture(side, '611-custom-list-in-the-order-of-the-rule.png');
+  check('the list starts with the search of the rule while VS Code keeps none, and the line counts what matches; emptied, his own search wins and the rows stand in the order of the rule, the branch of the rule first',
+    start.field === 'state:"checks failing"' && start.line === '2 of 3 changes' && start.rows.join() === 'book-holds,made-up/follow-up'
+      && rows.map((one) => one.branch).join() === 'book-holds,made-up/without-agent,made-up/follow-up', JSON.stringify({ start, rows: rows.map((one) => one.branch) }));
+  const [holds] = rows;
+  check('a row shows the facts of the rule in their order, a pull request line in the colour of its state, no avatars, and its older pull requests open with no fold',
+    holds.facts === '2 hours ago · 48 files' && holds.pulls[0] === '#12 rgb(180, 83, 9)' && holds.pulls.slice(1).every((one) => /^#1[01] /.test(one) && !one.endsWith('rgb(180, 83, 9)')) && rows.every((one) => !one.avatars && !one.more), JSON.stringify(holds));
+  await side.close();
+
+  // The page of a pull request: "Classic" first with the side column in the order of the rule; the strip with its bits in the order of the rule, and the
+  // list of checks without the passed and skipped ones while the strip still counts every check.
+  const plain = await openPull();
+  const plainStrip = await plain.evaluate(() => document.querySelector('#status .chk').textContent);
+  const pull = await openPull('side-bar');
+  const classic = await pull.evaluate(() => ({ mode: document.querySelector('.conv').className, side: [...document.querySelectorAll('.cside h4')].map((h4) => h4.textContent) }));
+  const strip = () => pull.evaluate(() => ({ bits: [...document.querySelector('#status .status').children].map((el) => el.className || el.tagName.toLowerCase()), checks: document.querySelector('#status .chk').textContent }));
+  const stripBefore = await strip();
+  await pull.click('#status [data-checks]');
+  const checks = await pull.evaluate(() => [...document.querySelectorAll('.checks-panel .ck')].map((ck) => ck.className.replace('ck ', '')));
+  const stripAfter = await strip();
+  await takePicture(pull, '612-custom-strip-checks-and-side-column.png');
+  check('"Classic" opens first, with the side column in the order of the rule (labels, reviewers, then the others as before)',
+    classic.mode === 'conv classic' && classic.side.join() === 'Labels,Reviewers,Assignees,Milestone,Closes,Tasks', JSON.stringify(classic));
+  check('the status strip shows its bits in the order of the rule (checks, blocker, reviewers), "Review" at its place; the list of checks has no passed or skipped one, and the strip still counts every check',
+    stripBefore.bits.join() === 'span,chk,msent,rvs,rvb,others' && checks.length === 3 && checks.every((one) => one === 'bad' || one === 'wait')
+      && stripAfter.checks.replace('▾', '') === plainStrip.replace('▸', ''), JSON.stringify({ stripBefore, checks, stripAfter, plainStrip }));
+  // "Messages": the comments of a bot in the colour of the rule, no commit, and the day lines in the words of the rule.
+  await lookOfConversation(pull, 'messages');
+  const messages = await pull.evaluate(() => ({
+    bots: [...document.querySelectorAll('.feed .prod > .prow, .feed .prods > .prow')].map((row) => row.classList.contains('lk-box') && getComputedStyle(row).backgroundColor),
+    commits: document.querySelectorAll('.feed .ico.git-commit').length, days: [...document.querySelectorAll('.feed .dayline')].map((line) => line.textContent),
+    open: !document.querySelector('.about .more') && !document.querySelector('.about .md.folded'),
+  }));
+  const plainCommits = await lookOfConversation(plain, 'messages').then(() => plain.evaluate(() => document.querySelectorAll('.feed .ico.git-commit').length), () => -1);
+  await pull.evaluate(() => document.querySelector('.feed .prods, .feed .prod')?.scrollIntoView({ block: 'center' }));
+  await takePicture(pull, '613-custom-messages-in-the-look.png');
+  check('"Messages": a comment of a bot in the colour of the rule, no commit row, the day lines in the words of the rule, and the description open at the start',
+    messages.bots.length > 0 && messages.bots.every((color) => color && color !== 'rgba(0, 0, 0, 0)') && messages.commits === 0 && plainCommits > 0
+      && messages.days.length > 0 && messages.days.every((day) => /^.+ · \d{1,2} \w+ \d{4}$/.test(day)) && messages.open, JSON.stringify({ messages, plainCommits }));
+  await pull.close();
+
+  // Safety: under a look that tries to hide all that it can, every control that writes to GitHub is there, in both looks of the conversation.
+  const writes = (page) => page.evaluate(() => ({
+    fields: document.querySelectorAll('.conv [data-gh] textarea').length, resolve: document.querySelectorAll('.conv [data-gh-resolve]').length,
+    comment: document.querySelectorAll('.conv .ghend textarea').length, review: document.querySelectorAll('#status [data-review]').length,
+  }));
+  const before = { messages: await writes(plain) };
+  await lookOfConversation(plain, 'classic');
+  before.classic = await writes(plain);
+  const hideAll = ['description', 'event', 'reaction', 'check', 'side-section', 'label', 'day-line'].map((kind) => ({ pick: { kind }, show: { shown: false } }))
+    .concat([{ pick: { kind: 'status-strip' }, content: { fields: ['checks'] } }, { pick: { kind: 'message' }, content: { fields: ['name'] } }, { pick: { kind: 'pull-facts' }, content: { fields: ['github'] } }]);
+  await redrawn(plain, () => plain.evaluate((rules) => { App.page = { ...App.page, look: { custom: true, rules, one: ['content', 'click'], sets: [], values: {}, marks: [], files: {} } }; App.render(); }, hideAll));
+  const after = { classic: await writes(plain) };
+  await lookOfConversation(plain, 'messages');
+  after.messages = await writes(plain);
+  check('under a look that tries to hide all that it can, every control that writes to GitHub is there: each "Answer", "Resolve", "Comment" and "Review", in "Classic" and in "Messages"',
+    before.classic.fields > 0 && before.classic.resolve > 0 && before.classic.review === 1 && JSON.stringify(after) === JSON.stringify({ classic: before.classic, messages: before.messages }), JSON.stringify({ before, after }));
+  await plain.close();
+
+  // With no look, the list and the page are drawn as before: a look with no rule for their parts gives the same HTML.
+  const listHtml = async (look) => { const page = await openList(look); const html = await page.evaluate(() => document.getElementById('list').innerHTML); await page.close(); return html; };
+  const pullHtml = async (look) => {
+    const page = await openPull(look);
+    const html = await page.evaluate(() => `${document.getElementById('status').innerHTML}${document.querySelector('.conv').innerHTML}`.replace(/<span class="t[^"]*"[^>]*>[^<]*<\/span>/g, ''));
+    await page.close();
+    return html;
+  };
+  const [listPlain, listOther, pullPlain, pullOther] = [await listHtml(), await listHtml('1'), await pullHtml(), await pullHtml('1')];
+  check('with no rule for their parts (no look, or the look of build 51), the list and the page of a pull request are drawn as before, to the same HTML',
+    listPlain.length > 1000 && listPlain === listOther && pullPlain.length > 1000 && pullPlain === pullOther, `list ${listPlain.length}/${listOther.length}, page ${pullPlain.length}/${pullOther.length}`);
+  }
+
   // ----- the icons of the services on the diagrams of a change (build 63), in the default look of the example -----
+  {
   const three = await newPage({ viewport: { width: 1400, height: 900 }, deviceScaleFactor: 2 });
   three.on('pageerror', (error) => errors.push(error.message));
   const goTo = async (go) => { await three.goto(`file://${pageFile}?go=${encodeURIComponent(JSON.stringify({ view: 'diagram', ...go }))}`); await drawn(three); };
@@ -419,6 +615,7 @@ try {
   check('with no marks the overview and the flow chart of a part are the same pictures as the page with no look, which draws no icon; with the marks they differ',
     Object.values(same).every((one) => one.noMarks && !one.marked), JSON.stringify(same));
   await three.close();
+  }
 } catch (error) {
   check('the checks ran to the end', false, error.message.split('\n').slice(0, 14).join(' / '));
 }

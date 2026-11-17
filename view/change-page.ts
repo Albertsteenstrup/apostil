@@ -235,6 +235,7 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
     this.changeId = undefined;
     this.pullOnly = link;
     this.page = pullOnlyPage(this.openFolder(), placeholderPull(link, number), this.apps);
+    this.page.look = lookOfPage(this.store, this.page); // the look of the repo for the parts of the pull request (build 61)
     this.panel!.title = `#${number}`;
     for (const view of this.views) this.post(view, this.dataFor(view));
   }
@@ -375,6 +376,7 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
     const lastLooked = this.store.lastLooked(pull.repo, pull.number);
     const pullOnly = this.pullOnly === link;
     if (pullOnly) this.page = pullOnlyPage(this.openFolder(), pull, this.apps);
+    if (pullOnly && this.page) this.page.look = lookOfPage(this.store, this.page);
     const read: PullAnswer = { pull, lastLooked, lines: this.page && pullLines(this.page, pull), ...(pullOnly ? { page: this.page } : {}) };
     if (view?.panel === this.panel) this.tellFileTabs(link, read);
     return read;
@@ -435,7 +437,7 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
     const change = this.store.getChange(this.changeId);
     const remarks = this.store.remarks(this.changeId).map((remark) => [remark.id, remark.sentAt, remark.state, remark.answeredAt, remark.run?.startedAt]);
     const points = this.store.openPoints(this.changeId).map((point) => `${point.id}${point.used}`);
-    return JSON.stringify([change?.savedAt, change?.head, change?.agent, remarks, points, isListening(this.store, change?.agent)]);
+    return JSON.stringify([change?.savedAt, change?.head, change?.agent, remarks, points, isListening(this.store, change?.agent), change && this.store.getLook(change.repoId)?.savedAt]); // a new look draws the page again
   }
 
   /** Adds the seconds that the page was visible to the view log, when it hides or closes. */
