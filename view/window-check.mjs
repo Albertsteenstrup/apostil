@@ -792,6 +792,12 @@ try {
   if (await fieldFocused()) {
     await page.keyboard.type('Log the opening hours that the run used. @cl', { delay: 2 });
     option = await stage.locator('.mentions .opt.lit .nm').textContent({ timeout: 3000 }).catch(() => '');
+    if (!option) { // where the keys went, when the list of mentions did not come
+      const typed = await stage.locator(boxField).innerText().catch(() => 'no field');
+      const inPage = await stage.evaluate(() => `${document.activeElement?.tagName}.${document.activeElement?.className}`.slice(0, 80)).catch(() => 'no page');
+      const inWindow = await page.evaluate(() => { const el = document.activeElement; return `${el?.tagName}.${String(el?.className).slice(0, 60)} in ${el?.closest('.part, .editor-group-container, .quick-input-widget')?.className?.slice(0, 60) ?? 'no part'}`; });
+      console.log(`NOTE  "@cl" gave no list of mentions: the field holds "${typed}"; the keyboard is in ${inPage} of the page and in ${inWindow} of the window`);
+    }
     does = await stage.locator('.mentions .opt.lit .does').textContent().catch(() => '');
     await page.keyboard.press('Tab');
     await page.keyboard.press('Enter');
