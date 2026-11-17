@@ -148,8 +148,8 @@ try {
     const rowCount = (file) => one.evaluate((where) => document.querySelector(`#view .dfile[data-file="${where}"]`).view.rows.length, file);
 
     // On "Diagram" with every diff open: the list that "Diffs" had beside the graph before build 41, with the graph that follows (build prompt 41).
-    await one.click('#tabs [data-all="open"]');
-    await one.waitForFunction(() => document.querySelector('#tabs [data-all]')?.textContent === 'Close all' && !document.querySelector('#view .dfile.shut:not(.quiet)'));
+    await one.click('[data-all="open"]');
+    await one.waitForFunction(() => document.querySelector('[data-all]')?.textContent === 'Close all' && !document.querySelector('#view .dfile.shut:not(.quiet)'));
     await frames();
 
     // 1. A change within reach: its first row comes to the reading line, and the last two rows of the view before stay in the view.
@@ -305,7 +305,7 @@ try {
         here: [...(left?.querySelectorAll('g.node.here') ?? [])].map((g) => g.querySelector('b[data-part]')?.dataset.part ?? 'no-part'),
         fileLit: [...(left?.querySelectorAll('.f.lit') ?? [])].map((line) => line.dataset.file ?? line.textContent),
         open: right?.querySelectorAll('.dfile.open').length ?? 0, shut: right?.querySelectorAll('.dfile.shut').length ?? 0,
-        nav: document.querySelector('#tabs .nav')?.textContent ?? '', tabs: document.querySelector('#tabs')?.textContent ?? '',
+        nav: document.querySelector('#tabs .nav')?.textContent ?? '', tabs: document.querySelector('.dctl')?.textContent ?? '',
         path: at?.path ?? '', run: at?.run ?? -2,
       };
     });
@@ -325,7 +325,7 @@ try {
     await cardsAre('The night run, message by message');
     const inNight = await halves();
     await snap('150-apostil-3-diagram-the-graph-follows-the-key');
-    check('"Diagram" starts with every diff closed at the left and the diagram of the change at the right, "Open all" and the counter in the line of tabs; Alt+Down from the top opens the diff of the first changed file, says "change 1", and the diagram of the change marks its part and lights its line; a step to the first change of night_jobs.py shows the sequence of the night run with the things of that change lit',
+    check('"Diagram" starts with every diff closed at the left and the diagram of the change at the right, "Open all" over the list and the counter in the line of tabs; Alt+Down from the top opens the diff of the first changed file, says "change 1", and the diagram of the change marks its part and lights its line; a step to the first change of night_jobs.py shows the sequence of the night run with the things of that change lit',
       first.left === 'graph' && first.cards.join() === 'change' && first.open === 0 && first.shut > 20 && /Open all/.test(first.tabs) && /79 changes/.test(first.nav)
         && key1.path === 'web/src/member/HoldDialog.tsx' && key1.run === 0 && key1.open === 1 && /change 1 of 79/.test(key1.nav) && key1.cards.join() === 'change' && key1.here.join() === 'holds-tab' && key1.fileLit.join() === 'web/src/member/HoldDialog.tsx'
         && inNight.path === 'src/library/night_jobs.py' && inNight.run === 0 && inNight.cards.join() === 'The night run, message by message' && inNight.lit > 0,
@@ -335,8 +335,8 @@ try {
     // them to the top, and the left does not follow that scroll (build prompt 41).
     // "Open all" opens every diff and says "Close all"; a diff far down is filled only when it comes near the view.
     const allShut = async () => {
-      await one.click('#tabs [data-all="close"]');
-      await one.waitForFunction(() => !document.querySelector('#view > .half.right .dfile.open') && document.querySelector('#tabs [data-all]')?.textContent === 'Open all');
+      await one.click('[data-all="close"]');
+      await one.waitForFunction(() => !document.querySelector('#view > .half.right .dfile.open') && document.querySelector('[data-all]')?.textContent === 'Open all');
       await cardsAre('change');
     };
     await allShut();
@@ -354,8 +354,8 @@ try {
     const pointed = await halves();
     await one.mouse.move(6, 880, { steps: 2 });
     await allShut(); // the diffs that the pointer opened: the control says "Close all" while one is open
-    await one.click('#tabs [data-all="open"]');
-    await one.waitForFunction(() => document.querySelector('#tabs [data-all]')?.textContent === 'Close all' && !document.querySelector('#view .dfile.shut:not(.quiet)'));
+    await one.click('[data-all="open"]');
+    await one.waitForFunction(() => document.querySelector('[data-all]')?.textContent === 'Close all' && !document.querySelector('#view .dfile.shut:not(.quiet)'));
     const far = await one.evaluate(async () => {
       const right = document.querySelector('#view > .half.right');
       right.scrollTop = 0;
@@ -365,7 +365,7 @@ try {
       const before = { open: open.length, all: right.querySelectorAll('.dfile:not(.quiet)').length, filled: !!last.view };
       right.scrollTop += last.getBoundingClientRect().top - right.getBoundingClientRect().top;
       for (let at = 0; at < 100 && !last.view; at++) await new Promise((done) => requestAnimationFrame(done)); // until it is filled
-      return { ...before, filledNear: !!last.view, control: document.querySelector('#tabs [data-all]').textContent };
+      return { ...before, filledNear: !!last.view, control: document.querySelector('[data-all]').textContent };
     });
     check('"Close all" closes every diff and the left shows the diagram of the change; the pointer that rests on a node opens the diffs of its part, and the left does not follow; "Open all" opens every diff of the list and says "Close all"; a diff far down is filled only when it comes near the view',
       closed.cards.join() === 'change' && closed.open === 0 && /Open all/.test(closed.tabs) && pointed.open > 0 && pointed.cards.join() === 'change'

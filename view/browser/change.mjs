@@ -251,13 +251,13 @@ try {
 
   // ----- the code view with its notes -----
   await drawn(() => page.click(`${changeSection} g.cluster .cluster-label`));
-  await drawn(() => page.click('#view g.node[id*="flowchart-ready-"]'));
+  await drawn(() => page.click('#view g.node[id*="flowchart-ready-"]', { modifiers: ['Meta'] }));
   const codeView = await page.evaluate(() => ({
     firstLit: document.querySelector('.cv .code .l.lit')?.dataset.line, notes: document.querySelectorAll('.cv .mc').length,
     dashed: [...document.querySelectorAll('.cv .mc.chk')].map((card) => card.textContent), points: document.querySelectorAll('.points').length,
     counts: [...document.querySelectorAll('.cv .mc')].map((card) => card.querySelector('[data-tests]')?.textContent ?? ''),
   }));
-  check('a node with lines opens the code view at its first line, with the seven notes, a dashed note with its check, the test count once on the first note of the function, and no list of open points',
+  check('a node with lines opens the code view at its first line on Cmd+click (a click opens its window), with the seven notes, a dashed note with its check, the test count once on the first note of the function, and no list of open points',
     codeView.firstLit === '245' && codeView.notes === 7 && codeView.dashed.length === 1 && /Check: /.test(codeView.dashed[0]) && codeView.points === 0
       && codeView.counts[0] === '3 tests' && codeView.counts.slice(1).every((count) => count === ''), JSON.stringify(codeView));
   // The lines beside the code: each note is joined to the middle of its code lines, and an arrow goes from each note to the next note of the same function.
@@ -343,7 +343,9 @@ try {
   await page.mouse.move(onPart.x, onPart.y);
   await grown(page.locator(`${changeSection} g.node:has(b[data-part="hold-service"]) > :first-child`)); // the part under the pointer grows a little first
   const under = await nodeAt();
+  await page.keyboard.down('Meta'); // Cmd+scroll zooms
   await page.mouse.wheel(0, -300);
+  await page.keyboard.up('Meta');
   await settle();
   const zoomed = await nodeAt();
   const larger = zoomed.width / under.width;
@@ -351,7 +353,7 @@ try {
   const windowsWhileZoom = await page.$$eval('.win', (els) => els.length);
   await page.mouse.dblclick(empty.x, empty.y);
   const refitted = await viewBox();
-  check('a drag moves the diagram, the wheel makes it larger at the pointer (the point under the pointer stays) with no hover window, and a double click on an empty place fits it to its card again',
+  check('a drag moves the diagram, Cmd+scroll makes it larger at the pointer (the point under the pointer stays) with no hover window, and a double click on an empty place fits it to its card again',
     Math.abs(dragged.x - start.x - 60) < 2 && Math.abs(dragged.y - start.y + 40) < 2 && larger > 1.3
       && Math.abs(onPart.x - (zoomed.x + (onPart.x - under.x) * larger)) < 1 && Math.abs(onPart.y - (zoomed.y + (onPart.y - under.y) * larger)) < 1
       && windowsWhileZoom === 0 && refitted.every((value, index) => Math.abs(value - fitted[index]) < 0.5),

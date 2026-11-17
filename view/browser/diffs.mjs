@@ -271,10 +271,16 @@ async function diagramTab(width = 1400) {
   const wideShot = (name) => takePicture(wide, `${name}.png`);
   const pointAt = async (selector) => { const at = await wide.locator(selector).first().boundingBox(); await wide.mouse.move(at.x + at.width / 2, at.y + at.height / 2, { steps: 4 }); };
   const toGutter = () => wide.mouse.move(6, 600, { steps: 2 }); // the gutter left of both halves
-  const away = () => wide.mouse.move(700, 880); // below the things of a diagram
+  // The code of a step follows a click, which keeps it: a click on an empty place of the diagram lets it go, and then the pointer moves below the things of a diagram.
+  const away = async () => {
+    const box = await wide.locator('#view > .half.left').boundingBox().catch(() => null);
+    if (box) await wide.mouse.click(box.x + 20, box.y + box.height - 20);
+    await wide.mouse.move(700, 880);
+  };
+  const clickAt = async (selector) => { await pointAt(selector); await wide.mouse.down(); await wide.mouse.up(); };
   // The two halves: side by side, inside the tab, the page itself not scrolling, and the size of a node label of the diagram on screen.
   const halves = () => wide.evaluate(() => {
-    const control = document.querySelector('.codeswitch');
+    const control = document.querySelector('[data-half="code"]');
     const place = control && (({ right, top }) => ({ right: Math.round(right), top: Math.round(top) }))(control.getBoundingClientRect());
     // By the place on the screen: the code at the left (.half.right), the diagram at the right (.half.left), since build prompt 42.
     const [left, right] = ['#view > .half.right', '#view > .half.left'].map((selector) => document.querySelector(selector)?.getBoundingClientRect());
@@ -290,7 +296,7 @@ async function diagramTab(width = 1400) {
       sideApart: side.hidden || side.getBoundingClientRect().left >= right.right,
     };
   });
-  // The pointer on the text of an arrow or a message that starts with `word`; on the middle of the line of a link between two parts.
+  // A click on the text of an arrow or a message that starts with `word`; on the middle of the line of a link between two parts.
   const pointAtLabel = async (word) => {
     const at = await wide.evaluate((text) => {
       const el = [...document.querySelectorAll('#view g.edgeLabel, #view text.messageText')].find((one) => one.textContent.trim().startsWith(text));
@@ -298,6 +304,8 @@ async function diagramTab(width = 1400) {
       return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
     }, word);
     await wide.mouse.move(at.x, at.y, { steps: 4 });
+    await wide.mouse.down();
+    await wide.mouse.up();
   };
   const linkAt = (from, to) => wide.evaluate(([one, two]) => {
     const index = (id) => App.page.parts.findIndex((part) => part.id === id);
@@ -306,12 +314,12 @@ async function diagramTab(width = 1400) {
     return { x: middle.x, y: middle.y };
   }, [from, to]);
   const pointAtLink = async (from, to) => { const at = await linkAt(from, to); await wide.mouse.move(at.x, at.y, { steps: 4 }); };
-  return { wide, quiet, when, loaded, open, show, wideShot, pointAt, toGutter, away, halves, pointAtLabel, linkAt, pointAtLink };
+  return { wide, quiet, when, loaded, open, show, wideShot, pointAt, clickAt, toGutter, away, halves, pointAtLabel, linkAt, pointAtLink };
 }
 
 /** The change on the diagram page: the code beside the diagram on a wide tab, and the change painted into the diagrams of a part. */
 async function twoHalves() {
-  const { wide, quiet, when, loaded, open, show, wideShot, pointAt, toGutter, away, halves, pointAtLabel, linkAt, pointAtLink } = await diagramTab();
+  const { wide, quiet, when, loaded, open, show, wideShot, pointAt, clickAt, toGutter, away, halves, pointAtLabel, linkAt, pointAtLink } = await diagramTab();
   const splitOk = (one) => one.split && one.apart && one.inside && !one.pageScrolls && one.sideApart && one.label >= 11;
 
   // The page of the change: its diagram at the right, every changed file as one closed row at the left, under the name of its part.
@@ -387,7 +395,9 @@ async function twoHalves() {
   const afterHidden = await wide.evaluate(() => [...document.querySelectorAll('.half.left .f.more')].map((line) => line.textContent));
   const box = await wide.locator('.half.left .surface').boundingBox();
   await wide.mouse.move(box.x + 30, box.y + 90);
-  for (let at = 0; at < 2; at++) await wide.mouse.wheel(0, -150); // larger, so that the node of the table is out of view, but still smaller than the card
+  await wide.keyboard.down('Meta');
+  for (let at = 0; at < 2; at++) await wide.mouse.wheel(0, -150); // Cmd+scroll zooms: larger, so that the node of the table is out of view, but still smaller than the card
+  await wide.keyboard.up('Meta');
   await quiet();
   const tableIn = () => {
     const card = document.querySelector('.half.left .surface').getBoundingClientRect();
@@ -540,33 +550,37 @@ async function twoHalves() {
     };
   });
   check('on the page of a part the left half shows the file of its diagram with its counts, its notes as marks at the right edge, opened at the lines of the diagram; the flow chart of a new file colours no step, counts the steps beside its title, and a step shows its diff where its line number stood',
-    splitOk(partHalves) && filePart.head === 'src/library/lending/hold_service.py+296' && filePart.marks === 7 && filePart.firstShown >= 192 && filePart.firstShown <= 208
+    splitOk(partHalves) && filePart.head === 'src/library/lending/hold_service.py+296Hide code' && filePart.marks === 7 && filePart.firstShown >= 192 && filePart.firstShown <= 208
     && filePart.nodes === 10 && filePart.green === 10 && filePart.words === '+10 steps' && filePart.ready === '+7' && filePart.fill === filePart.boxFill && /^rgb\(25\d, 25\d, 2[45]\d\)$/.test(filePart.fill), JSON.stringify({ partHalves, filePart }));
   await wideShot('43-part-diagram-beside-its-file');
 
-  // The pointer on a step: after the delay its rows light, come into view, and one line joins them to the step; no window opens. The pointer on rows
-  // lights their step. A click on a step keeps it until the next click.
+  // The code follows a click, not the pointer. The pointer on a step lights it after the delay and moves no code (no window, no line to rows out of view);
+  // a click brings its rows into view and draws one line to them, and keeps them until the next click. The pointer on rows lights their step.
   await wide.evaluate(() => { document.querySelector('.half.right').scrollTop = 0; });
   const joinOf = () => wide.evaluate(() => {
     const right = document.querySelector('.half.right').getBoundingClientRect();
     const lit = [...document.querySelectorAll('.half.right .l.step')];
     const lines = lit.filter((row) => row.dataset.line).map((row) => Number(row.dataset.line));
     const shown = lit.filter((row) => { const box = row.getBoundingClientRect(); return box.bottom > right.top && box.top < right.bottom; }).length;
-    return { first: Math.min(...lines), last: Math.max(...lines), shown, joins: document.querySelectorAll('#view svg.join path').length, window: !!document.querySelector('.win'),
-      step: [...document.querySelectorAll('.half.left g.node.joined')].map((g) => nodeKey(g)).join() };
+    return { first: Math.min(...lines), last: Math.max(...lines), shown, joins: document.querySelectorAll('#view svg.join path').length, window: !!document.querySelector('.win, .places-half'),
+      top: document.querySelector('.half.right').scrollTop, step: [...document.querySelectorAll('.half.left g.node.joined')].map((g) => nodeKey(g)).join() };
   });
   const joinedStep = (key) => when((wanted) => [...document.querySelectorAll('.half.left g.node.joined')].map((g) => nodeKey(g)).join() === wanted && document.querySelectorAll('#view svg.join path').length === 1, key);
   await pointAt('.half.left g.node[id*="-pick-"]');
+  await when(() => [...document.querySelectorAll('.half.left g.node.joined')].map((g) => nodeKey(g)).join() === 'pick');
+  await wide.waitForTimeout(500); // the wait of a hover window is over: nothing moves
+  const onStep = await joinOf();
+  await wide.locator('.half.left g.node[id*="-pick-"]').click();
   await joinedStep('pick');
   await quiet();
-  const onStep = await joinOf();
+  const clickedStep = await joinOf();
   await wideShot('44-a-step-joined-to-its-rows');
   const runRow = await wide.locator('.half.right .l[data-line="235"]').boundingBox();
   await wide.mouse.move(runRow.x + 220, runRow.y + runRow.height / 2, { steps: 3 });
   await joinedStep('each');
   const onRows = await joinOf();
   await wide.locator('.half.left g.node[id*="-start-"]').click();
-  await away();
+  await wide.mouse.move(700, 880); // the pointer leaves: the click keeps the step
   await quiet();
   const kept = await joinOf();
   const stillHere = await wide.evaluate(() => App.state.view);
@@ -574,11 +588,12 @@ async function twoHalves() {
   await wide.mouse.click(diagramBox.x + 20, diagramBox.y + diagramBox.height - 20); // an empty place of the diagram, at the right since build prompt 42
   await when(() => !document.querySelector('#view svg.join path'));
   const cleared = await joinOf();
-  check('the pointer on a step lights its rows in the file, brings them into view, and draws one line from the step to them, with no window; the pointer on rows of a step lights that step; a click on a step keeps its rows lit until the next click, and opens no file tab',
-    onStep.first === 219 && onStep.last === 233 && onStep.shown > 0 && onStep.joins === 1 && !onStep.window && onStep.step === 'pick'
+  check('the pointer on a step only lights it and moves no code, with no window and no line to rows out of view; a click on it brings its rows into view, draws one line to them, and keeps them lit until the next click, with no file tab; the pointer on rows of a step lights that step',
+    onStep.step === 'pick' && onStep.top === 0 && onStep.joins === 0 && !onStep.window
+      && clickedStep.first === 219 && clickedStep.last === 233 && clickedStep.shown > 0 && clickedStep.joins === 1 && !clickedStep.window && clickedStep.top > 0 && clickedStep.step === 'pick'
       && onRows.step === 'each' && onRows.first === 235 && onRows.last === 236 && onRows.joins === 1
       && kept.step === 'start' && kept.first === 208 && kept.joins === 1 && stillHere === 'diagram' && !cleared.step && cleared.joins === 0,
-    JSON.stringify({ onStep, onRows, kept, stillHere, cleared }));
+    JSON.stringify({ onStep, clickedStep, onRows, kept, stillHere, cleared }));
 
   // A diagram with no file (here the states of the example with its file taken away): the diffs of the files of its part at the left, with no joins.
   const statesFile = await wide.evaluate(() => { const states = App.page.diagrams.find((one) => one.id === 'hold-states'); const was = states.file; delete states.file; return was; });
@@ -594,20 +609,20 @@ async function twoHalves() {
   // "Hide code" and "Show code" at the same place; the choice lasts after a reload.
   await open();
   const shownPlace = (await halves()).place;
-  await wide.click('.codeswitch');
+  await wide.click('[data-half="code"]');
   await when(() => !document.querySelector('#view > .half'));
   await quiet();
   const hidden = await halves();
   await wide.reload();
   await loaded();
   const hiddenAfterReload = await halves();
-  await wide.click('.codeswitch');
+  await wide.click('[data-half="code"]');
   await when(() => !!document.querySelector('#view > .half.left svg'));
   await quiet();
   const shownAgain = await halves();
-  check('"Hide code" shows the diagram alone, "Show code" at the same place brings the code back, and the choice lasts after a reload',
+  check('"Hide code" over the code shows the diagram alone, "Show code" at the left of the line above the diagram brings the code back, and the choice lasts after a reload',
     !hidden.split && hidden.control === 'Show code' && !hiddenAfterReload.split && hiddenAfterReload.control === 'Show code' && splitOk(shownAgain) && shownAgain.control === 'Hide code'
-    && Math.abs(hidden.place.right - shownPlace.right) <= 2 && Math.abs(hidden.place.top - shownPlace.top) <= 2, JSON.stringify({ shownPlace, hidden, hiddenAfterReload, shownAgain }));
+    && hidden.place.right < shownPlace.right && hidden.place.top < shownPlace.top, JSON.stringify({ shownPlace, hidden, hiddenAfterReload, shownAgain }));
 
   // Made-up diagrams that hold what the example change does not: a changed and a removed step, a removed state and transition, a removed message.
   const page23 = await wide.evaluate(() => ({ parts: App.page.parts, links: App.page.links, files: App.page.files, filesInNoPart: App.page.checks.filesInNoPart }));
@@ -779,7 +794,7 @@ async function twoHalves() {
     yes.first === 214 && yes.last === 214 && yes.joins === 1 && yesLabel.found && yesLabel.plain && yesLabel.color === 'rgb(15, 118, 110)', JSON.stringify({ yes, yesLabel }));
   await away();
   await when(() => !document.querySelector('#view svg.join path'));
-  await pointAt('#view g.node[id*="-open-"]');
+  await clickAt('#view g.node[id*="-open-"]');
   await when(() => !!document.querySelector('.places-half .pck'));
   const pointAtStep = await placesShown();
   const sideLabel = await wide.evaluate(() => [...document.querySelectorAll('.point .where')].map((el) => el.textContent).find((text) => text.startsWith('Node')) ?? '');
@@ -791,7 +806,7 @@ async function twoHalves() {
   await show({ level: 'part', part: 'hold-service', diagram: 'offer-sequence' });
   const sequenceFacts = await wide.evaluate(() => [...document.querySelectorAll('#tabs .dfact')].map((el) => el.textContent));
   // A participant that stands for a whole file shows the head of that file and its counts.
-  await pointAt('#view rect.actor[name="S"]');
+  await clickAt('#view rect.actor[name="S"]');
   await when(() => !!document.querySelector('.places-half .plh'));
   const table = await wide.evaluate(() => ({ head: document.querySelector('.places-half .plh')?.textContent, rows: document.querySelectorAll('.places-half .l').length }));
   check('a diagram that no second agent read says "not checked yet"; a participant that stands for a whole file shows its file name, "whole file" and its counts, with no rows',
@@ -922,7 +937,7 @@ async function narrowTab() {
     App.page.diagrams.push(...diagrams);
     App.page.parts.find((part) => part.id === 'hold-service').diagrams.push(...diagrams.map((diagram) => diagram.id));
   }, [shopTransitions, runEnd]);
-  const narrowDiagram = await wide.evaluate(() => ({ halves: document.querySelectorAll('#view > .half').length, control: !!document.querySelector('#tabs [data-all]'), nav: !!document.querySelector('#tabs .nav') }));
+  const narrowDiagram = await wide.evaluate(() => ({ halves: document.querySelectorAll('#view > .half').length, control: !!document.querySelector('[data-all]'), nav: !!document.querySelector('#tabs .nav') }));
   await pointAtLink('holds-tab', 'routes');
   await when(() => document.querySelectorAll('.win .plc').length === 2 && !!document.querySelector('.win .l.lit'));
   await quiet();
@@ -932,11 +947,11 @@ async function narrowTab() {
   await pointAt('#view g.node[id*="-start-"]');
   await wide.waitForSelector('.win .l', { timeout: 3000 }).catch(() => {});
   const stepWindow = await wide.evaluate(() => ({ title: document.querySelector('.win .tb')?.textContent, added: document.querySelectorAll('.win .l.add').length, rows: document.querySelectorAll('.win .l').length, sign: document.querySelector('.win .l.add .g')?.textContent }));
-  await wide.locator('#view g.node[id*="-start-"]').click();
+  await wide.locator('#view g.node[id*="-start-"]').click({ modifiers: ['Meta'] });
   await when(() => App.state.view === 'code');
   await quiet();
   const clickedStep = await wide.evaluate(() => ({ view: App.state.view, lines: App.state.lines }));
-  check('at 900 px the page of the change and the page of a part are the diagram alone, as before: no halves, no list, no control and no counter; the window on a step shows its lines as rows of the diff with two rows around them, added rows green; a click on a step opens the code at its lines',
+  check('at 900 px the page of the change and the page of a part are the diagram alone, as before: no halves, no list, no control and no counter; the window on a step shows its lines as rows of the diff with two rows around them, added rows green; a Cmd+click on a step opens the code at its lines',
     narrowDiagram.halves === 0 && !narrowDiagram.control && !narrowDiagram.nav && !narrow.split && narrow.control === ''
       && stepWindow.rows === 9 && stepWindow.added === 9 && stepWindow.sign === '+' && /^Read the date and the opening hours/.test(stepWindow.title ?? '')
       && clickedStep.view === 'code' && clickedStep.lines?.join() === '208,212', JSON.stringify({ narrowDiagram, narrow, stepWindow, clickedStep }));
@@ -982,7 +997,7 @@ async function graph() {
       lit: [...new Set([...(left?.querySelectorAll('.joined') ?? [])].map((el) => el.closest('[data-rk]')?.dataset.rk ?? el.tagName))],
       here: [...(left?.querySelectorAll('g.node.here') ?? [])].map((g) => g.querySelector('b[data-part]')?.dataset.part ?? 'no-part'),
       fileLit: [...(left?.querySelectorAll('.f.lit') ?? [])].map((line) => line.dataset.file ?? line.textContent),
-      nav: document.querySelector('#tabs .nav')?.textContent ?? '', control: document.querySelector('#tabs .codeswitch')?.textContent ?? '',
+      nav: document.querySelector('#tabs .nav')?.textContent ?? '', control: document.querySelector('[data-half="code"]')?.textContent ?? '',
       path: at?.path ?? '', run: at?.run ?? -2, off, top: Math.round(right?.scrollTop ?? 0),
       lastRowAtBottom: run ? Math.round(right.getBoundingClientRect().bottom - at.section.getBoundingClientRect().bottom) : null,
       headAtTop: [...(right?.querySelectorAll('.dfile') ?? [])].find((section) => Math.abs(section.getBoundingClientRect().top - right.getBoundingClientRect().top - (right.querySelector('.dp')?.offsetHeight ?? 0)) <= 2)?.dataset.file ?? '',
@@ -1032,12 +1047,12 @@ async function graph() {
   const worker2 = 'src/library/night_jobs.py';
   const router = 'src/library/web/holds_router.py';
   await toGutter();
-  await wide.click('#tabs [data-all="open"]');
-  await when(() => !!document.querySelector('#tabs [data-all="close"]'));
+  await wide.click('[data-all="open"]');
+  await when(() => !!document.querySelector('[data-all="close"]'));
   await quiet();
   const startDiffs = await diffsNow();
-  const tabsText = await wide.evaluate(() => document.querySelector('#tabs').textContent);
-  check('at 1400 px on "Diagram" after "Open all": every diff open at the left, and at the right the diagram of the change; "Close all", "Hide code" and the counter stand at the right of the line of tabs, and the page does not scroll',
+  const tabsText = await wide.evaluate(() => document.querySelector('.dctl').textContent);
+  check('at 1400 px on "Diagram" after "Open all": every diff open at the left, and at the right the diagram of the change; "Close all" and "Hide code" stand over the code and the counter in the line of tabs, and the page does not scroll',
     startDiffs.split && startDiffs.cards.join() === 'change' && startDiffs.control === 'Hide code' && /Close all/.test(tabsText)
       && /^‹file 1 of 40›↑(79 changes|change 1 of 79)↓$/.test(startDiffs.nav) && !startDiffs.pageScrolls, JSON.stringify(startDiffs));
 
@@ -1117,7 +1132,13 @@ async function graph() {
   // The pointer that rests on a thing of the diagram half brings its first place to the reading line and lights its rows; the pointer on rows lights their thing.
   await scrollToFile(worker2, 30);
   await altKey('ArrowDown'); // the second change of night_jobs.py: nothing lit
+  const restTop = await wide.evaluate(() => document.querySelector('.half.right').scrollTop);
   await pointAt('.half.left text.messageText');
+  await when(() => document.querySelectorAll('.half.left .joined').length > 0);
+  await wide.waitForTimeout(700); // longer than the wait of a hover window: the pointer must not move the code
+  const onlyLit = await wide.evaluate((top) => ({ moved: Math.abs(document.querySelector('.half.right').scrollTop - top) > 1, window: !!document.querySelector('.win, .places-half') }), restTop);
+  await wide.mouse.down();
+  await wide.mouse.up();
   await when(() => !!document.querySelector('.half.right .l.step'));
   await quiet();
   const onThing = await wide.evaluate(() => {
@@ -1126,6 +1147,7 @@ async function graph() {
     const reading = right.getBoundingClientRect().top + right.clientHeight / 3;
     return { lines: lit.map((row) => Number(row.dataset.line)).filter(Boolean), off: lit.length ? Math.round(lit[0].getBoundingClientRect().top - reading) : null, joined: document.querySelectorAll('.half.left .joined').length, window: !!document.querySelector('.win') };
   });
+  await wide.locator('.half.left').click({ position: { x: 6, y: 6 } }); // a click elsewhere in the diagram lets the kept message go
   await toGutter();
   await when(() => !document.querySelector('.half.right .l.step'));
   const rowOfThing = await wide.evaluate(() => document.querySelector('.half.right .dfile[data-file="src/library/night_jobs.py"]').view.rows.findIndex((row) => row.now === 244));
@@ -1138,9 +1160,9 @@ async function graph() {
   await wide.mouse.move(thingRow.x + 200, thingRow.y + thingRow.height / 2, { steps: 3 });
   await when(() => [...new Set([...document.querySelectorAll('#view > .half.left .joined')].map((el) => el.closest('[data-rk]')?.dataset.rk ?? el.tagName))].length === 1);
   const rowsLight = await diffsNow();
-  check('the pointer that rests on a message in the diagram brings its first place to the reading line and lights its rows there, with no window; the pointer on a row of the night job lights the night job in the diagram',
-    onThing.lines.length > 0 && Math.min(...onThing.lines) === 246 && Math.abs(onThing.off) <= 24 && onThing.joined > 0 && !onThing.window
-      && rowsLight.lit.length === 1 && /:J$/.test(rowsLight.lit[0]), JSON.stringify({ onThing, rowsLit: rowsLight.lit }));
+  check('the pointer that rests on a message in the diagram only lights it and moves no code; a click on it brings its first place to the reading line and lights its rows there, with no window; the pointer on a row of the night job lights the night job in the diagram',
+    !onlyLit.moved && !onlyLit.window && onThing.lines.length > 0 && Math.min(...onThing.lines) === 246 && Math.abs(onThing.off) <= 24 && onThing.joined > 0 && !onThing.window
+      && rowsLight.lit.length === 1 && /:J$/.test(rowsLight.lit[0]), JSON.stringify({ onlyLit, onThing, rowsLit: rowsLight.lit }));
   await toGutter();
 
   // A file in no part: the diagram of the change with "In no part" marked. A scroll back follows; "Close all" brings the diagram of the change back.
@@ -1148,11 +1170,11 @@ async function graph() {
   const noPart = await diffsNow();
   await scrollToFile(worker2, 30);
   const followedAgain = await diffsNow();
-  await wide.click('#tabs [data-all="close"]');
-  await when(() => !!document.querySelector('#tabs [data-all="open"]') && [...document.querySelector('#view > .half.left').children].every((el) => !el.querySelector('.gt')));
+  await wide.click('[data-all="close"]');
+  await when(() => !!document.querySelector('[data-all="open"]') && [...document.querySelector('#view > .half.left').children].every((el) => !el.querySelector('.gt')));
   await quiet();
   const closedAll = await diffsNow();
-  const closedRows = await wide.evaluate(() => ({ open: document.querySelectorAll('.half.right .dfile.open').length, control: document.querySelector('#tabs [data-all]')?.textContent }));
+  const closedRows = await wide.evaluate(() => ({ open: document.querySelectorAll('.half.right .dfile.open').length, control: document.querySelector('[data-all]')?.textContent }));
   check('a file in no part shows the diagram of the change with the box "In no part" marked; "Close all" closes every diff, says "Open all" again, and the diagram of the change shows again',
     noPart.cards.join() === 'change' && noPart.here.join() === 'no-part' && followedAgain.cards.join() === 'The night run, message by message'
       && closedAll.cards.join() === 'change' && closedRows.open === 0 && closedRows.control === 'Open all', JSON.stringify({ noPart, followed: followedAgain.cards, closed: closedAll.cards, closedRows }));
@@ -1171,12 +1193,122 @@ async function graph() {
   await wide.close();
 }
 
+/**
+ * Build 68, six faults of the change page, one check for each (the code follows a click, item 3, is in the checks of the join of a step and of a message above):
+ * a file with no diagram opens its diff; the arrows of the stepper answer a click; "n more files" opens a window with the files of its part; a scroll moves a
+ * diagram that is larger than its half; the controls of the code stand over the code.
+ */
+async function faults() {
+  const { wide, quiet, when, open, show, away, clickAt } = await diagramTab();
+  await open();
+  const state = () => wide.evaluate(() => ({
+    view: App.state.view, level: App.state.level, cards: [...document.querySelector('#view > .half.left').children].map((el) => el.querySelector('.gt')?.textContent ?? 'change'),
+    opened: [...document.querySelectorAll('.half.right .dfile.open')].map((el) => el.dataset.file), top: Math.round(document.querySelector('.half.right').scrollTop),
+  }));
+
+  // 1. A part with no diagram, and a file of it in a node, open their diff in the list; the diagram half keeps its diagram and no tab opens.
+  const noDiagram = 'src/library/web/holds_router.py';
+  await clickAt('#view b[data-part="routes"]');
+  await when((path) => !!document.querySelector(`.half.right .dfile.open[data-file="${path}"]`), noDiagram);
+  const byPart = await state();
+  await clickAt('.half.left .f[data-file="tests/test_holds.py"]');
+  await when(() => !!document.querySelector('.half.right .dfile.open[data-file="tests/test_holds.py"]'));
+  const byFile = await state();
+  check('on "Diagram" a click on a part with no diagram, and a click on the row of one of its files, open the diff of that file in the list, in place; the diagram half keeps the diagram of the change and no tab opens',
+    byPart.view === 'diagram' && byPart.level === 'change' && byPart.opened.includes(noDiagram) && byPart.cards.join() === 'change'
+      && byFile.view === 'diagram' && byFile.opened.includes('tests/test_holds.py') && byFile.cards.join() === 'change', JSON.stringify({ byPart, byFile }));
+  await away();
+
+  // 2. The arrows of the stepper answer a click, as Alt+Down and Alt+Up do: ↓ reads on, ↑ goes back, › goes to the next file.
+  await show({ level: 'change', from: null });
+  const nav = () => wide.evaluate(() => ({ nav: document.querySelector('#tabs .nav')?.textContent, top: Math.round(document.querySelector('.half.right').scrollTop) }));
+  await wide.click('#tabs .nav [data-change="1"]');
+  await when(() => /change 1 of/.test(document.querySelector('#tabs .nav')?.textContent ?? ''));
+  await quiet();
+  const first = await nav();
+  await wide.click('#tabs .nav [data-change="1"]');
+  await when((top) => document.querySelector('.half.right').scrollTop > top + 100, first.top);
+  await quiet();
+  const down = await nav();
+  await wide.click('#tabs .nav [data-change="-1"]');
+  await when((top) => document.querySelector('.half.right').scrollTop < top - 100, down.top);
+  await quiet();
+  const up = await nav();
+  await wide.click('#tabs .nav [data-step="1"]');
+  await when(() => /file 2 of/.test(document.querySelector('#tabs .nav')?.textContent ?? ''));
+  const next = await nav();
+  check('the arrows of the stepper answer a click: ↓ opens the first change and reads on, ↑ goes back, and › goes to the next file',
+    /^‹file 1 of 40›↑change 1 of 79↓$/.test(first.nav) && down.top > first.top + 100 && up.top < down.top - 100 && /file 2 of 40/.test(next.nav), JSON.stringify({ first, down, up, next }));
+
+  // 4. "5 more files": a window in the diagram half with every file of the part and its counts; the list brings the part to its top; a file in it opens its diff there.
+  await show({ level: 'change', from: null });
+  await wide.locator('.half.left g.node:has(b[data-part="holds-tab"]) .f.more').click();
+  await when(() => !!document.querySelector('.win.files'));
+  const windowOf = await wide.evaluate(() => {
+    const win = document.querySelector('.win.files');
+    const diagram = document.querySelector('#view > .half.left').getBoundingClientRect();
+    return { title: win.querySelector('.tb b').textContent, rows: [...win.querySelectorAll('[data-show]')].map((a) => a.textContent), inDiagram: win.getBoundingClientRect().left >= diagram.left - 1 };
+  });
+  await quiet();
+  const settled = await wide.evaluate(() => Math.round(document.querySelector('.half.right .dp[data-part="holds-tab"]').getBoundingClientRect().top - document.querySelector('.half.right').getBoundingClientRect().top));
+  await wide.click('.win.files [data-show="web/src/member/member.css"]');
+  await when(() => !document.querySelector('.win.files') && !!document.querySelector('.half.right .dfile.open[data-file="web/src/member/member.css"]'));
+  await quiet();
+  const picked = await state();
+  check('a click on "5 more files" opens a window in the diagram half with all 8 files of its part and their counts, the list brings the part to its top, and a file in the window opens its diff in the list',
+    windowOf.title === 'Holds tab' && windowOf.rows.length === 8 && windowOf.rows.every((row) => /[+−]\d/.test(row)) && windowOf.inDiagram && Math.abs(settled) <= 2 && picked.opened.includes('web/src/member/member.css'),
+    JSON.stringify({ windowOf, settled, picked }));
+  await away();
+
+  // 5. A diagram larger than its half moves with a scroll, also in the stack of the graph that follows (a sequence), and Cmd+scroll zooms it.
+  await wide.evaluate((path) => App.diffs.toPath(path), 'src/library/night_jobs.py');
+  await when(() => !!document.querySelector('.half.left .gcard svg'));
+  await quiet();
+  const box = await wide.locator('.half.left .gcard .stage').first().boundingBox();
+  const frame = () => wide.evaluate(() => document.querySelector('.half.left .gcard svg').getAttribute('viewBox').split(' ').map(Number));
+  const before = await frame();
+  await wide.mouse.move(box.x + 100, box.y + 100);
+  await wide.mouse.wheel(150, 0);
+  await when((x) => Number(document.querySelector('.half.left .gcard svg').getAttribute('viewBox').split(' ')[0]) !== x, before[0]);
+  const moved = await frame();
+  await wide.keyboard.down('Meta');
+  await wide.mouse.wheel(0, -200);
+  await wide.keyboard.up('Meta');
+  await when((width) => Number(document.querySelector('.half.left .gcard svg').getAttribute('viewBox').split(' ')[2]) !== width, moved[2]);
+  const zoomed = await frame();
+  check('a scroll moves a sequence that is wider than its half in the stack of the graph that follows (its size stays), and Cmd+scroll zooms it',
+    moved[0] > before[0] + 20 && Math.abs(moved[2] - before[2]) < 0.5 && Math.abs(zoomed[2] - moved[2]) > 5, JSON.stringify({ before, moved, zoomed }));
+
+  // 6. The controls of the code stand over the code, at the right end of the line of its first group header, and stay there while the list scrolls;
+  // "Show code" stands at the left of the line above the diagram while the code is hidden.
+  await show({ level: 'change', from: null });
+  const placed = () => wide.evaluate(() => {
+    const control = (selector) => document.querySelector(selector)?.getBoundingClientRect();
+    const [all, hide, list, nav] = ['[data-all]', '[data-half="code"]', '.half.right', '#tabs .nav'].map(control);
+    const first = [...document.querySelectorAll('.half.right .dp')].map((el) => el.getBoundingClientRect()).filter((box) => box.top <= list.top + 2 && box.bottom > list.top).at(-1); // the group header at the top of the list
+    return { allOver: !!all && all.left >= list.left && all.right <= list.right, hideRight: !!hide && hide.right <= list.right && hide.right > list.right - 40, onHeader: !!first && hide.top >= first.top - 2 && hide.bottom <= first.bottom + 4,
+      navAbove: !!nav && nav.bottom <= list.top, inTabs: !!document.querySelector('#tabs [data-all], #tabs [data-half="code"]') };
+  });
+  const atStart = await placed();
+  await wide.evaluate(() => { document.querySelector('.half.right').scrollTop = 1500; });
+  await quiet();
+  const scrolled = await placed();
+  await wide.click('[data-half="code"]');
+  await when(() => !document.querySelector('#view > .half') && !!document.querySelector('#tabs [data-half="code"]'));
+  const hidden = await wide.evaluate(() => ({ left: Math.round(document.querySelector('#tabs [data-half="code"]').getBoundingClientRect().left), text: document.querySelector('#tabs [data-half="code"]').textContent, all: !!document.querySelector('[data-all]') }));
+  check('on "Diagram" "Open all" and "Hide code" stand over the code at the right end of the line of the first group header and stay there while the list scrolls, the stepper stays in the line above; with the code hidden "Show code" stands at the left of that line',
+    atStart.allOver && atStart.hideRight && atStart.onHeader && atStart.navAbove && !atStart.inTabs && scrolled.allOver && scrolled.onHeader && hidden.text === 'Show code' && hidden.left < 60 && !hidden.all,
+    JSON.stringify({ atStart, scrolled, hidden }));
+  await wide.close();
+}
+
 // The two halves take the longest; the notes, the narrow tab and the graph that follows run beside them, one after the other, each on a page of its own.
 const flow = async (name, run) => {
   try { await run(); } catch (error) { check(`the checks of ${name} ran to the end`, false, error.message.split('\n').slice(0, 14).join(' / ')); }
 };
 await Promise.all([
   flow('the two halves', twoHalves),
+  flow('the six faults of build 68', faults),
   flow('the notes', notes).then(() => flow('the narrow tab', narrowTab)).then(() => flow('the graph that follows', graph)),
 ]);
 await finish();
