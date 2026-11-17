@@ -67,7 +67,7 @@ interface Part {
 }
 
 const wordsOf = (...texts: unknown[]): string[] => texts.flatMap((text) => (typeof text === 'string' ? text : JSON.stringify(text ?? '')).toLowerCase().split(/[^a-z0-9]+/)).filter(Boolean);
-const IGNORED = new Set(['the', 'and', 'for', 'with', 'that', 'this', 'its', 'are', 'not', 'all', 'any', 'can', 'how', 'make', 'show', 'want']);
+const IGNORED = new Set(['the', 'and', 'for', 'with', 'that', 'this', 'its', 'are', 'not', 'all', 'any', 'can', 'make', 'want']);
 
 /** The first example of the list that gives a key (a pick, a slot, "action", "set"), so that each match comes with a whole rule. */
 function exampleWith(key: string): Example | undefined {
@@ -141,6 +141,7 @@ export function compactJson(value: unknown, indent = ''): string {
   const flat = JSON.stringify(value);
   if (typeof value !== 'object' || value === null || indent.length + flat.length <= 100) return flat;
   const inner = `${indent} `;
-  const items = Array.isArray(value) ? value.map((one) => inner + compactJson(one, inner)) : Object.entries(value).map(([key, one]) => `${inner}${JSON.stringify(key)}: ${compactJson(one, inner)}`);
+  const items = Array.isArray(value) ? value.map((one) => inner + compactJson(one, inner))
+    : Object.entries(value).filter(([, one]) => one !== undefined).map(([key, one]) => `${inner}${JSON.stringify(key)}: ${compactJson(one, inner)}`);
   return Array.isArray(value) ? `[\n${items.join(',\n')}\n${indent}]` : `{\n${items.join(',\n')}\n${indent}}`;
 }

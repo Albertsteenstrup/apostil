@@ -36,6 +36,9 @@ type ValueKind = keyof typeof VALUES;
 /** A rule as an example in the list. It may hold the placeholders <folder>/, <file>, <diagram>, <node> and <set>:<value>. */
 type Example = Readonly<Record<string, unknown>>;
 
+/** The name of the list of what a click can do. Every reader goes through it and ACTIONS, so that a new name of the list changes one line. */
+export const ACTIONS_KEY = 'actions';
+
 /** The form of LOOK_PARTS, which the readers of the list (shared/look-slots.ts) read it by. */
 export interface LookPartsList {
   areas: Readonly<Record<string, string>>; // each area with one index line: the words of what is inside, as a person says them
@@ -47,7 +50,7 @@ export interface LookPartsList {
     gets?: Readonly<Record<string, string>>;
   }>>;
   values: Readonly<Record<string, string>>;
-  actions: Readonly<Record<string, { what: string; form: string; area?: string; words?: readonly string[] }>>;
+  [ACTIONS_KEY]: Readonly<Record<string, { what: string; form: string; area?: string; words?: readonly string[] }>>;
   sets: { what: string; form: string; area: string; words?: readonly string[] };
 }
 
@@ -135,12 +138,11 @@ export const LOOK_PARTS = {
   sets: {
     what: 'a new kind of mark: writers mark the lines of code that its rule names, and the icons of its values stand in its corner',
     form: '{ "id": "<small letters and ->", "name": "<a short name>", "rule": "<one or two plain sentences that tell a writer which lines to mark, and which value each gets>", "values": [ { "id": "<id>", "name": "<name>", "icon": "<file of an icon>" } ], "corner": { "node": "<corner>", "note": "<corner>" } }',
-    area: 'marks', words: ['mark', 'marks', 'kind', 'tag', 'label', 'category', 'icon'],
+    area: 'marks', words: ['mark', 'marks', 'tag', 'category', 'icon'],
   },
 } as const satisfies LookPartsList;
 
-/** What a button can do on a click. Every reader goes through these two names, so that a new name of the list changes one line. */
-export const ACTIONS_KEY = 'actions';
+/** What a button can do on a click. */
 export const ACTIONS = LOOK_PARTS[ACTIONS_KEY];
 
 export type LookKind = keyof typeof LOOK_PARTS.components;
