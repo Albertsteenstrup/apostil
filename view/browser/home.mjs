@@ -149,7 +149,7 @@ try {
       && stepWin.title === 'Write the answer into the rows' && stepWin.sub === 'requests.py · lines 62-67' && stepWin.text === 'Writes the answer, the librarian and the key into each open request for the book.'
       && leafSent?.type === 'openFile' && leafSent.path === tasksPath && leafSent.line === 62 && leafAt === 'process:answer-request/2'
       && backProcess === 'Home›Processes of Web routes›Answer a book request' && backPlace === 'Home›Processes of Web routes' && backHome === 'Home'
-      && single.crumb === 'Home›Lending: holds, requests and mails›Ask the library for a book' && single.names.join('|') === 'Ask for a book6 steps|Table Store|json',
+      && single.crumb === 'Home›Lending: holds, requests and mails›Ask the library for a book' && single.names.join('|') === 'Ask for a book6 steps|PostgreSQL|json',
     JSON.stringify({ stepOpened, stepWin, leafSent, leafAt, back: [backProcess, backPlace, backHome], single }));
 
   // The graphs of a file show the processes that have steps in it, with those steps lit; a click on a panel opens that process on Home.

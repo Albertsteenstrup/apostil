@@ -12,7 +12,7 @@ import type { Store } from '../shared/store';
 import { idOf } from './home-data';
 import { lookData, standingMarks, type ValueLook } from './look-data';
 import {
-  actionRows, answersFor, ENTRIES, firstPageOf, keyOf, letterIcon, lineFacts, lineKeys, lookKeys, lookRows, marginMarks, marksIn, noteOnHome, notedFiles, placesOf, processOfStep,
+  actionRows, answersFor, ENTRIES, firstPageOf, keyOf, letterIcon, fileKeys, lineFacts, lookKeys, lookRows, marginMarks, marksIn, noteOnHome, notedFiles, placesOf, processOfStep,
   searchAnswers, stepsByKey, vscodeLook, type Answer, type LineFacts, type LookRow, type MarkAt, type StepRef, type VsCodeLook,
 } from './look-of-vscode';
 import { answerTarget, type TargetPlaces } from './look-targets';
@@ -53,8 +53,7 @@ export class LookInVsCode implements vscode.TreeDataProvider<LookRow> {
       command('apostil.lookTarget', (target) => answerTarget(target as Target, this.places)), // a row of a page
       command('apostil.lookMore', (group) => { this.open.add(String(group)); this.changed.fire(); }),
       vscode.window.onDidChangeVisibleTextEditors(() => this.drawMargins()),
-      vscode.window.onDidChangeActiveTextEditor(() => this.lineChanged()),
-      vscode.window.onDidChangeTextEditorSelection((event) => { if (event.textEditor === vscode.window.activeTextEditor) this.lineChanged(); }),
+      vscode.window.onDidChangeActiveTextEditor(() => this.fileChanged()),
       vscode.workspace.onDidChangeTextDocument((event) => { if (vscode.window.visibleTextEditors.some((editor) => editor.document === event.document)) this.later(); }),
     );
     this.storeChanged();
@@ -78,7 +77,7 @@ export class LookInVsCode implements vscode.TreeDataProvider<LookRow> {
       this.setKeys(lookKeys(this.look.rules, this.look.actions.length, this.look.pages.length > 0));
     }
     this.drawMargins();
-    this.lineChanged();
+    this.fileChanged();
     this.changed.fire();
   }
 
@@ -93,7 +92,7 @@ export class LookInVsCode implements vscode.TreeDataProvider<LookRow> {
   /** After typing: the marks follow when he stops for a moment, as the notes do. */
   private later(): void {
     clearTimeout(this.timer);
-    this.timer = setTimeout(() => { this.drawMargins(); this.lineChanged(); }, 250);
+    this.timer = setTimeout(() => { this.drawMargins(); this.fileChanged(); }, 250);
   }
 
   private marginOn(): boolean {
@@ -161,12 +160,12 @@ export class LookInVsCode implements vscode.TreeDataProvider<LookRow> {
     return lineFacts(line, this.notesOf(uri) ?? [], this.steps, marks);
   }
 
-  /** The cursor moved: the context keys of its line, only while the look turns on an entry or a key that needs one. */
-  private lineChanged(): void {
+  /** The file in front changed: the context keys of what it has (a note, a step, a mark), only while the look turns on an entry or a key that needs one. */
+  private fileChanged(): void {
     const needed = ENTRIES.some((entry) => entry !== 'actions' && this.keys[`apostil.lookEntry.${entry}`]);
-    const editor = vscode.window.activeTextEditor;
-    const facts = needed && editor?.document.uri.scheme === 'file' ? this.factsAt(editor.document.uri, editor.selection.active.line + 1) : undefined;
-    this.setKeys(lineKeys(facts));
+    const document = needed ? vscode.window.activeTextEditor?.document : undefined;
+    const file = document?.uri.scheme === 'file' ? document : undefined;
+    this.setKeys(fileKeys(file && this.notesOf(file.uri), this.steps, file && this.marksOf(file)));
   }
 
   private setKeys(keys: Record<string, boolean>): void {

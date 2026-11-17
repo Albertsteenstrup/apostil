@@ -110,27 +110,27 @@ try {
       spread: getComputedStyle(document.querySelectorAll('#view g[id*="flowchart-jobs-"] .mk-stack.right .mk-chip')[1]).marginLeft,
       title: document.querySelector('.win .tb b').textContent, rows: [...document.querySelectorAll('.win .mk-row')].map((row) => row.textContent.replace(/\s+/g, ' ').trim()),
     }));
-    await one.click('.win .mk-row[data-mk-value="services:table-store"]');
+    await one.click('.win .mk-row[data-mk-value="services:postgresql"]');
     const places = await one.evaluate(() => ({ groups: [...document.querySelectorAll('.win .mk-rows .gp')].map((gp) => gp.firstChild.textContent.trim()), rows: document.querySelectorAll('.win [data-mk-open]').length }));
     await one.click('.win [data-mk-open][data-mk-line="389"]');
     const fromList = await sent();
     check('the pointer on a stack spreads it and opens its window: each value with its places, what the code does with it and its named things; a value with many places lists them by named thing, and a click on one opens that file at its line',
-      stackWin.spread === '2px' && stackWin.title === 'Services' && stackWin.rows.length === 4 && stackWin.rows[3] === 'Table Store11 placeskeeps data in it · loan, book +7'
+      stackWin.spread === '2px' && stackWin.title === 'Services' && stackWin.rows.length === 4 && stackWin.rows[3] === 'PostgreSQL11 placeskeeps data in it · loan, book +7'
         && places.groups.length === 9 && places.rows === 11 && fromList?.type === 'openFile' && fromList.path === 'src/library/night_jobs.py' && fromList.line === 389, JSON.stringify({ stackWin, places, fromList }));
     // A value with one place opens it at once; on a node with a level under it, the click goes down with the nodes that hold the value lit and a quiet line.
     await drawnAt(homeFile, '?diagram=lib-lending');
     await one.click(`${node('queue')} .mk-chip[data-mk="services:mail-relay"]`);
     const once = await sent();
     await drawnAt(homeFile, '');
-    await one.click(`${node('lending')} .mk-chip[data-mk="services:table-store"]`);
+    await one.click(`${node('lending')} .mk-chip[data-mk="services:postgresql"]`);
     await one.waitForFunction(() => window.apostilRendered >= 2, null, { timeout: 5000 });
     const down = await one.evaluate(() => ({ crumb: document.getElementById('crumb').textContent, lit: [...document.querySelectorAll('#view g.node.lit')].map((g) => nodeKey(g)), line: document.querySelector('.mk-filter')?.textContent }));
     await one.click('[data-clear-filter]');
     await one.waitForFunction(() => window.apostilRendered >= 3, null, { timeout: 5000 });
     const cleared = await one.evaluate(() => ({ lit: document.querySelectorAll('#view g.node.lit').length, line: !!document.querySelector('.mk-filter'), crumb: document.getElementById('crumb').textContent }));
     check('a value with one place opens that file at its line at once; on a node with a level under it, the click goes down with the nodes that hold the value lit and the quiet line "<value> · n places in <node> ×", which the × clears',
-      once?.type === 'openFile' && once.path === 'src/library/lending/notices.py' && once.line === 35 && down.crumb === 'Home›Lending: holds, requests and mails · Table Store' && down.lit.join() === 'requests'
-        && down.line === 'Table Store · 12 places in Lending ×' && !cleared.lit && !cleared.line && cleared.crumb === 'Home›Lending: holds, requests and mails', JSON.stringify({ once, down, cleared }));
+      once?.type === 'openFile' && once.path === 'src/library/lending/notices.py' && once.line === 35 && down.crumb === 'Home›Lending: holds, requests and mails · PostgreSQL' && down.lit.join() === 'requests'
+        && down.line === 'PostgreSQL · 12 places in Lending ×' && !cleared.lit && !cleared.line && cleared.crumb === 'Home›Lending: holds, requests and mails', JSON.stringify({ once, down, cleared }));
     // The contents and the button of the look: a picture node opens on a click like any node, a film plays with no sound only on a click, a button does its action.
     await drawnAt(homeFile, '?look=1');
     await one.click(node('writing'));
@@ -159,7 +159,7 @@ try {
     await one.click('.mc .mk-links a:text-is("librarian")');
     const shown = await one.evaluate(() => window.shownCode);
     check('a note card shows the marks at its lines at the corners of their sets, the colour of the look, one line for its service and its named things as links; a click on a link shows that line',
-      card.left === 2 && card.right === 1 && card.bar && card.line.startsWith('Table Store · keeps data in it · 7 places') && card.links.join() === 'book_request,librarian,purchase_order,member'
+      card.left === 2 && card.right === 1 && card.bar && card.line.startsWith('PostgreSQL · keeps data in it · 7 places') && card.links.join() === 'book_request,librarian,purchase_order,member'
         && JSON.stringify(shown) === '[["src/library/lending/requests.py",[51,51]]]', JSON.stringify({ card, shown }));
     await one.close();
   }

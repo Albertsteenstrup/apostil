@@ -14,7 +14,6 @@ import { notesAtLine } from './note-lines';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const Marks = require('../../view/media/marks.js');
 
-export const MARGIN_MOST = 200; // lines with an icon in one file
 export const ANSWERS_MOST = 200; // answers of one search with #
 export const ROWS_MOST = 50; // rows in a group of the list "Look", then "n more"
 
@@ -40,18 +39,12 @@ export function marksIn<T extends Mark>(marks: T[], path: string, lines: string[
 }
 
 /**
- * The marks in the margin of one text (a file, or one side of a diff): each mark placed by the text of its line in this text, picked by the margin
- * rules, and one icon on a line: the first of its stack, the sets in their order and in a set the values that fewer lines hold first, as a stack of a
- * node orders them. At most 200 lines.
+ * The marks in the margin of one text (a file, or one side of a diff): each mark placed by the text of its line in this text, and at each line whose
+ * rule shows it one icon, by the one rule of the margin that the file tab uses too (Marks.marginIcons in view/media/marks.js). At most 200 lines.
  */
 export function marginMarks(rules: LookRule[], marks: Mark[], path: string, lines: string[], setOrder: string[]): MarginMark[] {
-  const byLine = new Map<number, Mark[]>();
-  for (const mark of marksIn(marks, path, lines)) if (isShown(rules, { kind: 'margin', paths: [path], marks: [mark] })) byLine.set(mark.at, [...(byLine.get(mark.at) ?? []), mark]);
-  const spread = Marks.spreadOf([...byLine.values()].map((own) => ({ marks: own })));
-  return [...byLine].sort((a, b) => a[0] - b[0]).slice(0, MARGIN_MOST).map(([line, own]) => {
-    const set = setOrder.find((id) => own.some((mark) => mark.set === id)) ?? own[0].set;
-    return { line, key: Marks.stackOf(own, set, spread)[0].key };
-  });
+  const look = { rules, sets: setOrder.map((id) => ({ id })) };
+  return (Marks.marginIcons(look, path, marksIn(marks, path, lines)) as [number, string][]).map(([line, key]) => ({ line, key }));
 }
 
 /** A round chip with the first letter of a name, as on a node, for a value with no icon: an SVG as a data address. */
@@ -182,9 +175,14 @@ export function lineFacts(line: number, notes: NoteHere[], steps: Map<string, St
   return { ...(here[0] ? { note: here[0] } : {}), steps: [...byProcess.values()], marks: marks.filter((mark) => mark.at === line) };
 }
 
-/** The context keys of the line under the cursor: apostil.lineHas.note, .process and .mark. */
-export const lineKeys = (facts: LineFacts | undefined): Record<string, boolean> => ({
-  'apostil.lineHas.note': !!facts?.note, 'apostil.lineHas.process': !!facts?.steps.length, 'apostil.lineHas.mark': !!facts?.marks.length,
+/**
+ * The context keys of the file in front: apostil.fileHas.note, .process and .mark. An entry stands when its file has what it needs anywhere (VS Code
+ * builds a right-click menu before it tells the extension the line of the click); on a line with nothing for it, the command says so.
+ */
+export const fileKeys = (notes: NoteHere[] | undefined, steps: Map<string, StepRef>, marks: MarkAt[] | undefined): Record<string, boolean> => ({
+  'apostil.fileHas.note': !!notes?.length,
+  'apostil.fileHas.process': !!notes?.some((one) => { const key = stepKeyOf(one); return !!key && steps.has(key); }),
+  'apostil.fileHas.mark': !!marks?.length,
 });
 
 /**
@@ -210,18 +208,19 @@ export function noteOnHome(note: NoteHere, steps: Map<string, StepRef>, map: Rep
 /** Where "Show the Process of This Line" goes for one step: its process, at the top step that holds it, lit. */
 export const processOfStep = (step: StepRef): Target => ({ place: { diagram: `process:${step.process.id}`, node: step.top } });
 
-/** The words of the default key of an action (1 to 9) or an entry, as VS Code writes keys on this platform. */
-export function keyWords(key: string, mac: boolean): string {
-  return mac ? `⌃⌥${key.toUpperCase()}` : `Ctrl+Alt+${key.toUpperCase()}`;
-}
+/**
+ * The words of the default key of an action (1 to 9) or an entry, as VS Code writes keys on a Mac: Control+Option. Only a Mac has these keys by
+ * default; on Windows and Linux Ctrl+Alt is AltGr, which types characters, so a user there sets a key in VS Code's Keyboard Shortcuts.
+ */
+export const keyWords = (key: string): string => `⌃⌥${key.toUpperCase()}`;
 
 /** The default keys of the four entries (package.json holds the same). */
 export const ENTRY_KEYS: Record<Entry, string> = { note: 'h', process: 's', mark: 'm', actions: 'l' };
 
-/** The rows of "Actions of the Look…": the name, the key of each of the first nine when the look turns it on, and what it does. */
+/** The rows of "Actions of the Look…": the name, the key of each of the first nine where one is bound (a Mac, when the look turns it on), and what it does. */
 export function actionRows(actions: LookAction[], keys: Record<string, boolean>, mac: boolean): { label: string; description?: string; detail: string; action: LookAction }[] {
   return actions.map((action, at) => ({
-    label: action.name, ...(keys[`apostil.lookKey.action${at + 1}`] ? { description: keyWords(String(at + 1), mac) } : {}), detail: Marks.targetWords(action.target), action,
+    label: action.name, ...(mac && keys[`apostil.lookKey.action${at + 1}`] ? { description: keyWords(String(at + 1)) } : {}), detail: Marks.targetWords(action.target), action,
   }));
 }
 
@@ -232,7 +231,7 @@ export interface TabNow { kind: 'home' | 'graphs' | 'page' | 'other'; name: stri
 
 /** The view of Apostil that a target of the first page opens: its kind of tab and its name. */
 export function viewOf(target: Target, pages: { id: string; title: string }[] = []): TabNow {
-  const page = (target as { page?: string }).page; // the target of a page of the look (build 58)
+  const { page } = target;
   if (page !== undefined) return { kind: 'page', name: pages.find((one) => one.id === page)?.title ?? page };
   if (target.graphs) return { kind: 'graphs', name: target.graphs.endsWith('/') ? `${target.graphs.replace(/\/$/, '').split('/').pop()}/` : target.graphs.split('/').pop()! };
   return { kind: 'home', name: 'Home' };
@@ -296,10 +295,10 @@ export function lookRows({ rules, sets, values, marks, pages, open = new Set() }
   pages: { id: string; title: string }[]; open?: Set<string>;
 }): LookRow[] {
   const groups = listGroups(rules, pages.length > 0);
-  const first = firstPageOf(rules) as { page?: string } | undefined;
+  const first = firstPageOf(rules);
   return groups.map((group) => {
     if (group === 'pages') {
-      const rows = pages.map((page) => ({ id: `pages/${page.id}`, label: page.title, ...(first?.page === page.id ? { quiet: 'first page' } : {}), target: { page: page.id } as Target }));
+      const rows = pages.map((page) => ({ id: `pages/${page.id}`, label: page.title, ...(first?.page === page.id ? { quiet: 'first page' } : {}), target: { page: page.id } }));
       return { id: 'pages', label: 'Pages', rows: capped('pages', rows, open) };
     }
     const rows = sets.map((set) => {
@@ -328,7 +327,7 @@ export interface VsCodeLook {
 
 /** Reads the look and the map of a repo from the store. With no look saved, nothing is on. */
 export function vscodeLook(store: Store, repo: string | undefined): VsCodeLook {
-  const look: (Look & { pages?: { id: string; title: string }[] }) | undefined = repo ? store.getLook(repo)?.look : undefined;
+  const look: Look | undefined = repo ? store.getLook(repo)?.look : undefined;
   return { rules: look?.rules ?? [], actions: look?.actions ?? [], pages: look?.pages ?? [], map: repo ? store.getMap(repo)?.map : undefined };
 }
 

@@ -1,0 +1,32 @@
+{
+ "pages": [
+  { "id": "opening-hours", "title": "Opening hours",
+    "blocks": [
+     { "text": "The hours of each branch, from the file that the app reads.\n\nEach row of the file is <branch>, <opens>, <closes>, <hours>." },
+     { "row": [
+       { "title": "Branches", "table": { "file": "data/branches.csv", "columns": ["branch", "opens", "closes"], "rows": 10 } },
+       { "title": "The web pages", "fields": { "file": "web/package.json", "keys": ["name", "description"] } } ] },
+     { "title": "Hours a day", "bars": { "file": "data/branches.csv", "label": "branch", "value": "hours" } },
+     { "state": { "word": "made up", "color": "#b45309", "text": "This page is an example." } },
+     { "title": "The night run", "code": { "file": "src/library/night_jobs.py", "lines": [516, 527] } },
+     { "row": [
+       { "title": "A day", "picture": "apostil-look-picture-week.svg" },
+       { "title": "How a request is answered", "diagram": "process:answer-request" } ] },
+     { "links": [
+       { "name": "The night run", "target": { "file": "src/library/night_jobs.py", "line": 516 } },
+       { "name": "The jobs on Home", "target": { "place": { "diagram": "lib-top", "node": "jobs" } } } ] },
+     { "button": { "name": "Show the data folder", "target": { "folder": "data/" } } }
+    ] }
+ ],
+ "rules": [
+  { "pick": { "kind": "node", "diagram": "lib-top", "nodes": ["jobs"] },
+    "click": { "page": "opening-hours" },
+    "window": { "sections": [ "files",
+      { "title": "Opening hours", "blocks": [ { "table": { "file": "data/branches.csv", "columns": ["branch", "opens"], "rows": 4 } } ] },
+      "changes" ] } },
+  { "pick": { "kind": "node", "diagram": "lib-top", "nodes": ["lending"] },
+    "click": { "window": { "title": "Lending, in short", "width": 400, "blocks": [
+      { "text": "Members ask for books. A book that is out waits in a line." },
+      { "links": [ { "name": "The opening hours", "target": { "page": "opening-hours" } } ] } ] } } }
+ ]
+}

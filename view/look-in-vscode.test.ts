@@ -14,7 +14,7 @@ import type { Process } from '../shared/processes';
 import type { RepoMap } from '../shared/repo-map';
 import { EXAMPLE_LOOK, makeCheckExample } from './check-example';
 import {
-  actionRows, answersFor, lineFacts, lineKeys, lookKeys, lookRows, marginMarks, MARGIN_MOST, noteOnHome, placesOf, processOfStep, searchAnswers, stepsByKey, whatOpens,
+  actionRows, answersFor, fileKeys, lineFacts, lookKeys, lookRows, marginMarks, noteOnHome, placesOf, processOfStep, searchAnswers, stepsByKey, whatOpens,
 } from './look-of-vscode';
 
 const example = makeCheckExample();
@@ -28,28 +28,28 @@ const mark = (value: string, file: string, line: number, code: string, set = 'se
 const on = (kind: string, more: Record<string, unknown> = {}): LookRule => ({ pick: { kind, ...more }, show: { shown: true } } as unknown as LookRule);
 const lines = ['def read():', '    store.get(1)', '    feed.send(2)', '    bell.ring()', ''];
 
-test('the margin: a mark at its line, one icon on a line in the order of a stack, at most 200 lines, each side of a diff by its own text, none on a line that changed', () => {
+test('the margin, by the rule of the file tab: a mark at its line, one icon on a line in the order of a stack, at most 200 lines, each side of a diff by its own text, none on a line that changed', () => {
   const marks = [
-    mark('table-store', 'src/a.py', 2, '    store.get(1)'),
-    mark('book-feed', 'src/a.py', 3, '    feed.send(2)'), mark('table-store', 'src/a.py', 3, '    feed.send(2)'), // two values on one line
+    mark('postgresql', 'src/a.py', 2, '    store.get(1)'),
+    mark('book-feed', 'src/a.py', 3, '    feed.send(2)'), mark('postgresql', 'src/a.py', 3, '    feed.send(2)'), // two values on one line
     mark('state', 'src/a.py', 3, '    feed.send(2)', 'errors'),
     mark('night-bell', 'src/a.py', 4, '    bell.ring()'),
-    mark('table-store', 'src/b.py', 2, '    store.get(1)'), // another file
+    mark('postgresql', 'src/b.py', 2, '    store.get(1)'), // another file
   ];
   const rules = [on('margin', { paths: ['src/'] })];
   // On line 3 the services come first (the order of the sets), and of them book-feed, which fewer lines hold than table-store.
   assert.deepEqual(marginMarks(rules, marks, 'src/a.py', lines, ['services', 'errors']), [
-    { line: 2, key: 'services:table-store' }, { line: 3, key: 'services:book-feed' }, { line: 4, key: 'services:night-bell' },
+    { line: 2, key: 'services:postgresql' }, { line: 3, key: 'services:book-feed' }, { line: 4, key: 'services:night-bell' },
   ]);
-  // A rule of one mark picks only that mark; with no rule there is none.
-  assert.deepEqual(marginMarks([on('margin', { mark: 'errors:*' })], marks, 'src/a.py', lines, ['services', 'errors']), [{ line: 3, key: 'errors:state' }]);
+  // A rule of one mark picks the lines that hold it, and the icon there is the first of the stack of the line, as in the file tab; with no rule there is none.
+  assert.deepEqual(marginMarks([on('margin', { mark: 'errors:*' })], marks, 'src/a.py', lines, ['services', 'errors']), [{ line: 3, key: 'services:book-feed' }]);
   assert.deepEqual(marginMarks([], marks, 'src/a.py', lines, ['services']), []);
   // The other side of a diff has two lines more above: each mark stands at its line there; the line of the bell changed there, so it has none.
   const base = ['# one', '# two', ...lines.slice(0, 3), '    bell.ring(3)', ''];
   assert.deepEqual(marginMarks(rules, marks, 'src/a.py', base, ['services']).map((one) => one.line), [4, 5]);
   // At most 200 lines with an icon.
   const many = Array.from({ length: 250 }, (_, at) => `call_${at}()`);
-  assert.equal(marginMarks(rules, many.map((code, at) => mark('table-store', 'src/c.py', at + 1, code)), 'src/c.py', many, ['services']).length, MARGIN_MOST);
+  assert.equal(marginMarks(rules, many.map((code, at) => mark('postgresql', 'src/c.py', at + 1, code)), 'src/c.py', many, ['services']).length, 200);
 });
 
 const note = (title: string, file: string, lines: [number, number], fromMap = true): NoteHere => ({
@@ -81,7 +81,7 @@ test('the search with #: a note, a step and a process by their titles, with wher
 test('the places of a mark: each line of its value that stands now, by file and line, with the text of the line; a line that changed is left out', () => {
   const night = readFileSync(join(example.folder, 'src/library/night_jobs.py'), 'utf8').split('\n');
   const marks = [516, 139, 156].map((line) => mark('night-bell', 'src/library/night_jobs.py', line, night[line - 1]));
-  marks.push(mark('night-bell', 'src/library/night_jobs.py', 20, 'a line that is gone'), mark('table-store', 'src/library/night_jobs.py', 1, night[0]));
+  marks.push(mark('night-bell', 'src/library/night_jobs.py', 20, 'a line that is gone'), mark('postgresql', 'src/library/night_jobs.py', 1, night[0]));
   assert.deepEqual(placesOf(example.folder, marks, 'services:night-bell'), [139, 156, 516].map((line) => ({ file: 'src/library/night_jobs.py', line, text: night[line - 1].trim() })));
 });
 
@@ -101,17 +101,20 @@ test('the entries and keys that a look turns on are the context keys that the ex
   for (const key of new Set(named)) assert.ok(key in keys, key);
   // The line: the narrowest note, the narrowest step of each process, the marks at it.
   const notes = [note('Answer the request', 'src/r.py', [10, 30]), note('Lock the rows', 'src/r.py', [12, 14])];
-  const facts = lineFacts(13, notes, stepsByKey([process]), [{ set: 'services', value: 'table-store', file: 'src/r.py', at: 13 }]);
+  const facts = lineFacts(13, notes, stepsByKey([process]), [{ set: 'services', value: 'postgresql', file: 'src/r.py', at: 13 }]);
   assert.deepEqual([facts.note?.note.title, facts.steps.map((step) => `${step.drawing} ${step.node} top ${step.top}`), facts.marks.length], ['Lock the rows', ['process:answer/0 s1 top s0'], 1]);
-  assert.deepEqual(lineKeys(facts), { 'apostil.lineHas.note': true, 'apostil.lineHas.process': true, 'apostil.lineHas.mark': true });
-  assert.deepEqual(lineKeys(lineFacts(50, notes, stepsByKey([process]), [])), { 'apostil.lineHas.note': false, 'apostil.lineHas.process': false, 'apostil.lineHas.mark': false });
+  // An entry stands by what the file has anywhere: a note, a step, a mark; a file with none of them has no entry.
+  const marked = [{ set: 'services', value: 'postgresql', file: 'src/r.py', at: 13 }];
+  assert.deepEqual(fileKeys(notes, stepsByKey([process]), marked), { 'apostil.fileHas.note': true, 'apostil.fileHas.process': true, 'apostil.fileHas.mark': true });
+  assert.deepEqual(fileKeys([notes[0]], stepsByKey([]), []), { 'apostil.fileHas.note': true, 'apostil.fileHas.process': false, 'apostil.fileHas.mark': false });
+  assert.deepEqual(fileKeys(undefined, stepsByKey([process]), undefined), { 'apostil.fileHas.note': false, 'apostil.fileHas.process': false, 'apostil.fileHas.mark': false });
   // Where the entries go: the step in its own drawing, its process at its top step, a note of a change at the node of the map that holds its file.
   assert.deepEqual([noteOnHome(facts.note!, stepsByKey([process]), map), processOfStep(facts.steps[0])], [{ place: { diagram: 'process:answer/0', node: 's1' } }, { place: { diagram: 'process:answer', node: 's0' } }]);
   assert.deepEqual(noteOnHome(note('Plan the holds', 'src/library/lending/hold_service.py', [1, 2], false), new Map(), map), { place: { diagram: 'lib-lending', node: 'service' } });
-  // The rows of "Actions of the Look…": the key of each of the first nine that the look turns on, and what the action does.
-  assert.deepEqual(actionRows(vscodeLook.actions, keys, true).map(({ label, description, detail }) => [label, description, detail]), [
-    ['Open the night run', '⌃⌥1', 'Opens src/library/night_jobs.py at line 516.'], ['Show how a request is answered', undefined, 'Opens process:answer-request on Home.'],
-  ]);
+  // The rows of "Actions of the Look…": the key of each of the first nine that the look turns on, where one is bound (a Mac), and what the action does.
+  const rows = (mac: boolean) => actionRows(vscodeLook.actions, keys, mac).map(({ label, description, detail }) => [label, description, detail]);
+  assert.deepEqual(rows(true).slice(0, 2), [['Open the night run', '⌃⌥1', 'Opens src/library/night_jobs.py at line 516.'], ['Show how a request is answered', undefined, 'Opens process:answer-request on Home.']]);
+  assert.deepEqual([rows(true)[2][0], rows(false)[0][1]], ['Open the opening hours', undefined]);
 });
 
 test('what opens by itself: Home in an empty window, the first page once beside the tabs brought back, not when its view is there, nothing with the setting off', () => {
@@ -124,7 +127,7 @@ test('what opens by itself: Home in an empty window, the first page once beside 
   assert.equal(whatOpens({ tabs: [file, { kind: 'home', name: 'Home' }], first, on: true, start: true }), undefined);
   // A page of the look (build 58) is known by its title; the graphs of a path by its name.
   const pages = [{ id: 'opening-hours', title: 'Opening hours' }];
-  assert.equal(whatOpens({ tabs: [{ kind: 'page', name: 'Opening hours' }], first: { page: 'opening-hours' } as never, pages, on: true, start: true }), undefined);
+  assert.equal(whatOpens({ tabs: [{ kind: 'page', name: 'Opening hours' }], first: { page: 'opening-hours' }, pages, on: true, start: true }), undefined);
   assert.deepEqual(whatOpens({ tabs: [{ kind: 'graphs', name: 'jobs/' }], first: { graphs: 'src/library/night_jobs.py' }, on: true, start: true }), { first: { graphs: 'src/library/night_jobs.py' }, beside: true });
   // After the start: an empty editor area gets the first page in place of Home; a window with tabs gets nothing.
   assert.deepEqual(whatOpens({ tabs: [], first, on: true, start: false }), { first, beside: false });
@@ -134,14 +137,14 @@ test('what opens by itself: Home in an empty window, the first page once beside 
 
 test('the rows of the list "Look": each set with its values and their counts, the pages with the first page; at most 50 rows, then "n more"', () => {
   const rules = [on('look-list'), { pick: { kind: 'first-page' }, click: { page: 'opening-hours' } } as unknown as LookRule];
-  const marks = [['a.py', 1], ['a.py', 2], ['b.py', 9]].map(([file, at]) => ({ set: 'services', value: 'table-store', file: String(file), at: Number(at) }));
-  const rows = lookRows({ rules, sets: [{ id: 'services', name: 'Services' }, { id: 'errors', name: 'Errors' }], values: { 'services:table-store': { name: 'Table Store' } }, marks, pages: [{ id: 'opening-hours', title: 'Opening hours' }] });
+  const marks = [['a.py', 1], ['a.py', 2], ['b.py', 9]].map(([file, at]) => ({ set: 'services', value: 'postgresql', file: String(file), at: Number(at) }));
+  const rows = lookRows({ rules, sets: [{ id: 'services', name: 'Services' }, { id: 'errors', name: 'Errors' }], values: { 'services:postgresql': { name: 'PostgreSQL' } }, marks, pages: [{ id: 'opening-hours', title: 'Opening hours' }] });
   const words = (row: { label: string; quiet?: string }): string => `${row.label}${row.quiet ? ` · ${row.quiet}` : ''}`;
   assert.deepEqual(rows.map((group) => [group.label, group.rows!.map((row) => [words(row), (row.rows ?? []).map(words)])]), [
-    ['Marks', [['Services', ['Table Store · 3 lines · 2 files']], ['Errors · no marks now', []]]],
+    ['Marks', [['Services', ['PostgreSQL · 3 lines · 2 files']], ['Errors · no marks now', []]]],
     ['Pages', [['Opening hours · first page', []]]],
   ]);
-  assert.deepEqual([rows[0].rows![0].rows![0].places, rows[1].rows![0].target], ['services:table-store', { page: 'opening-hours' }]);
+  assert.deepEqual([rows[0].rows![0].rows![0].places, rows[1].rows![0].target], ['services:postgresql', { page: 'opening-hours' }]);
   // Only the group "marks"; a look with no pages has no group "pages".
   assert.deepEqual(lookRows({ rules: [on('look-list', { where: { group: 'marks' } })], sets: [], values: {}, marks: [], pages: [{ id: 'p', title: 'P' }] }).map((group) => group.label), ['Marks']);
   assert.deepEqual(lookRows({ rules: [on('look-list')], sets: [], values: {}, marks: [], pages: [] }).map((group) => group.label), ['Marks']);
@@ -154,10 +157,11 @@ test('the rows of the list "Look": each set with its values and their counts, th
 });
 
 test('each new part has the area vscode, other words and an example that passes the check; the example look of this build passes', () => {
-  const fill = (rule: unknown): unknown => JSON.parse(JSON.stringify(rule).replaceAll('<diagram>', 'lib-top').replaceAll('<set>:<value>', 'services:table-store'));
+  const fill = (rule: unknown): unknown => JSON.parse(JSON.stringify(rule).replaceAll('<diagram>', 'lib-top').replaceAll('<set>:<value>', 'services:postgresql'));
   for (const kind of ['margin', 'symbol-search', 'menu-entry', 'key', 'first-page', 'look-list'] as const) {
     const part = LOOK_PARTS.components[kind];
-    assert.ok(part.area === 'vscode' && part.words.length, kind);
+    // The margin is one entry for the file tab and VS Code: it stands in the area file-tab, and the area vscode names it.
+    assert.ok((part.area === 'vscode' || ('also' in part && part.also === 'vscode')) && part.words.length, kind);
     assert.deepEqual(problems(fill(part.example)), [], kind);
   }
   assert.deepEqual(lookProblems(vscodeLook, context), []);
@@ -179,8 +183,6 @@ test('each fault of a part of VS Code has its sentence', () => {
   assert.deepEqual(lookProblems({ rules: [], actions: [{ id: 'hours', name: 'A name of the action that is longer than forty letters', target: { pull: 0 } }] }, context), [
     'Action "hours": the name has 54 characters. A name holds at most 40.', 'Action "hours": "pull" must be the number of a pull request, as 12.',
   ]);
-  // A page of the look is checked for its id and title here; build 58 checks its blocks.
-  assert.deepEqual(lookProblems({ rules: [], pages: [{ title: 'No id' }] }, context), ['Page 1: a page is { "id", "title", "blocks" }, the id in small letters, digits and "-".']);
 });
 
 test('a part that no look can use: the search says so in one sentence, and the check names it', () => {
@@ -196,7 +198,7 @@ test('a part that no look can use: the search says so in one sentence, and the c
   }
 });
 
-test('the example look of build 62 is one rule for each part, two actions and a page', () => {
+test('the example look of build 62 is one rule for each part, three actions and a page, which is its first page', () => {
   assert.deepEqual(vscodeLook.rules.map((rule: LookRule) => rule.pick.kind), ['margin', 'symbol-search', 'menu-entry', 'key', 'first-page', 'look-list']);
-  assert.deepEqual([vscodeLook.actions.length, vscodeLook.pages.length], [2, 1]);
+  assert.deepEqual([vscodeLook.actions.length, vscodeLook.pages.length, vscodeLook.rules[4].click], [3, 1, { page: 'opening-hours' }]);
 });

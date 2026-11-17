@@ -155,6 +155,10 @@
         "title": "Apostil: Turn on links and nudges"
       },
       {
+        "command": "apostil.openLookPage",
+        "title": "Apostil: Open a Page of the Look…"
+      },
+      {
         "command": "apostil.openNoteOnHome",
         "title": "Open This Note on Home",
         "category": "Apostil"
@@ -273,6 +277,10 @@
           "when": "apostil.linksOff"
         },
         {
+          "command": "apostil.openLookPage",
+          "when": "apostil.lookHasPages"
+        },
+        {
           "command": "apostil.openNoteOnHome",
           "when": "apostil.lookEntry.note"
         },
@@ -328,17 +336,17 @@
       "editor/context": [
         {
           "command": "apostil.openNoteOnHome",
-          "when": "apostil.lookMenu.note.editor && apostil.lineHas.note && resourceScheme == file",
+          "when": "apostil.lookMenu.note.editor && apostil.fileHas.note && resourceScheme == file",
           "group": "apostil@1"
         },
         {
           "command": "apostil.showProcessOfLine",
-          "when": "apostil.lookMenu.process.editor && apostil.lineHas.process && resourceScheme == file",
+          "when": "apostil.lookMenu.process.editor && apostil.fileHas.process && resourceScheme == file",
           "group": "apostil@2"
         },
         {
           "command": "apostil.showPlacesOfMark",
-          "when": "apostil.lookMenu.mark.editor && apostil.lineHas.mark && resourceScheme == file",
+          "when": "apostil.lookMenu.mark.editor && apostil.fileHas.mark && resourceScheme == file",
           "group": "apostil@3"
         },
         {
@@ -398,67 +406,67 @@
       {
         "command": "apostil.openNoteOnHome",
         "key": "ctrl+alt+h",
-        "when": "apostil.lookKey.note && (editorTextFocus || activeCustomEditorId == 'apostil.file')"
+        "when": "isMac && apostil.lookKey.note && (editorTextFocus || activeCustomEditorId == 'apostil.file')"
       },
       {
         "command": "apostil.showProcessOfLine",
         "key": "ctrl+alt+s",
-        "when": "apostil.lookKey.process && (editorTextFocus || activeCustomEditorId == 'apostil.file')"
+        "when": "isMac && apostil.lookKey.process && (editorTextFocus || activeCustomEditorId == 'apostil.file')"
       },
       {
         "command": "apostil.showPlacesOfMark",
         "key": "ctrl+alt+m",
-        "when": "apostil.lookKey.mark && (editorTextFocus || activeCustomEditorId == 'apostil.file')"
+        "when": "isMac && apostil.lookKey.mark && (editorTextFocus || activeCustomEditorId == 'apostil.file')"
       },
       {
         "command": "apostil.lookActions",
         "key": "ctrl+alt+l",
-        "when": "apostil.lookKey.actions && (editorTextFocus || activeCustomEditorId == 'apostil.file')"
+        "when": "isMac && apostil.lookKey.actions && (editorTextFocus || activeCustomEditorId == 'apostil.file')"
       },
       {
         "command": "apostil.lookAction1",
         "key": "ctrl+alt+1",
-        "when": "apostil.lookKey.action1 && (editorTextFocus || activeCustomEditorId == 'apostil.file')"
+        "when": "isMac && apostil.lookKey.action1 && (editorTextFocus || activeCustomEditorId == 'apostil.file')"
       },
       {
         "command": "apostil.lookAction2",
         "key": "ctrl+alt+2",
-        "when": "apostil.lookKey.action2 && (editorTextFocus || activeCustomEditorId == 'apostil.file')"
+        "when": "isMac && apostil.lookKey.action2 && (editorTextFocus || activeCustomEditorId == 'apostil.file')"
       },
       {
         "command": "apostil.lookAction3",
         "key": "ctrl+alt+3",
-        "when": "apostil.lookKey.action3 && (editorTextFocus || activeCustomEditorId == 'apostil.file')"
+        "when": "isMac && apostil.lookKey.action3 && (editorTextFocus || activeCustomEditorId == 'apostil.file')"
       },
       {
         "command": "apostil.lookAction4",
         "key": "ctrl+alt+4",
-        "when": "apostil.lookKey.action4 && (editorTextFocus || activeCustomEditorId == 'apostil.file')"
+        "when": "isMac && apostil.lookKey.action4 && (editorTextFocus || activeCustomEditorId == 'apostil.file')"
       },
       {
         "command": "apostil.lookAction5",
         "key": "ctrl+alt+5",
-        "when": "apostil.lookKey.action5 && (editorTextFocus || activeCustomEditorId == 'apostil.file')"
+        "when": "isMac && apostil.lookKey.action5 && (editorTextFocus || activeCustomEditorId == 'apostil.file')"
       },
       {
         "command": "apostil.lookAction6",
         "key": "ctrl+alt+6",
-        "when": "apostil.lookKey.action6 && (editorTextFocus || activeCustomEditorId == 'apostil.file')"
+        "when": "isMac && apostil.lookKey.action6 && (editorTextFocus || activeCustomEditorId == 'apostil.file')"
       },
       {
         "command": "apostil.lookAction7",
         "key": "ctrl+alt+7",
-        "when": "apostil.lookKey.action7 && (editorTextFocus || activeCustomEditorId == 'apostil.file')"
+        "when": "isMac && apostil.lookKey.action7 && (editorTextFocus || activeCustomEditorId == 'apostil.file')"
       },
       {
         "command": "apostil.lookAction8",
         "key": "ctrl+alt+8",
-        "when": "apostil.lookKey.action8 && (editorTextFocus || activeCustomEditorId == 'apostil.file')"
+        "when": "isMac && apostil.lookKey.action8 && (editorTextFocus || activeCustomEditorId == 'apostil.file')"
       },
       {
         "command": "apostil.lookAction9",
         "key": "ctrl+alt+9",
-        "when": "apostil.lookKey.action9 && (editorTextFocus || activeCustomEditorId == 'apostil.file')"
+        "when": "isMac && apostil.lookKey.action9 && (editorTextFocus || activeCustomEditorId == 'apostil.file')"
       }
     ],
     "themes": [

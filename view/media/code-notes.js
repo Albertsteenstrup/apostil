@@ -3,6 +3,7 @@
 'use strict';
 
 const MANY_TESTS = 20; // above this, the tests that name a function are too many to count: "many tests", listed only on demand
+const Look = typeof Marks === 'object' ? Marks : require('./marks.js'); // the look (marks.js); the tests read this file in Node
 
 /** The tests of a window as HTML: groups of tests, each with its added lines in a box that is filled when the window is open. */
 function testsHtml(answer) {
@@ -85,10 +86,10 @@ const inside = (line, [first, last]) => first <= line && line <= last;
 /** A note as a thing of the look: its file and lines, its fields, and the marks at its lines (`marks`: the marks of the file with their lines now). */
 function noteThing(note, marks = []) {
   const thing = {
-    kind: 'note', now: true, paths: [note.file], at: [{ file: note.file, from: note.lines[0], to: note.lines[1] }],
-    fields: { title: note.title, file: note.file, function: note.symbol ?? '', tests: note.linkedTests ?? 0 },
+    kind: 'note', id: note.title, now: true, paths: [note.file], at: [{ file: note.file, from: note.lines[0], to: note.lines[1] }],
+    fields: { title: note.title, file: note.file, function: note.symbol ?? '', tests: note.linkedTests ?? 0, check: !!(note.check || note.failed) },
   };
-  thing.marks = Marks.marksIn(thing, marks);
+  thing.marks = Look.marksIn(thing, marks);
   return thing;
 }
 
@@ -106,10 +107,50 @@ function lookOfNote(card, note, marks = []) {
   const thing = noteThing(note, marks);
   Marks.decorateNote(card, look, thing, (file, line) => App.showCode(file, [line, line]));
   const slots = noteSlots(note, marks);
+  // The first line of a function (build 60): words from its fields, or left out.
+  const head = card.querySelector(':scope > .fn');
+  if (head) {
+    const line = Marks.lineThing('function-line', note.file, note.lines, marks, { function: note.symbol, tests: App.page.functionTests?.[note.symbol] ?? 0 });
+    const own = Marks.slotsIn(look, line);
+    if (own['show.shown'] === false) head.remove();
+    else if (own.content?.words) head.innerHTML = Marks.fillWords(esc(own.content.words), line.fields);
+  }
   if (slots.content?.fields) orderCard(card, slots.content.fields);
+  const title = card.querySelector(':scope > .t');
+  if (title) Marks.paintText(title, look, slots); // an icon before its title
   Marks.bind(card, slots, null, note.title);
-  Marks.inputWindow(card, slots, note.title);
+  // Its window of the pointer when a rule gives it one: what a check found ("check"), and what a click does.
+  const found = note.check ? `Check: ${note.check}` : note.failed ? `Line check: ${note.failed}` : '';
+  if (slots['window.sections'] || slots['window.width']) Hover.attach(card, () => ({ ...Marks.windowOf({ title: note.title, width: 320, sections: [{ id: 'check', html: found && `<p class="stepnote">${esc(found)}</p>` }] }, slots), pad: true }));
+  else Marks.inputWindow(card, slots, note.title);
   return card;
+}
+
+/**
+ * The look of the parts of a file tab around its notes (build 60), from the rules on the line to the code, the order of the notes, the notes column,
+ * the code map and the margin: their slots for the notes of a file and its marks with their lines now; `rank(note)` is the place of a note in the
+ * order of a rule on the notes, or null with no such rule.
+ */
+function fileLook(path, notes, marks = []) {
+  const look = App.page?.look;
+  if (!look || !path) return { line: () => ({}), order: () => ({}), column: {}, map: {}, tint: () => undefined, margin: new Map(), rank: null };
+  const ofNote = (kind) => new Map(notes.filter((note) => note.lines).map((note) => [note, Marks.slotsIn(look, Marks.lineThing(kind, path, note.lines, marks))]));
+  const [lines, orders] = [ofNote('note-line'), ofNote('note-order')];
+  const column = Marks.slotsIn(look, { kind: 'notes-column', paths: [path], fields: {} });
+  const map = Marks.slotsIn(look, { kind: 'code-map', paths: [path], marks, fields: {} });
+  // The code map tints the lines that a rule picks: each line with marks by its own rule, every line by a rule of the whole file.
+  const whole = Marks.slotsIn(look, { kind: 'code-map', paths: [path], marks: [], fields: {} })['box.color'];
+  const tints = new Map(Marks.marginThings(path, marks, Infinity, 'code-map').map(([line, thing]) => [line, Marks.slotsIn(look, thing)['box.color']]).filter(([, color]) => color));
+  // The margin: at each line whose rule shows it, the icon of the first value of the stack there, as on a node.
+  const margin = new Map(Marks.marginIcons(look, path, marks).map(([line, key]) => [line, { key, name: look.values[key]?.name ?? key.split(':')[1], icon: look.values[key]?.icon }]));
+  // The order of a rule on the notes ranks them: a card that ranks before the next card keeps its whole text when not all fit.
+  const things = notes.filter((note) => note.lines && !note.removed).map((note) => ({ ...noteThing(note, marks), note }));
+  const order = Marks.listOrder(things, look);
+  const ranked = order.by || order.first ? Marks.orderRows(things, order)[0].rows.map((row) => row.note) : null;
+  return {
+    line: (note) => lines.get(note) ?? {}, order: (note) => orders.get(note) ?? {}, column, map, tint: (line) => tints.get(line) ?? whole, margin,
+    rank: ranked && ((note) => (ranked.includes(note) ? ranked.indexOf(note) : ranked.length)),
+  };
 }
 
 /**
@@ -199,28 +240,44 @@ function lanesOf(spans) {
  * `boxes` are where the cards stand ({ top, height, left, tone }); `ends` are the heights where each join meets the code;
  * `follows(index)` is true when note `index` is the next step of the note before it.
  */
-function noteLinks(boxes, ends, follows) {
+function noteLinks(boxes, ends, follows, looks = {}) {
   const joins = boxes.map(({ top, height, left, tone }, index) => {
     const to = top + Math.min(22, height / 2);
-    return `<path data-join="${index}" class="${tone}" d="M0 ${ends[index]} C${left / 2} ${ends[index]} ${left / 2} ${to} ${left} ${to}"/>`;
+    const own = lineLook(looks.line?.(index));
+    return `<path data-join="${index}" class="${[tone, own.class].filter(Boolean).join(' ')}"${own.style} d="M0 ${ends[index]} C${left / 2} ${ends[index]} ${left / 2} ${to} ${left} ${to}"/>`;
   });
   const arrows = boxes.map((box, index) => {
-    if (!follows(index)) return '';
+    const slots = looks.order?.(index) ?? {};
+    if (!follows(index) || slots['show.shown'] === false) return '';
     const x = box.left + 56;
     const [from, to] = [boxes[index - 1].top + boxes[index - 1].height + 2, box.top - 2];
-    return to - from > 14 ? `<path d="M${x} ${from} L${x} ${to - 6}"/><path class="arrow" d="M${x - 4.5} ${to - 7} L${x + 4.5} ${to - 7} L${x} ${to}"/>` : '';
+    const own = lineLook(slots);
+    const head = lineLook({ ...slots, 'arrow.dashed': false });
+    return to - from > 14 ? `<path${own.class ? ` class="${own.class}"` : ''}${own.style} d="M${x} ${from} L${x} ${to - 6}"/><path class="arrow${head.class ? ` ${head.class}` : ''}"${head.style} d="M${x - 4.5} ${to - 7} L${x + 4.5} ${to - 7} L${x} ${to}"/>` : '';
   });
   return `<svg class="links" width="1" height="1">${joins.join('')}${arrows.join('')}</svg>`;
+}
+
+/** The class and the style of a line beside the notes in the look ("arrow": its colour in both themes, its width, dashed); nothing with no rule. */
+function lineLook(slots = {}) {
+  const classes = [];
+  const style = [];
+  const color = slots['arrow.color'] && Marks.lineColors(slots['arrow.color']);
+  if (color) { classes.push('lk-stroke'); style.push(`--lk-stroke-l:${color.light};--lk-stroke-d:${color.dark}`); }
+  if (slots['arrow.width']) { classes.push('lk-wide'); style.push(`--lk-width:${slots['arrow.width']}px`); }
+  if (slots['arrow.dashed']) classes.push('lk-dashed');
+  return { class: classes.join(' '), style: style.length ? ` style="${style.join(';')}"` : '' };
 }
 
 /**
  * Where the cards of a column stand, by one rule: each at its first row (`want`), below the card before it with `room(index)` between them.
  * A card whose whole text would reach the row of the next card crowds it: the two show their title only (`short`), so that the next card can stand at
  * its row too. A stretch of crowded cards is so a stretch of titles. Where even the titles do not fit, a card stands lower than its row.
- * `full` and `shortHeight` are the heights of the cards, whole and as a title; `start` is the room above the first card.
+ * `full` and `shortHeight` are the heights of the cards, whole and as a title; `start` is the room above the first card; `keep(index)` true keeps a card whole
+ * (a rule of the look on the order of the notes), and the cards after it stand lower.
  * Returns { tops, short: [true when card index shows its title only], bottom }.
  */
-function cardPlaces(want, full, shortHeight, room, start) {
+function cardPlaces(want, full, shortHeight, room, start, keep = () => false) {
   const tops = [];
   const short = [];
   let bottom = start;
@@ -230,7 +287,7 @@ function cardPlaces(want, full, shortHeight, room, start) {
     const free = index + 1 < want.length ? want[index + 1] - room(index + 1) - tops[index] : Infinity; // the room down to the row of the next card
     const crowds = full[index] > free;
     // After a crowding card a card stays a title unless it has room for its whole text and one more title, so a stretch reads as one.
-    short[index] = (crowds || (crowded && full[index] + shortHeight > free)) && shortHeight < full[index];
+    short[index] = (crowds || (crowded && full[index] + shortHeight > free)) && shortHeight < full[index] && !keep(index);
     crowded = crowds;
     bottom = tops[index] + (short[index] ? shortHeight : full[index]);
   });
@@ -372,8 +429,10 @@ const isNarrow = (into) => into.clientWidth < NARROW;
  * map (a whole file: the small code map at the right edge, { top() } the room above it; codeMap in code-map.js).
  */
 function codeWithNotes(holder, options) {
-  const { rows, notes: written = [], scroller, path, colorOf, narrow = false, focus = null, top = () => -8, map = null } = options;
+  const { rows, notes: written = [], scroller, path, colorOf, narrow = false, focus = null, top = () => -8 } = options;
   const notes = written.filter((note) => noteSlots(note, options.marks)['show.shown'] !== false); // a note that the look leaves out is not drawn; counts elsewhere keep it
+  const looks = fileLook(path, notes, options.marks); // the margin, the code map and the lines beside the notes in the look (build 60)
+  const map = looks.map['show.shown'] === false ? null : options.map ?? null;
   // The map lies under the column of the notes; a file with no notes has it in a column of its own.
   const side = notes.length ? `<div class="notes${narrow ? ' narrow' : ''}"></div>` : map ? `<div class="mside" style="width:${narrow ? MAP_NARROW : MAP_WIDTH}px"></div>` : '';
   // The class "with-map" is there before the width of the code is measured: narrow, the map takes room beside the marks.
@@ -401,10 +460,12 @@ function codeWithNotes(holder, options) {
       : row.partner !== undefined ? markedWords(row.text, row.partner) : row.plain ? esc(row.text) : colorOf?.(row) ?? colorLine(row.text, null).html;
     const kinds = [row.kind, ...['lit', 'step', 'near', 'flash', 'nothing', 'cur'].filter((name) => hits(row, marks[name]))].join(' ');
     const thread = row.now && marks.threads.get(row.now);
+    const mark = row.now && row.kind !== 'del' && looks.margin.get(row.now); // the icon of a mark in the margin, when a rule shows it
+    const icon = mark ? `<span class="mg" data-mg="${row.now}" data-tip="${esc(mark.name)}">${mark.icon ? `<img src="${esc(mark.icon)}" alt="">` : esc(mark.name[0] ?? '?')}</span>` : '';
     // A removed row has its line in the file as it was: a comment on it goes on the old side of the diff. A line of the file now tells VS Code its
     // number for the right-click entries of a look in the file tab (data-vscode-context, read by VS Code itself).
     return `<div class="l ${kinds}" data-row="${index}"${row.now ? ` data-line="${row.now}" data-vscode-context='{"webviewSection":"codeLine","line":${row.now}}'` : row.kind === 'del' ? ` data-old="${row.line}"` : ''}${thread ? ` data-thread="${thread}"` : ''}>`
-      + `<span class="n">${row.num ?? row.line}</span><span class="g">${row.kind === 'add' ? '+' : row.kind === 'del' ? '−' : ''}</span>`
+      + `<span class="n">${icon}${row.num ?? row.line}</span><span class="g">${row.kind === 'add' ? '+' : row.kind === 'del' ? '−' : ''}</span>`
       + `<span class="x" style="padding-left:${hang}ch;text-indent:-${hang}ch">${text}</span></div>`;
   };
   const list = virtualRows(scroller, box, rows.length, rowHtml, (index) => (folded(index) ? FOLD_ROWS + 1 : fullRows(index)));
@@ -448,6 +509,9 @@ function codeWithNotes(holder, options) {
       view.place();
       return;
     }
+    // The icon of a mark in the margin: a window with the places of its value in the file, as a click on a mark of a note card.
+    const icon = event.target.closest('[data-mg]');
+    if (icon) return marginWindow(icon, path, looks.margin.get(Number(icon.dataset.mg)).key, options.marks);
     // Cmd+click on a line number opens the file in VS Code at that line; nothing else here opens an editor.
     const line = Number(event.target.closest('.n')?.parentElement.dataset.line);
     if (line && path && event.metaKey) App.openFile(path, [line, line]);
@@ -456,7 +520,7 @@ function codeWithNotes(holder, options) {
   const addMap = (spans) => {
     if (!map) return;
     const drawn = codeMap(holder.querySelector('.notes, .mside'), {
-      scroller, view, spans, narrow, top: map.top, holder: holder.firstChild,
+      scroller, view, spans, narrow, top: map.top, holder: holder.firstChild, tint: looks.tint,
       rowHtml: (index) => (rows[index].plain ? esc(rows[index].text) : colorOf?.(rows[index]) ?? colorLine(rows[index].text, null).html),
     });
     const placeCards = view.place;
@@ -509,6 +573,7 @@ function codeWithNotes(holder, options) {
       Object.assign(mark.style, { top: `${shift() + from + 1}px`, height: `${Math.max(list.height, to - from) - 2}px` });
     });
   } else {
+    if (looks.column['window.width']) column.style.width = `${looks.column['window.width']}px`; // the width of the notes column in the look
     // Wide: each card at the height of its first row (cardPlaces), joined to its rows by a line; the card of a step one lane in under its function.
     // The notes of one function in a change are its numbered steps: an arrow goes from each to the next, with room for it between two cards.
     const follows = (index) => index > 0 && !sorted[index].from && !sorted[index - 1].from && !!sorted[index].symbol && sorted[index].symbol === sorted[index - 1].symbol;
@@ -524,7 +589,7 @@ function codeWithNotes(holder, options) {
       const shortHeight = cards[0].offsetHeight;
       cards[0].classList.remove('brief');
       const full = cards.map((card) => card.offsetHeight);
-      const placed = cardPlaces(spansInOrder.map(([first]) => down + list.top(first)), full, shortHeight, room, top());
+      const placed = cardPlaces(spansInOrder.map(([first]) => down + list.top(first)), full, shortHeight, room, top(), looks.rank ? (index) => index + 1 < sorted.length && looks.rank(sorted[index]) < looks.rank(sorted[index + 1]) : undefined);
       cards.forEach((card, index) => {
         card.classList.toggle('brief', placed.short[index]);
         card.classList.toggle('open', index === lit && placed.short[index]);
@@ -533,7 +598,7 @@ function codeWithNotes(holder, options) {
       column.style.minHeight = `${placed.bottom + 16}px`;
       const boxes = cards.map((_, index) => ({ top: placed.tops[index], height: placed.short[index] ? shortHeight : full[index], left: GUTTER + lanes[index] * LANE, tone: tones[index] }));
       column.querySelector('svg.links')?.remove();
-      column.insertAdjacentHTML('afterbegin', noteLinks(boxes, spansInOrder.map((span, index) => middle(heads[index] ? [span[0], span[0]] : span)), follows));
+      column.insertAdjacentHTML('afterbegin', noteLinks(boxes, spansInOrder.map((span, index) => middle(heads[index] ? [span[0], span[0]] : span)), follows, { line: (index) => looks.line(sorted[index]), order: (index) => looks.order(sorted[index]) }));
       column.querySelector(`[data-join="${lit}"]`)?.classList.add('cur');
     };
     cards.forEach((card, index) => {
@@ -555,6 +620,19 @@ function codeWithNotes(holder, options) {
   box.addEventListener('mouseleave', () => light(resting));
   light(resting);
   return view;
+}
+
+/** The window of a value of a mark in the margin of the code: its places in the file, grouped by named thing; a click on a place shows its line. */
+function marginWindow(el, path, key, marks = []) {
+  const own = marks.filter((mark) => mark.file === path && Marks.keyOf(mark) === key);
+  const name = App.page.look?.values[key]?.name ?? key.split(':')[1];
+  Hover.now(el, () => ({
+    title: name, sub: plural(own.length, 'place'), width: 440, body: Marks.placesHtml(own),
+    ready: (body) => body.addEventListener('click', (event) => {
+      const place = event.target.closest('[data-mk-open]');
+      if (place) { Hover.hide(); App.showCode(place.dataset.mkOpen, [Number(place.dataset.mkLine), Number(place.dataset.mkLine)]); }
+    }),
+  }));
 }
 
 /** What stands in place of the text of a file that has none to show: the picture, before and after, or one line that says what it is. */
@@ -664,7 +742,7 @@ async function fileView(into, path, { focus = null, nav = false, head = false, f
   into.innerHTML = shell(`<div class="cvc">${notes.length ? '<div class="cn"><div class="notes"></div></div>' : ''}</div>`);
   const scroller = into.querySelector('.cv');
   const holder = into.querySelector('.cvc');
-  const narrow = isNarrow(into);
+  const narrow = isNarrow(into) || (!!page.look && Marks.slotsIn(page.look, { kind: 'notes-column', paths: [path], fields: {} })['show.folded'] === true); // folded by a rule: the marks at the edge
   if (nav) scroller.classList.toggle('narrow', narrow); // narrow, the control stands over the first row
   if (fill) fillHeight(scroller);
   const color = lineColors(codeToColor(code));
@@ -722,15 +800,31 @@ function firstLineInView() {
 
 const FIRST_FILES = 20; // the files shown under each part; the rest wait behind "57 more files in <part>"
 const FIRST_FOLDED = 5; // of them, the folded rows (data files, generated files): twenty rows that look the same fill a screen
-const DATA_FILE = /\.(json|csv|tsv|lock)$|(^|\/)(go\.sum|[^/]*-lock\.ya?ml)$/i; // data files start folded
+const DATA_FILE = Look.DATA_FILE; // data files start folded
 
-/** The changed files of the change, by part: the parts in order, then the files in no part; generated files are left out. */
+/**
+ * The changed files of the change, by part: the parts in order, then the files in no part; generated files are left out. A rule of the look on the
+ * files of the list ("diff-file") leaves files out, orders the files of each part, or groups them by another field; a part with no file left goes.
+ */
 function filesByPart(page = App.page) {
   const generated = new Set(page.checks.generated);
-  const changed = (path) => page.files.some((file) => file.path === path) && !generated.has(path);
+  const slots = fileSlots(page);
+  const changed = (path) => page.files.some((file) => file.path === path) && !generated.has(path) && slots(path)['show.shown'] !== false;
   const groups = page.parts.map((part) => ({ id: part.id, name: part.name, paths: part.files.filter(changed) }));
   groups.push({ id: 'no-part', name: 'In no part', paths: page.checks.filesInNoPart.filter(changed) });
-  return groups.filter((group) => group.paths.length);
+  const shown = groups.filter((group) => group.paths.length);
+  if (!page.look) return shown;
+  const rows = (paths) => paths.map((path) => slots.things.get(path));
+  const order = Look.listOrder(rows(shown.flatMap((group) => group.paths)), page.look);
+  if (order.group && order.group !== 'part') return Look.orderRows(rows(shown.flatMap((group) => group.paths)), order).map(({ group, rows: own }) => ({ name: String(group || 'none'), paths: own.map((row) => row.id) }));
+  return shown.map((group) => ({ ...group, paths: Look.orderRows(rows(group.paths), order)[0].rows.map((row) => row.id) }));
+}
+
+/** The slots that the look gives each file of the list of diffs, by path ({} with no look); `things` holds the file as a thing of the look. */
+function fileSlots(page) {
+  const things = new Map(Look.changeThings(page, 'diff-file').map((thing) => [thing.id, thing]));
+  const slots = (path) => (page.look && things.has(path) ? Look.slotsIn(page.look, things.get(path)) : {});
+  return Object.assign(slots, { things });
 }
 
 /**
@@ -747,12 +841,19 @@ function filesByPart(page = App.page) {
 function drawDiffs(into, { scroller, part, closed = false, rows = false }) {
   const { page } = App;
   const fileOf = (path) => page.files.find((candidate) => candidate.path === path);
+  const slots = fileSlots(page); // the look of each file of the list: the fields of its head, an icon, a click
+  const fields = (path) => slots(path).content?.fields;
   const folder = (path) => path.slice(0, path.lastIndexOf('/') + 1);
-  const name = (path) => (rows ? `<span class="dir"><bdi dir="ltr">${esc(folder(path))}</bdi></span><span class="nm">${esc(baseName(path))}</span>`
-    : `<i class="tw"></i><a data-open-file="${esc(path)}">${esc(path)}</a>${renamedHtml(fileOf(path))}`);
+  const icon = (path) => (page.look?.files[slots(path)['text.icon']] ? `<img class="lk-icon" src="${esc(page.look.files[slots(path)['text.icon']])}" alt="">` : '');
+  const shownPath = (path) => (!fields(path) || fields(path).includes('path') ? path : baseName(path));
+  const name = (path) => (rows ? `${icon(path)}<span class="dir"><bdi dir="ltr">${esc(folder(shownPath(path)))}</bdi></span><span class="nm">${esc(baseName(path))}</span>`
+    : `<i class="tw"></i>${icon(path)}<a data-open-file="${esc(path)}">${esc(shownPath(path))}</a>${renamedHtml(fileOf(path))}`);
   const tip = (path) => (rows ? ` title="${esc(path)}${fileOf(path).renamedFrom ? ` (renamed from ${esc(fileOf(path).renamedFrom)})` : ''}"` : '');
+  // Its counts, or the facts that a rule names in their order: the lines added, the lines removed, and its type (code, data, generated).
+  const facts = (path) => (fields(path) ?? ['added', 'removed']).map((field) => (field === 'added' ? countsHtml({ added: fileOf(path).added })
+    : field === 'removed' ? countsHtml({ removed: fileOf(path).removed }) : field === 'type' ? esc(slots.things.get(path)?.fields.type ?? '') : '')).filter(Boolean).join(' ');
   const head = (path, more = '') => `<div class="dh"${tip(path)} ${Places.attrs({ kind: 'file', file: path, view: 'diffs' })}>${name(path)}`
-    + `<i class="c">${countsHtml(fileOf(path))}${more || (fileOf(path).quiet ? ` · ${esc(fileOf(path).quiet)}` : '')}</i></div>`;
+    + `<i class="c">${facts(path)}${more || (fileOf(path).quiet ? ` · ${esc(fileOf(path).quiet)}` : '')}</i></div>`;
   const of = (group) => (group.id ? ` data-part="${esc(group.id)}"` : '');
   const room = (path) => Math.min(fileOf(path).added + fileOf(path).removed + 6, 400) * 18; // the height of a diff before it is filled
   const body = (path) => `<div class="dbody"><div class="dfw" style="height:${room(path)}px"></div></div>`;
@@ -760,7 +861,7 @@ function drawDiffs(into, { scroller, part, closed = false, rows = false }) {
   const foldRow = (path, group, word) => `<section class="dfile shut quiet" data-file="${esc(path)}"${of(group)}>${head(path, ` · ${closed ? word : `${word}, folded`}`)}</section>`;
   const block = (path, group) => (group.generated ? foldRow(path, group, 'generated') : DATA_FILE.test(path) ? foldRow(path, group, 'data')
     : fileOf(path).notebook === 'only-outputs' ? foldRow(path, group, fileOf(path).quiet) : open(path, group));
-  const generated = part ? [] : page.checks.generated.filter(fileOf);
+  const generated = part ? [] : page.checks.generated.filter((path) => fileOf(path) && slots(path)['show.shown'] !== false);
   const groups = [...filesByPart().filter((group) => !part || group.id === part), ...(generated.length ? [{ name: 'Generated', paths: generated, generated: true }] : [])];
   // The files of a part that show at first: the first 20, with at most 5 folded rows among them.
   for (const group of groups) {
@@ -844,6 +945,8 @@ function drawDiffs(into, { scroller, part, closed = false, rows = false }) {
       return watch(el);
     }
     const section = event.target.closest('.dfile > .dh')?.parentElement;
+    const target = section && slots(section.dataset.file).click; // a click of the look goes to its target instead
+    if (target) return Marks.act(target, section);
     if (section) (list.onHead ?? list.toggle)(section);
   });
   return list;
@@ -1227,4 +1330,4 @@ function diffSteps(into, scroller, { nav = null, moved = null, open = async () =
   };
 }
 
-if (typeof module === 'object') module.exports = { lanesOf, cardPlaces, fileRows, diffRows, cellRows, changeRuns, spanOf, filesByPart, partOfFile, holdsRow, narrowestAt, thingsAt, focusRows, nextChange, changeNumber, stepPlace }; // for the tests in Node
+if (typeof module === 'object') module.exports = { noteThing, lanesOf, cardPlaces, fileRows, diffRows, cellRows, changeRuns, spanOf, filesByPart, partOfFile, holdsRow, narrowestAt, thingsAt, focusRows, nextChange, changeNumber, stepPlace }; // for the tests in Node

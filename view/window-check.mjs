@@ -561,6 +561,32 @@ try {
     promptLook && !!promptHome && notSent.words.includes('Send this to a new session of Claude Code?') && notSent.words.includes(PROMPT) && notSent.buttons.includes('Send')
       && promptSent.words.includes(PROMPT) && runAfterSend?.length === runsBeforeAsk + 1 && runAfterSend.at(-1).includes(PROMPT),
     JSON.stringify({ promptLook, home: !!promptHome, notSent, sent: promptSent.buttons, runs: `${runsBeforeAsk} -> ${runsNow().length}` }));
+
+  // A click whose target is a page of the look (build 58) opens the page as a tab named by its title; its table has the rows of the file, and after the
+  // file changes on disk the table shows the new row. A browser cannot show a tab of VS Code or a file that changes.
+  const branches = path.join(repo, 'data/branches.csv');
+  const branchesText = readFileSync(branches, 'utf8');
+  const pageLook = lookNow({
+    pages: [{ id: 'opening-hours', title: 'Opening hours', blocks: [{ title: 'Branches', table: { file: 'data/branches.csv', columns: ['branch', 'opens', 'closes'] } }] }],
+    rules: [{ pick: { kind: 'node', diagram: 'lib-top', nodes: ['jobs'] }, click: { page: 'opening-hours' } }],
+  });
+  await command('View: Close All Editors');
+  await list?.locator('.home').click();
+  const pageHome = await frameWhere(() => typeof Home === 'object' && Home.data?.look?.pages?.length === 1 && !!document.querySelector('#view g.node[id*="flowchart-jobs-"]'));
+  await pageHome?.locator('#view g.node[id*="flowchart-jobs-"]').click({ timeout: 4000 }).catch(() => {});
+  const pageTabs = await waitTabs(['Home', 'Opening hours']);
+  /** The names of the rows of the table of the page of the look, as its tab shows them. */
+  const pageRows = async () => {
+    const frame = await frameWhere(() => typeof Home === 'object' && Home.data?.kind === 'page', undefined, 3000);
+    return frame ? frame.evaluate(() => [...document.querySelectorAll('.block-table tbody tr')].map((row) => row.cells[0].textContent)) : [];
+  };
+  const firstRows = await until(async () => { const rows = await pageRows(); return rows.length > 0 && rows; }) || [];
+  await shot('3e-a-page-of-the-look');
+  writeFileSync(branches, `${branchesText}Riverside,09:00,15:00,6\n`);
+  const newRows = await until(async () => { const rows = await pageRows(); return rows.length === firstRows.length + 1 && rows; }) || await pageRows();
+  check('a click whose target is a page of the look opens it as a tab named by its title; its table has the rows of the file, and after the file changes on disk it shows the new row',
+    pageLook && pageTabs.join() === 'Home,Opening hours' && firstRows.join() === 'North,Harbour,Old Town,Station' && newRows.at(-1) === 'Riverside', JSON.stringify({ pageLook, pageTabs, firstRows, newRows }));
+  writeFileSync(branches, branchesText);
   lookNow({ rules: [] }); // the default look again for the parts after this one
   await command('View: Close All Editors');
 
@@ -955,8 +981,9 @@ try {
       && sideOf('now').marked.join() === expected(night, nightNow, sideOf('now').shown).join() && sideOf('base').marked.join() === expected(night, nightBase, sideOf('base').shown).join(),
     JSON.stringify({ look: vscodeLook, editor: markedEditor.marked, sides: diffSides.map((side) => `${side.side}: ${side.marked.join(' ')}`) }));
 
-  // The right-click menu of the editor (the window draws its menus, window.menuStyle custom): the entry of a mark on a marked line, not on another;
-  // its list opens a place. "Actions of the Look…" lists the actions, and the key of the first action carries it out.
+  // The right-click menu of the editor (the window draws its menus, window.menuStyle custom): the entry of a mark in a file with marks, on any line
+  // (on a line with no mark it says so), and not in a file with none; its list opens a place. "Actions of the Look…" lists the actions, and the key
+  // of the first action carries it out.
   const menuAt = async (line) => {
     await goTo(`:${line}`);
     const y = await page.evaluate((wanted) => {
@@ -973,7 +1000,12 @@ try {
   const onMarked = await menuAt(46);
   await page.keyboard.press('Escape');
   const onPlain = await menuAt(47);
+  await page.locator('.monaco-menu .action-label', { hasText: OTHER_PLACES }).click({ timeout: 3000 }).catch(() => {});
+  const noMarkSaid = await shown(toast('This line has no mark.'), 4000);
+  await goTo('README.md');
+  const inPlainFile = await menuAt(1);
   await page.keyboard.press('Escape');
+  await closeTab('README.md');
   await menuAt(46);
   await shot('7d-the-right-click-menu-of-a-marked-line');
   await page.locator('.monaco-menu .action-label', { hasText: OTHER_PLACES }).click({ timeout: 3000 }).catch(() => {});
@@ -983,7 +1015,7 @@ try {
   await page.keyboard.press('Enter');
   const placeOpened = await until(async () => /^night_jobs\.py/.test(await activeTab() ?? '') && /^Ln 139,/.test(await page.locator('[id="status.editor.selection"]').textContent().catch(() => '')) && 'yes', 4000);
   await page.keyboard.press('Control+Alt+KeyL');
-  const actionList = await until(async () => { const rows = await searchRows(); return rows.length === 2 && rows; }, 4000) || await searchRows();
+  const actionList = await until(async () => { const rows = await searchRows(); return rows.length === 3 && rows; }, 4000) || await searchRows();
   await page.keyboard.press('Escape');
   await goTo(':10');
   await page.keyboard.press('Control+Alt+Digit1');
@@ -999,10 +1031,11 @@ try {
     await page.keyboard.press('Escape');
     await closeTab('hold_service.py');
   }
-  check('the right-click menu of the editor has "Show the Other Places of This Mark" on a marked line and not on another line; its list opens a place; "Actions of the Look…" lists the actions, and the key of the first action carries it out; the menu of a line of the file tab has the entries too',
-    onMarked.includes(OTHER_PLACES) && onMarked.includes('Actions of the Look…') && !onPlain.includes(OTHER_PLACES) && onPlain.includes('Actions of the Look…') && placeCount >= 20 && !!placeOpened
-      && actionList.join() === 'Open the night run | ⌃⌥1,Show how a request is answered | ' && !!firstAction && inFileTab.includes(OTHER_PLACES) && inFileTab.includes('Actions of the Look…'),
-    JSON.stringify({ onMarked, onPlain, placeCount, placeOpened, actionList, firstAction, inFileTab }));
+  check('the right-click menu of the editor has "Show the Other Places of This Mark" in a file with marks, says so on a line with none, and has it not in a file with none; its list opens a place; "Actions of the Look…" lists the actions, and the key of the first action carries it out; the menu of a line of the file tab has the entries too',
+    onMarked.includes(OTHER_PLACES) && onMarked.includes('Actions of the Look…') && onPlain.includes(OTHER_PLACES) && noMarkSaid && inPlainFile.includes('Actions of the Look…') && !inPlainFile.includes(OTHER_PLACES)
+      && placeCount >= 20 && !!placeOpened && actionList.join() === 'Open the night run | ⌃⌥1,Show how a request is answered | ,Open the opening hours | ' && !!firstAction
+      && inFileTab.includes(OTHER_PLACES) && inFileTab.includes('Actions of the Look…'),
+    JSON.stringify({ onMarked, onPlain, noMarkSaid, inPlainFile, placeCount, placeOpened, actionList, firstAction, inFileTab }));
 
   // The first page: the start step again (its command, by a key of this window's own keybindings.json) opens it beside the tab in front and leaves
   // the keyboard in the editor; with the setting off nothing opens.
@@ -1011,7 +1044,7 @@ try {
   const keyboardInEditor = () => page.evaluate(() => !!document.activeElement?.closest('.editor-group-container.active .monaco-editor'));
   await sleep(1000); // VS Code reads the settings file again: nothing on the screen says when
   await page.keyboard.press(START_KEY);
-  const firstPage = await frameWhere(() => typeof Home === 'object' && document.getElementById('crumb')?.textContent.includes('Answer a book request'), undefined, 6000);
+  const firstPage = await frameWhere(() => typeof Home === 'object' && Home.data?.kind === 'page' && document.body.textContent.includes('The hours of each branch.'), undefined, 6000);
   const besideTabs = await page.$$eval('.editor-group-container', (groups) => groups.map((group) => [...group.querySelectorAll('.tab .label-name')].map((el) => el.textContent.trim()).join('+')));
   const keptKeyboard = await keyboardInEditor() && /^night_jobs\.py/.test(await activeTab() ?? '');
   await shot('7e-the-first-page-beside-the-tab');
@@ -1022,14 +1055,14 @@ try {
   await sleep(1500); // calm: nothing must open
   const offTabs = await tabs();
   check('the start step with a first page opens that page beside the tab in front and leaves the keyboard where it was; with the setting off nothing opens',
-    !!firstPage && besideTabs.length === 2 && besideTabs[1] === 'Home' && keptKeyboard && offTabs.join('+') === besideTabs[0], JSON.stringify({ firstPage: !!firstPage, besideTabs, keptKeyboard, offTabs }));
+    !!firstPage && besideTabs.length === 2 && besideTabs[1] === 'Opening hours' && keptKeyboard && offTabs.join('+') === besideTabs[0], JSON.stringify({ firstPage: !!firstPage, besideTabs, keptKeyboard, offTabs }));
 
   // The list "Look" in Apostil's side bar: a set with its values and their counts, and the page; a click on a value lists its places.
   await command('View: Show Apostil');
   const lookPane = page.locator('.pane', { has: page.locator('.pane-header .title', { hasText: /^Look$/ }) });
   const lookRows = () => lookPane.locator('.monaco-list-row').allTextContents().catch(() => []);
-  const listed = await until(async () => { const rows = await lookRows(); return rows.some((row) => /^Table Store25 lines · 3 files$/.test(row)) && rows; }, 5000) || await lookRows();
-  await lookPane.locator('.monaco-list-row', { hasText: 'Table Store' }).click({ timeout: 3000 }).catch(() => {});
+  const listed = await until(async () => { const rows = await lookRows(); return rows.some((row) => /^PostgreSQL\d+ lines · \d+ files$/.test(row)) && rows; }, 5000) || await lookRows();
+  await lookPane.locator('.monaco-list-row', { hasText: 'PostgreSQL' }).click({ timeout: 3000 }).catch(() => {});
   const valuePlaces = await until(async () => { const count = await quickCount(); return count >= 20 && count; }, 4000) || await quickCount();
   await shot('7f-the-list-look-and-the-places-of-a-value');
   await page.keyboard.press('Escape');
@@ -1042,7 +1075,7 @@ try {
   await page.keyboard.press('Escape');
   const listGone = await until(async () => !(await lookPane.count()), 3000);
   check('the view "Look" is in Apostil\'s side bar only with the rule: a set with a value and its counts, and the page; a click on the value lists its places; with the rules gone no icon, answer, entry or list of the look is left',
-    listed.includes('Services') && listed.includes('Opening hours') && valuePlaces >= 20 && !!marginGone && !searchGone.some((row) => row.startsWith('Answer a book request'))
+    listed.includes('Services') && listed.includes('Opening hoursfirst page') && valuePlaces >= 20 && !!marginGone && !searchGone.some((row) => row.startsWith('Answer a book request'))
       && !menuGone.includes(OTHER_PLACES) && !menuGone.includes('Actions of the Look…') && listGone,
     JSON.stringify({ listed, valuePlaces, marginGone: !!marginGone, searchGone: searchGone.slice(0, 2), menuGone, listGone }));
   await setSetting('apostil.notesBesideCode', 'tab');

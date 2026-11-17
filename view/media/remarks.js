@@ -198,14 +198,7 @@ const Remarks = (() => {
   // ----- threads and open points -----
 
   /** The remarks grouped by thread, in the order of their first remark. */
-  function threads() {
-    const groups = new Map();
-    for (const remark of [...App.page.remarks].sort((a, b) => a.id - b.id)) {
-      const key = remark.thread ?? remark.id;
-      groups.set(key, [...(groups.get(key) ?? []), remark]);
-    }
-    return [...groups.values()];
-  }
+  const threads = () => Marks.threadsOf(App.page.remarks);
   const isResolved = (thread) => thread.every((remark) => remark.state === 'closed');
   const threadOf = (id) => threads().find((thread) => thread[0].id === id);
   const points = () => App.page.openPoints ?? [];
@@ -223,6 +216,17 @@ const Remarks = (() => {
   };
   /** The open threads, in the order of their places on the page. */
   const openThreads = () => threads().filter((thread) => !isResolved(thread)).sort((a, b) => byPlace(a[0].target, b[0].target));
+
+  // ----- the look of the comments window, its threads, its open points and the comment marks (build 60) -----
+
+  const lookOf = (thing) => Marks.slotsIn(App.page?.look, thing);
+  /** Rows of the window in the order that a rule of the look gives them ("order"), with their things; with no rule, as they came. Returns [{ group, rows }]. */
+  const lookOrder = (rows) => (App.page?.look ? Marks.orderRows(rows, Marks.listOrder(rows, App.page.look)) : [{ group: undefined, rows }]);
+  /** The cards of the open threads in the order of the look: [{ thread, slots }]. */
+  const threadRows = (open) => lookOrder(open.map((thread) => ({ ...Marks.threadThing(thread), thread })))[0].rows.map((row) => ({ thread: row.thread, slots: lookOf(row) }));
+  /** The open points that the look shows, in its order and groups: [{ group, rows: [point] }]. A count of open points still counts them all. */
+  const pointGroups = (sorted) => lookOrder(sorted.map((point) => ({ ...Marks.pointThing(point, App.page), point })).filter((row) => lookOf(row)['show.shown'] !== false))
+    .map(({ group, rows }) => ({ group, rows: rows.map((row) => ({ point: row.point, slots: lookOf(row) })) }));
 
   /** The place of an open point, as a remark target: a node or an arrow of a diagram, a link between parts (an edge with no diagram), or code lines. */
   const pointTarget = (point) => (point.diagram || point.edge
@@ -382,8 +386,21 @@ const Remarks = (() => {
   const ofNote = (thread, note) => thread[0].target.kind === 'note' && thread[0].target.file === note.file && thread[0].target.lines?.[0] === note.lines[0]
     && !thread[0].target.removed === !note.removed;
 
-  /** The circle on a thing: the number of its open threads, in the state of the newest; a click brings up the first card. */
-  const circle = (list) => (list.length ? States.circleHtml(list.length, States.circleOf(States.threadLead(list[list.length - 1])), list[0][0].id) : '');
+  /** The circle on a thing: the number of its open threads, in the state of the newest; a click brings up the first card. A rule of the look on the comment mark gives its colour and an icon, or leaves it out. */
+  const circle = (list) => {
+    const slots = list.length ? lookOf({ kind: 'comment-mark', fields: { count: list.length } }) : {};
+    if (!list.length || slots['show.shown'] === false) return '';
+    const html = States.circleHtml(list.length, States.circleOf(States.threadLead(list[list.length - 1])), list[0][0].id);
+    return slots['text.color'] || slots['text.icon'] ? markLook(html, slots) : html;
+  };
+
+  /** A circle in the colour and with the icon of a rule of the look. */
+  function markLook(html, slots) {
+    const el = document.createElement('i');
+    el.innerHTML = html;
+    Marks.paintText(el.firstChild, App.page.look, slots);
+    return el.innerHTML;
+  }
 
   /**
    * A circle on a drawn thing: after the text of an HTML thing (a file name, a title row); on a drawn box a small SVG circle
@@ -397,10 +414,14 @@ const Remarks = (() => {
     const box = el.getBBox();
     const [x, y] = el.tagName === 'g' ? [box.x + box.width, box.y] : [box.x + box.width + 12, box.y + box.height / 2];
     const look = States.circleOf(States.threadLead(list[list.length - 1]));
+    const slots = lookOf({ kind: 'comment-mark', fields: { count: list.length } });
+    if (slots['show.shown'] === false) return;
     const ring = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     ring.setAttribute('class', `rk svg ${look}`);
     ring.dataset.thread = list[0][0].id;
-    ring.innerHTML = `<circle cx="${x}" cy="${y}" r="8"/><text x="${x}" y="${y}">${list.length}</text>`;
+    const icon = App.page.look?.files[slots['text.icon']];
+    ring.innerHTML = `<circle cx="${x}" cy="${y}" r="8"/>${icon ? `<image href="${esc(icon)}" x="${x - 20}" y="${y - 6}" width="12" height="12"/>` : ''}<text x="${x}" y="${y}">${list.length}</text>`;
+    if (slots['text.color']) Marks.paint(ring, 'words', Marks.lineColors(slots['text.color'], Marks.READS));
     if (el.tagName === 'g') el.append(ring);
     else el.after(ring);
   }
@@ -483,12 +504,12 @@ const Remarks = (() => {
   /** The name of a thing in quiet text; a thing that the change file no longer holds says so. */
   const whereHtml = (target) => `<span class="where">${esc(target.label ?? target.kind)}${App.page && Places.isGone(target) ? `<span class="gone-place"> · ${esc(W.goneFromDiagram)}</span>` : ''}</span>`;
 
-  /** One card: its place, the comments and answers in order, the state line and the reply field. */
-  function cardHtml(thread) {
+  /** One card: its place, the comments and answers in order, the state line and the reply field; a rule of the look names which show, in its order ("content.fields"). */
+  function cardHtml(thread, slots = {}) {
     const messages = thread.map((remark) => messageHtml(esc(W.you), remark.createdAt, remark.text)
       + (remark.answer ? messageHtml(agentWho(remark), remark.answeredAt, remark.answer) : '')).join('');
-    return `<div class="thread${thread[0].id === selected ? ' cur' : ''}" data-thread="${thread[0].id}"><div class="ch">${whereHtml(thread[0].target)}<a data-resolve>${esc(W.resolve)}</a></div>`
-      + `${messages}${stateOf(States.threadLead(thread))}${fieldHtml(thread[0].id, W.reply)}</div>`;
+    const parts = { where: `<div class="ch">${whereHtml(thread[0].target)}<a data-resolve>${esc(W.resolve)}</a></div>`, messages, state: stateOf(States.threadLead(thread)), reply: fieldHtml(thread[0].id, W.reply) };
+    return `<div class="thread${thread[0].id === selected ? ' cur' : ''}" data-thread="${thread[0].id}">${(slots.content?.fields ?? Object.keys(parts)).map((field) => parts[field]).join('')}</div>`;
   }
 
   /** One open point: its text and its place, and a field whose reply starts a thread tied to it. */
@@ -503,10 +524,16 @@ const Remarks = (() => {
   function draw() {
     if (!App.page) return;
     // In a file tab with notes the window lies over the notes column (look.css), so it starts folded there until he opens it.
+    // A rule of the look on the comments window: its width, its colour, and folded at the start.
+    const own = lookOf({ kind: 'comments-window', fields: {} });
     if (!startDecided) {
       startDecided = true;
-      if (kept.remarksFolded === undefined && App.page.notes?.some((note) => note.file === App.tab)) folded = true;
+      if (kept.remarksFolded === undefined && (own['show.folded'] || App.page.notes?.some((note) => note.file === App.tab))) folded = true;
     }
+    side.style.width = own['window.width'] && !folded && !narrowPage.matches ? `${own['window.width']}px` : ''; // a narrow page keeps its own width
+    document.body.style.setProperty('--side-room', own['window.width'] ? `${own['window.width'] + 16}px` : '');
+    side.classList.remove('lk-fill', 'lk-ink', 'lk-line');
+    Marks.paintBox(side, own);
     if (!draft) closeMentions();
     const focused = side.contains(document.activeElement) ? document.activeElement.dataset.field : undefined;
     const open = openThreads();
@@ -527,13 +554,21 @@ const Remarks = (() => {
         + (thread[0].closedBy ? `<span class="state">${esc(W.resolvedBy(appName({ app: thread[0].closedBy })))}</span>` : '') + '</div>').join('') : '');
     const groups = [];
     if (open.length || resolved.length) {
-      groups.push(groupHead('comments', W.comments, open.length || '', true) + (shut.has('comments') ? '' : open.map(cardHtml).join('') + resolvedHtml));
+      groups.push(groupHead('comments', W.comments, open.length || '', true) + (shut.has('comments') ? '' : threadRows(open).map(({ thread, slots }) => cardHtml(thread, slots)).join('') + resolvedHtml));
     }
     if (points().length) {
       const sorted = [...points()].sort((a, b) => byPlace(pointTarget(a), pointTarget(b)));
-      groups.push(groupHead('points', W.openPoints, sorted.length, !groups.length) + (shut.has('points') ? '' : sorted.map(pointHtml).join('')));
+      const inGroups = pointGroups(sorted);
+      groups.push(groupHead('points', W.openPoints, sorted.length, !groups.length) + (shut.has('points') ? '' : inGroups.map(({ group, rows }) => (group !== undefined && inGroups.length ? `<div class="pgroup">${esc(group || 'none')}</div>` : '')
+        + rows.map(({ point }) => pointHtml(point)).join('')).join('')));
     }
     side.innerHTML = groups.join('');
+    // The colour of a thread that a rule gives it, and the colour and icon of an open point: on the card itself.
+    for (const { thread, slots } of threadRows(open)) { const card = side.querySelector(`.thread[data-thread="${thread[0].id}"]`); if (card) Marks.paintBox(card, slots); }
+    for (const { point, slots } of pointGroups(points()).flatMap((group) => group.rows)) {
+      const where = side.querySelector(`.point[data-point="${point.id}"] .ch`);
+      if (where) Marks.paintText(where, App.page.look, slots);
+    }
     for (const field of side.querySelectorAll('[data-field]')) if (typed[field.dataset.field]) field.innerHTML = typed[field.dataset.field];
     if (focused) focusField(side, focused);
   }

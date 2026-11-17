@@ -13,6 +13,7 @@ const Trail = (() => {
     if (step.tab === 'home') return `home:${step.diagram ?? ''}`;
     if (step.tab === 'graphs') return `graphs:${step.path}`;
     if (step.tab === 'pull') return `pull:${step.link}`;
+    if (step.tab === 'page') return `page:${step.page}`; // a page of the look (build 58)
     const { level = 'change', part, diagram, view } = step.go ?? {};
     if (view === 'diffs') return `change:${step.change}:diffs`;
     if (view === 'conversation') return `change:${step.change}:conversation`;
@@ -57,11 +58,15 @@ const Trail = (() => {
   }
   const keepInBrowser = () => { try { sessionStorage.setItem(KEPT, JSON.stringify(steps)); } catch { /* no storage here */ } };
 
-  /** The address of the page that shows a step, as a file in a browser. A pull request with no stored change is the data file pull-data-<number>.js. */
+  /**
+   * The address of the page that shows a step, as a file in a browser. A pull request with no stored change is the data file pull-data-<number>.js;
+   * a page of the look is a page of the made-up look that this page shows.
+   */
   function addressOf(step) {
     const query = step.tab === 'graphs' ? { path: step.path }
       : step.tab === 'pull' ? { pull: `pull-data-${step.link.split('/').pop()}.js` }
       : step.tab === 'home' ? { diagram: step.diagram, lit: (step.lit ?? []).join(',') }
+      : step.tab === 'page' ? { look: new URLSearchParams(location.search).get('look') ?? '', page: step.page }
       : { go: JSON.stringify(step.go) };
     return `${step.tab === 'change' || step.tab === 'pull' ? 'page.html' : 'home.html'}?${new URLSearchParams({ ...query, walk: 1 })}`;
   }

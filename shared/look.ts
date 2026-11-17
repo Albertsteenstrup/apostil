@@ -6,6 +6,7 @@
 // may use for it, for the search) and one `example`, a whole rule that passes the check. `core: true` marks what most looks use; all else is
 // found through its area. A slot may also give `gets`: what each field gives a thing, in a few words, for the changes that set-look prints.
 
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathProblem } from './checks';
@@ -13,6 +14,7 @@ import { diagramGraph } from './diagram-graph';
 import { fileText, repoFiles } from './git';
 import { CORNERS, FILE_USES, isId, isLine, isText, SERVICES, type Corner, type FileUse, type MarkSet } from './marks';
 import { processDiagramId } from './process-diagrams';
+import { listedFiles, readRepoData, readRepoText, type ReadFault } from './repo-data';
 import type { RepoMap } from './repo-map';
 
 /** The shapes of Mermaid that a box can take. */
@@ -35,6 +37,7 @@ const FREE_KEYS = [...'0123456789abcdefghijklmnopqrstuvwxyz'].filter((key) => !P
 export const LOOK_COMMANDS = [
   'apostil.home', 'apostil.graphsOf', 'apostil.openChange', 'apostil.openBranchChange', 'apostil.openPullRequest', 'apostil.openNoteInTab',
   'apostil.toggleNotes', 'apostil.remark', 'apostil.sortAndFilter', 'apostil.refresh', 'apostil.chooseLook', 'apostil.reportIssue',
+  'apostil.openLookPage',
 ];
 
 /** The kinds of values that a field takes, in words: the check of a field and `apostil look-slots` both use them. */
@@ -58,11 +61,14 @@ const VALUES = {
   field: 'one field of the thing',
   ids: 'a list of ids',
   pixels: `a number of pixels from ${WINDOW_WIDTH[0]} to ${WINDOW_WIDTH[1]}`,
-  sections: 'a list of the ids of the sections of the window, in the order that they show',
+  sections: 'a list of the ids of the sections of the window, in the order that they show, or { "title"?, "blocks" }: a section of its own',
 } as const;
 type ValueKind = keyof typeof VALUES;
-/** The kind of a field that a rule reads of a thing: words, a count, true or false, or one of a few fixed values. */
-type FieldKind = 'text' | 'count' | 'yes' | readonly string[];
+/** The kind of a field that a rule reads of a thing: words, a count, true or false, the id of a part of the change of the branch, or one of a few fixed values. */
+type FieldKind = 'text' | 'count' | 'yes' | 'part' | readonly string[];
+
+/** The states of a thread of comments, as the comments window says them (view/media/states.js turns the state of a remark into one). */
+export const THREAD_STATES = ['open', 'sent', 'working', 'answered', 'resolved'] as const;
 
 /** A rule as an example in the list. It may hold the placeholders <folder>/, <file>, <diagram>, <node> and <set>:<value>. */
 type Example = Readonly<Record<string, unknown>>;
@@ -82,6 +88,8 @@ export interface LookPartsList {
     why?: string; // a part of VS Code: why it takes only its own slots, for the sentence of a slot that it does not take
     targets?: readonly string[]; // the only targets that its click takes, when it takes fewer than all
     targetsWhy?: string; // the sentence of another target; <targets> stands for those it takes
+    also?: string; // another area that names it: the margin stands in the file tab and in VS Code's editor
+    name?: string; // one thing of it in the words of a sentence of the check, when its kind is not plain words ("file of the list")
   }>>;
   picks: Readonly<Record<string, string | { what: string; area?: string; words?: readonly string[]; example?: Example }>>;
   slots: Readonly<Record<string, {
@@ -92,6 +100,12 @@ export interface LookPartsList {
   values: Readonly<Record<string, string>>;
   [TARGETS_KEY]: Readonly<Record<string, { what: string; form: string; asks?: boolean; core?: boolean; area?: string; words?: readonly string[]; example?: Example }>>;
   sets: { what: string; form: string; area: string; words?: readonly string[] };
+  // Build 58: what a page or a section of a window shows. Each block has its form, and `file` when its data may come from a file of the repo.
+  blocks: Readonly<Record<string, { what: string; form: string; file?: string; area: string; words?: readonly string[]; example: Example }>>;
+  blockTitle: string;
+  sources: Readonly<Record<string, string>>; // where the data of a block comes from
+  limits: Readonly<Record<string, number>>;
+  pages: { what: string; form: string; area: string; words?: readonly string[]; example: Example };
   actions: { what: string; form: string; area: string; most: number; name: number; words?: readonly string[] };
   // What no look can use, each with the words that a person may use for it: `name` for "A look cannot use <name>.", `cannot` for the check.
   never: Readonly<Record<string, { name: string; cannot: string; words: readonly string[] }>>;
@@ -134,32 +148,126 @@ export const LOOK_PARTS = {
       example: { pick: { kind: 'arrow', paths: ['<folder>/'] }, arrow: { color: BLUE, width: 2 } },
     },
     note: {
-      what: 'a note card in the file tab', area: 'notes', core: true, slots: ['note', 'corners', 'content', 'show', 'click', 'input'], words: ['card', 'comment', 'annotation', 'explanation'],
-      takes: { content: ['fields'], show: ['shown'] },
-      fields: { title: 'text', file: 'text', function: 'text', tests: 'count' }, shows: ['title', 'function', 'tests', 'text', 'services'],
+      what: 'a note card in the file tab', area: 'notes', core: true,
+      slots: ['note', 'corners', 'content', 'show', 'click', 'input', 'text', 'window', 'order'], words: ['card', 'comment', 'annotation', 'explanation'],
+      takes: { content: ['fields'], show: ['shown'], text: ['icon'], order: ['by', 'down', 'first'] },
+      fields: { title: 'text', file: 'text', function: 'text', tests: 'count', check: 'yes' }, shows: ['title', 'function', 'tests', 'text', 'services'], sections: ['check'],
       example: { pick: { kind: 'note', paths: ['<file>'] }, note: { color: AMBER } },
     },
-    // The parts of VS Code's own editor and frame (build 62). Each is off until a rule turns it on.
+    // ----- the page of a change (build 60) -----
+    'change-card': {
+      what: 'the card of the change: its title, files and counts, whether its links were checked, the wider diagrams', area: 'change', name: 'card of the change',
+      slots: ['box', 'content'], takes: { box: ['color'], content: ['fields'] }, words: ['summary', 'header', 'total', 'size'],
+      fields: { title: 'text', files: 'count', added: 'count', removed: 'count', checked: 'yes', wider: 'count' },
+      example: { pick: { kind: 'change-card' }, content: { fields: ['title', 'files', 'wider'] } },
+    },
+    part: {
+      what: 'a part: a box with its name and files in the diagram of the change', area: 'change',
+      slots: ['box', 'text', 'content', 'click', 'window'], takes: { box: ['color', 'shape'], text: ['icon'], content: ['fields'] }, words: ['component', 'module', 'group'],
+      fields: { id: 'part', name: 'text', files: 'count', added: 'count', removed: 'count' }, shows: ['name', 'files', 'counts'], sections: ['diagram', 'files'],
+      example: { pick: { kind: 'part', paths: ['<folder>/'] }, box: { color: BLUE } },
+    },
+    'no-part': {
+      what: 'the box of the files in no part; "folded" shows its title only', area: 'change', name: 'box of the files in no part',
+      slots: ['box', 'show'], takes: { box: ['color', 'line'] }, words: ['unassigned', 'rest', 'loose', 'other'], fields: { files: 'count' },
+      example: { pick: { kind: 'no-part' }, show: { folded: true } },
+    },
+    'part-link': {
+      what: 'an arrow between two parts', area: 'change', name: 'link between parts',
+      slots: ['arrow', 'content'], takes: { arrow: ['color', 'width', 'dashed'], content: ['words'] }, words: ['link', 'edge', 'dependency', 'connection'],
+      fields: { words: 'text', added: 'count', removed: 'count' },
+      example: { pick: { kind: 'part-link' }, arrow: { dashed: true }, content: { words: '{words} (+{added})' } },
+    },
+    'comment-mark': {
+      what: 'the small circle with the count of open comments on a thing; the comments window still counts them', area: 'comments', name: 'comment mark',
+      slots: ['text', 'show'], takes: { text: ['color', 'icon'], show: ['shown'] }, words: ['bubble', 'circle', 'count'], fields: { count: 'count' },
+      example: { pick: { kind: 'comment-mark' }, text: { color: AMBER } },
+    },
+    'diff-file': {
+      what: 'a file in the list of diffs, under the name of its part; a rule that leaves out all files of a part leaves out the part', area: 'diffs', name: 'file of the list',
+      slots: ['order', 'show', 'content', 'text', 'click', 'window'], takes: { show: ['shown'], content: ['fields'], text: ['icon'] }, words: ['diff', 'diffs', 'changed', 'sort'],
+      fields: { path: 'text', part: 'part', type: ['code', 'data', 'generated'], added: 'count', removed: 'count' }, shows: ['path', 'added', 'removed', 'type'], sections: ['facts', 'diff'],
+      example: { pick: { kind: 'diff-file' }, order: { by: 'added', down: true } },
+    },
+    'comments-window': {
+      what: 'the window of the comments and the open points; "folded" folds it at the start', area: 'comments', name: 'comments window',
+      slots: ['window', 'box', 'show'], takes: { window: ['width'], box: ['color'], show: ['folded'] }, words: ['sidebar', 'panel', 'review'], fields: {},
+      example: { pick: { kind: 'comments-window' }, window: { width: 380 } },
+    },
+    thread: {
+      what: 'a card of a thread of comments in the comments window', area: 'comments',
+      slots: ['content', 'box', 'order'], takes: { content: ['fields'], box: ['color'], order: ['by', 'down'] }, words: ['conversation', 'discussion', 'reply', 'answer'],
+      fields: { state: THREAD_STATES, where: 'text', author: 'text' }, shows: ['where', 'messages', 'state', 'reply'],
+      example: { pick: { kind: 'thread', where: { state: 'answered' } }, box: { color: '#15803d' } },
+    },
+    'open-point': {
+      what: 'a finding of the fresh check: its card in the comments window and its "?" on the thing', area: 'comments', name: 'open point',
+      slots: ['text', 'order', 'show'], takes: { text: ['color', 'icon'], order: ['by', 'down', 'group'], show: ['shown'] }, words: ['finding', 'question', 'problem', 'issue'],
+      fields: { type: ['note', 'no-note', 'thing'], file: 'text', part: 'part', diagram: 'text' },
+      example: { pick: { kind: 'open-point' }, order: { group: 'file' } },
+    },
+    'change-view': {
+      what: 'a view of the switch of the change page; "order.first" opens that view first', area: 'diffs', name: 'view',
+      slots: ['show', 'order'], takes: { show: ['shown'], order: ['first'] }, words: ['switch', 'start', 'conversation', 'opens'], fields: { id: ['diagram', 'diffs', 'conversation'] },
+      example: { pick: { kind: 'change-view' }, order: { first: ['diffs'] } },
+    },
+    'part-diagram': {
+      what: 'a diagram of a part, by its name in the switch over its drawing', area: 'diffs', name: 'diagram of a part',
+      slots: ['order', 'show', 'content'], takes: { order: ['first'], show: ['shown'], content: ['words'] }, words: ['flow', 'sequence', 'schema', 'state'],
+      fields: { id: 'text', type: ['flow', 'sequence', 'schema', 'state'], function: 'text', title: 'text' },
+      example: { pick: { kind: 'part-diagram', where: { type: 'flow' } }, content: { words: '{function}' } },
+    },
+    'part-step': {
+      what: 'a step, state or table of the drawing of a part, with its counts; a picture can take its place', area: 'change', name: 'step of a part',
+      slots: ['box', 'content'], takes: { box: ['color'], content: ['picture'] }, words: ['step', 'node', 'state', 'table'], fields: { title: 'text', added: 'count', removed: 'count' },
+      example: { pick: { kind: 'part-step', paths: ['<file>'] }, box: { color: BLUE } },
+    },
+    // ----- the file tab (build 60) -----
+    'function-line': {
+      what: 'the first line of a function over its first note card: its name and its count of tests', area: 'file-tab', name: 'first line of a function',
+      slots: ['content', 'show'], takes: { content: ['words'], show: ['shown'] }, words: ['function', 'tests', 'heading'], fields: { function: 'text', tests: 'count' },
+      example: { pick: { kind: 'function-line' }, content: { words: '{function} ({tests} tests)' } },
+    },
+    'note-line': {
+      what: 'the line from a note card to its code', area: 'file-tab', name: 'line to the code', slots: ['arrow'], takes: { arrow: ['color', 'width', 'dashed'] },
+      words: ['join', 'connector', 'line'], fields: {}, example: { pick: { kind: 'note-line' }, arrow: { dashed: true } },
+    },
+    'note-order': {
+      what: 'the arrow from one step of a function to the next, between their note cards', area: 'file-tab', name: 'order of the notes',
+      slots: ['arrow', 'show'], takes: { arrow: ['color', 'dashed'], show: ['shown'] }, words: ['steps', 'sequence', 'arrow'], fields: {},
+      example: { pick: { kind: 'note-order' }, arrow: { color: BLUE } },
+    },
+    'notes-column': {
+      what: 'the column of the note cards beside the code; "folded" shows the notes as marks at the edge', area: 'file-tab', name: 'notes column',
+      slots: ['window', 'show'], takes: { window: ['width'], show: ['folded'] }, words: ['column', 'notes', 'width'], fields: {},
+      example: { pick: { kind: 'notes-column' }, window: { width: 420 } },
+    },
+    'code-map': {
+      what: 'the small map of the whole file at the right of the code; "box.color" tints the lines that a pick of "mark" or "paths" takes', area: 'file-tab', name: 'code map',
+      slots: ['show', 'box'], takes: { show: ['shown'], box: ['color'] }, words: ['minimap', 'overview', 'scroll'], fields: {},
+      example: { pick: { kind: 'code-map', mark: '<set>:<value>' }, box: { color: AMBER } },
+    },
     margin: {
       what: 'the margin of the code, in the file tab of Apostil and in the editor and the diff editor of VS Code: the icon of a mark at each line that has one',
-      area: 'vscode', slots: ['show'], takes: { show: ['shown'] }, fields: {}, words: ['gutter', 'margin', 'line icon', 'glyph', 'editor', 'diff'],
+      area: 'file-tab', also: 'vscode', slots: ['show'], takes: { show: ['shown'] }, words: ['gutter', 'line numbers', 'icon', 'glyph', 'editor', 'diff'], fields: {},
       why: 'VS Code draws the margin, and a look can only say which marks stand there.',
       example: { pick: { kind: 'margin', mark: '<set>:<value>' }, show: { shown: true } },
     },
+    // The parts of VS Code's own editor and frame (build 62). Each is off until a rule turns it on.
     'symbol-search': {
       what: 'the search with # of VS Code (Go to Symbol in Workspace): notes, steps and processes by their titles', area: 'vscode', slots: ['show'], takes: { show: ['shown'] },
-      fields: { of: ['note', 'step', 'process'] }, words: ['search', 'symbol', 'find', 'quick open', 'go to', 'hash'],
+      fields: { of: ['note', 'step', 'process'] }, words: ['search', 'symbol', 'find', 'quick open', 'go to', 'workspace'],
       why: 'VS Code draws the search, and a look can only say what it finds.',
       example: { pick: { kind: 'symbol-search', where: { of: ['note', 'process'] } }, show: { shown: true } },
     },
     'menu-entry': {
-      what: 'an entry of a right-click menu of VS Code: the note of the line on Home, its process, the other places of its mark, the actions of the look',
+      what: 'an entry of a right-click menu of VS Code: the note on Home, its process, the places of its mark, the actions',
       area: 'vscode', slots: ['show'], takes: { show: ['shown'] }, fields: { entry: ['note', 'process', 'mark', 'actions'], in: ['editor', 'file-tab', 'explorer'] },
       words: ['right click', 'context menu', 'menu', 'entry'], why: 'VS Code draws its menus with fixed words, and a look can only say which entries stand there.',
       example: { pick: { kind: 'menu-entry', where: { entry: ['mark', 'actions'] } }, show: { shown: true } },
     },
     key: {
-      what: 'a key of VS Code for an entry of the right-click menu, or for one of the actions action-1 to action-9', area: 'vscode', slots: ['show'], takes: { show: ['shown'] },
+      what: 'a key of VS Code for a right-click entry, or for one of the actions action-1 to action-9', area: 'vscode', slots: ['show'], takes: { show: ['shown'] },
       fields: { entry: ['note', 'process', 'mark', 'actions', ...Array.from({ length: 9 }, (_, at) => `action-${at + 1}`)] },
       words: ['shortcut', 'keyboard', 'hotkey', 'key'], why: 'VS Code gives each key fixed words, and a look can only say which keys work.',
       example: { pick: { kind: 'key', where: { entry: ['actions', 'action-1'] } }, show: { shown: true } },
@@ -279,6 +387,14 @@ export const LOOK_PARTS = {
       what: 'opens the comment box of Apostil on the thing', form: '{ "comment": true }',
       area: 'clicks', words: ['comment', 'remark', 'note', 'ask'], example: { pick: ONE_NODE, input: { double: { comment: true } } },
     },
+    window: {
+      what: 'opens a window of blocks beside the thing; Escape closes it', form: '{ "window": { "title"?: "<words>", "width"?: <pixels>, "blocks": [<block>] } }',
+      area: 'windows', words: ['popup', 'pop-up', 'panel', 'details', 'card', 'blocks'], example: { pick: ONE_NODE, click: { window: { title: 'In short', blocks: [{ text: 'What it does.' }] } } },
+    },
+    page: {
+      what: 'opens a page of the look as a tab', form: '{ "page": "<id of a page of the look>" }',
+      area: 'pages', words: ['page', 'report', 'dashboard'], example: { pick: ONE_NODE, click: { page: '<page>' } },
+    },
   },
   areas: {
     diagrams: 'nodes and arrows of the map: words and their size, a picture or film, a button on an arrow',
@@ -286,14 +402,60 @@ export const LOOK_PARTS = {
     notes: 'note cards and the window of a step: the bar colour, the corners',
     marks: 'a new kind of mark at lines of code, its values and icons, its corner, a button in a corner',
     clicks: 'where a click, Alt+click, Shift+click, double click, key or right-click menu goes; every target',
-    windows: 'the window of the pointer: its width, its sections, their order',
+    windows: 'the window of the pointer: width, sections, their order, sections of blocks; a window as a target',
     lists: 'what is left out, a pick by a field, the order and groups of rows',
-    vscode: 'VS Code, off until a rule shows it: margin marks, # search, menus, keys, first page, side bar list',
+    blocks: 'text, fields, table, bars, code, state, links, button, picture, diagram, row; data from a repo file',
+    pages: 'a page of the look that opens as a tab: its blocks, and the target that opens it',
+    change: 'the change page: its card, its parts and the links between them, the drawing of a part',
+    diffs: 'the change page: the list of diffs, the views of its switch, the names of the diagrams of a part',
+    comments: 'the comments window of a page: its threads, the open points, the comment marks',
+    'file-tab': 'the file tab: the first line of a function, the lines to the code, notes column, code map, margin',
+    vscode: 'VS Code, off until shown: margin, # search, menus, keys, first page, side list',
   },
   sets: {
     what: 'a new kind of mark: writers mark the lines of code that its rule names, and the icons of its values stand in its corner',
     form: '{ "id": "<small letters and ->", "name": "<a short name>", "rule": "<one or two plain sentences that tell a writer which lines to mark, and which value each gets>", "values": [ { "id": "<id>", "name": "<name>", "icon": "<file of an icon>" } ], "corner": { "node": "<corner>", "note": "<corner>" } }',
     area: 'marks', words: ['mark', 'marks', 'tag', 'category', 'icon'],
+  },
+  blocks: {
+    text: { what: 'words; an empty line starts a new paragraph; no HTML', form: '{ "text": "<words>" }', area: 'blocks', words: ['words', 'paragraph', 'description', 'summary'], example: { text: 'What this part does, in two plain sentences.' } },
+    fields: {
+      what: 'names with their values', form: '{ "fields": [ ["<name>", "<value>"] ] }', file: '{ "file": "<a JSON object>", "keys": [<keys>] }',
+      area: 'blocks', words: ['facts', 'properties', 'key value', 'details'], example: { fields: [['Runs', 'each night'], ['Owner', 'the desk team']] },
+    },
+    table: {
+      what: 'a small table', form: '{ "table": { "columns": [<names>], "rows": [ [<values>] ] } }', file: '{ "file", "columns": [<columns>], "rows"?: <the most rows> }',
+      area: 'blocks', words: ['grid', 'rows', 'columns', 'csv', 'spreadsheet'], example: { title: 'Branches', table: { columns: ['Branch', 'Opens'], rows: [['North', '09:00']] } },
+    },
+    bars: {
+      what: 'one bar for each row, with its number', form: '{ "bars": [ ["<name>", <number>] ] }', file: '{ "file", "label": "<column>", "value": "<column of numbers>", "rows"? }',
+      area: 'blocks', words: ['chart', 'graph', 'bar chart', 'numbers', 'counts'], example: { bars: [['North', 9], ['Harbour', 8]] },
+    },
+    code: {
+      what: 'lines of code, never cut off; from a file, its name opens those lines', form: '{ "code": "<text>" }', file: '{ "file", "lines": [<from>, <to>] }, or { "file", "key" }: a value of a JSON file',
+      area: 'blocks', words: ['snippet', 'source', 'json', 'excerpt'], example: { code: 'def main():\n    run()' },
+    },
+    state: {
+      what: 'a dot, a word, and quiet words after it', form: '{ "state": { "word": "<word>", "color"?: "#rrggbb", "text"?: "<words>" } }', file: '{ "file", "key" }: the word is its value',
+      area: 'blocks', words: ['status', 'badge', 'health', 'passed', 'failed'], example: { state: { word: 'ready', color: '#2b6cb0', text: 'since the last run' } },
+    },
+    links: { what: 'links, each to a target', form: '{ "links": [ { "name": "<words>", "target": <target> } ] }', area: 'blocks', words: ['link', 'go to', 'open', 'see also'], example: { links: [{ name: 'The code', target: { file: '<file>' } }] } },
+    button: { what: 'a button that goes to a target', form: '{ "button": { "name": "<words>", "target": <target> } }', area: 'blocks', words: ['press', 'action', 'run'], example: { button: { name: 'Open the code', target: { file: '<file>' } } } },
+    picture: { what: 'a picture, kept in Apostil\'s store', form: '{ "picture": "<file>" }', area: 'blocks', words: ['image', 'figure', 'screenshot', 'photo'], example: { picture: 'apostil-look-figure.png' } },
+    diagram: { what: 'a diagram of the map, small; a click opens it on Home', form: '{ "diagram": "<id>" }', area: 'blocks', words: ['map', 'flow', 'process', 'drawing'], example: { diagram: '<diagram>' } },
+    row: { what: 'two or three blocks side by side, one under the other when narrow; no row in a row', form: '{ "row": [<block>, <block>] }', area: 'blocks', words: ['columns', 'side by side', 'layout'], example: { row: [{ text: 'Left' }, { text: 'Right' }] } },
+  },
+  blockTitle: 'any block may have "title": a quiet line above it',
+  sources: {
+    written: 'the value in the block, as "form" says',
+    file: 'in its place, as "file" says: a CSV, TSV or JSON file that Git lists (rows, or the keys of an object), read when its window or page opens',
+  },
+  limits: { pageBlocks: 30, sectionBlocks: 6, ownSections: 4, rowBlocks: 3, rows: 50, rowsWhenNone: 10, columns: 12, codeLines: 100, fileBytes: 2 * 1024 * 1024, pages: 20 },
+  pages: {
+    what: 'pages of the look: each opens as a tab with its title; the target "page" opens one',
+    form: '"pages": [ { "id": "<small letters, digits and ->", "title": "<words>", "blocks": [<block>] } ], beside "rules"',
+    area: 'pages', words: ['page', 'report', 'dashboard', 'overview', 'screen'],
+    example: { pages: [{ id: 'overview', title: 'Overview', blocks: [{ text: 'What the repo does.' }] }], rules: [] },
   },
   actions: {
     what: 'the actions of the look: the list of the entry "Actions of the Look…", and the keys action-1 to action-9',
@@ -332,9 +494,11 @@ type TargetName = keyof typeof TARGETS;
 export const TARGET_NAMES = Object.keys(TARGETS) as TargetName[];
 export type Component = {
   slots: readonly string[]; takes?: Readonly<Record<string, readonly string[]>>; fields: Readonly<Record<string, FieldKind>>; sections?: readonly string[]; shows?: readonly string[];
-  why?: string; targets?: readonly string[]; targetsWhy?: string;
+  name?: string; why?: string; targets?: readonly string[]; targetsWhy?: string;
 };
 const componentOf = (kind: LookKind): Component => LOOK_PARTS.components[kind];
+/** One thing of a kind in the words of a sentence: its name, else the kind. */
+export const nameOf = (kind: string): string => (LOOK_PARTS.components as Readonly<Record<string, Component>>)[kind]?.name ?? kind;
 
 /** A value of a field of a thing, as a rule names it. */
 type FieldValue = string | number | boolean;
@@ -363,6 +527,8 @@ export interface Target {
   part?: string;
   pull?: number;
   comment?: true;
+  window?: { title?: string; width?: number; blocks?: Block[]; ref?: string }; // a page gets `ref` in place of the blocks, and asks for them when it opens
+  page?: string;
 }
 /** What a button does on a click: a target (build 51 named it an action). */
 export type Action = Target;
@@ -388,9 +554,15 @@ export interface LookRule {
   text?: { color?: string; size?: string; icon?: string };
   click?: Target;
   input?: { alt?: Target; shift?: Target; double?: Target; key?: Record<string, Target>; menu?: { name: string; target: Target }[] };
-  window?: { width?: number; sections?: string[] };
+  window?: { width?: number; sections?: (string | OwnSection)[] };
 }
 
+/** A block of a page or a window: one kind of LOOK_PARTS.blocks with its value, and any "title". */
+export type Block = Record<string, unknown> & { title?: string };
+/** A section of its own in the window of the pointer: a quiet title and blocks. A page gets `ref` in place of the blocks. */
+export interface OwnSection { title?: string; blocks?: Block[]; ref?: string }
+/** A page of the look: it opens as a tab named by its title. */
+export interface LookPage { id: string; title: string; blocks: Block[] }
 /** An action of the look: a row of "Actions of the Look…", and the target of a key action-1 to action-9 (build 62). */
 export interface LookAction {
   id: string;
@@ -400,6 +572,7 @@ export interface LookAction {
 
 export interface Look {
   sets?: MarkSet[];
+  pages?: LookPage[];
   rules: LookRule[];
   actions?: LookAction[];
 }
@@ -436,6 +609,7 @@ export function lookFiles(look: Look): LookFile[] {
     if (isText(holder[key])) files.push({ path: holder[key], use, at, put: (kept) => { holder[key] = kept; }, ...(value ? { value } : {}) });
   };
   for (const set of look.sets ?? []) for (const value of set.values ?? []) add(value, 'icon', 'icon', `The value "${value.id}" of the set "${set.id}"`, { set: set.id, id: value.id });
+  eachBlock(look, (block, at) => add(block, 'picture', 'picture', at)); // the pictures of blocks, kept as the picture of a node is
   look.rules.forEach((rule, index) => {
     for (const [slot, about] of Object.entries(LOOK_PARTS.slots) as [SlotName, (typeof LOOK_PARTS.slots)[SlotName]][]) {
       const given = (rule as unknown as Record<string, unknown>)[slot];
@@ -455,6 +629,9 @@ export interface LookContext {
   folder: string;
   map?: RepoMap;
   commands: string[];
+  pages?: string[]; // the ids of the pages of the look, which the target "page" may name
+  listed?: Set<string>; // the files that Git lists, read once for a look
+  parts?: string[]; // the ids of the parts of the saved change of the branch; with no saved change a part id is not checked
 }
 
 /** How many letters to add, remove or change to turn one word into the other. */
@@ -489,7 +666,7 @@ export const nearestPart = (word: unknown, known: readonly string[]): string => 
   return near ? ` The nearest is "${near}".` : '';
 };
 
-const an = (word: string): string => `${/^[aeiou]/.test(word) ? 'an' : 'a'} ${word}`;
+const an = (kind: string): string => { const word = nameOf(kind); return `${/^[aeiou]/.test(word) ? 'an' : 'a'} ${word}`; };
 const An = (word: string): string => an(word).replace(/^a/, 'A');
 const listed = (names: readonly string[]): string => names.map((one) => `"${one}"`).join(', ');
 const unknownFields = (value: object, known: readonly string[], at: string): string[] =>
@@ -499,13 +676,16 @@ const unknownFields = (value: object, known: readonly string[], at: string): str
  * What is wrong with a look, as sentences that a model can act on: known components and slots, each slot fits its component, known fields with
  * values of their kind, existing paths, node ids and diagram ids, known mark sets, known targets. The files are checked by set-look, which reads them.
  */
-export function lookProblems(value: unknown, context: LookContext): string[] {
+export function lookProblems(value: unknown, given: LookContext): string[] {
   if (!isObject(value)) return ['The look must be a JSON object: { "sets"?: [ ... ], "rules": [ ... ] }.'];
   const look = value as unknown as Look;
   const problems: string[] = [];
   const fields = ['sets', 'rules', 'pages', 'actions'];
   for (const key of Object.keys(value)) if (!fields.includes(key)) problems.push(`The look: "${key}" is no field of a look. Use ${listed(fields)}.${nearestPart(key, fields)}`);
-  problems.push(...pageProblems(value.pages), ...actionProblems(value.actions, context));
+  // The pages first, so that a target "page" anywhere knows their ids.
+  const context: LookContext = { ...given, pages: Array.isArray(look.pages) ? look.pages.map((page) => page?.id).filter(isId) : [] };
+  if (look.pages !== undefined) problems.push(...pageProblems(look.pages, context));
+  problems.push(...actionProblems(value.actions, context));
   if (!Array.isArray(look.rules)) problems.push('"rules" must be a list of rules. Write an empty list for the default look.');
   if (look.sets !== undefined && !Array.isArray(look.sets)) problems.push('"sets" must be a list of mark sets.');
   const sets = new Set([SERVICES.id]);
@@ -532,14 +712,6 @@ export function lookProblems(value: unknown, context: LookContext): string[] {
   }
   (Array.isArray(look.rules) ? look.rules : []).forEach((rule, index) => problems.push(...ruleProblems(rule, `Rule ${index + 1}`, context, sets)));
   return problems;
-}
-
-/** The pages of a look, as far as the parts of VS Code need them: a list of { "id", "title", "blocks" }. Build 58 checks the rest of a page. */
-function pageProblems(pages: unknown): string[] {
-  if (pages === undefined) return [];
-  if (!Array.isArray(pages)) return ['"pages" must be a list of pages: { "id", "title", "blocks" }.'];
-  return pages.flatMap((page, index) => (isObject(page) && isId(page.id) && isText(page.title) ? []
-    : [`Page ${index + 1}: a page is { "id", "title", "blocks" }, the id in small letters, digits and "-".`]));
 }
 
 /** The actions of a look: at most 12, each { "id", "name", "target" } with an id once, a name of at most 40 characters and one target of the list. */
@@ -634,6 +806,17 @@ function ruleProblems(rule: unknown, at: string, context: LookContext, sets: Set
 const noField = (at: string, kind: LookKind, field: string, known: readonly string[]): string =>
   `${at}: ${an(kind)} has no field "${field}". Its fields are ${listed(known)}.${nearestPart(field, known)}`;
 
+/** The ids of parts that the saved change of the branch does not have; none when the branch has no saved change: then they are not checked. */
+const partProblems = (ids: string[], at: string, { parts }: LookContext): string[] => (parts
+  ? ids.filter((id) => !parts.includes(id)).map((id) => `${at}: the change of this branch has no part "${id}". Its parts are ${parts.join(', ')}.${nearestPart(id, parts)}`)
+  : []);
+
+/** True when a rule reads a part id: then a branch with no saved change cannot check it, and set-look --check says so in a note. */
+export const namesPart = (rule: LookRule): boolean => {
+  const fields = (LOOK_PARTS.components as Readonly<Record<string, Component>>)[rule.pick?.kind]?.fields ?? {};
+  return Object.keys(rule.pick?.where ?? {}).some((field) => fields[field] === 'part');
+};
+
 /** The problems of the pick "where": known fields of the component, each with a value of its kind or a list of them. */
 function whereProblems(where: unknown, at: string, ctx: RuleContext): string[] {
   const fields = ctx.component.fields;
@@ -644,7 +827,7 @@ function whereProblems(where: unknown, at: string, ctx: RuleContext): string[] {
     const kind = fields[field];
     const values = Array.isArray(value) ? value : [value];
     const fits = (one: unknown): boolean => (Array.isArray(kind) ? kind.includes(one as string) : kind === 'count' ? Number.isInteger(one) && (one as number) >= 0 : kind === 'yes' ? typeof one === 'boolean' : isText(one));
-    if (values.length && values.every(fits)) return [];
+    if (values.length && values.every(fits)) return kind === 'part' ? partProblems(values as string[], at, ctx.context) : [];
     // A word that is no value of a field with fixed values: the values, and the nearest one. A key goes to the first nine actions only.
     const wrongWord = Array.isArray(kind) ? values.find((one) => typeof one === 'string' && !fits(one)) as string | undefined : undefined;
     if (wrongWord !== undefined) {
@@ -708,7 +891,13 @@ export function valueProblem(kind: ValueKind, value: unknown, at: string, field:
       return value.filter((name) => !shows.includes(name)).map((name) => `${at}: ${an(ctx.kind)} shows no field "${name}". It shows ${listed(shows)}.${nearestPart(name, shows)}`);
     }
     case 'field': return isText(value) && known.includes(value) ? [] : [noField(at, ctx.kind, String(value), known)];
-    case 'ids': return Array.isArray(value) && value.length && value.every(isText) ? [] : wrong;
+    case 'ids': {
+      if (!(Array.isArray(value) && value.length && value.every(isText))) return wrong;
+      // A component whose ids are a few fixed values (the views) names the ones that it has.
+      const ids = component.fields.id;
+      const name = component.name ?? nameOf(ctx.kind);
+      return Array.isArray(ids) ? value.filter((id) => !ids.includes(id)).map((id) => `${at}: "${id}" is no ${name}. The ${name}s are ${listed(ids)}.${nearestPart(id, ids)}`) : [];
+    }
     case 'target': return targetProblems(value, at, context);
     case 'keys': return keyProblems(value, at, context);
     case 'menu':
@@ -719,10 +908,15 @@ export function valueProblem(kind: ValueKind, value: unknown, at: string, field:
     case 'sections': {
       const own = component.sections ?? [];
       if (!Array.isArray(value) || !value.length) return [`${at}: "sections" must be a list of the sections of the window of ${an(ctx.kind)}: any of ${listed(own)}.`];
-      return value.flatMap((one) => {
-        if (isObject(one)) return [`${at}: a section of its own comes with a later build. Give the ids of the sections of today: ${listed(own)}.`];
-        return own.includes(one) ? [] : [`${at}: "${String(one)}" is no section of the window of ${an(ctx.kind)}. Its sections are ${listed(own)}.${nearestPart(String(one), own)}`];
-      });
+      const mine = value.filter(isObject).length;
+      const most = LIMITS.ownSections;
+      return [
+        ...(mine > most ? [`${at}: it has ${mine} sections of its own. A window holds at most ${most}. Make a page, or fewer sections.`] : []),
+        ...value.flatMap((one, index) => {
+          if (isObject(one)) return ownSectionProblems(one, `${at}, section ${index + 1}`, context);
+          return own.includes(one) ? [] : [`${at}: "${String(one)}" is no section of the window of ${an(ctx.kind)}. Its sections are ${listed(own)}.${nearestPart(String(one), own)}`];
+        }),
+      ];
     }
     case 'button': return buttonProblems(value, `${at}, the button "${field}"`, context);
     case 'corner':
@@ -812,6 +1006,227 @@ export function targetProblems(value: unknown, at: string, context: LookContext)
     case 'comment':
       if (target.comment !== true) problems.push(`${at}: "comment" must be true.`);
       break;
+    case 'window': {
+      const win = target.window as unknown;
+      if (!isObject(win)) { problems.push(`${at}: "window" must be ${TARGETS.window.form.slice('{ "window": '.length, -2)}.`); break; }
+      problems.push(...unknownFields(win, ['title', 'width', 'blocks'], `${at}, "window"`));
+      if (win.title !== undefined && !isText(win.title)) problems.push(`${at}: the "title" of a window must be words.`);
+      if (win.width !== undefined && !(typeof win.width === 'number' && win.width >= WINDOW_WIDTH[0] && win.width <= WINDOW_WIDTH[1])) problems.push(`${at}: the "width" of a window must be ${VALUES.pixels}.`);
+      problems.push(...blockProblems(win.blocks, at, context, { most: LIMITS.sectionBlocks, holder: 'A window', instead: 'Make a page, or fewer blocks.' }));
+      break;
+    }
+    case 'page': {
+      const pages = context.pages ?? [];
+      if (isText(target.page) && pages.includes(target.page)) break;
+      problems.push(pages.length ? `${at}: the look has no page "${String(target.page)}". Its pages are ${listed(pages)}.${nearestPart(target.page, pages)}`
+        : `${at}: the look has no page "${String(target.page)}". It has no pages yet: add one to "pages".`);
+      break;
+    }
   }
   return problems;
+}
+
+// ----- blocks: what a page or a section of a window shows (build 58) -----
+
+const LIMITS = LOOK_PARTS.limits;
+export const BLOCK_KINDS = Object.keys(LOOK_PARTS.blocks);
+/** The fields of a file source of each block that takes one: a table, bars, fields, a state, and code (its lines, or a key of a JSON file). */
+const SOURCE_FIELDS: Record<string, string[]> = { table: ['file', 'columns', 'rows'], bars: ['file', 'label', 'value', 'rows'], fields: ['file', 'keys'], state: ['file', 'key'], code: ['file', 'lines', 'key'] };
+
+/** The kind of a block: its one field besides "title"; undefined when it has none or several. */
+export function blockKind(block: unknown): string | undefined {
+  if (!isObject(block)) return undefined;
+  const kinds = Object.keys(block).filter((key) => key !== 'title');
+  return kinds.length === 1 ? kinds[0] : undefined;
+}
+
+/** How many blocks a list may hold, and the words of its sentence: "A page holds at most 30. Make two pages, or fewer blocks." */
+interface BlockRoom { most: number; holder: string; instead: string }
+
+/** The problems of the pages of a look: at most 20, each { "id", "title", "blocks" }, its id once. */
+function pageProblems(pages: unknown, context: LookContext): string[] {
+  if (!Array.isArray(pages)) return ['"pages" must be a list of pages: { "id", "title", "blocks" }.'];
+  const problems = pages.length > LIMITS.pages ? [`The look: it has ${pages.length} pages. A look holds at most ${LIMITS.pages}. Put more blocks on one page, or fewer pages.`] : [];
+  const ids = new Set<string>();
+  pages.forEach((page, index) => {
+    if (!isObject(page)) return void problems.push(`Page ${index + 1}: a page is { "id", "title", "blocks" }.`);
+    const at = isText(page.id) ? `Page "${page.id}"` : `Page ${index + 1}`;
+    problems.push(...unknownFields(page, ['id', 'title', 'blocks'], at));
+    if (!isId(page.id)) problems.push(`${at}: "id" must use small letters, digits and "-".`);
+    else if (ids.has(page.id)) problems.push(`The look: the page id "${page.id}" is used twice. Give each page its own id.`);
+    else ids.add(page.id);
+    if (!isText(page.title)) problems.push(`${at}: "title" is missing: the name of its tab.`);
+    problems.push(...blockProblems(page.blocks, at, context, { most: LIMITS.pageBlocks, holder: 'A page', instead: 'Make two pages, or fewer blocks.' }));
+  });
+  return problems;
+}
+
+/** The problems of a section of its own in a window: a quiet title, and at most 6 blocks. */
+function ownSectionProblems(section: Record<string, unknown>, at: string, context: LookContext): string[] {
+  return [
+    ...unknownFields(section, ['title', 'blocks'], at),
+    ...(section.title !== undefined && !isText(section.title) ? [`${at}: "title" must be words.`] : []),
+    ...blockProblems(section.blocks, at, context, { most: LIMITS.sectionBlocks, holder: 'A section', instead: 'Make two sections, or fewer blocks.' }),
+  ];
+}
+
+/** The problems of a list of blocks, wherever it stands: at most `room.most`, each one block of LOOK_PARTS.blocks in its form. */
+export function blockProblems(blocks: unknown, at: string, context: LookContext, room: BlockRoom): string[] {
+  if (!Array.isArray(blocks) || !blocks.length) return [`${at}: "blocks" must be a list of blocks, as [ { "text": "<words>" } ]; apostil look-slots blocks gives every block.`];
+  const problems = blocks.length > room.most ? [`${at}: it has ${blocks.length} blocks. ${room.holder} holds at most ${room.most}. ${room.instead}`] : [];
+  blocks.forEach((block, index) => problems.push(...oneBlockProblems(block, `${at}, block ${index + 1}`, context)));
+  return problems;
+}
+
+/** The problems of one block: one kind with its value, or a file source in its place. */
+function oneBlockProblems(block: unknown, at: string, context: LookContext): string[] {
+  if (!isObject(block)) return [`${at}: a block is an object of one kind, as { "text": "<words>" }.`];
+  const keys = Object.keys(block).filter((key) => key !== 'title');
+  const problems = keys.filter((key) => !BLOCK_KINDS.includes(key)).map((key) => `${at}: "${key}" is no block. The blocks are ${listed(BLOCK_KINDS)}.${nearestPart(key, BLOCK_KINDS)}`);
+  if (block.title !== undefined && !isText(block.title)) problems.push(`${at}: "title" must be words.`);
+  const kinds = keys.filter((key) => BLOCK_KINDS.includes(key));
+  if (kinds.length !== 1) return problems.length && !kinds.length ? problems : [...problems, `${at}: a block holds exactly one of ${listed(BLOCK_KINDS)}.`];
+  const kind = kinds[0];
+  const value = block[kind];
+  const about = (LOOK_PARTS.blocks as LookPartsList['blocks'])[kind];
+  const form = `${at}: the block "${kind}" is ${about.form}${about.file ? `, or a file in its place: ${about.file}` : ''}.`;
+  if (SOURCE_FIELDS[kind] && isObject(value) && 'file' in value) return [...problems, ...sourceProblems(kind, value, at, context)];
+  const pairs = (most: number, fits: (one: unknown) => boolean): string[] => {
+    if (!Array.isArray(value) || !value.length || !value.every((one) => Array.isArray(one) && one.length === 2 && isText(one[0]) && fits(one[1]))) return [form];
+    return value.length > most ? [`${at}: it has ${value.length} rows. ${kind === 'bars' ? 'Bars show' : 'Fields show'} at most ${most}.`] : [];
+  };
+  switch (kind) {
+    case 'text': return isText(value) ? problems : [...problems, form];
+    case 'fields': return [...problems, ...pairs(LIMITS.rows, (one) => ['string', 'number', 'boolean'].includes(typeof one))];
+    case 'bars': return [...problems, ...pairs(LIMITS.rows, (one) => typeof one === 'number' && Number.isFinite(one))];
+    case 'code': return typeof value === 'string' && value.length ? problems : [...problems, form];
+    case 'table': {
+      if (!isObject(value) || !Array.isArray(value.columns) || !value.columns.length || !value.columns.every(isText) || !Array.isArray(value.rows) || !value.rows.every((row) => Array.isArray(row))) return [...problems, form];
+      if (value.columns.length > LIMITS.columns) problems.push(`${at}: a table shows at most ${LIMITS.columns} columns. Give fewer "columns".`);
+      if (value.rows.length > LIMITS.rows) problems.push(`${at}: it has ${value.rows.length} rows. A table shows at most ${LIMITS.rows}.`);
+      if (value.rows.some((row: unknown[]) => row.length > value.columns.length)) problems.push(`${at}: a row of the table has more values than "columns" has names.`);
+      return problems;
+    }
+    case 'state':
+      if (!isObject(value) || !isText(value.word)) return [...problems, form];
+      problems.push(...unknownFields(value, ['word', 'color', 'text'], `${at}, "state"`));
+      if (value.color !== undefined) problems.push(...valueProblem('colour', value.color, `${at}, "state"`, 'color', { kind: 'node', component: componentOf('node'), context, sets: new Set() }));
+      if (value.text !== undefined && !isText(value.text)) problems.push(`${at}: the "text" of a state must be words.`);
+      return problems;
+    case 'links':
+      if (!Array.isArray(value) || !value.length) return [...problems, form];
+      return [...problems, ...value.flatMap((link, index) => (isObject(link) && isText(link.name)
+        ? [...unknownFields(link, ['name', 'target'], `${at}, link ${index + 1}`), ...targetProblems(link.target, `${at}, link ${index + 1}`, context)]
+        : [`${at}: link ${index + 1} must be { "name": what it says, "target": <target> }.`]))];
+    case 'button':
+      if (!isObject(value) || !isText(value.name)) return [...problems, form];
+      return [...problems, ...unknownFields(value, ['name', 'target'], `${at}, "button"`), ...targetProblems(value.target, `${at}, "button"`, context)];
+    case 'picture': return isText(value) ? problems : [...problems, form]; // set-look reads the file and keeps it
+    case 'diagram':
+      if (isText(value) && diagramIds(context.map).has(value)) return problems;
+      return [...problems, `${at}: "${String(value)}" is no diagram of the map. apostil map lists the ids of the diagrams; a process is "process:<id>".${nearestPart(value, [...diagramIds(context.map)])}`];
+    case 'row':
+      if (!Array.isArray(value) || value.length < 2 || value.length > LIMITS.rowBlocks) return [...problems, `${at}: a row holds two or three blocks side by side: { "row": [<block>, <block>] }.`];
+      if (value.some((one) => blockKind(one) === 'row')) return [...problems, `${at}: a row cannot hold a row. Put the blocks of the inner row into this row, or into a second row.`];
+      return [...problems, ...value.flatMap((one, index) => oneBlockProblems(one, `${at}.${index + 1}`, context))];
+  }
+  return problems;
+}
+
+/** The sentence of a file that a block cannot read, by why. */
+function readProblem(fault: ReadFault, path: string, at: string, kind: string): string {
+  const ending = (/\.([a-z]+)$/i.exec(path)?.[1] ?? '').toUpperCase();
+  return {
+    unlisted: `${at}: the file ${path} is no file of the repo. Give a path that Git lists.`,
+    outside: `${at}: the file ${path} lies outside the repo. Give a path inside it that Git lists.`,
+    large: `${at}: the file ${path} is larger than ${LIMITS.fileBytes / 1024 / 1024} MB. A block reads a file of at most ${LIMITS.fileBytes / 1024 / 1024} MB.`,
+    kind: `${at}: the file ${path} is no CSV, TSV or JSON file. A block reads its data from one of them${kind === 'code' ? ', or code from "lines" of any file' : ''}.`,
+    unread: `${at}: the file ${path} does not read as ${ending}. Correct it, or give another file.`,
+  }[fault];
+}
+
+/** The fields of a file source that are missing in the file now: a column or a key. Undefined when all are there. The check and the page both use it. */
+export function missingIn(kind: string, source: Record<string, unknown>, data: { rows?: { columns: string[] }; keys?: Record<string, unknown> }): { name: string; of: 'column' | 'key'; have: string[] } | undefined {
+  const names = kind === 'table' ? source.columns : kind === 'bars' ? [source.label, source.value] : kind === 'fields' ? source.keys : [source.key];
+  const have = data.rows ? data.rows.columns : Object.keys(data.keys ?? {});
+  const name = (Array.isArray(names) ? names : []).find((one) => !have.includes(String(one)));
+  return name === undefined ? undefined : { name: String(name), of: data.rows ? 'column' : 'key', have };
+}
+
+/** The problems of a file source in place of the value of a block: its fields, a file that Git lists and that reads as its kind, and its columns or keys. */
+function sourceProblems(kind: string, source: Record<string, unknown>, at: string, context: LookContext): string[] {
+  const problems = unknownFields(source, SOURCE_FIELDS[kind], at);
+  const path = String(source.file);
+  context.listed ??= listedFiles(context.folder);
+  if (kind === 'code' && source.lines === undefined && source.key === undefined) return [...problems, `${at}: code from a file needs "lines": [<from>, <to>], or "key" for a value of a JSON file.`];
+  if (kind === 'code' && source.lines !== undefined) {
+    const read = readRepoText(context.folder, path, LIMITS.fileBytes, context.listed);
+    if ('fault' in read) return [...problems, readProblem(read.fault, path, at, kind)];
+    const [from, to] = Array.isArray(source.lines) ? source.lines : [];
+    const count = read.text.split('\n').length;
+    if (!isLine(from) || !isLine(to) || from > to) return [...problems, `${at}: "lines" must be [<from>, <to>]: two line numbers, the first one first.`];
+    if (to > count) return [...problems, `${at}: line ${to} is not inside ${path}, which has ${count} lines.`];
+    return to - from + 1 > LIMITS.codeLines ? [...problems, `${at}: it shows ${to - from + 1} lines. A code block shows at most ${LIMITS.codeLines}.`] : problems;
+  }
+  if (source.rows !== undefined && !(Number.isInteger(source.rows) && (source.rows as number) >= 1 && (source.rows as number) <= LIMITS.rows)) problems.push(`${at}: "rows" must be a whole number from 1 to ${LIMITS.rows}.`);
+  const read = readRepoData(context.folder, path, LIMITS.fileBytes, context.listed);
+  if ('fault' in read) return [...problems, readProblem(read.fault, path, at, kind)];
+  const { rows, keys } = read.data;
+  const wantsRows = kind === 'table' || kind === 'bars';
+  if (wantsRows && !rows) return [...problems, `${at}: the file ${path} holds one object, not rows. ${kind === 'bars' ? 'Bars read' : 'A table reads'} a CSV or TSV file, or a JSON list of objects.`];
+  if (!wantsRows && !keys) return [...problems, `${at}: the file ${path} holds rows, not one object. ${kind === 'fields' ? 'Fields read keys' : kind === 'state' ? 'A state reads a key' : 'Code reads a key'} of a JSON object.`];
+  const have = rows ? rows.columns : Object.keys(keys!);
+  const needs = { table: ['columns', 'a table from a file needs "columns"'], bars: ['label', 'bars from a file need "label" and "value"'], fields: ['keys', 'fields from a file need "keys"'], state: ['key', 'a state from a file needs "key"'], code: ['key', 'code from a JSON file needs "key"'] }[kind]!;
+  const given = kind === 'bars' ? isText(source.label) && isText(source.value) : kind === 'state' || kind === 'code' ? isText(source.key) : Array.isArray(source[needs[0]]) && (source[needs[0]] as unknown[]).length && (source[needs[0]] as unknown[]).every(isText);
+  if (!given) return [...problems, `${at}: ${needs[1]}. The file ${path} has: ${have.join(', ')}.`];
+  if (kind === 'table' && (source.columns as string[]).length > LIMITS.columns) problems.push(`${at}: a table shows at most ${LIMITS.columns} columns. Give fewer "columns".`);
+  const missing = missingIn(kind, source, read.data);
+  if (missing) return [...problems, `${at}: the file ${path} has no ${missing.of} "${missing.name}". Its ${missing.of}s are ${missing.have.join(', ')}.${nearestPart(missing.name, missing.have)}`];
+  const odd = kind === 'bars' && rows!.rows.find((row) => !Number.isFinite(Number(row[source.value as string])));
+  if (odd) problems.push(`${at}: the column "${String(source.value)}" of ${path} holds "${String(odd[source.value as string])}", which is no number.`);
+  return problems;
+}
+
+/** Each block of a look with where it stands: in its pages, in the sections of windows, in the windows of targets, and inside rows. */
+export function eachBlock(look: Partial<Look>, visit: (block: Block, at: string) => void): void {
+  const walk = (value: unknown, at: string): void => {
+    if (Array.isArray(value)) return value.forEach((one) => walk(one, at));
+    if (!isObject(value)) return;
+    if (Array.isArray(value.blocks)) value.blocks.forEach((block: unknown, index: number) => one(block, `${at}, block ${index + 1}`));
+    for (const [key, inner] of Object.entries(value)) if (key !== 'blocks') walk(inner, at);
+  };
+  const one = (block: unknown, at: string): void => {
+    if (!isObject(block)) return;
+    visit(block, at);
+    if (Array.isArray(block.row)) block.row.forEach((inner: unknown, index: number) => one(inner, `${at}.${index + 1}`));
+    for (const [key, inner] of Object.entries(block)) if (key !== 'row') walk(inner, at); // a window of a link or a button
+  };
+  for (const page of Array.isArray(look.pages) ? look.pages : []) walk(page, `Page "${page?.id}"`);
+  (Array.isArray(look.rules) ? look.rules : []).forEach((rule, index) => walk(rule, `Rule ${index + 1}`));
+}
+
+/** The name of a list of blocks for a page that asks for it: the same blocks give the same name. */
+export const blockRef = (blocks: unknown): string => createHash('sha1').update(JSON.stringify(blocks)).digest('hex').slice(0, 12);
+
+/** A copy of a value of the look with each list of blocks (a section of its own, the window of a target) in the form { ref }: Home carries no blocks. */
+export function withBlockRefs<T>(value: T): T {
+  if (Array.isArray(value)) return value.map(withBlockRefs) as T;
+  if (!isObject(value)) return value;
+  const { blocks, ...rest } = value as Record<string, unknown>;
+  const copy = Object.fromEntries(Object.entries(rest).map(([key, inner]) => [key, withBlockRefs(inner)]));
+  return (Array.isArray(blocks) ? { ...copy, ref: blockRef(blocks) } : blocks === undefined ? copy : { ...copy, blocks }) as T;
+}
+
+/** The list of blocks of a look that has a ref, or undefined when the look has none such now. */
+export function blocksOfRef(look: Partial<Look>, ref: string): Block[] | undefined {
+  let found: Block[] | undefined;
+  const walk = (value: unknown): void => {
+    if (found || !value || typeof value !== 'object') return;
+    if (Array.isArray(value)) return value.forEach(walk);
+    const blocks = (value as Record<string, unknown>).blocks;
+    if (Array.isArray(blocks) && blockRef(blocks) === ref) found = blocks;
+    Object.values(value).forEach(walk);
+  };
+  walk(look);
+  return found;
 }

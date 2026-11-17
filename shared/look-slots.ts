@@ -39,26 +39,42 @@ function core(): Record<string, unknown> {
 /** One area: its components with their slots and examples, the fields of those slots with the kinds of their values, the picks, and what else is in it. */
 function area(id: string): Record<string, unknown> {
   const components = entries(LIST.components).filter(([, one]) => one.area === id);
+  const named = entries(LIST.components).filter(([, one]) => one.also === id).map(([name, one]) => [name, `the area ${one.area} gives it`] as const);
   const names = [...new Set([...components.flatMap(([, one]) => one.slots), ...entries(LIST.slots).filter(([, slot]) => slot.area === id).map(([name]) => name)])];
   // A slot of another area is one line that names that area, where its fields stand; the slots of this area come whole.
   const whole = names.filter((name) => !LIST.slots[name].area || LIST.slots[name].area === id);
+  // A slot comes with the fields that the components of the area take ("takes"), or all of them.
+  const fieldsOf = (name: string): Readonly<Record<string, string>> => {
+    const users = components.filter(([, one]) => one.slots.includes(name));
+    return !users.length || users.some(([, one]) => !one.takes?.[name]) ? LIST.slots[name].fields : only(LIST.slots[name].fields, users.flatMap(([, one]) => one.takes![name]));
+  };
   // A slot shows its own example when no example of a component of the area uses it.
   const used = (name: string): boolean => components.some(([, one]) => name in one.example);
   const targets = entries(TARGETS).filter(([, target]) => target.area === id);
   const picks = entries(LIST.picks).filter(([, pick]) => typeof pick !== 'string' && pick.area === id);
+  // The blocks of a page or a window (build 58): each with its form and the form of a file in its place, the title, the sources and the limits.
+  const blocks = entries(LIST.blocks).filter(([, one]) => one.area === id);
   return {
     area: id,
     line: LIST.areas[id],
-    ...(components.length ? { components: Object.fromEntries(components.map(([name, one]) => [name, { what: one.what, slots: one.slots, fields: one.fields, example: one.example }])) } : {}),
+    // A component of another area that this area names (the margin) is one line that says where it stands.
+    ...(components.length || named.length ? { components: Object.fromEntries([...components.map(([name, one]) => [name, { what: one.what, slots: one.slots, fields: one.fields, example: one.example }]), ...named]) } : {}),
     ...(LIST.sets.area === id ? { sets: { what: LIST.sets.what, form: LIST.sets.form } } : {}),
     ...(LIST.actions.area === id ? { actions: { what: LIST.actions.what, form: LIST.actions.form } } : {}),
-    slots: Object.fromEntries(names.map((name) => {
-      const slot = LIST.slots[name];
-      if (!whole.includes(name)) return [name, `the area ${slot.area}${slot.core ? ' (and the core)' : ''} gives its fields`];
-      return [name, { what: slot.what, ...(slot.one ? { one: true } : {}), ...(slot.target ? { target: true } : { fields: slot.fields }), ...(used(name) || !slot.example ? {} : { example: slot.example }) }];
-    })),
-    values: only(LIST.values, kindsOf(whole.map((name) => LIST.slots[name].fields))),
-    picks: `${Object.keys(LIST.picks).join(', ')}: the core says what each picks`,
+    ...(blocks.length ? {
+      blocks: Object.fromEntries(blocks.map(([name, one]) => [name, { what: one.what, form: one.form, ...(one.file ? { file: one.file } : {}) }])),
+      title: LIST.blockTitle, sources: LIST.sources, limits: LIST.limits,
+    } : {}),
+    ...(LIST.pages.area === id ? { pages: { what: LIST.pages.what, form: LIST.pages.form, example: LIST.pages.example } } : {}),
+    ...(names.length ? {
+      slots: Object.fromEntries(names.map((name) => {
+        const slot = LIST.slots[name];
+        if (!whole.includes(name)) return [name, `the area ${slot.area}${slot.core ? ' (and the core)' : ''} gives its fields`];
+        return [name, { what: slot.what, ...(slot.one ? { one: true } : {}), ...(slot.target ? { target: true } : { fields: fieldsOf(name) }), ...(used(name) || !slot.example ? {} : { example: slot.example }) }];
+      })),
+      values: only(LIST.values, kindsOf(whole.map(fieldsOf))),
+      picks: `${Object.keys(LIST.picks).join(', ')}: the core says what each picks`,
+    } : {}),
     ...(picks.length ? { fields: Object.fromEntries(entries(LIST.components).map(([name, one]) => [name, one.fields])) } : {}),
     ...(targets.length ? { [TARGETS_KEY]: Object.fromEntries(targets.map(([name, target]) => [name, { what: target.what, form: target.form }])) } : {}),
   };
@@ -69,7 +85,7 @@ function area(id: string): Record<string, unknown> {
 /** A part that the search can find, with the words that it is found by: its name, its other words, and the rest of its text. */
 interface Part {
   name: string;
-  is: 'component' | 'slot' | 'field' | 'pick' | 'target' | 'set' | 'actions';
+  is: 'component' | 'slot' | 'field' | 'pick' | 'target' | 'set' | 'block' | 'page' | 'actions';
   area: string;
   line: string;
   example?: Example;
@@ -110,6 +126,10 @@ function parts(): Part[] {
     found.push({ name, is: 'target', area: target.area ?? 'core', line: `${target.what}: ${target.form}`, example: target.example ?? exampleWith('action'), by: { name: wordsOf(name), words: wordsOf(...(target.words ?? [])), other: wordsOf(target.what, target.form) } });
   }
   found.push({ name: 'sets', is: 'set', area: LIST.sets.area, line: `${LIST.sets.what}; its area gives its form`, example: exampleWith('set'), by: { name: wordsOf('set'), words: wordsOf(...(LIST.sets.words ?? [])), other: wordsOf(LIST.sets.what) } });
+  for (const [name, block] of entries(LIST.blocks)) {
+    found.push({ name, is: 'block', area: block.area, line: `${block.what}: ${block.form}${block.file ? `; a file in its place: ${block.file}` : ''}`, example: block.example, by: { name: wordsOf(name), words: wordsOf(...(block.words ?? [])), other: wordsOf(block.what) } });
+  }
+  found.push({ name: 'pages', is: 'page', area: LIST.pages.area, line: `${LIST.pages.what}; its area gives its form`, example: LIST.pages.example, by: { name: wordsOf('page', 'pages'), words: wordsOf(...(LIST.pages.words ?? [])), other: wordsOf(LIST.pages.what) } });
   const { actions } = LIST;
   found.push({ name: 'actions', is: 'actions', area: actions.area, line: `${actions.what}: ${actions.form}`, by: { name: wordsOf('actions'), words: wordsOf(...(actions.words ?? [])), other: wordsOf(actions.what) } });
   return found;
@@ -145,7 +165,8 @@ function find(words: string): Record<string, unknown> {
     .sort((a, b) => b.score - a.score || a.order - b.order).slice(0, MATCHES);
   const cannot = asked.length ? cannotUse(asked, ranked[0]?.score ?? 0) : undefined;
   if (cannot) return { found: cannot };
-  if (!ranked.length) return { found: `Nothing in the list fits "${words}". Read the index lines; when none fits, tell the owner and leave it out.`, areas: index() };
+  // The index lines alone, each beginning with its area: the answer stays small while areas are added.
+  if (!ranked.length) return { found: `Nothing in the list fits "${words}". Read the index lines; when none fits, tell the owner and leave it out.`, areas: index().map((one) => one.line) };
   // An example that an earlier match shows already is named, not printed again.
   return {
     matches: ranked.map(({ part: { by: _by, ...match } }, at) => {
