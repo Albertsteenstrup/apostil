@@ -161,6 +161,8 @@ export function activate(context: vscode.ExtensionContext) {
     sendPrompt: (text, diagram) => home.sendPrompt(text, diagram),
   };
   home.onTarget = page.onTarget = (target, diagram) => void answerTarget(target, places, diagram);
+  // The same for a click of the look in the list "Repo".
+  list.onTarget = (target) => void answerTarget(target, places);
 
   // The tree "Files" marks the file of the tab in front, as the Explorer of VS Code does: the file of an editor, a notebook or a file tab of Apostil
   // (the choice: rowOfFileInFront).

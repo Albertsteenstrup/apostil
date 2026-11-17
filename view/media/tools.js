@@ -114,10 +114,10 @@ const AGENT_NAMES = { 'claude-code': 'Claude Code', codex: 'Codex', antigravity:
 const agentIcon = (agent) => (AGENT_APPS.includes(agent.app) ? `<img class="icon" src="agents/${agent.app}.svg" alt="${esc(agent.app)}">` : '');
 const appName = (agent) => AGENT_NAMES[agent.app] ?? agent.app;
 
-/** The head of an agent session: the icon of its app and the name of the session on one line, as the link that opens it; the full name in the tooltip. */
-const agentHead = (agent) => {
+/** The head of an agent session: the icon of its app (or `icon`, from a look) and the name of the session on one line, as the link that opens it; the full name in the tooltip. */
+const agentHead = (agent, icon = agentIcon(agent)) => {
   const name = esc(agent.name ?? States.WORDS.session);
-  return `<div class="head">${agentIcon(agent) || `<span>${esc(agent.app)}</span>`}`
+  return `<div class="head">${icon || `<span>${esc(agent.app)}</span>`}`
     + (agent.link ? `<a class="ses" data-link="${esc(agent.link)}" title="${name}">${name}</a>` : agent.name ? `<span class="ses" title="${name}">${name}</span>` : '')
     + '</div>';
 };

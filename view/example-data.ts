@@ -107,7 +107,7 @@ const page = examplePage(folder, base, file, points, remarks, agent, apps, map?.
 // with its second set and its marks) is "?look=1", "look-<name>.json" is "?look=<name>". Home and the note cards are read after each save.
 const homeLooks: Record<string, HomeData> = {};
 const pageLooks: Record<string, LookData | undefined> = {};
-for (const name of put ? readdirSync(EXAMPLE_LOOK).filter((one) => /^look(-[a-z]+)?\.json$/.test(one)).sort() : []) {
+for (const name of put ? readdirSync(EXAMPLE_LOOK).filter((one) => /^look(-[a-z-]+)?\.json$/.test(one)).sort() : []) {
   const key = name === 'look.json' ? '1' : name.slice('look-'.length, -'.json'.length);
   const files = putLookFiles(folder);
   must(setLook(store, folder, JSON.parse(readFileSync(join(EXAMPLE_LOOK, name), 'utf8'))), name);

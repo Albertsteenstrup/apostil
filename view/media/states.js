@@ -91,6 +91,14 @@ const States = (() => {
     return { text: phrase ?? '' };
   }
 
+  /** The state of a row as a look names it (ROW_STATES in shared/look.ts): the first that applies, as rowLine() says it. */
+  function rowState(counts, phrase = '') {
+    if (counts.running) return 'working';
+    if (counts.done) return 'answers';
+    if (counts.sent) return 'waiting';
+    return /in no part$/.test(phrase) ? 'in no part' : ['out of date', 'open folder', 'no change file'].includes(phrase) ? phrase : 'none';
+  }
+
   /**
    * What a remark shows under its text. agent: the agent of the change ({ hostSession, link, canResume }); listening: its session has a live waiter.
    * way: what the owner can do next: "listening", "connect", "start" or none. A reply with the mention sends again.
@@ -174,7 +182,7 @@ const States = (() => {
   /** The circle with a number, in the look of a state. A thread id makes a click bring up its card. */
   const circleHtml = (number, look, thread) => `<i class="rk ${look}"${thread ? ` data-thread="${thread}"` : ''}>${number}${look === 'done' ? ' ✓' : ''}</i>`;
 
-  return { WORDS, MENTION_WORDS, mentionName, mentionChoices, cutChoices, rowLine, remarkLine, threadLead, circleOf, isOpen, foldPulls, foldRows, stackOrder, lineHtml, circleHtml, pullTip, pullIcon };
+  return { WORDS, MENTION_WORDS, mentionName, mentionChoices, cutChoices, rowLine, rowState, remarkLine, threadLead, circleOf, isOpen, foldPulls, foldRows, stackOrder, lineHtml, circleHtml, pullTip, pullIcon };
 })();
 
 if (typeof module === 'object') module.exports = States; // for the tests in Node

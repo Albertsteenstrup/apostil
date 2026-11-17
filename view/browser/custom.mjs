@@ -4,7 +4,7 @@
 // It runs in the look "Apostil", on the made-up look "?look=shared" (view/check-example/look/look-shared.json). The later briefs add their checks here.
 
 import { fileURLToPath } from 'node:url';
-import { check, errors, finish, openPage, pageFile, takePicture } from './tools.mjs';
+import { check, errors, finish, listFile, openPage, pageFile, takePicture } from './tools.mjs';
 
 const homeFile = fileURLToPath(new URL('../media/home.html', import.meta.url));
 const node = (key) => `#view :is(g.node, g.image-shape)[id*="flowchart-${key}-"]`;
@@ -121,6 +121,36 @@ try {
   check('a note card shows its fields in the order of the rule: the title, then the text; the function line and the service line that the rule leaves out are not shown',
     card.parts.join() === 't,d', JSON.stringify(card));
   await one.close();
+
+  // ----- Build 61: the list "Repo" in the made-up look "?look=side-bar" (view/check-example/look/look-side-bar.json) -----
+  {
+  const openList = async (look) => {
+    const page = await openPage({ viewport: { width: 400, height: 760 }, deviceScaleFactor: 2 });
+    page.on('pageerror', (error) => errors.push(error.message));
+    await page.goto(`file://${listFile}${look ? `?look=${look}` : ''}`);
+    await page.waitForFunction(() => window.apostilListDone, null, { timeout: 5000 });
+    return page;
+  };
+
+  // The search at the start: the words of the rule while VS Code keeps no search; then his own search (the field emptied) wins, and the rows stand in the order of the rule.
+  const side = await openList('side-bar');
+  const start = await side.evaluate(() => ({ field: document.querySelector('.find .q').value, line: document.querySelector('.eyebrow').textContent, rows: [...document.querySelectorAll('.row .nm')].map((nm) => nm.textContent) }));
+  await takePicture(side, '610-custom-list-search-at-start.png');
+  await side.click('.find .clear', { timeout: 3000 }).catch(() => {}); // with no words in the field there is nothing to clear
+  const rows = await side.evaluate(() => [...document.querySelectorAll('.row')].map((row) => ({
+    branch: row.querySelector('.nm')?.textContent, facts: row.querySelector('.mt')?.textContent, pulls: [...row.querySelectorAll('.pr .pn')].map((pn) => `${pn.textContent} ${getComputedStyle(pn).color}`),
+    avatars: row.querySelectorAll('.av').length, more: !!row.querySelector('.more'),
+  })));
+  await takePicture(side, '611-custom-list-in-the-order-of-the-rule.png');
+  check('the list starts with the search of the rule while VS Code keeps none, and the line counts what matches; emptied, his own search wins and the rows stand in the order of the rule, the branch of the rule first',
+    start.field === 'state:"checks failing"' && start.line === '2 of 3 changes' && start.rows.join() === 'book-holds,made-up/follow-up'
+      && rows.map((one) => one.branch).join() === 'book-holds,made-up/without-agent,made-up/follow-up', JSON.stringify({ start, rows: rows.map((one) => one.branch) }));
+  const [holds] = rows;
+  check('a row shows the facts of the rule in their order, a pull request line in the colour of its state, no avatars, and its older pull requests open with no fold',
+    holds.facts === '2 hours ago · 48 files' && holds.pulls[0] === '#12 rgb(180, 83, 9)' && holds.pulls.slice(1).every((one) => /^#1[01] /.test(one) && !one.endsWith('rgb(180, 83, 9)')) && rows.every((one) => !one.avatars && !one.more), JSON.stringify(holds));
+  await side.close();
+
+  }
 } catch (error) {
   check('the checks ran to the end', false, error.message.split('\n').slice(0, 14).join(' / '));
 }

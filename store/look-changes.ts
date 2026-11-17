@@ -2,7 +2,7 @@
 // for a rule that picks nothing now (not a fault: the marks of a new set come after the save). The picks are the pages' own: the first part of
 // view/media/marks.js, read in Node as view/marks.test.ts does, on the diagrams of Home (homeData) and on the note cards of the map.
 
-import { LOOK_PARTS, type Look, type LookPartsList, type Pick } from '../shared/look';
+import { calledOf, LOOK_PARTS, type Look, type LookPartsList, type Pick } from '../shared/look';
 import { repoId, repoRoot } from '../shared/git';
 import type { Store } from '../shared/store';
 import { homeData, type HomeDiagram } from '../view/home-data';
@@ -11,6 +11,8 @@ import { homeData, type HomeDiagram } from '../view/home-data';
 const Marks = require('../../view/media/marks.js');
 
 const LIST: LookPartsList = LOOK_PARTS;
+/** The kinds of the things of the map, which the changes count. */
+const MAP_KINDS: string[] = ['node', 'step', 'call', 'arrow', 'note'];
 
 type Thing = { kind: string; slots?: Record<string, unknown> } & Record<string, unknown>;
 
@@ -69,6 +71,8 @@ export function lookChanges(store: Store, folder: string, look: Look): { changes
   const changes: string[] = [];
   const notes: string[] = [];
   look.rules.forEach((rule, index) => {
+    // A part of the side bar or of a pull request is not in the map, so it is not counted (build 61).
+    if (!MAP_KINDS.includes(rule.pick.kind)) return void changes.push(`Rule ${index + 1}: ${calledOf(rule.pick.kind)} that it picks gets ${gives(rule)}.`);
     const many = count(rule.pick);
     changes.push(`Rule ${index + 1}: ${many} ${rule.pick.kind}${many === 1 ? ' gets' : 's get'} ${gives(rule)}.`);
     if (!many) notes.push(`Rule ${index + 1} picks nothing now: ${whyNothing(rule.pick, count)}.`);
