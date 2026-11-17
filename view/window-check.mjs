@@ -538,7 +538,7 @@ try {
   await list?.locator('.home').click();
   const promptHome = await frameWhere(() => typeof Home === 'object' && Home.data?.look?.rules.some((rule) => rule.click?.prompt) && !!document.querySelector('#view g.node[id*="flowchart-jobs-"]'));
   const dialog = page.locator('.monaco-dialog-box');
-  const ask = async (button) => {
+  const answerPrompt = async (button) => {
     await promptHome?.locator('#view g.node[id*="flowchart-jobs-"]').click({ timeout: 4000 }).catch(() => {});
     const shownAsk = await shown(dialog, 6000);
     const words = shownAsk ? (await dialog.textContent()).replace(/\s+/g, ' ') : '';
@@ -548,14 +548,14 @@ try {
     return { words, buttons };
   };
   const runsBeforeAsk = runsNow().length;
-  const notSent = await ask('Cancel');
+  const notSent = await answerPrompt('Cancel');
   await shot('3d-the-question-before-a-prompt-of-the-look');
-  const sent = await ask('Send');
+  const promptSent = await answerPrompt('Send');
   const runAfterSend = await until(() => runsNow().length > runsBeforeAsk && runsNow());
   check('a click whose target is a prompt: VS Code asks with the whole words and "Send"; with no "Send" the stand-in claude gets no run, with "Send" it gets one with the words',
     promptLook && !!promptHome && notSent.words.includes('Send this to a new session of Claude Code?') && notSent.words.includes(PROMPT) && notSent.buttons.includes('Send')
-      && sent.words.includes(PROMPT) && runAfterSend?.length === runsBeforeAsk + 1 && runAfterSend.at(-1).includes(PROMPT),
-    JSON.stringify({ promptLook, home: !!promptHome, notSent, sent: sent.buttons, runs: `${runsBeforeAsk} -> ${runsNow().length}` }));
+      && promptSent.words.includes(PROMPT) && runAfterSend?.length === runsBeforeAsk + 1 && runAfterSend.at(-1).includes(PROMPT),
+    JSON.stringify({ promptLook, home: !!promptHome, notSent, sent: promptSent.buttons, runs: `${runsBeforeAsk} -> ${runsNow().length}` }));
   lookNow({ rules: [] }); // the default look again for the parts after this one
   await command('View: Close All Editors');
 

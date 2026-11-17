@@ -98,10 +98,7 @@ const home = homeData(store, folder, apps, address);
 const graphPaths = new Set(['src/library/lending/hold_service.py']);
 for (const diagram of home.map?.diagrams ?? []) for (const node of Object.values(diagram.nodes)) [node.graphs, ...node.paths.map((entry) => entry.path)].forEach((path) => graphPaths.add(path));
 const graphs: Record<string, GraphsData> = Object.fromEntries([...graphPaths].map((path) => [path, graphsData(store, folder, path, address)]));
-
-// Made up: an earlier change, merged long ago, with a note on code that this change left alone. The file tab shows it beside its lines, with no colour.
-const earlier = exampleEarlierChange(folder, base);
-if (earlier) store.saveChange(earlier);
+put?.clean(); // the files of the writers leave the repo before the page of the change reads its files
 
 // Made up: a second agent read the flow chart; the other diagrams are not checked yet.
 const page = examplePage(folder, base, file, points, remarks, agent, apps, map?.diagrams.map((diagram) => diagram.id), changeId, ['offer-flow']); // the id of the stored change, so that the graphs pages open this page
@@ -119,7 +116,11 @@ for (const name of put ? readdirSync(EXAMPLE_LOOK).filter((one) => /^look(-[a-z]
   homeLooks[key] = homeData(store, folder, apps, address);
   pageLooks[key] = lookOfPage(store, page);
 }
-put?.clean();
+
+// Made up: an earlier change, merged long ago, with a note on code that this change left alone. The file tab shows it beside its lines, with no colour.
+const earlier = exampleEarlierChange(folder, base);
+if (earlier) store.saveChange(earlier);
+
 // The look of the note cards: a look of the example with "?look=<name>", else the default look, which shows the logos of the services.
 const pageLook = pageLooks['1'] ?? lookOfPage(store, page);
 page.look = pageLook && asDefault(pageLook);
