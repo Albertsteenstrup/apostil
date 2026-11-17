@@ -312,9 +312,16 @@ try {
   await page.click(`.cv .code [data-line="${first + 1}"] .x`);
   const linesCard = await page.$$eval('#side .thread.cur .tx', (all) => all.map((tx) => tx.textContent).join());
   await page.evaluate(() => { document.querySelector('.cv').scrollTop = 40000; });
+  // The rows are lit for a moment only: a watcher keeps which rows were lit, so a busy Mac cannot miss them.
+  await page.evaluate(() => {
+    window.litSeen = new Set();
+    document.querySelectorAll('.cv .code .l.flash').forEach((row) => row.classList.remove('flash')); // only what the click on the card lights counts
+    const look = () => document.querySelectorAll('.cv .code .l.flash').forEach((row) => window.litSeen.add(row.dataset.line));
+    new MutationObserver(look).observe(document.querySelector('.cv'), { subtree: true, attributes: true, attributeFilter: ['class'], childList: true });
+  });
   await card('Is this loop covered?').locator('.tx').click();
-  await settle();
-  const litRows = await page.$$eval('.cv .code .l.flash', (rows) => rows.map((row) => row.dataset.line).join());
+  await page.waitForFunction(() => window.litSeen.size >= 2, null, { timeout: 5000 }).catch(() => {});
+  const litRows = await page.evaluate(() => [...window.litSeen].sort((x, y) => x - y).join());
   check('a click on code lines with a thread brings up its card, and a click on the card lights those lines',
     linesCard === 'Is this loop covered?' && litRows === `${first},${first + 1}`, `card ${linesCard}; lit ${litRows}`);
   await drawn(() => page.click('#crumb a[data-trail="1"]'));

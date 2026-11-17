@@ -23,6 +23,7 @@ Every note has the same pattern, so that the owner reads a list of notes in one 
 
 - `lines`: the first and the last line, counted from 1, in the file as it is now. Read the file with line numbers and take the numbers from there.
 - `title`: 2 to 6 words. A bare verb, then what it acts on: "Skip split entries". Never "Skips" or "Skipping". Put the word that tells this note apart from the other notes of the file in the first two words: "Skip split entries", not "Check whether an entry is split".
+  **The note of a whole function** says what the function does for its caller, from its start to its end. Never give it only the one thing that it adds to another function. A function `read_feed` asks the feed, and asks again twice when the feed fails: write "Ask the feed, with two retries", not "Retry the feed's errors". The rule of the word that tells notes apart is for the notes inside a function.
 - `text`: one sentence of at most 20 words. Start with a verb in the -s form, and leave out the code as its subject: "Returns None when the entry is split, so the caller skips it." Say what the code does not say by itself: the reason, the rule, the special case, what breaks if it is wrong. Do not repeat the title.
 - Write active sentences: "Skips macros with arguments", not "Macros with arguments are skipped". No semicolon: give a second idea its own note, or leave it out. No -ing words, except names in the code: "keeps hyphens", not "keeping hyphens". Keep "the" and "a".
 - Use the words of the code for its things.
