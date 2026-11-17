@@ -59,10 +59,13 @@ export class HomePages {
 
   constructor(private media: vscode.Uri, private store: Store, private openFolder: () => string, private apps: string[], private trail: WindowTrail) {}
 
-  /** Opens Home, or shows it; with `go`, at that diagram ('' for the top map) with those nodes lit. `quiet` leaves the keyboard where it is. */
-  openHome(go?: { diagram: string; lit?: string[] }, quiet = false): void {
+  /**
+   * Opens Home, or shows it; with `go`, at that diagram ('' for the top map) with those nodes lit. `quiet` leaves the keyboard where it is; `beside`
+   * opens a new Home beside the tab in front (the first page of a look).
+   */
+  openHome(go?: { diagram: string; lit?: string[] }, quiet = false, beside = false): void {
     if (!this.home) {
-      const show = { viewColumn: vscode.ViewColumn.Active, preserveFocus: quiet };
+      const show = { viewColumn: beside ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active, preserveFocus: quiet };
       this.home = this.addTab(vscode.window.createWebviewPanel('apostil.home', 'Home', show, { retainContextWhenHidden: true }));
       this.home.panel.onDidDispose(() => { this.home = undefined; });
     }
@@ -71,16 +74,17 @@ export class HomePages {
     if (go) this.post(this.home, { type: 'go', go });
   }
 
-  /** Opens the graphs of a folder (ending with "/") or a file, in a tab named after it. */
-  openGraphs(path: string): void {
+  /** Opens the graphs of a folder (ending with "/") or a file, in a tab named after it. `quiet` and `beside` as for Home. */
+  openGraphs(path: string, quiet = false, beside = false): void {
     let tab = this.graphs.get(path);
     if (!tab) {
       const name = path.replace(/\/$/, '').split('/').pop() || path;
-      const created = this.addTab(vscode.window.createWebviewPanel('apostil.graphs', path.endsWith('/') ? `${name}/` : name, vscode.ViewColumn.Active, { retainContextWhenHidden: true }), path);
+      const show = { viewColumn: beside ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active, preserveFocus: quiet };
+      const created = this.addTab(vscode.window.createWebviewPanel('apostil.graphs', path.endsWith('/') ? `${name}/` : name, show, { retainContextWhenHidden: true }), path);
       created.panel.onDidDispose(() => { this.graphs.delete(path); delete this.graphsShown[path]; });
       this.graphs.set(path, (tab = created));
     }
-    tab.panel.reveal();
+    tab.panel.reveal(undefined, quiet);
     this.post(tab, this.graphsMessage(path));
   }
 
