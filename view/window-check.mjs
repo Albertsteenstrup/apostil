@@ -644,12 +644,12 @@ try {
     appState?.view === 'diagram' && font.left === 0 && !!font.vscode && plain(font.family) === plain(workbenchFont.family) && font.size === workbenchFont.size && !!font.editor && plain(font.code) === plain(font.editor), JSON.stringify(font));
   await shot('3-change-as-diagram');
 
-  // A click on a file name opens the file as a tab of its own, in the group of the page, with its file icon, in Apostil's view.
+  // Opening a file from the page opens the file as a tab of its own, in the group of the page, with its file icon, in Apostil's view.
   const tabOf = (name) => page.locator('.editor-group-container .tab', { has: page.locator('.label-name', { hasText: new RegExp(`^${name.replace('.', '\\.')}$`) }) });
   const fileTab = (name) => frameWhere((wanted) => typeof App === 'object' && !!App.tab?.endsWith(wanted) && !!document.querySelector('.cv [data-line]'), `/${name}`);
   const groupOf = (tab) => tab.evaluate((el) => [...document.querySelectorAll('.editor-group-container')].indexOf(el.closest('.editor-group-container')));
   const changeTab = page.locator('.tab', { hasText: 'book-holds' }).first();
-  await stage.locator('.f[data-file="web/src/member/HoldsPanel.tsx"]').click();
+  await stage.evaluate(() => App.showCode('web/src/member/HoldsPanel.tsx', null)); // what the name of a file in the list does; a click on a file in a node opens its diff in the list now
   const newTab = await fileTab('HoldsPanel.tsx');
   const newFile = newTab ? await newTab.evaluate(() => ({ added: document.querySelectorAll('.cv .code .l.add').length, rows: document.querySelectorAll('.cv .code [data-line]').length })) : {};
   const tabLook = await tabOf('HoldsPanel.tsx').first().evaluate((el) => ({ icon: el.querySelector('.monaco-icon-label')?.className ?? '', active: el.classList.contains('active') })).catch(() => ({}));
@@ -713,7 +713,7 @@ try {
     check('on "Diagram" in a wide tab Alt+Down and Alt+Up as real keys step through the diffs of night_jobs.py and open its diff, and the graph at the left follows with its things lit',
       follows?.path === 'src/library/night_jobs.py' && follows.open >= 1, JSON.stringify(follows));
     await shot('3b-diagram-the-graph-follows-alt-down');
-    await stage.locator('#tabs [data-all="close"]').click();
+    await stage.locator('[data-all="close"]').click();
     await stage.locator('.codeswitch[data-half="code"]').click(); // "Hide code": the hover windows below belong to the diagram alone
     await stage.waitForFunction(() => !document.querySelector('#view > .half.right'));
   } else check('the window is wide enough for the two halves of the diagram page', false, 'no two halves');

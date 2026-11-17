@@ -370,7 +370,7 @@ try {
     }));
     const openAll = async () => {
       await go(one, { level: 'change' });
-      await one.click('#tabs [data-all="open"]');
+      await one.click('[data-all="open"]');
       await one.waitForSelector('.half.right .dfile.open', { timeout: 3000 });
     };
     // The left half follows the file at the reading line when the scroll rests: a schema with a lit table (`table`, or any).

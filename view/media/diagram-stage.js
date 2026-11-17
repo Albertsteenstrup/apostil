@@ -141,11 +141,11 @@ const ON_A_THING = 'g.node, g.image-shape, .f, .go, a';
 const READABLE = 0.85;
 
 /**
- * Makes a drawn diagram a surface that he moves: a drag moves it, the wheel and a pinch zoom at the pointer,
+ * Makes a drawn diagram a surface that he moves: a drag, the wheel and a scroll with two fingers move it, a pinch and Cmd+scroll zoom at the pointer,
  * and a double click on an empty place fits it whole to its card. The card takes the height that is left in the tab.
  * With `readable` (a map, a wider diagram), a diagram so wide that fitting it would make the words small opens at a size where they read, at the start of its flow.
  * With `stack` (one of several diagrams one under the other in a half that scrolls), the card takes the height of the diagram fit to its width, or at the size
- * where its words read, and at most most of the half; the wheel scrolls the half, and only a pinch zooms.
+ * where its words read, and at most most of the half; a scroll that the drawing cannot take (all of it shows that way) scrolls the half.
  */
 function makeSurface(stage, readable = false, stack = false) {
   const svg = stage.querySelector('svg');
@@ -192,10 +192,26 @@ function makeSurface(stage, readable = false, stack = false) {
     moved = true;
     apply();
   };
+  /** Moves the view by a scroll of the wheel or two fingers (`dx`, `dy` in pixels), not out of the drawing; false when it cannot move that way. */
+  const scrollBy = (dx, dy) => {
+    const room = (at, delta, start, total, size) => (total <= size ? at : delta > 0 ? Math.max(at, Math.min(at + delta, start + total - size)) : Math.min(at, Math.max(at + delta, start)));
+    const [w, h] = [stage.clientWidth / view.scale, stage.clientHeight / view.scale];
+    const next = { ...view, x: room(view.x, dx / view.scale, x0, width, w), y: room(view.y, dy / view.scale, y0, height, h) };
+    if (next.x === view.x && next.y === view.y) return false;
+    view = next;
+    moved = true;
+    apply();
+    return true;
+  };
+  // A scroll with two fingers or the wheel moves the drawing; a pinch (a wheel with Ctrl) and Cmd+scroll zoom at the pointer. In a stack, a scroll that the
+  // drawing cannot take, because all of it shows that way, scrolls the half.
   stage.addEventListener('wheel', (event) => {
-    if (stack && !event.ctrlKey) return;
+    const zoom = event.ctrlKey || event.metaKey;
+    const took = zoom || scrollBy(event.deltaX, event.deltaY);
+    if (!took && stack) return; // the half scrolls
     event.preventDefault();
-    Hover.hide(); // no hover window opens over the diagram while he zooms
+    Hover.hide(); // no hover window opens over the diagram while he moves or zooms it
+    if (!zoom) return;
     const box = stage.getBoundingClientRect();
     zoomAt(event.clientX - box.left, event.clientY - box.top, Math.exp(-event.deltaY * (event.ctrlKey ? 0.01 : 0.002))); // a pinch comes as a wheel with Ctrl
   }, { passive: false });
@@ -567,7 +583,7 @@ async function drawChange(into, fromPart, tie) {
   for (const span of into.querySelectorAll('.f[data-file]')) {
     const path = span.dataset.file;
     Places.mark(span, { kind: 'file', file: path });
-    span.addEventListener('click', (event) => { event.stopPropagation(); App.fileClick(path, event); });
+    span.addEventListener('click', (event) => { event.stopPropagation(); if (tie && !event.metaKey) tie.file(path, 'click'); else App.fileClick(path, event); }); // beside the list: its diff opens there
     if (tie) Hover.after(span, () => tie.file(path));
     else Hover.attach(span, fileWindow(path, fileSlotsOf(path)), span.closest('g.node'));
   }
@@ -575,6 +591,10 @@ async function drawChange(into, fromPart, tie) {
     const id = more.dataset.more;
     const paths = id === 'no-part' ? page.checks.filesInNoPart : page.parts.find((candidate) => candidate.id === id).files;
     Places.mark(more, { kind: 'more-files', part: id === 'no-part' ? undefined : id });
+    if (tie?.more) { // beside the list: a click lists every file of the part in a window, and the list brings the part to its top
+      more.classList.add('go');
+      more.addEventListener('click', (event) => { event.stopPropagation(); tie.more(id, more.closest('g.node')); });
+    }
     if (!tie) Hover.attach(more, filesWindow(id === 'no-part' ? 'In no part' : page.parts.find((candidate) => candidate.id === id).name, paths.slice(3)), more.closest('g.node'));
   }
   if (svg) {
@@ -706,15 +726,17 @@ function wireCode(into, diagram, join) {
     if (thing.point) markPoint(els, thing.open);
     for (const el of els) {
       if (!code.places.length) { Hover.attach(el, placesWindow(thing.name, code, thing.point), main); continue; }
+      const [first] = code.places;
+      const tab = () => App.showCode(first.file, first.lines && !first.removed ? first.lines : null); // the file as a tab: Cmd+click, or "Open" in the window
       if (join) {
         Hover.after(el, () => join.show(main), () => join.rest());
-        el.addEventListener('click', (event) => { event.stopPropagation(); join.pin(main); });
+        el.addEventListener('click', (event) => { event.stopPropagation(); if (event.metaKey) tab(); else join.pin(main); });
         continue;
       }
-      const [first] = code.places;
       el.classList.add('go');
-      el.addEventListener('click', (event) => { event.stopPropagation(); App.showCode(first.file, first.lines && !first.removed ? first.lines : null); });
-      Hover.attach(el, placesWindow(thing.name, code, thing.point), main);
+      const opens = placesWindow(thing.name, code, thing.point);
+      el.addEventListener('click', (event) => { event.stopPropagation(); if (event.metaKey) tab(); else Hover.now(main, opens, main, true); });
+      Hover.attach(el, opens, main);
     }
     if (code.places.length) join?.step(main, code, els, thing.point, thing.key);
   }
