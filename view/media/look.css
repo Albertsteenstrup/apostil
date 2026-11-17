@@ -456,6 +456,9 @@ body.list{--bar:var(--vscode-sideBar-background,var(--paper));background:var(--b
 .stage.focus :is(g.node,g.image-shape):not(.tied),.stage.focus .edgePaths > :not(.tied),.stage.focus .edgeLabels > :not(.tied){opacity:.4}
 .stage.focus g.node.tied :is(rect,polygon,path,circle),.stage.focus .edgePaths > path.tied:not(.hit){stroke:var(--teal)!important}
 .stage.focus g.node.focused :is(rect,polygon,path,circle),.stage.focus .edgePaths > path.tied:not(.hit){stroke-width:2px!important}
+/* in a drawn process: the dots of a faint box (they stand in a group after it), and the arrow of the page from one column to the next */
+.stage.focus g.node:not(.tied) + g > .calldot,.stage.focus path.colink:not(.tied){opacity:.4}
+.stage.focus path.colink.tied{stroke:var(--teal)!important;stroke-width:2px!important}
 .stage.focus.rest g.node.tied,.stage.focus.rest .edgePaths,.stage.focus.rest .edgeLabels{opacity:1}
 /* the classes that change-diagram.ts writes: in its drawings a lit node has its name in teal, and the arrows to a new node are lit; the part kept whole, the files in no part, a removed node */
 .stage svg.litnames g.node.lit > *{fill:var(--tealsoft)!important;stroke:var(--teal)!important;color:var(--tealink)!important}
@@ -468,6 +471,10 @@ body.list{--bar:var(--vscode-sideBar-background,var(--paper));background:var(--b
 /* a drawn process (shared/process-diagrams.ts): a box of another place or a call out of the repo is quiet, with a light dashed line (its class draws the dashes);
    "N steps" under the title of a step that holds steps; the note of a step in its window */
 .stage g.node.elsewhere > *{fill:var(--d-node)!important;stroke:var(--d-removed)!important}
+.stage .edgeLabel .eo{font-size:.85em;color:var(--muted);margin-right:1px}
+.stage circle.calldot{fill:var(--muted);stroke:var(--d-label);stroke-width:1.5px}
+.pd-columns{cursor:pointer;color:var(--muted)}
+.pd-columns:hover{text-decoration:underline}
 .stage .nodeLabel i.ns{display:block;font-style:normal;font-weight:400;color:var(--muted);margin-top:2px}
 .win .stepnote{margin:0;padding:2px 12px 4px;color:var(--ink);white-space:normal;line-height:1.45}
 

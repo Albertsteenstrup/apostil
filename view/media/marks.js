@@ -161,8 +161,11 @@ const Marks = (() => {
       const marks = look.marks.filter((mark) => lines.some((one) => one.file === mark.file && one.line === mark.line));
       // What the arrow is: of a written diagram, of the writer in a drawn process (a dotted one is a branch), or a handoff between processes.
       const is = diagram.id?.startsWith('processes:') ? 'handoff' : !diagram.id?.startsWith('process:') ? 'diagram' : /^\s*-\./.test(tokens[at] ?? '') ? 'branch' : 'writer';
-      const thing = { kind: 'arrow', diagram: diagram.id, ends: [things[edge.from], things[edge.to]].filter(Boolean), marks, fields: { words: edge.label ?? '', of: edge.from, is } };
-      return { ...edge, marks: arrowMarks(marks, thing.ends), fields: thing.fields, slots: resolve(look.rules, thing, look.one) };
+      // A numbered arrow of a drawn process has its number in the label: the words that a rule reads are without it.
+      const order = diagram.order?.[`${edge.from}>${edge.to}`];
+      const words = order ? (edge.label ?? '').replace(new RegExp(`^${order}(?: |$)`), '') : edge.label ?? '';
+      const thing = { kind: 'arrow', diagram: diagram.id, ends: [things[edge.from], things[edge.to]].filter(Boolean), marks, fields: { words, of: edge.from, is } };
+      return { ...edge, marks: arrowMarks(marks, thing.ends), order, fields: thing.fields, slots: resolve(look.rules, thing, look.one) };
     });
   }
 
@@ -314,8 +317,9 @@ const Marks = (() => {
       const given = one.slots.content?.words;
       const size = one.slots['text.size'];
       if (!given && (!size || size === 'normal')) return [];
-      const shown = given ? fillWords(given, one.fields) : escapeHtml(one.label ?? '');
-      return [[at, size && size !== 'normal' ? `<span class='${size === 'small' ? 'lkSmall' : 'lkLarge'}'>${shown}</span>` : shown]];
+      const shown = given ? fillWords(given, one.fields) : escapeHtml(one.fields?.words ?? one.label ?? '');
+      const sized = size && size !== 'normal' ? `<span class='${size === 'small' ? 'lkSmall' : 'lkLarge'}'>${shown}</span>` : shown;
+      return [[at, one.order ? `<span class='eo'>${one.order}</span> ${sized}` : sized]]; // the number of an arrow stays before its words
     }));
     const direction = drawing?.slots['layout.direction'];
     if (!nodes.size && !hidden.size && !words.size && !groups.size && !direction && !plainArrows.size) return whole;
@@ -340,7 +344,7 @@ const Marks = (() => {
   function boxesOf(diagram, look) {
     if (!/^\s*(?:flowchart|graph)\b/m.test(diagram.mermaid ?? '')) return [];
     const file = diagram.id?.startsWith('process:');
-    return groupsOf(diagram.mermaid).map((group) => {
+    return groupsOf(diagram.mermaid).filter((group) => !/^col\d+$/.test(group.id)).map((group) => { // not the boxes of the columns of a long chain
       const own = group.nodes.map((node) => diagram.nodes?.[node]).filter(Boolean);
       const fields = file ? { path: group.title, name: group.title.split('/').pop(), steps: own.filter((node) => node.kind === 'step').length } : { title: group.title, nodes: group.nodes.length };
       const paths = file ? [group.title] : [...new Set(own.flatMap((node) => node.paths.map((one) => one.path)))];

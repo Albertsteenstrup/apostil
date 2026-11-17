@@ -186,14 +186,15 @@ function makeSurface(stage, readable = false, stack = false, key = undefined) {
     const [w, h] = [stage.clientWidth, stage.clientHeight];
     if (!w || !h) return;
     let scale = Math.min(1, w / width, h / height);
-    const wide = (readable || half) && (half || w / width < h / height) && scale < READABLE;
+    const columns = stage.classList.contains('columns'); // a long chain in columns: tall, but it opens where its words read, at its top
+    const wide = (readable || half) && (half || columns || w / width < h / height) && scale < READABLE;
     if (wide && !whole) scale = READABLE;
     const middle = { x: x0 - (w / scale - width) / 2, y: y0 - (h / scale - height) / 2 };
     // The start of a wide flow: its left end when it goes from left to right, else its top in the middle.
     const across = stage.classList.contains('across');
     // In a half, a diagram wider than the half starts at its left end too.
     const fromLeft = across || (half && w / scale < width);
-    view = wide && !whole ? { scale, x: fromLeft ? x0 : middle.x, y: across || h / scale >= height ? middle.y : y0 } : { scale, ...middle };
+    view = wide && !whole ? { scale, x: fromLeft ? x0 : middle.x, y: (across && !columns) || h / scale >= height ? middle.y : y0 } : { scale, ...middle };
     moved = false;
     apply();
   };
@@ -288,7 +289,8 @@ function nodeAt(stage, event) {
 /**
  * Focus on a node (build 64): the node, its arrows and the nodes at their other ends stay as they are, and the rest of the drawing grows faint
  * (look.css), as the rest around lit nodes does. `graph` is the graph of the drawing. With no node, the focus ends. Returns the name of the node,
- * or null when the drawing has no such node.
+ * or null when the drawing has no such node. A drawn process also joins two boxes without an arrow of Mermaid: a dot at the box that calls
+ * (`graph.dots`) and the arrow of the page from one column to the next (path.colink); both count as arrows of the node.
  */
 function focusNode(stage, graph, node) {
   for (const el of stage.querySelectorAll('.tied, .focused')) el.classList.remove('tied', 'focused');
@@ -304,6 +306,11 @@ function focusNode(stage, graph, node) {
     // The arrow with its words, the wide line that the pointer finds, its counts and its marks.
     for (const el of [path, label, path.nextElementSibling?.classList.contains('hit') && path.nextElementSibling, path.countsText, path.chips]) if (el) el.classList.add('tied');
   });
+  for (const [from, list] of Object.entries(graph.dots ?? {})) for (const to of list) if (from === node || to === node) tied.add(from).add(to);
+  for (const path of stage.querySelectorAll('path.colink')) {
+    const { from, to } = path.dataset;
+    if (from === node || to === node) { tied.add(from).add(to); path.classList.add('tied'); }
+  }
   for (const g of nodes) g.classList.toggle('tied', tied.has(nodeKey(g)));
   own.classList.add('focused');
   return plainName(graph, node);

@@ -155,6 +155,7 @@ function noteWindow(node, thing) {
       title: node.note.title, width: 460,
       sections: [
         { id: 'note', html: node.note.text ? `<p class="stepnote">${esc(node.note.text)}</p>` : '' },
+        { id: 'callers', html: ProcessDrawing.callersHtml(node) },
         { id: 'where', sub: esc(node.note.where) },
         { id: 'marks', html: '<div class="mk-lines"></div>' },
       ],
@@ -257,13 +258,16 @@ async function drawHome() {
   else {
     // The look: the slots of each node and arrow, what shows, and the shapes, words and contents that go into the text before Mermaid draws.
     // A step that a rule opens holds its inner steps in place.
-    const shown = look ? Marks.openSteps(diagram, look, diagramOf) : diagram;
+    // A drawn process with a long chain is drawn in columns (ProcessDrawing); a text that does not draw falls back to the drawing of the map.
+    const laid = ProcessDrawing.laidOut(diagram, look);
+    ProcessDrawing.link(summary, diagram, laid);
+    const shown = look ? Marks.openSteps(laid, look, diagramOf) : laid;
     const things = look ? Marks.thingsOf(shown, look) : {};
     const edges = look ? Marks.edgesOf(shown, look, things) : [];
-    const shaped = look ? await Marks.lookText(shown, things, edges, look) : { text: diagram.mermaid, filled: {}, graph: diagram.graph, edges };
+    const shaped = look ? await Marks.lookText(shown, things, edges, look) : { text: laid.mermaid, filled: {}, graph: laid.graph, edges };
     const svg = await drawMermaid(view, shaped.text, shaped.text === diagram.mermaid ? undefined : diagram.mermaid, diagram.schema, diagram.id);
     const plain = svg?.hasAttribute('data-plain'); // a look whose text does not draw leaves the diagram as it is
-    const drawn = plain ? { graph: diagram.graph, edges: shown === diagram ? edges : Marks.edgesOf(diagram, look, Marks.thingsOf(diagram, look)), boxes: [] } : shaped;
+    const drawn = plain ? { graph: diagram.graph, edges: look && shown !== diagram ? Marks.edgesOf(diagram, look, Marks.thingsOf(diagram, look)) : edges, boxes: [] } : shaped;
     const nodesOf = plain ? diagram.nodes : shown.nodes;
     markDiagram(view, { ...diagram, graph: drawn.graph }); // each node, each arrow and the diagram as a whole hold a comment
     if (look && svg) {
@@ -276,7 +280,10 @@ async function drawHome() {
         Marks.inputWindow(edge.label, edge.slots, edge.label.textContent.trim());
       }
     }
-    makeSurface(view, true, false, diagram.id); // a wide map opens where its words read; drawn again with new data, it stays where he left it
+    if (svg) ProcessDrawing.decorate(svg, laid, diagram);
+    // A wide map opens where its words read; drawn again with new data, it stays where he left it. The drawing in columns is another drawing.
+    makeSurface(view, true, false, laid === diagram ? diagram.id : `${diagram.id}:columns`);
+    const joined = { ...drawn.graph, dots: (plain ? diagram : laid).dots }; // for a focus: with the boxes that a drawn process joins by a dot
     frameLook(view, look, diagram.id);
     for (const g of view.querySelectorAll('g.node, g.image-shape')) {
       const node = nodesOf[nodeKey(g)];
@@ -285,9 +292,9 @@ async function drawHome() {
       const thing = things[nodeKey(g)];
       // The window of the node, with a quiet link that focuses it as Option+click does.
       const content = node.note ? noteWindow(node, thing) : nodeWindow(g, node, thing);
-      const focusIt = () => focusOn(view, drawn.graph, nodeKey(g), diagram.id);
+      const focusIt = () => focusOn(view, joined, nodeKey(g), diagram.id);
       Hover.attach(g, async () => ({ ...(await content()), act: { words: focus?.stage === view && focus.node === nodeKey(g) ? 'End the focus' : 'Focus on this node', run: focusIt } }));
-      g.addEventListener('click', (event) => focusClick(event, view, drawn.graph, thing?.slots['input.alt'], diagram.id)); // before the click of the node (Marks.bind)
+      g.addEventListener('click', (event) => focusClick(event, view, joined, thing?.slots['input.alt'], diagram.id)); // before the click of the node (Marks.bind)
       const paths = node.paths.map(({ path }) => path);
       // A click on an area with a diagram of its own goes into it, and the tree "Files" of the side bar follows when it shows. An area with none
       // stays on the map and leads to its code: one file opens, and folders open in the tree. A click never opens the graphs of a folder.
@@ -307,7 +314,7 @@ async function drawHome() {
     // The same diagram drawn again keeps its focus; another diagram has none.
     const focused = focus?.diagram === diagram.id ? focus.node : null;
     focus = null;
-    if (focused) focusOn(view, drawn.graph, focused, diagram.id);
+    if (focused) focusOn(view, joined, focused, diagram.id);
     Remarks.paint(view);
   }
   if (!diagram) focus = null;
@@ -441,7 +448,7 @@ document.addEventListener('click', (event) => {
   const folder = target.closest('[data-tree]');
   if (folder) return tell({ type: 'showInTree', paths: [folder.dataset.tree], open: true });
   const file = target.closest('[data-open]');
-  if (file) return tell({ type: 'openFile', path: file.dataset.open });
+  if (file) return tell({ type: 'openFile', path: file.dataset.open, ...(file.dataset.line ? { line: Number(file.dataset.line) } : {}) });
   const change = target.closest('[data-change-id]');
   if (change) return walkTo({ tab: 'change', change: Number(change.dataset.changeId), go: { level: 'change' }, name: change.dataset.title });
 });

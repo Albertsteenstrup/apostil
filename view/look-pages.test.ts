@@ -51,8 +51,8 @@ test('a file box takes the words of a rule with the name of its file, and folded
   assert.deepEqual(named.match(/subgraph f\d\[[^\]]*\]/g), ['subgraph f0["src/library/web/requests_router.py"]', 'subgraph f1["requests.py (2)"]', 'subgraph f2["notices.py (1)"]']);
   const { shown, edges } = drawn('process:answer-request', [{ pick: { kind: 'file-box', paths: ['src/library/lending/requests.py'] }, show: { folded: true } }]);
   assert.match(shown.text, /^ {2}f1\["src\/library\/lending\/requests\.py"\]$/m);
-  assert.equal(pairs(edges), 's0>s1 s0>s2 s2>s12 s2>s13 s2>o0');
-  assert.equal(pairs(shown.graph.edges), 's0>s1 s0>f1 f1>s13 f1>o0'); // the arrow to the step of requests.py inside it goes
+  assert.equal(pairs(edges), 's0>s1 s0>s2 s2>o0 s2>s13 s2>s12');
+  assert.equal(pairs(shown.graph.edges), 's0>s1 s0>f1 f1>o0 f1>s13'); // the arrow to the step of requests.py inside it goes
 });
 
 test('a step whose rule says "folded": false holds its inner steps in its box, in place and one level deep, without the quiet boxes of the inner drawing', () => {
@@ -61,7 +61,7 @@ test('a step whose rule says "folded": false holds its inner steps in its box, i
   const inner = Object.keys(diagram.nodes).filter((id) => id.startsWith('s2_'));
   assert.deepEqual(inner, ['s2_s3', 's2_s4', 's2_s5', 's2_s6', 's2_s7', 's2_s8', 's2_s9', 's2_s10', 's2_s11']);
   // The arrows of the process keep their numbers; the inner arrows follow, the branches dotted with their words.
-  assert.equal(pairs(diagram.graph.edges.slice(0, 5)), 's0>s1 s0>s2 s2>s12 s2>s13 s2>o0');
+  assert.equal(pairs(diagram.graph.edges.slice(0, 5)), 's0>s1 s0>s2 s2>o0 s2>s13 s2>s12');
   assert.match(diagram.mermaid, /s2_s5 -\.->\|"when the key repeats"\| s2_s11$/m);
   assert.equal(shown.text, diagram.mermaid); // nothing else in the look changes it
   assert.equal(drawn('process:answer-request', []).diagram, diagramOf('process:answer-request'));

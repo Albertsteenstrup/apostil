@@ -817,7 +817,7 @@ try {
     return window.apostilSent.find((message) => message.type === 'walk' && message.to?.tab === 'pull');
   });
   await stack.waitForURL(/pull=pull-data-9\.js/, { timeout: 5000 }).catch(() => {});
-  const after = await stack.evaluate(() => ({ address: location.search, trail: JSON.parse(sessionStorage.getItem('apostil-trail') ?? '[]').map((step) => step.name) }));
+  const after = await stack.evaluate(() => ({ address: location.search, trail: (JSON.parse(sessionStorage.getItem('apostil-trail') ?? '{}').steps ?? []).map((step) => step.name) }));
   check('a click on another row asks for that pull request in the same tab, and the path keeps the way back',
     asked?.open === true && asked.to.link === 'https://example.com/made-up/pull/9' && asked.to.name === 'Pull request #9' && /pull=pull-data-9\.js/.test(after.address)
     && after.trail.slice(-2).join(' › ') === 'Pull request #12 › Pull request #9', JSON.stringify({ asked, after }));
