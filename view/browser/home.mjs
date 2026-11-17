@@ -370,7 +370,7 @@ try {
   });
   await homeAt('?run=desktop');
   const ownRun = await runLine();
-  await takePicture(home, '38-home-while-a-map-run-writes.png');
+  await takePicture(home, '35-home-while-a-map-run-writes.png');
   await home.click('.maprun [data-link]', { timeout: 3000 }).catch(() => {});
   const opened = await home.evaluate(() => window.apostilSent.find((message) => message.type === 'openLink'));
   await homeAt('?run=terminal');
@@ -392,7 +392,7 @@ try {
   const STOPPED = `The map run of Claude Code session "Map of library-app" stopped after ${SAVED}`;
   await homeAt('?nomap=1&run=stopped');
   const stoppedNoMap = await runLine();
-  await takePicture(home, '39-home-after-a-map-run-stopped.png');
+  await takePicture(home, '36-home-after-a-map-run-stopped.png');
   await homeAt('?run=stopped');
   const stoppedOnMap = await runLine();
   await home.click('.maprun [data-write="codex"]', { timeout: 3000 }).catch(() => {});
