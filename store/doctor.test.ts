@@ -13,7 +13,7 @@ import { doctor } from './doctor';
 import { setup, thisInstall, VERSION_FILE, type Machine } from './setup';
 
 const install = thisInstall();
-const version = install.version.replace(/\./g, '\\.'); // the version of this install in a pattern: the tests hold no copy of the number
+const version = install.version.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // the version of this install in a pattern: the tests hold no copy of the number
 const cli = join(__dirname, 'cli.js');
 
 /** A stand-in program in the bin folder of a machine. */
