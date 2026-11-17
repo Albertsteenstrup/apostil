@@ -18,7 +18,7 @@ Run `apostil look-slots`. It prints the one list of what a look can change:
 - `picks`: what a rule can pick by, besides its kind.
 - `slots`: each slot with what it changes and its `fields`, each field with the kind of value that it takes. A slot with `"one": true` takes exactly one of its fields.
 - `values`: each kind of value in words: a colour, a width, a shape, a file, a button, a corner.
-- `actions`: what a button can do on a click, each with its `form`. Nothing else runs.
+- `targets`: where a click, a key or a menu entry can go, each with its `form`. Nothing else runs.
 
 Use only what this list holds. When the owner asks for a change that the list does not hold, tell him so, and leave it out.
 

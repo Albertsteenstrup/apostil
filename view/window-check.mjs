@@ -29,6 +29,7 @@ const { makeCheckExample } = own('./out/view/check-example.js');
 const { noteCodeOf } = own('./out/shared/notes-beside-code.js');
 const { makeNotebookRepo, notebookChangeFile } = own('./out/shared/test-repo.js');
 const { saveDraft } = own('./out/store/save.js');
+const { setLook } = own('./out/store/marks-save.js');
 const { appLink } = own('./out/shared/apostil-link.js');
 const chromium = findChromium();
 
@@ -133,6 +134,7 @@ writeFileSync(settingsFile, JSON.stringify({
   'terminal.integrated.profiles.osx': { echo: { path: '/bin/cat' } }, 'terminal.integrated.defaultProfile.osx': 'echo', 'terminal.integrated.gpuAcceleration': 'off',
   'workbench.secondarySideBar.defaultVisibility': 'hidden', 'chat.disableAIFeatures': true, 'files.hotExit': 'off',
   'extensions.confirmedUriHandlerExtensionIds': ['apostil.apostil'],
+  'window.dialogStyle': 'custom', // VS Code's own questions are drawn in the window, where the check reads them, not by macOS
 }, null, 2));
 const settingsNow = () => JSON.parse(readFileSync(settingsFile, 'utf8'));
 
@@ -527,6 +529,34 @@ try {
   for (const key of ['routes', 'q0', 's2', 's7']) await processHome?.locator(`#view g.node[id*="flowchart-${key}-"]`).click({ timeout: 8000 });
   const stepTab = await frameWhere(() => typeof App === 'object' && App.tab?.endsWith('lending/requests.py') && App.state?.lines?.join() === '62,62' && !!document.querySelector('.cv [data-line="62"]'), undefined, 8000);
   check('from Home a click on a node goes down to its processes, and a click on a step opens its file at its first line, in the file tab with its notes', !!stepTab && /^requests\.py/.test(await activeTab() ?? ''), `tab ${await activeTab()}`);
+
+  // A click whose target is a prompt (a look of the repo, build 57): VS Code asks with the whole words and "Send". With no "Send" the stand-in claude
+  // gets no run; with "Send" it gets one, with the words. A browser cannot show VS Code's question.
+  const PROMPT = 'Explain how the night jobs wake the lending code, in three short sentences.';
+  const lookNow = (look) => { const write = new Store(storeFolder); const saved = setLook(write, repo, look); write.close(); return saved.saved; };
+  const promptLook = lookNow({ rules: [{ pick: { kind: 'node', diagram: 'lib-top', nodes: ['jobs'] }, click: { prompt: PROMPT } }] });
+  await list?.locator('.home').click();
+  const promptHome = await frameWhere(() => typeof Home === 'object' && Home.data?.look?.rules.some((rule) => rule.click?.prompt) && !!document.querySelector('#view g.node[id*="flowchart-jobs-"]'));
+  const dialog = page.locator('.monaco-dialog-box');
+  const ask = async (button) => {
+    await promptHome?.locator('#view g.node[id*="flowchart-jobs-"]').click({ timeout: 4000 }).catch(() => {});
+    const shownAsk = await shown(dialog, 6000);
+    const words = shownAsk ? (await dialog.textContent()).replace(/\s+/g, ' ') : '';
+    const buttons = shownAsk ? await dialog.locator('.dialog-buttons .monaco-button').allTextContents() : [];
+    if (shownAsk) await dialog.locator('.dialog-buttons .monaco-button', { hasText: button }).click();
+    await dialog.waitFor({ state: 'hidden', timeout: 4000 }).catch(() => {});
+    return { words, buttons };
+  };
+  const runsBeforeAsk = runsNow().length;
+  const notSent = await ask('Cancel');
+  await shot('3d-the-question-before-a-prompt-of-the-look');
+  const sent = await ask('Send');
+  const runAfterSend = await until(() => runsNow().length > runsBeforeAsk && runsNow());
+  check('a click whose target is a prompt: VS Code asks with the whole words and "Send"; with no "Send" the stand-in claude gets no run, with "Send" it gets one with the words',
+    promptLook && !!promptHome && notSent.words.includes('Send this to a new session of Claude Code?') && notSent.words.includes(PROMPT) && notSent.buttons.includes('Send')
+      && sent.words.includes(PROMPT) && runAfterSend?.length === runsBeforeAsk + 1 && runAfterSend.at(-1).includes(PROMPT),
+    JSON.stringify({ promptLook, home: !!promptHome, notSent, sent: sent.buttons, runs: `${runsBeforeAsk} -> ${runsNow().length}` }));
+  lookNow({ rules: [] }); // the default look again for the parts after this one
   await command('View: Close All Editors');
 
   // ---- 4. The change page and its file tabs ----
