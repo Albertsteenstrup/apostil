@@ -47,8 +47,10 @@ test('look-slots with no argument prints the core and one index line for each ar
   assert.deepEqual([Object.keys(core.picks), Object.keys(core.targets)], [Object.keys(LOOK_PARTS.picks), ['file', 'url', 'command', 'prompt', 'place']]);
   assert.deepEqual(areas.map((one: { id: string; line: string }) => one.line.startsWith(`${one.id}: `) && one.id), AREAS);
   assert.match(more, /look-slots <area>.*--find "<words>".*--all/);
-  // An agent pays for each character: the prompt and this answer at most 7,000, one area at most 3,000, one search at most 2,000.
-  assert.ok(PROMPT.length + run.stdout.length <= 7000, `the prompt ${PROMPT.length} and the answer ${run.stdout.length}`);
+  // An agent pays for each character: the prompt and this answer at most 9,000 (room for one index line of each area of the builds 58 to 62),
+  // each index line at most 110, one area at most 3,000, one search at most 2,000.
+  assert.ok(PROMPT.length + run.stdout.length <= 9000, `the prompt ${PROMPT.length} and the answer ${run.stdout.length}`);
+  for (const one of areas as { id: string; line: string }[]) assert.ok(one.line.length <= 110, `the index line of ${one.id}: ${one.line.length}`);
   for (const id of AREAS) {
     const size = runApostil(['look-slots', id], { env: { APOSTIL_HOME: tempFolder('apostil-store-') } }).stdout.length;
     assert.ok(size <= 3000, `the area ${id}: ${size}`);

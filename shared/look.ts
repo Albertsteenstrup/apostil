@@ -237,7 +237,7 @@ export const LOOK_PARTS = {
     },
   },
   areas: {
-    diagrams: 'nodes and arrows of the map: words, a picture or film, a button on an arrow, the size and colour of words',
+    diagrams: 'nodes and arrows of the map: words and their size, a picture or film, a button on an arrow',
     processes: 'steps and calls out of the repo of a drawn process: as a node',
     notes: 'note cards and the window of a step: the bar colour, the corners',
     marks: 'a new kind of mark at lines of code, its values and icons, its corner, a button in a corner',
