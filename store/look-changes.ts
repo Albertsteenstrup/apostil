@@ -25,7 +25,7 @@ function counter(store: Store, folder: string): (pick: Pick) => number {
   // so a pick of notes that names a diagram takes those windows.
   const map = store.getMap(repoId(root))?.map;
   const cards: Thing[] = [...(map?.fileNotes ?? []), ...(map?.diagrams ?? []).flatMap((diagram) => diagram.notes ?? [])].map((note) => {
-    const card = { kind: 'note', paths: [note.file], at: [{ file: note.file, from: note.lines[0], to: note.lines[1] }] };
+    const card = { kind: 'note', paths: [note.file], at: [{ file: note.file, from: note.lines[0], to: note.lines[1] }], fields: { title: note.title, file: note.file, function: note.symbol ?? '', tests: note.tests?.length ?? 0 } };
     return { ...card, marks: Marks.marksIn(card, marks) };
   });
   const windows: Thing[] = diagrams.flatMap(({ diagram, things: ofDiagram }) => Object.entries(ofDiagram).filter(([node]) => diagram.nodes[node]?.note).map(([, thing]) => ({ ...thing, kind: 'note' })));
@@ -40,10 +40,10 @@ function counter(store: Store, folder: string): (pick: Pick) => number {
 
 const joined = (items: string[]): string => (items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`);
 
-/** What a rule gives the things that it picks, in words, from the `gets` of its slots in LOOK_PARTS; a field with no words there is named. */
+/** What a rule gives the things that it picks, in words, from the `gets` of its slots in LOOK_PARTS; a field with no words there is named. A slot that is one target gives "target". */
 function gives(rule: Look['rules'][number]): string {
   const words = Object.entries(rule).filter(([slot]) => slot !== 'pick').flatMap(([slot, fields]) =>
-    Object.keys(fields ?? {}).map((field) => LIST.slots[slot]?.gets?.[field] ?? `"${slot}.${field}"`));
+    (LIST.slots[slot]?.target ? ['target'] : Object.keys(fields ?? {})).map((field) => LIST.slots[slot]?.gets?.[field] ?? `"${slot}.${field}"`));
   return joined(words) || 'nothing';
 }
 

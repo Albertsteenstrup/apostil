@@ -285,7 +285,7 @@ test('the drawings: a process by its top steps in a box for each file, a step op
   assert.match(top.mermaid, /s0 -->\|"read the file"\| s6/);
   assert.match(top.mermaid, /s8 -->\|"encode"\| o0/);
   assert.match(top.mermaid, /class o0 elsewhere/);
-  assert.deepEqual(top.nodes.s0, { kind: 'step', files: ['src/run.py'], at: [{ file: 'src/run.py', from: 1, to: 7 }], note: { title: 'Run the rows', text: 'Does the work of this step.', where: 'run.py · lines 1-7' }, down: 'process:run-rows/0' });
+  assert.deepEqual(top.nodes.s0, { kind: 'step', files: ['src/run.py'], at: [{ file: 'src/run.py', from: 1, to: 7 }], note: { title: 'Run the rows', text: 'Does the work of this step.', where: 'run.py · lines 1-7' }, down: 'process:run-rows/0', steps: 5 });
   assert.equal(top.nodes.s6.line, 10); // a step with no inner steps opens its file at its first line
   // The lines where the call out of the repo and the arrows start, so that a mark at such a line stands on its box and its arrow.
   assert.deepEqual([top.nodes.o0.kind, top.nodes.o0.calls], ['call', [{ file: 'src/store.py', line: 5 }]]);

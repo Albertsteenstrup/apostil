@@ -13,6 +13,8 @@ const HEADER = /^\s*(flowchart|graph)\b/;
 const NOT_A_STATEMENT = /^\s*(subgraph|end|classDef|class|style|linkStyle|click|direction|%%)\b/;
 const ARROW = /\s*(?:--\s+[^-]+?\s+--[->]|==\s+[^=]+?\s+==[=>]|-\.\s+.+?\s+\.->|<?-{2,}>|<?={2,}>|-{3,}|={3,}|<?-\.+->|-\.+-)\s*(?:\|[^|]*\|)?\s*/;
 const NODE = /^([A-Za-z0-9_]+(?:-[A-Za-z0-9_]+)*)\s*(.*)$/;
+// A ";" between two statements, not one inside quoted words such as "&lt;" (view/media/marks.js splits the same way).
+const OUTSIDE_QUOTES = /;(?=(?:[^"]*"[^"]*")*[^"]*$)/;
 
 /** The text of an arrow's label: `-- yes -->`, `-->|yes|` and the like, or undefined. */
 function arrowLabel(arrow: string): string | undefined {
@@ -31,7 +33,7 @@ const plain = (text: string): string =>
 /** Reads the nodes and edges of a Mermaid flow chart. Good enough for the diagrams that agents write. */
 export function flowGraph(mermaid: string): FlowGraph {
   const graph: FlowGraph = { nodes: new Map(), edges: [] };
-  const statements = mermaid.split('\n').filter((line) => !HEADER.test(line)).flatMap((line) => line.split(';'));
+  const statements = mermaid.split('\n').filter((line) => !HEADER.test(line)).flatMap((line) => line.split(OUTSIDE_QUOTES));
   for (const statement of statements) {
     if (!statement.trim() || NOT_A_STATEMENT.test(statement)) continue;
     // Hide quoted labels first, so an arrow inside a label does not count.

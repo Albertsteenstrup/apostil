@@ -36,6 +36,9 @@ export interface HomeNode {
   kind?: ProcessNode['kind']; // a node of a drawn process: a step (or a process), or a call out of the repo; a node of a written diagram has none
   at?: Span[]; // a step: its lines, which the marks at them roll up to
   calls?: LineOf[]; // a call out of the repo: the lines that call it
+  steps?: ProcessNode['steps']; // a step that holds steps, or a process: the count of its steps
+  process?: true; // a process in the drawing of a place
+  names?: string[]; // a call out of the repo: the names that the code calls it by
 }
 
 export interface HomeDiagram {
@@ -74,7 +77,7 @@ export interface GraphPanel {
   schema?: SchemaDrawing; // a schema diagram: its tables, which the page draws itself
   // A diagram of the map or a process, which the look of the repo applies to: its id, what each node stands for, its arrows and the lines where they start.
   id?: string;
-  nodes?: Record<string, Pick<HomeNode, 'paths' | 'kind' | 'at' | 'calls'>>;
+  nodes?: Record<string, Pick<HomeNode, 'paths'> & Partial<HomeNode>>;
   graph?: DiagramGraph;
   edgeLines?: ProcessDiagram['edgeLines'];
 }
@@ -185,6 +188,7 @@ const processHomeNode = (node: ProcessNode): HomeNode => ({
   paths: node.files.map((path) => ({ path, files: 1 })), files: node.files.length, changes: [], graphs: node.files[0] ?? '', kind: node.kind,
   ...(node.down ? { down: node.down } : {}), ...(node.line ? { line: node.line } : {}), ...(node.note ? { note: node.note } : {}), ...(node.quiet ? { quiet: true as const } : {}),
   ...(node.at?.length ? { at: node.at } : {}), ...(node.calls?.length ? { calls: node.calls } : {}),
+  ...(node.steps ? { steps: node.steps } : {}), ...(node.process ? { process: true as const } : {}), ...(node.names ? { names: node.names } : {}),
 });
 
 /** The tables of a schema diagram, which the page draws itself; nothing for the other kinds. */

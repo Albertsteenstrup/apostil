@@ -3,7 +3,7 @@
 // With no arguments it makes the made-up example of the checks (view/check-example.ts) in a temporary folder, with its open points
 // (view/example-open-points.json) and its map (view/example-map.json), and removes the folder at the end. Another repo gets a map only when it is named.
 
-import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import type { AgentSession } from '../shared/agents';
 import type { ChangeFile } from '../shared/change-file';
@@ -15,9 +15,9 @@ import { STATE_LOOKS, type PullRequest } from '../shared/pull-requests';
 import type { OpenPoint, Remark } from '../shared/store';
 import { tempFolder } from '../shared/test-repo';
 import { EXAMPLE_LOOK, makeCheckExample, putLookFiles } from './check-example';
-import { asDefault } from './look-data';
+import { asDefault, type LookData } from './look-data';
 import { addMarksToMap, setLook } from '../store/marks-save';
-import { graphsData, homeData, type GraphsData } from './home-data';
+import { graphsData, homeData, type GraphsData, type HomeData } from './home-data';
 import { sessionGroups, type ListRow } from './list-rows';
 import { pullRequestFrom, type Person } from '../shared/read-pull-request';
 import { iconScript } from './state-icons';
@@ -98,21 +98,31 @@ const home = homeData(store, folder, apps, address);
 const graphPaths = new Set(['src/library/lending/hold_service.py']);
 for (const diagram of home.map?.diagrams ?? []) for (const node of Object.values(diagram.nodes)) [node.graphs, ...node.paths.map((entry) => entry.path)].forEach((path) => graphPaths.add(path));
 const graphs: Record<string, GraphsData> = Object.fromEntries([...graphPaths].map((path) => [path, graphsData(store, folder, path, address)]));
-if (put) {
-  must(setLook(store, folder, JSON.parse(readFileSync(join(EXAMPLE_LOOK, 'look.json'), 'utf8'))), 'look');
-  for (const draft of drafts.filter((one) => one.set !== 'services')) must(addMarksToMap(store, folder, draft), 'marks');
-  put.clean();
+put?.clean(); // the files of the writers leave the repo before the page of the change reads its files
+
+// Made up: a second agent read the flow chart; the other diagrams are not checked yet.
+const page = examplePage(folder, base, file, points, remarks, agent, apps, map?.diagrams.map((diagram) => diagram.id), changeId, ['offer-flow']); // the id of the stored change, so that the graphs pages open this page
+
+// Each made-up look of the example (view/check-example/look/look*.json), saved as a writer saves it, one after the other: "look.json" (build 51,
+// with its second set and its marks) is "?look=1", "look-<name>.json" is "?look=<name>". Home and the note cards are read after each save.
+const homeLooks: Record<string, HomeData> = {};
+const pageLooks: Record<string, LookData | undefined> = {};
+for (const name of put ? readdirSync(EXAMPLE_LOOK).filter((one) => /^look(-[a-z]+)?\.json$/.test(one)).sort() : []) {
+  const key = name === 'look.json' ? '1' : name.slice('look-'.length, -'.json'.length);
+  const files = putLookFiles(folder);
+  must(setLook(store, folder, JSON.parse(readFileSync(join(EXAMPLE_LOOK, name), 'utf8'))), name);
+  if (key === '1') for (const draft of drafts.filter((one) => one.set !== 'services')) must(addMarksToMap(store, folder, draft), 'marks');
+  files.clean();
+  homeLooks[key] = homeData(store, folder, apps, address);
+  pageLooks[key] = lookOfPage(store, page);
 }
-const homeLook = put ? homeData(store, folder, apps, address) : undefined;
 
 // Made up: an earlier change, merged long ago, with a note on code that this change left alone. The file tab shows it beside its lines, with no colour.
 const earlier = exampleEarlierChange(folder, base);
 if (earlier) store.saveChange(earlier);
 
-// Made up: a second agent read the flow chart; the other diagrams are not checked yet.
-const page = examplePage(folder, base, file, points, remarks, agent, apps, map?.diagrams.map((diagram) => diagram.id), changeId, ['offer-flow']); // the id of the stored change, so that the graphs pages open this page
-// The look of the note cards: the look of the example with "?look=1", else the default look, which shows the logos of the services.
-const pageLook = lookOfPage(store, page);
+// The look of the note cards: a look of the example with "?look=<name>", else the default look, which shows the logos of the services.
+const pageLook = pageLooks['1'] ?? lookOfPage(store, page);
 page.look = pageLook && asDefault(pageLook);
 const answers = Object.fromEntries(allQuestions(page).map((question) => [question, answer(page, question, (path, lines) => notesBeside(store, page, path, lines), (path) => marksBeside(store, page, path))]));
 store.close();
@@ -154,6 +164,6 @@ answers['pull:https://example.com/made-up/pull/11'] = { pull: pullRequestFrom(ex
 const pagePulls = pulls[page.branch].slice(0, 2); // the page knows the two that have a made-up conversation
 
 const target = join(__dirname, '../../view/media/example-data.js');
-writeFileSync(target, `// Written by view/example-data.ts. Not in Git.\n${iconScript(join(__dirname, '../../view/media'))}window.APOSTIL_EXAMPLE = ${JSON.stringify({ page, pageLook, pagePulls, answers, list, home, homeLook, homeNoMap, graphs })};\n`);
+writeFileSync(target, `// Written by view/example-data.ts. Not in Git.\n${iconScript(join(__dirname, '../../view/media'))}window.APOSTIL_EXAMPLE = ${JSON.stringify({ page, pageLooks, pagePulls, answers, list, home, homeLooks, homeNoMap, graphs })};\n`);
 example?.remove();
 console.log(`Wrote ${target}: ${page.files.length} files, ${page.parts.length} parts, ${Object.keys(answers).length} answers, ${rows.length} list rows, ${home.map?.diagrams.length ?? 0} map diagrams, ${Object.keys(graphs).length} graphs pages.`);

@@ -1,0 +1,26 @@
+{
+ "rules": [
+  { "pick": { "kind": "node", "diagram": "lib-top", "nodes": ["checks"] }, "show": { "shown": false } },
+  { "pick": { "kind": "node", "where": { "down": false } }, "text": { "size": "small" } },
+  { "pick": { "kind": "node", "diagram": "lib-top", "nodes": ["desk"] }, "text": { "icon": "apostil-look-hours-desk.svg" } },
+  { "pick": { "kind": "node", "diagram": "lib-top", "nodes": ["jobs"] },
+    "content": { "words": "{title} · {files} files" },
+    "corners": { "upper-right": null },
+    "click": { "graphs": "src/library/night_jobs.py" },
+    "input": {
+      "alt": { "file": "src/library/night_jobs.py", "line": 516 },
+      "double": { "folder": "src/library/jobs/" },
+      "key": { "g": { "change": "book-holds", "part": "hold-service" } },
+      "menu": [
+        { "name": "Show the folder in Files", "target": { "folder": "src/library/jobs/" } },
+        { "name": "Open the night run", "target": { "file": "src/library/night_jobs.py", "line": 516 } }
+      ]
+    },
+    "window": { "width": 440, "sections": ["changes", "files"] } },
+  { "pick": { "kind": "arrow", "diagram": "lib-top", "nodes": ["jobs", "lending"] },
+    "content": { "words": "{words} · from {of}" }, "text": { "color": "#2b6cb0" },
+    "click": { "place": { "diagram": "process:answer-request" } } },
+  { "pick": { "kind": "step", "diagram": "process:answer-request" }, "window": { "sections": ["marks", "note"] } },
+  { "pick": { "kind": "note", "paths": ["src/library/lending/"] }, "content": { "fields": ["title", "tests", "text"] } }
+ ]
+}

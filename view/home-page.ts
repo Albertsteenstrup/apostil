@@ -2,11 +2,12 @@
 
 import { join } from 'node:path';
 import * as vscode from 'vscode';
+import type { Target } from '../shared/look';
 import type { Store } from '../shared/store';
 import { startMapRun, startRun } from './agent-run';
 import { agentsNeedSetup, runNextStep } from './change-list';
 import { apostilOnPath, appName, codexModel, showRunProblem } from './run-settings';
-import { askAndOpen, openLink, openRemarkSession, webviewHtml, type NewRemark } from './change-page';
+import { openLink, openRemarkSession, webviewHtml, type NewRemark } from './change-page';
 import { graphsData, homeData, idOf, type GraphsData, type HomeData } from './home-data';
 import type { Step, WindowTrail } from './trail';
 
@@ -20,9 +21,7 @@ type Message =
   | { type: 'openSession'; id: number }
   | { type: 'pointer'; on: boolean }
   | { type: 'openLink'; url: string }
-  | { type: 'openUrl'; url: string }
-  | { type: 'runCommand'; command: string }
-  | { type: 'prompt'; text: string; diagram?: string }
+  | { type: 'target'; target: Target; diagram?: string }
   | { type: 'openFile'; path: string; line?: number }
   | { type: 'showInTree'; paths: string[]; open?: boolean }
   | { type: 'setUp' }
@@ -48,6 +47,15 @@ export class HomePages {
 
   /** Shows folders and files of the repo in the tree "Files" of the side bar; with `open` also when that tree does not show. Set by the extension, which owns the tree. */
   showInTree: (paths: string[], open: boolean) => void = () => {};
+
+  /** Does what a target of the look says (answerTarget in look-targets.ts). Set by the extension, which owns the tabs and the path. */
+  onTarget: (target: Target, diagram?: string) => void = () => {};
+
+  /** Sends the words of a prompt of the look to a new session of the first agent app, as a comment on the map: after VS Code asked. */
+  sendPrompt(text: string, diagram?: string): void {
+    const app = this.apps[0];
+    if (app) this.saveRemark({ type: 'remark', target: { kind: 'diagram', diagram, label: 'A click of the look' }, text, to: { kind: 'new', app } } as NewRemark);
+  }
 
   constructor(private media: vscode.Uri, private store: Store, private openFolder: () => string, private apps: string[], private trail: WindowTrail) {}
 
@@ -239,20 +247,9 @@ export class HomePages {
       case 'openLink':
         openLink(message.url);
         break;
-      case 'openUrl': // a button of the look: VS Code asks before it leaves for a web address
-        void askAndOpen(message.url);
+      case 'target': // a click, a key or a menu entry of the look: one place for every page (look-targets.ts)
+        this.onTarget(message.target, message.diagram);
         break;
-      case 'runCommand': // a button of the look runs a command of Apostil, and no other command
-        if (message.command.startsWith('apostil.')) void vscode.commands.executeCommand(message.command);
-        break;
-      case 'prompt': { // a button of the look sends its prompt to a new session of the first agent app, as a comment on the diagram is sent; VS Code asks first, since a run spends the user's usage
-        const app = this.apps[0];
-        const send = 'Send';
-        if (app) void vscode.window.showInformationMessage(`Send this to a new session of ${appName(app)}?`, { modal: true, detail: message.text }, send).then((answer) => {
-          if (answer === send) this.saveRemark({ type: 'remark', target: { kind: 'diagram', diagram: message.diagram, label: 'A button of the look' }, text: message.text, to: { kind: 'new', app } } as NewRemark);
-        });
-        break;
-      }
       case 'openFile': // a file in the window of a node, or a step of a process at its line: it opens as the setting of the notes says, a file with notes in the file tab at once
         void vscode.commands.executeCommand('apostil.openFile', vscode.Uri.file(join(this.openFolder(), message.path)), message.line);
         break;

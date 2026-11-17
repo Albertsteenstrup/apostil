@@ -154,6 +154,14 @@ const Remarks = (() => {
     focusField(el, 'new');
   }
 
+  /** The comment box on a thing of the page, at its middle: the target "comment" of a look. A thing that holds no comment opens nothing. */
+  function boxOn(el) {
+    const marked = el?.closest?.('[data-remark]');
+    if (!App.page || !marked || draft) return;
+    const box = el.getBoundingClientRect();
+    openBox(JSON.parse(marked.dataset.remark), { x: box.left + box.width / 2, y: box.top + box.height / 2 });
+  }
+
   /** Puts the box at a point, moved in where it would leave the tab, up to 8 px from the edge. */
   function placeBox(el, at) {
     const left = Math.max(8, Math.min(at.x, innerWidth - el.offsetWidth - 8));
@@ -710,5 +718,5 @@ const Remarks = (() => {
     open();
   }
 
-  return { open, openFromVsCode, paint, paintNotes, draw, show: showPlace };
+  return { open, openFromVsCode, boxOn, paint, paintNotes, draw, show: showPlace };
 })();

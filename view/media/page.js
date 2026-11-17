@@ -495,6 +495,8 @@ function takePullRead({ link, read }) {
 // A step back along the path that this page shows by itself: a view of the change. As a file in a browser it is the example change.
 Trail.here((step) => (step.tab === 'change' && !App.tab && (App.go(step.go, true), true))
   || (step.tab === 'pull' && App.page?.pullOnly?.link === step.link && (App.go({ view: 'conversation' }, true), true)));
+// A target of the look (Marks.act) that is a view of Apostil opens as a step of the path of this page; a file tab has no path, so the extension opens it.
+Marks.useHere({ walk: (step) => Trail.take(step, true) });
 
 // A drawing that waited for the hidden tab is made when the tab shows again.
 const drawIfWaiting = () => { if (App.waiting) App.render(); };
@@ -534,7 +536,7 @@ if (vscodeApi) {
   script.onload = () => {
     const query = new URLSearchParams(location.search);
     App.page = window.APOSTIL_EXAMPLE.page;
-    if (new URLSearchParams(location.search).get('look')) App.page = { ...App.page, look: window.APOSTIL_EXAMPLE.pageLook }; // the made-up look of the example
+    if (query.get('look')) App.page = { ...App.page, look: window.APOSTIL_EXAMPLE.pageLooks[query.get('look')] }; // a made-up look of the example: "1" or "shared"
     Object.assign(App, { pulls: window.APOSTIL_EXAMPLE.pagePulls ?? [], pullsKnown: true }); // in VS Code they come later
     if (query.get('pull')) return loadPullData(query.get('pull'));
     App.tab = query.get('file'); // the page as a file tab

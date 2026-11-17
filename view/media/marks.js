@@ -1,6 +1,8 @@
 // Marks and the look on a page: which rule wins each slot of a thing, the marks that roll up to it, the colours of both themes, and the drawing
 // of corners, boxes, pictures, films and arrows. Home draws its diagrams with it and the file tab its note cards; one path draws a mark of any set.
-// The rules come from view/look-data.ts, in the order that they apply. The first part has no drawing, so that the tests read it in Node.
+// Also the shared kinds of every component: the fields that a rule reads, what shows, the words, the window of the pointer, and where a click,
+// a key or a menu entry goes (act). The rules come from view/look-data.ts, in the order that they apply. The first part has no drawing, so that
+// the tests read it in Node.
 'use strict';
 
 const Marks = (() => {
@@ -24,6 +26,9 @@ const Marks = (() => {
   /** The marks inside a thing, less those that it leaves to others (a call out of the repo shows the marks of its lines, not the step that calls it). */
   const marksIn = (thing, marks, leave = new Set()) => marks.filter((mark) => !leave.has(mark) && holds(thing, mark));
 
+  /** True when a field of a thing has a value; a field with a list of values (the names of a call) has it when the list holds it. */
+  const hasValue = (field, value) => (Array.isArray(field) ? field.includes(value) : field === value);
+
   /** True when a rule picks a thing. An arrow is picked by nodes, paths or a mark when both its ends are, or when its own line holds the mark. */
   function picks(pick, thing) {
     if (pick.kind !== thing.kind || (pick.diagram && pick.diagram !== thing.diagram)) return false;
@@ -32,14 +37,16 @@ const Marks = (() => {
     if (pick.paths && !ends.every((end) => (end.paths ?? []).some((path) => pick.paths.some((entry) => covers(entry, path))))) return false;
     const marked = (one) => (one.marks ?? []).some((mark) => fits(pick.mark, mark));
     if (pick.mark && !marked(thing) && !(thing.ends && thing.ends.every(marked))) return false;
+    // "where": each field that it names has one of its values.
+    if (pick.where && !Object.entries(pick.where).every(([field, want]) => [want].flat().some((one) => hasValue(thing.fields?.[field], one)))) return false;
     return true;
   }
 
-  /** How closely a rule names what it picks: a node id, then a mark, then a path, then a kind. */
-  const rankOf = (pick) => (pick.nodes ? 4 : pick.mark ? 3 : pick.paths ? 2 : 1);
+  /** How closely a rule names what it picks: a node id, then a mark, then a path, then a field ("where"), then a kind. */
+  const rankOf = (pick) => (pick.nodes ? 5 : pick.mark ? 4 : pick.paths ? 3 : pick.where ? 2 : 1);
 
-  // A slot that gives one field only is taken whole (LOOK_PARTS in shared/look.ts names them; the data of a page brings them as `one`).
-  const ONE = ['content'];
+  // A slot that the page takes whole: one field only, or one target (LOOK_PARTS in shared/look.ts names them; the data of a page brings them as `one`).
+  const ONE = ['content', 'click'];
 
   /** The slots that a rule sets, each with its value: "box.color", "content", "corners.upper-right", "note.color", "arrow.width", … */
   function slotsOf(rule, one = ONE) {
@@ -69,9 +76,46 @@ const Marks = (() => {
     return Object.fromEntries(Object.entries(won).map(([slot, one]) => [slot, one.value]));
   }
 
+  // ----- the fields of a thing: what the pick "where", the words in braces and an order read -----
+
+  /** The fields of a node of a diagram, from the data of the page (LOOK_PARTS names them for each component). */
+  function fieldsOf(kind, key, node, diagram) {
+    const label = diagram.graph?.nodes?.[key] ?? key;
+    if (kind === 'step') return { title: node.note?.title ?? label, file: node.paths[0]?.path ?? '', steps: node.steps ?? 0, is: node.process ? 'process' : 'step' };
+    if (kind === 'call') return { name: node.names ?? [], of: node.note?.title ?? label };
+    return { title: label, files: node.files ?? 0, down: !!node.down };
+  }
+
+  const escapeHtml = (text) => String(text).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
+
+  /** Words of the look with the fields of a thing in braces filled in: "{title} · {files} files". The values from the repo are escaped. */
+  const fillWords = (words, fields = {}) => words.replace(/\{([^{}]*)\}/g, (all, name) => {
+    const value = fields[name.trim()];
+    return value === undefined ? '' : escapeHtml([value].flat().join(', '));
+  });
+
   /**
-   * The things of a diagram for the look, by node id: each with its kind, its paths or lines, the marks inside it, and the slots that the rules give it.
-   * A call out of the repo shows the marks of its lines, and the step that calls gets no second chip for them.
+   * Rows of a list in the order of the slot "order": the ids of "first" first, in their order, then by the field "by" ("down": the largest first);
+   * with "group", the rows of one value of that field together, the groups in the order of their first row. Returns [{ group, rows }].
+   */
+  function orderRows(rows, order = {}) {
+    const { by, down, group, first = [] } = order;
+    const placeOf = (row) => { const at = first.indexOf(row.id); return at < 0 ? first.length : at; };
+    const compare = (a, b) => {
+      const [x, y] = [a.fields?.[by], b.fields?.[by]];
+      const sign = typeof x === 'number' && typeof y === 'number' ? x - y : String(x ?? '').localeCompare(String(y ?? ''));
+      return down ? -sign : sign;
+    };
+    const sorted = [...rows].sort((a, b) => placeOf(a) - placeOf(b) || (by ? compare(a, b) : 0));
+    if (!group) return [{ group: undefined, rows: sorted }];
+    const groups = new Map();
+    for (const row of sorted) groups.set(row.fields?.[group], [...(groups.get(row.fields?.[group]) ?? []), row]);
+    return [...groups].map(([value, own]) => ({ group: value, rows: own }));
+  }
+
+  /**
+   * The things of a diagram for the look, by node id: each with its kind, its paths or lines, its fields, the marks inside it, and the slots that the
+   * rules give it. A call out of the repo shows the marks of its lines, and the step that calls gets no second chip for them.
    */
   function thingsOf(diagram, look) {
     const callLines = Object.values(diagram.nodes).flatMap((node) => node.calls ?? []);
@@ -80,7 +124,7 @@ const Marks = (() => {
     for (const [key, node] of Object.entries(diagram.nodes)) {
       const kind = node.kind ?? 'node';
       const where = kind === 'call' ? { calls: node.calls ?? [] } : kind === 'step' ? { at: node.at ?? [] } : {};
-      const thing = { kind, diagram: diagram.id, node: key, paths: node.paths.map((one) => one.path), ...where };
+      const thing = { kind, diagram: diagram.id, node: key, paths: node.paths.map((one) => one.path), fields: fieldsOf(kind, key, node, diagram), ...where };
       thing.marks = marksIn(thing, look.marks, kind === 'call' ? new Set() : leave);
       thing.slots = resolve(look.rules, thing, look.one);
       things[key] = thing;
@@ -93,9 +137,144 @@ const Marks = (() => {
     return diagram.graph.edges.map((edge) => {
       const lines = diagram.edgeLines?.[`${edge.from}>${edge.to}`] ?? [];
       const marks = look.marks.filter((mark) => lines.some((one) => one.file === mark.file && one.line === mark.line));
-      const thing = { kind: 'arrow', diagram: diagram.id, ends: [things[edge.from], things[edge.to]].filter(Boolean), marks };
-      return { ...edge, marks, slots: resolve(look.rules, thing, look.one) };
+      const thing = { kind: 'arrow', diagram: diagram.id, ends: [things[edge.from], things[edge.to]].filter(Boolean), marks, fields: { words: edge.label ?? '', of: edge.from } };
+      return { ...edge, marks, fields: thing.fields, slots: resolve(look.rules, thing, look.one) };
     });
+  }
+
+  // ----- what shows: a flow chart without the things that a rule leaves out -----
+
+  // The arrows and the node ids of a flow chart, as flowGraph() in shared/diagram-graph.ts reads them: it counts the arrows in the same order.
+  const FLOW_ARROW = /\s*(?:--\s+[^-]+?\s+--[->]|==\s+[^=]+?\s+==[=>]|-\.\s+.+?\s+\.->|<?-{2,}>|<?={2,}>|-{3,}|={3,}|<?-\.+->|-\.+-)\s*(?:\|[^|]*\|)?\s*/;
+  const FLOW_NODE = /^([A-Za-z0-9_]+(?:-[A-Za-z0-9_]+)*)\s*(.*)$/;
+  const NOT_A_STATEMENT = /^\s*(subgraph|end|classDef|class|style|linkStyle|click|direction|%%)\b/;
+  const OUTSIDE_QUOTES = /;(?=(?:[^"]*"[^"]*")*[^"]*$)/; // a ";" between two statements, not one inside quoted words such as "&lt;"
+
+  /** An arrow without its words: "-->|yes|" and "-- yes -->" are "-->", "-. yes .->" is "-.->". */
+  const bareArrow = (token) => {
+    const arrow = token.trim().replace(/\|[^|]*\|$/, '').trim();
+    const named = /^(--|==|-\.)\s+.+?\s+(--[->]|==[=>]|\.->)$/.exec(arrow);
+    return named ? (named[1] === '-.' ? '-.->' : named[2]) : arrow;
+  };
+
+  /**
+   * The Mermaid text of a flow chart without the nodes `hide.nodes` and the arrows `hide.edges` (their numbers in the order of the text), and with new
+   * words `hide.words` (by number) on arrows. A statement that holds none of them stays as it was written; one that does is written again as its nodes,
+   * then its arrows one by one. A box of a group (a subgraph) that is left empty goes too. The rest is laid out by Mermaid.
+   */
+  function flowWithout(text, hide) {
+    let edge = -1;
+    const rewrite = (statement) => {
+      const trimmed = statement.trim();
+      if (/^class\s/.test(trimmed)) {
+        const [, ids, name] = /^class\s+(\S+)\s+(.*)$/.exec(trimmed) ?? [];
+        const kept = (ids ?? '').split(',').filter((id) => !hide.nodes.has(id));
+        return !ids ? statement : kept.length ? `  class ${kept.join(',')} ${name}` : '';
+      }
+      if (/^(style|click)\s/.test(trimmed)) return hide.nodes.has(trimmed.split(/\s+/)[1]) ? '' : statement;
+      if (!trimmed || NOT_A_STATEMENT.test(statement)) return statement;
+      // Words in quotes are hidden first, so that an arrow inside them does not count.
+      const quoted = [];
+      const masked = trimmed.replace(/"[^"]*"/g, (words) => `\u0000${quoted.push(words) - 1}\u0000`);
+      const restore = (words) => words.replace(/\u0000(\d+)\u0000/g, (all, index) => quoted[Number(index)]);
+      const arrows = masked.match(new RegExp(FLOW_ARROW.source, 'g')) ?? [];
+      const groups = masked.split(FLOW_ARROW).map((segment) => segment.split(/\s+&\s+/).map((node) => FLOW_NODE.exec(node.trim())).filter(Boolean));
+      const edges = [];
+      groups.forEach((group, index) => {
+        for (const [, from] of index > 0 ? groups[index - 1] : []) for (const [, to] of group) edges.push({ from, to, at: ++edge, arrow: arrows[index - 1] ?? '-->' });
+      });
+      const touched = groups.flat().some(([, id]) => hide.nodes.has(id)) || edges.some((one) => hide.edges.has(one.at) || hide.words.has(one.at));
+      if (!touched) return statement;
+      const nodes = [...new Map(groups.flat().filter(([, id]) => !hide.nodes.has(id)).map(([, id, shape]) => [id, `${id}${restore(shape)}`])).values()];
+      const kept = edges.filter((one) => !hide.nodes.has(one.from) && !hide.nodes.has(one.to) && !hide.edges.has(one.at))
+        .map((one) => `${one.from} ${hide.words.has(one.at) ? `${bareArrow(restore(one.arrow))}|"${hide.words.get(one.at).replace(/"/g, '#quot;')}"|` : restore(one.arrow).trim()} ${one.to}`);
+      return [...nodes, ...kept].map((line) => `  ${line}`).join('\n');
+    };
+    const written = text.split('\n');
+    const lines = written.map((line) => (/^\s*(flowchart|graph)\b/.test(line) ? line : line.split(OUTSIDE_QUOTES).map(rewrite).filter((one, at, all) => one.trim() || all.length === 1).join(';')));
+    // A group whose statements all went is left out.
+    const open = [];
+    const gone = new Set();
+    lines.forEach((line, at) => {
+      if (/^\s*subgraph\b/.test(line)) open.push({ at, full: false });
+      else if (/^\s*end\s*$/.test(line) && open.length) { const group = open.pop(); if (!group.full) for (let index = group.at; index <= at; index++) gone.add(index); }
+      else if (line.trim() && !/^\s*%%/.test(line)) open.forEach((group) => { group.full = true; });
+    });
+    return lines.filter((line, at) => !gone.has(at) && (line.trim() || !written[at].trim())).join('\n');
+  }
+
+  /**
+   * What a flow chart shows in the look: its Mermaid text without the things and arrows whose rule says "shown": false, the arrows with the words that
+   * a rule gives them, and the graph and the arrows that are drawn. A diagram of another kind is drawn as it is.
+   */
+  function shownFlow(diagram, things, edges) {
+    const whole = { text: diagram.mermaid, graph: diagram.graph, edges };
+    if (!/^\s*(?:flowchart|graph)\b/m.test(diagram.mermaid)) return whole;
+    const nodes = new Set(Object.values(things).filter((thing) => thing.slots['show.shown'] === false).map((thing) => thing.node));
+    const hidden = new Set(edges.flatMap((one, at) => (one.slots['show.shown'] === false || nodes.has(one.from) || nodes.has(one.to) ? [at] : [])));
+    const words = new Map(edges.flatMap((one, at) => {
+      const given = one.slots.content?.words;
+      const size = one.slots['text.size'];
+      if (!given && (!size || size === 'normal')) return [];
+      const shown = given ? fillWords(given, one.fields) : escapeHtml(one.label ?? '');
+      return [[at, size && size !== 'normal' ? `<span class='${size === 'small' ? 'lkSmall' : 'lkLarge'}'>${shown}</span>` : shown]];
+    }));
+    if (!nodes.size && !hidden.size && !words.size) return whole;
+    // An arrow with new words is found in the drawing by them (edgeElements in diagram-stage.js).
+    const plain = (html) => html.replace(/<[^>]*>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+    const worded = (one, at) => (words.has(at) ? { ...one, label: plain(words.get(at)) } : one);
+    const kept = (one, at) => !hidden.has(at);
+    return {
+      text: flowWithout(diagram.mermaid, { nodes, edges: hidden, words }),
+      graph: { nodes: Object.fromEntries(Object.entries(diagram.graph.nodes).filter(([key]) => !nodes.has(key))), edges: diagram.graph.edges.map(worded).filter(kept) },
+      edges: edges.map(worded).filter(kept),
+    };
+  }
+
+  // ----- where a click goes: the words of a target -----
+
+  /** What a target does, in one line: the pointer says it before a click. */
+  const targetWords = (target) => (!target ? 'Does nothing.'
+    : target.url ? `Opens ${target.url}, after VS Code asks.`
+    : target.file ? `Opens ${target.file}${target.line ? ` at line ${target.line}` : ''}.`
+    : target.command ? `Runs the command ${target.command}.`
+    : target.place ? `Opens ${target.place.diagram}${target.place.node ? ` at its node ${target.place.node}` : ''} on Home.`
+    : target.graphs ? `Opens the graphs of ${target.graphs}.`
+    : target.folder ? `Shows ${target.folder} in the tree "Files".`
+    : target.change ? `Opens the change of the branch ${target.change}${target.part ? ` at its part ${target.part}` : ''}.`
+    : target.pull ? `Opens pull request #${target.pull}.`
+    : target.comment ? 'Opens a comment box on it.'
+    : `Sends this to the agent of the repo, after VS Code asks: "${target.prompt}"`);
+
+  /** One line for the click and each other input of a thing that a rule gives: "Click: Opens …", "Alt+click: …", "Key G: …", "Right click: 2 entries". */
+  function inputWords(slots) {
+    const lines = [];
+    if (slots.click) lines.push(`Click: ${targetWords(slots.click)}`);
+    for (const [field, name] of [['alt', 'Alt+click'], ['shift', 'Shift+click'], ['double', 'Double click']]) if (slots[`input.${field}`]) lines.push(`${name}: ${targetWords(slots[`input.${field}`])}`);
+    for (const [key, target] of Object.entries(slots['input.key'] ?? {})) lines.push(`Key ${key.toUpperCase()}: ${targetWords(target)}`);
+    const menu = slots['input.menu'];
+    if (menu?.length) lines.push(`Right click: ${menu.length === 1 ? '1 entry' : `${menu.length} entries`}`);
+    return lines;
+  }
+
+  // ----- the window of the pointer, from named sections -----
+
+  /**
+   * A window of the pointer from named sections, in the order and at the width that the rule of the thing gives (`slots`: "window.sections",
+   * "window.width"); a section that the rule does not name is not shown. A section is { id, html, sub, ready }: `sub` goes into the quiet line of the
+   * title. `wrap` puts the sections into their frame; the lines of what a click and other input do come first. nodeWindow, noteWindow and stackWindow use it.
+   */
+  function windowOf({ title, sub = '', width, sections, wrap = (inner) => inner, ready }, slots = {}) {
+    const order = slots['window.sections'];
+    const shown = order ? order.map((id) => sections.find((one) => one.id === id)).filter(Boolean) : sections;
+    const does = inputWords(slots);
+    const lines = does.length ? `<div class="lk-does">${does.map((line) => `<p>${escapeHtml(line).replace(/"/g, '&quot;')}</p>`).join('')}</div>` : '';
+    return {
+      title, width: slots['window.width'] ?? width, ids: shown.map((one) => one.id),
+      sub: [sub, ...shown.map((one) => one.sub)].filter(Boolean).join(' · '),
+      body: `${lines}${wrap(shown.map((one) => one.html ?? '').join(''))}`,
+      ready: async (body) => { for (const one of shown) await one.ready?.(body); await ready?.(body); },
+    };
   }
 
   // ----- the roll-up -----
@@ -158,17 +337,23 @@ const Marks = (() => {
     return light && dark ? { light, dark } : null;
   }
 
-  /** A colour of a line (an arrow, the bar of a note, the line of a box) for both themes: moved toward black or white until it stands out from the paper at 3:1. */
-  function lineColors(hex) {
+  /**
+   * A colour of a line (an arrow, the bar of a note, the line of a box) for both themes: moved toward black or white until it stands out from the paper
+   * at 3:1; words (`need` 4.5) until they read.
+   */
+  function lineColors(hex, need = 3) {
     const base = parse(hex);
     const stand = (paper, toward) => {
-      for (let step = 0; step <= 10; step++) { const at = mix(base, toward, step / 10); if (contrast(at, paper) >= 3) return toHex(at); }
+      for (let step = 0; step <= 10; step++) { const at = mix(base, toward, step / 10); if (contrast(at, paper) >= need) return toHex(at); }
       return toHex(toward);
     };
     return { light: stand(PAPER.light, [0, 0, 0]), dark: stand(PAPER.dark, [255, 255, 255]) };
   }
 
-  const pure = { covers, keyOf, holds, marksIn, picks, rankOf, resolve, thingsOf, edgesOf, spreadOf, stackOf, namedThings, boxColors, lineColors, contrast, parse, SHOWN };
+  const pure = {
+    covers, keyOf, holds, marksIn, picks, rankOf, resolve, fieldsOf, fillWords, orderRows, thingsOf, edgesOf, flowWithout, shownFlow, targetWords, inputWords, windowOf,
+    spreadOf, stackOf, namedThings, boxColors, lineColors, contrast, parse, SHOWN, READS,
+  };
   if (typeof window !== 'object') return pure;
 
   // ----- drawing: the shapes and the contents of nodes, before Mermaid draws -----
@@ -207,26 +392,35 @@ const Marks = (() => {
   const BLANK = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
 
   /**
-   * The Mermaid text of a flow chart with the shapes and the contents that the look gives its nodes, added at its end. A picture or a film is a
-   * picture shape of its size with a blank picture, filled after the drawing. Returns the text and the nodes to fill.
+   * The Mermaid text of a diagram in the look: a flow chart without the things that a rule leaves out (shownFlow), with the shapes, the words, the
+   * sizes and the icons that the rules give its nodes added at its end. A picture or a film is a picture shape of its size with a blank picture,
+   * filled after the drawing; an icon is a place of its size before the words, filled after the drawing too. Returns the text, the nodes to fill,
+   * and the graph and the arrows that are drawn.
    */
-  async function shapedText(text, slotsByNode, look, labels) {
-    if (!/^\s*(?:flowchart|graph)\b/m.test(text)) return { text, filled: {} };
+  async function lookText(diagram, things, edges, look) {
+    const shown = shownFlow(diagram, things, edges);
+    if (!/^\s*(?:flowchart|graph)\b/m.test(shown.text)) return { ...shown, filled: {} };
     const lines = [];
     const filled = {};
-    for (const [node, slots] of Object.entries(slotsByNode)) {
+    const classes = { lkSmall: [], lkLarge: [], lkIcon: [] };
+    for (const [node, thing] of Object.entries(things)) {
+      const slots = thing.slots;
+      if (slots['show.shown'] === false) continue;
       if (slots['box.shape']) lines.push(`  ${node}@{ shape: ${slots['box.shape']} }`);
       const content = slots.content;
-      if (content?.words) lines.push(`  ${node}@{ label: "${quote(content.words)}" }`);
+      if (content?.words) lines.push(`  ${node}@{ label: "${quote(fillWords(content.words, thing.fields))}" }`);
       const file = content && (content.picture ?? content.film);
       const address = file && look.files[file];
       const size = address && await sizeOf(address, !!content.film);
       if (size) {
-        lines.push(`  ${node}@{ img: "${BLANK}", label: "${quote(labels[node] ?? node)}", pos: "b", w: ${size.width}, h: ${size.height} }`);
+        lines.push(`  ${node}@{ img: "${BLANK}", label: "${quote(diagram.graph.nodes[node] ?? node)}", pos: "b", w: ${size.width}, h: ${size.height} }`);
         filled[node] = { address, film: !!content.film, ...size };
       }
+      if (slots['text.size'] === 'small' || slots['text.size'] === 'large') classes[slots['text.size'] === 'small' ? 'lkSmall' : 'lkLarge'].push(node);
+      if (look.files[slots['text.icon']]) classes.lkIcon.push(node);
     }
-    return { text: lines.length ? `${text}\n${lines.join('\n')}` : text, filled };
+    for (const [name, nodes] of Object.entries(classes)) if (nodes.length) lines.push(`  class ${nodes.join(',')} ${name}`);
+    return { ...shown, text: lines.length ? `${shown.text}\n${lines.join('\n')}` : shown.text, filled };
   }
 
   // ----- drawing: after Mermaid -----
@@ -348,7 +542,7 @@ const Marks = (() => {
       return `<a class="mk-row" data-mk-value="${esc(one.key)}">${chipHtml(look, one.key)}<span class="mk-name">${esc(look.values[one.key]?.name ?? one.value)}</span>`
         + `<i class="c">${placesWord(one.marks.length)}</i><span class="mk-does">${esc(does)}${things}</span></a>`;
     });
-    return { title: setName, sub: `${stack.length} ${stack.length === 1 ? 'value' : 'values'}`, width: 440, body: `<div class="rows mk-rows">${rows.join('')}</div>` };
+    return windowOf({ title: setName, sub: `${stack.length} ${stack.length === 1 ? 'value' : 'values'}`, width: 440, sections: [{ id: 'values', html: `<div class="rows mk-rows">${rows.join('')}</div>` }] });
   }
 
   /** The places of one value, grouped by named thing, then the places with no fixed name. A click on a row opens that file at its line. */
@@ -359,17 +553,93 @@ const Marks = (() => {
       + `${plain.length && named.length ? '<div class="gp">With no fixed name</div>' : ''}${plain.map(row).join('')}</div>`;
   }
 
-  /** The name and what a button does, for its window. */
-  const actionWords = (action) => (!action ? 'Does nothing.' : action.url ? `Opens ${action.url}, after VS Code asks.` : action.file ? `Opens ${action.file}${action.line ? ` at line ${action.line}` : ''}.`
-    : action.command ? `Runs the command ${action.command}.` : action.place ? `Opens ${action.place.diagram}${action.place.node ? ` at its node ${action.place.node}` : ''} on Home.` : `Sends this to the agent of the repo, after VS Code asks: "${action.prompt}"`);
+  // ----- where a click, a key or a menu entry goes: one act for every page -----
+
+  let here = {}; // what the page can do itself: walk(step) to a view as a step of its path (true when it did), diagram() for a prompt
+
+  /** The page says what it can do itself; everything else goes to the extension. */
+  const useHere = (hooks) => { here = hooks; };
+
+  /**
+   * Where a target of the look goes, for every page (Home, the graphs page, the file tab and the change page). The comment box opens on the thing; a
+   * place or the graphs of a path open as a step of the path when the page can take it; the extension does the rest in one place
+   * (view/look-targets.ts), and asks before a web address opens or a prompt is sent.
+   */
+  function act(target, el) {
+    if (!target) return;
+    Hover.hide();
+    if (target.comment) return void (typeof Remarks === 'object' && Remarks.boxOn(el));
+    const step = target.place ? { tab: 'home', diagram: target.place.diagram, lit: target.place.node ? [target.place.node] : [], name: target.place.diagram }
+      : target.graphs ? { tab: 'graphs', path: target.graphs, name: target.graphs } : null;
+    if (step && here.walk?.(step)) return;
+    tell({ type: 'target', target, ...(here.diagram?.() ? { diagram: here.diagram() } : {}) });
+  }
 
   /** A button in a corner: its icon; the pointer says what it does, and a click does it. */
-  function buttonAt(holder, look, button, act) {
+  function buttonAt(holder, look, button) {
     const icon = look.files[button.icon];
     holder.innerHTML = `<span class="mk-chip mk-button" role="button" tabindex="0" title="${esc(button.name)}">${icon ? `<img src="${esc(icon)}" alt="">` : esc(button.name[0] ?? '?')}</span>`;
     const el = holder.firstChild;
-    el.addEventListener('click', (event) => { event.stopPropagation(); Hover.hide(); act(button.action); });
-    Hover.attach(el, () => ({ title: button.name, width: 320, pad: true, body: `<p class="stepnote">${esc(actionWords(button.action))}</p>` }));
+    el.addEventListener('click', (event) => { event.stopPropagation(); act(button.action, el); });
+    Hover.attach(el, () => ({ title: button.name, width: 320, pad: true, body: `<p class="stepnote">${esc(targetWords(button.action))}</p>` }));
+  }
+
+  const KEYED = new WeakMap(); // a thing with keys of the look -> its keys
+  const DOUBLE_WAIT = 250; // a thing with a double click waits this long before its single click
+
+  /**
+   * The input of a thing in the look: its click goes to the target of the rule, else to `today` (today's click, or none); a click with Alt or Shift,
+   * a double click, a key and a right click with a menu go to their targets. Only a thing with a double click waits before its single click.
+   * `name` is the title of its menu. Returns true when a click does something.
+   */
+  function bind(el, slots, today, name = '') {
+    const [alt, shift, double, keys, menu] = ['alt', 'shift', 'double', 'key', 'menu'].map((field) => slots[`input.${field}`]);
+    const click = slots.click;
+    let timer = 0;
+    if (click || today || alt || shift || double) {
+      el.addEventListener('click', (event) => {
+        const held = event.altKey ? alt : event.shiftKey ? shift : null;
+        if (held) { event.stopPropagation(); return act(held, el); }
+        const single = () => (click ? act(click, el) : today?.(event));
+        if (!double) return single();
+        clearTimeout(timer);
+        timer = setTimeout(single, DOUBLE_WAIT);
+      });
+    }
+    // A double click takes back the single click that waits.
+    if (double) el.addEventListener('dblclick', (event) => { event.stopPropagation(); clearTimeout(timer); act(double, el); });
+    if (menu?.length) el.addEventListener('contextmenu', (event) => { event.preventDefault(); event.stopPropagation(); openMenu(el, menu, name); });
+    if (keys) {
+      KEYED.set(el, keys);
+      el.setAttribute('data-lk-keys', '');
+      el.setAttribute('tabindex', '0');
+    }
+    return !!(click || today);
+  }
+
+  /** The menu of a right click: a small window with one row for each entry; VS Code's own menu does not open here. */
+  function openMenu(el, menu, name) {
+    Hover.now(el, () => ({
+      title: name || 'Menu', width: 300,
+      body: `<div class="rows lk-menu">${menu.map((entry, at) => `<a data-entry="${at}"><span>${esc(entry.name)}</span></a>`).join('')}</div>`,
+      ready: (body) => body.addEventListener('click', (event) => { const row = event.target.closest('[data-entry]'); if (row) act(menu[Number(row.dataset.entry)].target, el); }),
+    }));
+  }
+
+  // A key of the look goes to its target while the pointer is on its thing, or the thing has the keyboard; never while he types.
+  document.addEventListener('keydown', (event) => {
+    if (event.metaKey || event.ctrlKey || event.altKey || event.target.closest?.('[data-field], textarea, input, [contenteditable]')) return;
+    const on = [...document.querySelectorAll('[data-lk-keys]:hover')].pop() ?? document.activeElement?.closest?.('[data-lk-keys]');
+    const target = on && KEYED.get(on)?.[event.key.toLowerCase()];
+    if (!target) return;
+    event.preventDefault();
+    act(target, on);
+  });
+
+  /** A small window of the pointer for a thing that has none of its own (the words of an arrow, a note card): what its click and its other input do. */
+  function inputWindow(el, slots, title) {
+    const lines = inputWords(slots);
+    if (lines.length) Hover.attach(el, () => ({ title, width: 320, pad: true, body: lines.map((line) => `<p class="stepnote">${esc(line)}</p>`).join('') }));
   }
 
   /**
@@ -415,7 +685,7 @@ const Marks = (() => {
       const right = corner.endsWith('right');
       const x = right ? box.x + box.width - 8 : box.x + 8;
       const y = corner.startsWith('upper') ? box.y : box.y + box.height;
-      if (fill.icon) { buttonAt(holderAt(container, x, y, right), look, fill, ctx.act); continue; }
+      if (fill.icon) { buttonAt(holderAt(container, x, y, right), look, fill); continue; }
       shown.add(fill.set);
       const stack = stackOf(marks, fill.set, spread);
       if (!stack.length) continue;
@@ -426,8 +696,8 @@ const Marks = (() => {
   }
 
   /**
-   * Applies the look to a drawn diagram: the box and the corners of each node, the content that fills a node, the marks of a call out of the repo
-   * and of an arrow with its own line, and the slots of the arrows. `things` holds, for each node id, its thing with its marks and its slots.
+   * Applies the look to a drawn diagram: the box and the corners of each node, the content and the icon that fill a node, the marks of a call out of
+   * the repo and of an arrow with its own line, and the slots of the arrows. `things` holds, for each node id, its thing with its marks and its slots.
    * A diagram with no slot and no mark is left as it was drawn. Returns true when it added or changed something.
    */
   function decorate(svg, things, edges, look, filled, ctx) {
@@ -438,14 +708,17 @@ const Marks = (() => {
       if (!thing) continue;
       if (filled[thing.node]) fill(g, filled[thing.node]);
       paintBox(g, thing.slots);
+      const icon = look.files[thing.slots['text.icon']];
+      if (icon) g.style.setProperty('--lk-icon', `url("${icon}")`);
       const shown = drawCorners(g, boxOf(g), thing.slots, thing.marks, look, spread, {
-        act: ctx.act, pick: Object.assign((one) => ctx.pick(thing, one), { open: ctx.open }),
+        pick: Object.assign((one) => ctx.pick(thing, one), { open: ctx.open }),
       });
       thing.cornered = shown;
     }
     for (const edge of edges) {
       if (!edge.path) continue;
       const slots = edge.slots;
+      if (slots['text.color'] && edge.label) paint(edge.label, 'words', lineColors(slots['text.color'], READS));
       if (slots['arrow.color']) paint(edge.path, 'stroke', lineColors(slots['arrow.color']));
       if (slots['arrow.width']) { edge.path.style.setProperty('--lk-width', `${slots['arrow.width']}px`); edge.path.classList.add('lk-wide'); }
       if (slots['arrow.dashed']) edge.path.classList.add('lk-dashed');
@@ -455,7 +728,7 @@ const Marks = (() => {
       const at = labelPoint(edge);
       if (!at) continue;
       const holder = holderAt(edge.path.parentElement, at.x - 9, at.y, false);
-      if (icon) { buttonAt(holder, look, icon, ctx.act); continue; }
+      if (icon) { buttonAt(holder, look, icon); continue; }
       const stack = [...new Set(edge.marks.map((mark) => mark.set))].flatMap((set) => stackOf(edge.marks, set, spread));
       stackAt(holder, look, stack, 'At the line of this arrow', Object.assign((one) => (one.marks.length === 1 ? (ctx.open(one.marks[0].file, one.marks[0].at), true) : false), { open: ctx.open }));
     }
@@ -495,10 +768,10 @@ const Marks = (() => {
   }
 
   /**
-   * The look of a note: the colour of its bar, the corners of its card (the marks of a set, or a button) and its service lines. `el` is the card,
-   * or the body of the window of a step. `open(file, line)` opens a place.
+   * The look of a note: the colour of its bar, the corners of its card (the marks of a set, or a button) and its service lines, in the holder of the
+   * lines when it has one. `el` is the card, or the body of the window of a step. `open(file, line)` opens a place.
    */
-  function decorateNote(el, look, thing, open, act) {
+  function decorateNote(el, look, thing, open) {
     const slots = resolve(look.rules, thing, look.one);
     if (slots['note.color']) paint(el, 'bar', lineColors(slots['note.color']));
     const spread = spreadOf([thing]);
@@ -506,14 +779,16 @@ const Marks = (() => {
       const fill = slots[`corners.${corner}`];
       if (!fill) continue;
       const holder = html(`<div class="mk-stack mk-at ${corner}"></div>`);
-      if (fill.icon) { el.append(holder); buttonAt(holder, look, fill, act); continue; }
+      if (fill.icon) { el.append(holder); buttonAt(holder, look, fill); continue; }
       const stack = stackOf(thing.marks, fill.set, spread);
       if (!stack.length) continue;
       el.append(holder);
       stackAt(holder, look, stack, look.sets.find((set) => set.id === fill.set)?.name ?? fill.set, Object.assign((one) => (one.marks.length === 1 ? (open(one.marks[0].file, one.marks[0].at), true) : false), { open }));
     }
     const lines = serviceLines(look, thing.marks);
-    if (lines) el.insertAdjacentHTML('beforeend', `<div class="mk-lines">${lines}</div>`);
+    const holder = el.querySelector(':scope > .mk-lines');
+    if (holder) holder.innerHTML = lines;
+    else if (lines) el.insertAdjacentHTML('beforeend', `<div class="mk-lines">${lines}</div>`);
     el.addEventListener('click', (event) => {
       const place = event.target.closest('[data-mk-open]');
       if (place) { event.stopPropagation(); open(place.dataset.mkOpen, Number(place.dataset.mkLine)); }
@@ -522,7 +797,7 @@ const Marks = (() => {
     });
   }
 
-  return { ...pure, shapedText, decorate, decorateNote, stackWindow, placesHtml, actionWords, doesWords };
+  return { ...pure, lookText, decorate, decorateNote, stackWindow, placesHtml, doesWords, act, useHere, bind, inputWindow };
 })();
 
 if (typeof module === 'object') module.exports = Marks; // for the tests in Node

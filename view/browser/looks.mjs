@@ -143,7 +143,7 @@ try {
     await one.waitForFunction(() => !document.querySelector('#view video').paused, null, { timeout: 5000 });
     const playing = await one.evaluate(() => ({ muted: document.querySelector('#view video').muted, crumb: document.getElementById('crumb').textContent }));
     check('a picture in place of a node opens on a click like any node; a film shows its first frame and plays, with no sound, only on a click, and its play mark is no word of the name of the node; a button opens its file at its line',
-      picture?.type === 'showInTree' && picture.paths.join() === 'docs/,README.md' && button?.type === 'openFile' && button.path === 'src/library/night_jobs.py' && button.line === 516
+      picture?.type === 'showInTree' && picture.paths.join() === 'docs/,README.md' && button?.type === 'target' && button.target.file === 'src/library/night_jobs.py' && button.target.line === 516
         && still.paused && still.at === 0 && still.name === 'Holds: books to wait for' && playing.muted && playing.crumb === 'Home›The areas of the member page', JSON.stringify({ picture, button, still, playing }));
     // A note in the file tab: its marks at the corners of its set, its colour, one line for its service and its named things as small links.
     await one.goto(`file://${pageFile}?file=src/library/lending/requests.py&look=1`);

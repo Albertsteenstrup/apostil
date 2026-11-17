@@ -39,10 +39,12 @@ const apostil = (args: string[]) => runApostil(args, { cwd: example().folder, en
 test('look-slots with no argument prints the core and one index line for each area, and the three sizes hold', () => {
   const run = runApostil(['look-slots'], { env: { APOSTIL_HOME: tempFolder('apostil-store-') } });
   const { core, areas, more } = JSON.parse(run.stdout);
-  // The core: the box, the arrow without its button, the colour of a note, the corners, every pick, and the form of each action. Not the content.
-  assert.deepEqual(Object.keys(core.slots), ['box', 'corners', 'note', 'arrow']);
-  assert.deepEqual(Object.keys(core.slots.arrow.fields), ['color', 'width', 'dashed']);
-  assert.deepEqual([Object.keys(core.picks), Object.keys(core.actions)], [Object.keys(LOOK_PARTS.picks), Object.keys(LOOK_PARTS.actions)]);
+  // The core: the box, the arrow without its button, the colour of a note, the corners, every pick, and the form of each target; of the content
+  // only its words, of "show" only "shown", and the click (build 57).
+  assert.deepEqual(Object.keys(core.slots), ['box', 'content', 'corners', 'note', 'arrow', 'show', 'click']);
+  assert.deepEqual([Object.keys(core.slots.arrow.fields), Object.keys(core.slots.content.fields), Object.keys(core.slots.show.fields), core.slots.click.target], [['color', 'width', 'dashed'], ['words'], ['shown'], true]);
+  // The targets of build 51 are in the core; the others in the area "clicks".
+  assert.deepEqual([Object.keys(core.picks), Object.keys(core.targets)], [Object.keys(LOOK_PARTS.picks), ['file', 'url', 'command', 'prompt', 'place']]);
   assert.deepEqual(areas.map((one: { id: string; line: string }) => one.line.startsWith(`${one.id}: `) && one.id), AREAS);
   assert.match(more, /look-slots <area>.*--find "<words>".*--all/);
   // An agent pays for each character: the prompt and this answer at most 7,000, one area at most 3,000, one search at most 2,000.
@@ -64,14 +66,19 @@ test('look-slots with no argument prints the core and one index line for each ar
 test('look-slots <area> prints only the parts of that area; an unknown area names the nearest and fails', () => {
   const home = { env: { APOSTIL_HOME: tempFolder('apostil-store-') } };
   const processes = JSON.parse(runApostil(['look-slots', 'processes'], home).stdout);
-  assert.deepEqual([Object.keys(processes.components), Object.keys(processes.slots)], [['step', 'call'], ['box', 'content', 'corners']]);
+  // Every slot of its components; a slot of another area is one line that names it (build 57).
+  assert.deepEqual([Object.keys(processes.components), Object.keys(processes.slots)], [['step', 'call'], ['box', 'content', 'corners', 'show', 'text', 'click', 'input', 'window']]);
+  assert.deepEqual([processes.slots.window, Object.keys(processes.slots.box.fields)], ['the area windows gives its fields', Object.keys(LOOK_PARTS.slots.box.fields)]);
   assert.deepEqual(processes.components.call.example, LOOK_PARTS.components.call.example);
   const marks = JSON.parse(runApostil(['look-slots', 'marks'], home).stdout);
-  assert.deepEqual([marks.components, Object.keys(marks.slots), Object.keys(marks.actions), marks.sets.form], [undefined, ['corners'], Object.keys(LOOK_PARTS.actions), LOOK_PARTS.sets.form]);
+  assert.deepEqual([marks.components, Object.keys(marks.slots), marks.targets, marks.sets.form], [undefined, ['corners'], undefined, LOOK_PARTS.sets.form]);
+  // Every target, and the slots of a click and other input, are in the area "clicks" (build 57).
+  const clicks = JSON.parse(runApostil(['look-slots', 'clicks'], home).stdout);
+  assert.deepEqual([Object.keys(clicks.slots), Object.keys(clicks.targets)], [['click', 'input'], Object.keys(LOOK_PARTS.targets)]);
   const wrong = runApostil(['look-slots', 'diagram'], home);
   assert.equal(wrong.status, 1);
-  assert.deepEqual(JSON.parse(wrong.stdout).problems, ['"diagram" is no area. The areas are diagrams, processes, notes, marks. The nearest is "diagrams".']);
-  assert.deepEqual(JSON.parse(runApostil(['look-slots', 'colours'], home).stdout).problems, ['"colours" is no area. The areas are diagrams, processes, notes, marks.']);
+  assert.deepEqual(JSON.parse(wrong.stdout).problems, ['"diagram" is no area. The areas are diagrams, processes, notes, marks, clicks, windows, lists. The nearest is "diagrams".']);
+  assert.deepEqual(JSON.parse(runApostil(['look-slots', 'colours'], home).stdout).problems, ['"colours" is no area. The areas are diagrams, processes, notes, marks, clicks, windows, lists.']);
 });
 
 test('look-slots --find finds a part by a word of its "what" and by one of its "words"; words that fit nothing say so and print the index', () => {
@@ -94,8 +101,9 @@ test('every component has an area with an index line, and each example of the li
   const fill = (rule: unknown): unknown => JSON.parse(JSON.stringify(rule).replaceAll('<folder>/', 'src/library/lending/').replaceAll('<file>', 'src/library/night_jobs.py')
     .replaceAll('<diagram>', 'lib-top').replaceAll('<node>', 'jobs').replaceAll('<set>:<value>', 'services:table-store'));
   const context = { folder, map: store.getMap(repoId(folder))?.map, commands: apostilCommands() };
-  const examples = { ...LOOK_PARTS.components, ...Object.fromEntries(Object.entries(LOOK_PARTS.slots).map(([name, slot]) => [`slot ${name}`, slot])) };
-  for (const [name, part] of Object.entries(examples)) assert.deepEqual(lookProblems({ rules: [fill(part.example)] }, context), [], name);
+  // "order" has no example until a component is a list (briefs 59 to 61); every other part has one.
+  const examples: Record<string, { example?: unknown }> = { ...LOOK_PARTS.components, ...Object.fromEntries(Object.entries(LOOK_PARTS.slots).map(([name, slot]) => [`slot ${name}`, slot])) };
+  for (const [name, part] of Object.entries(examples).filter(([name]) => name !== 'slot order')) assert.deepEqual(lookProblems({ rules: [fill(part.example)] }, context), [], name);
   for (const [name, component] of Object.entries(LOOK_PARTS.components)) assert.ok(AREAS.includes(component.area), name);
 });
 
@@ -134,7 +142,7 @@ test('set-look --check saves nothing and removes no file; a wrong kind, slot, fi
     ok: false, changes: [], notes: [],
     problems: [
       'Rule 1: "pick" must name a "kind": one of node, step, call, arrow, note. The nearest is "node".',
-      'Rule 2: "boxes" is no slot. The slots are "box", "content", "corners", "note", "arrow". The nearest is "box".',
+      'Rule 2: "boxes" is no slot. The slots are "box", "content", "corners", "note", "arrow", "show", "order", "text", "click", "input", "window". The nearest is "box".',
       'Rule 3, "box": "colour" is no field here. Use only "color", "line", "width", "dashed", "shape". The nearest is "color".',
       'Rule 4: the diagram "lib-top" has no node "job". Its nodes are web, routes, lending, jobs, desk, data, checks, writing. The nearest is "jobs".',
       'Rule 5: "process:ask-requests" is no diagram of the map. apostil map lists the ids of the diagrams; a process is "process:<id>". The nearest is "process:ask-request".',
