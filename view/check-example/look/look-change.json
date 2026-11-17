@@ -1,0 +1,30 @@
+{
+ "sets": [
+  {
+   "id": "errors", "name": "Errors that a member reads",
+   "rule": "Mark each line that raises an error with words that a member reads. Use field when the error names a field of the form, and state when it does not.",
+   "values": [
+    { "id": "field", "name": "A wrong field", "icon": "apostil-look-field.svg" },
+    { "id": "state", "name": "A wrong state", "icon": "apostil-look-state.svg" }
+   ],
+   "corner": { "node": "lower-left", "note": "upper-left" }
+  }
+ ],
+ "rules": [
+  { "pick": { "kind": "change-card" }, "content": { "fields": ["title", "files", "wider"] } },
+  { "pick": { "kind": "part", "where": { "id": "night-job" } }, "box": { "color": "#2b6cb0" } },
+  { "pick": { "kind": "no-part" }, "show": { "folded": true } },
+  { "pick": { "kind": "part-link" }, "arrow": { "dashed": true }, "content": { "words": "{words} (+{added})" } },
+  { "pick": { "kind": "diff-file", "paths": ["tests/"] }, "show": { "shown": false } },
+  { "pick": { "kind": "diff-file" }, "order": { "by": "added", "down": true } },
+  { "pick": { "kind": "change-view" }, "order": { "first": ["diffs"] } },
+  { "pick": { "kind": "open-point" }, "order": { "group": "file" } },
+  { "pick": { "kind": "thread", "where": { "state": "answered" } }, "box": { "color": "#15803d" } },
+  { "pick": { "kind": "comments-window" }, "window": { "width": 380 } },
+  { "pick": { "kind": "note", "where": { "check": true } }, "note": { "color": "#b45309" } },
+  { "pick": { "kind": "note-line" }, "arrow": { "dashed": true } },
+  { "pick": { "kind": "function-line" }, "content": { "words": "{function} · {tests} tests in all" } },
+  { "pick": { "kind": "code-map" }, "show": { "shown": false } },
+  { "pick": { "kind": "margin", "mark": "errors:*" }, "show": { "shown": true } }
+ ]
+}

@@ -61,8 +61,11 @@ const VALUES = {
   sections: 'a list of the ids of the sections of the window, in the order that they show',
 } as const;
 type ValueKind = keyof typeof VALUES;
-/** The kind of a field that a rule reads of a thing: words, a count, true or false, or one of a few fixed values. */
-type FieldKind = 'text' | 'count' | 'yes' | readonly string[];
+/** The kind of a field that a rule reads of a thing: words, a count, true or false, the id of a part of the change of the branch, or one of a few fixed values. */
+type FieldKind = 'text' | 'count' | 'yes' | 'part' | readonly string[];
+
+/** The states of a thread of comments, as the comments window says them (view/media/states.js turns the state of a remark into one). */
+export const THREAD_STATES = ['open', 'sent', 'working', 'answered', 'resolved'] as const;
 
 /** A rule as an example in the list. It may hold the placeholders <folder>/, <file>, <diagram>, <node> and <set>:<value>. */
 type Example = Readonly<Record<string, unknown>>;
@@ -79,6 +82,7 @@ export interface LookPartsList {
     fields: Readonly<Record<string, FieldKind>>; // what a rule can read of a thing: the pick "where", words in braces, an order
     sections?: readonly string[]; // the sections of its window of the pointer
     shows?: readonly string[]; // the fields that "content.fields" can show, when they are not its fields
+    name?: string; // one thing of it in the words of a sentence of the check, when its kind is not plain words ("file of the list")
   }>>;
   picks: Readonly<Record<string, string | { what: string; area?: string; words?: readonly string[]; example?: Example }>>;
   slots: Readonly<Record<string, {
@@ -128,10 +132,109 @@ export const LOOK_PARTS = {
       example: { pick: { kind: 'arrow', paths: ['<folder>/'] }, arrow: { color: BLUE, width: 2 } },
     },
     note: {
-      what: 'a note card in the file tab', area: 'notes', core: true, slots: ['note', 'corners', 'content', 'show', 'click', 'input'], words: ['card', 'comment', 'annotation', 'explanation'],
-      takes: { content: ['fields'], show: ['shown'] },
-      fields: { title: 'text', file: 'text', function: 'text', tests: 'count' }, shows: ['title', 'function', 'tests', 'text', 'services'],
+      what: 'a note card in the file tab', area: 'notes', core: true,
+      slots: ['note', 'corners', 'content', 'show', 'click', 'input', 'text', 'window', 'order'], words: ['card', 'comment', 'annotation', 'explanation'],
+      takes: { content: ['fields'], show: ['shown'], text: ['icon'], order: ['by', 'down', 'first'] },
+      fields: { title: 'text', file: 'text', function: 'text', tests: 'count', check: 'yes' }, shows: ['title', 'function', 'tests', 'text', 'services'], sections: ['check'],
       example: { pick: { kind: 'note', paths: ['<file>'] }, note: { color: AMBER } },
+    },
+    // ----- the page of a change (build 60) -----
+    'change-card': {
+      what: 'the card of the change: its title, files and counts, whether its links were checked, the wider diagrams', area: 'change', name: 'card of the change',
+      slots: ['box', 'content'], takes: { box: ['color'], content: ['fields'] }, words: ['summary', 'header', 'total', 'size'],
+      fields: { title: 'text', files: 'count', added: 'count', removed: 'count', checked: 'yes', wider: 'count' },
+      example: { pick: { kind: 'change-card' }, content: { fields: ['title', 'files', 'wider'] } },
+    },
+    part: {
+      what: 'a part: a box with its name and files in the diagram of the change', area: 'change',
+      slots: ['box', 'text', 'content', 'click', 'window'], takes: { box: ['color', 'shape'], text: ['icon'], content: ['fields'] }, words: ['component', 'module', 'group'],
+      fields: { id: 'part', name: 'text', files: 'count', added: 'count', removed: 'count' }, shows: ['name', 'files', 'counts'], sections: ['diagram', 'files'],
+      example: { pick: { kind: 'part', paths: ['<folder>/'] }, box: { color: BLUE } },
+    },
+    'no-part': {
+      what: 'the box of the files in no part; "folded" shows its title only', area: 'change', name: 'box of the files in no part',
+      slots: ['box', 'show'], takes: { box: ['color', 'line'] }, words: ['unassigned', 'rest', 'loose', 'other'], fields: { files: 'count' },
+      example: { pick: { kind: 'no-part' }, show: { folded: true } },
+    },
+    'part-link': {
+      what: 'an arrow between two parts', area: 'change', name: 'link between parts',
+      slots: ['arrow', 'content'], takes: { arrow: ['color', 'width', 'dashed'], content: ['words'] }, words: ['link', 'edge', 'dependency', 'connection'],
+      fields: { words: 'text', added: 'count', removed: 'count' },
+      example: { pick: { kind: 'part-link' }, arrow: { dashed: true }, content: { words: '{words} (+{added})' } },
+    },
+    'comment-mark': {
+      what: 'the small circle with the count of open comments on a thing; the comments window still counts them', area: 'comments', name: 'comment mark',
+      slots: ['text', 'show'], takes: { text: ['color', 'icon'], show: ['shown'] }, words: ['bubble', 'circle', 'count'], fields: { count: 'count' },
+      example: { pick: { kind: 'comment-mark' }, text: { color: AMBER } },
+    },
+    'diff-file': {
+      what: 'a file in the list of diffs, under the name of its part; a rule that leaves out all files of a part leaves out the part', area: 'diffs', name: 'file of the list',
+      slots: ['order', 'show', 'content', 'text', 'click', 'window'], takes: { show: ['shown'], content: ['fields'], text: ['icon'] }, words: ['diff', 'diffs', 'changed', 'sort'],
+      fields: { path: 'text', part: 'part', type: ['code', 'data', 'generated'], added: 'count', removed: 'count' }, shows: ['path', 'added', 'removed', 'type'], sections: ['facts', 'diff'],
+      example: { pick: { kind: 'diff-file' }, order: { by: 'added', down: true } },
+    },
+    'comments-window': {
+      what: 'the window of the comments and the open points at the right of the page; "folded" folds it at the start', area: 'comments', name: 'comments window',
+      slots: ['window', 'box', 'show'], takes: { window: ['width'], box: ['color'], show: ['folded'] }, words: ['sidebar', 'panel', 'review'], fields: {},
+      example: { pick: { kind: 'comments-window' }, window: { width: 380 } },
+    },
+    thread: {
+      what: 'a card of a thread of comments in the comments window', area: 'comments',
+      slots: ['content', 'box', 'order'], takes: { content: ['fields'], box: ['color'], order: ['by', 'down'] }, words: ['conversation', 'discussion', 'reply', 'answer'],
+      fields: { state: THREAD_STATES, where: 'text', author: 'text' }, shows: ['where', 'messages', 'state', 'reply'],
+      example: { pick: { kind: 'thread', where: { state: 'answered' } }, box: { color: '#15803d' } },
+    },
+    'open-point': {
+      what: 'a finding of the fresh check: its card in the comments window and its "?" on the thing', area: 'comments', name: 'open point',
+      slots: ['text', 'order', 'show'], takes: { text: ['color', 'icon'], order: ['by', 'down', 'group'], show: ['shown'] }, words: ['finding', 'question', 'problem', 'issue'],
+      fields: { type: ['note', 'no-note', 'thing'], file: 'text', part: 'part', diagram: 'text' },
+      example: { pick: { kind: 'open-point' }, order: { group: 'file' } },
+    },
+    'change-view': {
+      what: 'a view of the switch of the change page; "order.first" opens that view first', area: 'diffs', name: 'view',
+      slots: ['show', 'order'], takes: { show: ['shown'], order: ['first'] }, words: ['switch', 'start', 'conversation', 'opens'], fields: { id: ['diagram', 'diffs', 'conversation'] },
+      example: { pick: { kind: 'change-view' }, order: { first: ['diffs'] } },
+    },
+    'part-diagram': {
+      what: 'a diagram of a part, by its name in the switch over its drawing', area: 'diffs', name: 'diagram of a part',
+      slots: ['order', 'show', 'content'], takes: { order: ['first'], show: ['shown'], content: ['words'] }, words: ['flow', 'sequence', 'schema', 'state'],
+      fields: { id: 'text', type: ['flow', 'sequence', 'schema', 'state'], function: 'text', title: 'text' },
+      example: { pick: { kind: 'part-diagram', where: { type: 'flow' } }, content: { words: '{function}' } },
+    },
+    'part-step': {
+      what: 'a step, state or table of the drawing of a part, with its counts; a picture can take its place', area: 'change', name: 'step of a part',
+      slots: ['box', 'content'], takes: { box: ['color'], content: ['picture'] }, words: ['step', 'node', 'state', 'table'], fields: { title: 'text', added: 'count', removed: 'count' },
+      example: { pick: { kind: 'part-step', paths: ['<file>'] }, box: { color: BLUE } },
+    },
+    // ----- the file tab (build 60) -----
+    'function-line': {
+      what: 'the first line of a function over its first note card: its name and its count of tests', area: 'file-tab', name: 'first line of a function',
+      slots: ['content', 'show'], takes: { content: ['words'], show: ['shown'] }, words: ['function', 'tests', 'heading'], fields: { function: 'text', tests: 'count' },
+      example: { pick: { kind: 'function-line' }, content: { words: '{function} ({tests} tests)' } },
+    },
+    'note-line': {
+      what: 'the line from a note card to its code', area: 'file-tab', name: 'line to the code', slots: ['arrow'], takes: { arrow: ['color', 'width', 'dashed'] },
+      words: ['join', 'connector', 'line'], fields: {}, example: { pick: { kind: 'note-line' }, arrow: { dashed: true } },
+    },
+    'note-order': {
+      what: 'the arrow from one step of a function to the next, between their note cards', area: 'file-tab', name: 'order of the notes',
+      slots: ['arrow', 'show'], takes: { arrow: ['color', 'dashed'], show: ['shown'] }, words: ['steps', 'sequence', 'arrow'], fields: {},
+      example: { pick: { kind: 'note-order' }, arrow: { color: BLUE } },
+    },
+    'notes-column': {
+      what: 'the column of the note cards beside the code; "folded" shows the notes as marks at the edge', area: 'file-tab', name: 'notes column',
+      slots: ['window', 'show'], takes: { window: ['width'], show: ['folded'] }, words: ['column', 'notes', 'width'], fields: {},
+      example: { pick: { kind: 'notes-column' }, window: { width: 420 } },
+    },
+    'code-map': {
+      what: 'the small map of the whole file at the right of the code; "box.color" tints the lines that a pick of "mark" or "paths" takes', area: 'file-tab', name: 'code map',
+      slots: ['show', 'box'], takes: { show: ['shown'], box: ['color'] }, words: ['minimap', 'overview', 'scroll'], fields: {},
+      example: { pick: { kind: 'code-map', mark: '<set>:<value>' }, box: { color: AMBER } },
+    },
+    margin: {
+      what: 'the margin of the code, in the file tab of Apostil and in the editor and the diff editor of VS Code: the icon of a mark at each line that has one',
+      area: 'file-tab', slots: ['show'], takes: { show: ['shown'] }, words: ['gutter', 'line numbers', 'icon'], fields: {},
+      example: { pick: { kind: 'margin', mark: '<set>:<value>' }, show: { shown: true } },
     },
   },
   picks: {
@@ -244,6 +347,10 @@ export const LOOK_PARTS = {
     clicks: 'where a click, Alt+click, Shift+click, double click, key or right-click menu goes; every target',
     windows: 'the window of the pointer: its width, its sections, their order',
     lists: 'what is left out, a pick by a field, the order and groups of rows',
+    change: 'the change page: its card, its parts and the links between them, the drawing of a part',
+    diffs: 'the change page: the list of diffs, the views of its switch, the names of the diagrams of a part',
+    comments: 'the comments window of a page: its threads, the open points, the comment marks',
+    'file-tab': 'the file tab: the first line of a function, the lines to the code, notes column, code map, margin',
   },
   sets: {
     what: 'a new kind of mark: writers mark the lines of code that its rule names, and the icons of its values stand in its corner',
@@ -260,8 +367,10 @@ export const LOOK_KINDS = Object.keys(LOOK_PARTS.components) as LookKind[];
 type SlotName = keyof typeof LOOK_PARTS.slots;
 type TargetName = keyof typeof TARGETS;
 export const TARGET_NAMES = Object.keys(TARGETS) as TargetName[];
-export type Component = { slots: readonly string[]; takes?: Readonly<Record<string, readonly string[]>>; fields: Readonly<Record<string, FieldKind>>; sections?: readonly string[]; shows?: readonly string[] };
+export type Component = { slots: readonly string[]; takes?: Readonly<Record<string, readonly string[]>>; fields: Readonly<Record<string, FieldKind>>; sections?: readonly string[]; shows?: readonly string[]; name?: string };
 const componentOf = (kind: LookKind): Component => LOOK_PARTS.components[kind];
+/** One thing of a kind in the words of a sentence: its name, else the kind. */
+export const nameOf = (kind: string): string => (LOOK_PARTS.components as Readonly<Record<string, Component>>)[kind]?.name ?? kind;
 
 /** A value of a field of a thing, as a rule names it. */
 type FieldValue = string | number | boolean;
@@ -374,6 +483,7 @@ export interface LookContext {
   folder: string;
   map?: RepoMap;
   commands: string[];
+  parts?: string[]; // the ids of the parts of the saved change of the branch; with no saved change a part id is not checked
 }
 
 /** How many letters to add, remove or change to turn one word into the other. */
@@ -408,7 +518,7 @@ export const nearestPart = (word: unknown, known: readonly string[]): string => 
   return near ? ` The nearest is "${near}".` : '';
 };
 
-const an = (word: string): string => `${/^[aeiou]/.test(word) ? 'an' : 'a'} ${word}`;
+const an = (kind: string): string => { const word = nameOf(kind); return `${/^[aeiou]/.test(word) ? 'an' : 'a'} ${word}`; };
 const An = (word: string): string => an(word).replace(/^a/, 'A');
 const listed = (names: readonly string[]): string => names.map((one) => `"${one}"`).join(', ');
 const unknownFields = (value: object, known: readonly string[], at: string): string[] =>
@@ -512,6 +622,17 @@ function ruleProblems(rule: unknown, at: string, context: LookContext, sets: Set
 const noField = (at: string, kind: LookKind, field: string, known: readonly string[]): string =>
   `${at}: ${an(kind)} has no field "${field}". Its fields are ${listed(known)}.${nearestPart(field, known)}`;
 
+/** The ids of parts that the saved change of the branch does not have; none when the branch has no saved change: then they are not checked. */
+const partProblems = (ids: string[], at: string, { parts }: LookContext): string[] => (parts
+  ? ids.filter((id) => !parts.includes(id)).map((id) => `${at}: the change of this branch has no part "${id}". Its parts are ${parts.join(', ')}.${nearestPart(id, parts)}`)
+  : []);
+
+/** True when a rule reads a part id: then a branch with no saved change cannot check it, and set-look --check says so in a note. */
+export const namesPart = (rule: LookRule): boolean => {
+  const fields = (LOOK_PARTS.components as Readonly<Record<string, Component>>)[rule.pick?.kind]?.fields ?? {};
+  return Object.keys(rule.pick?.where ?? {}).some((field) => fields[field] === 'part');
+};
+
 /** The problems of the pick "where": known fields of the component, each with a value of its kind or a list of them. */
 function whereProblems(where: unknown, at: string, ctx: RuleContext): string[] {
   const fields = ctx.component.fields;
@@ -522,7 +643,7 @@ function whereProblems(where: unknown, at: string, ctx: RuleContext): string[] {
     const kind = fields[field];
     const values = Array.isArray(value) ? value : [value];
     const fits = (one: unknown): boolean => (Array.isArray(kind) ? kind.includes(one as string) : kind === 'count' ? Number.isInteger(one) && (one as number) >= 0 : kind === 'yes' ? typeof one === 'boolean' : isText(one));
-    if (values.length && values.every(fits)) return [];
+    if (values.length && values.every(fits)) return kind === 'part' ? partProblems(values as string[], at, ctx.context) : [];
     const wanted = Array.isArray(kind) ? `one of ${listed(kind)}` : kind === 'count' ? 'a whole number' : kind === 'yes' ? 'true or false' : 'words';
     return [`${at}: "${field}" of ${an(ctx.kind)} is ${wanted}, or a list of them.`];
   });
@@ -575,7 +696,13 @@ export function valueProblem(kind: ValueKind, value: unknown, at: string, field:
       return value.filter((name) => !shows.includes(name)).map((name) => `${at}: ${an(ctx.kind)} shows no field "${name}". It shows ${listed(shows)}.${nearestPart(name, shows)}`);
     }
     case 'field': return isText(value) && known.includes(value) ? [] : [noField(at, ctx.kind, String(value), known)];
-    case 'ids': return Array.isArray(value) && value.length && value.every(isText) ? [] : wrong;
+    case 'ids': {
+      if (!(Array.isArray(value) && value.length && value.every(isText))) return wrong;
+      // A component whose ids are a few fixed values (the views) names the ones that it has.
+      const ids = component.fields.id;
+      const name = component.name ?? nameOf(ctx.kind);
+      return Array.isArray(ids) ? value.filter((id) => !ids.includes(id)).map((id) => `${at}: "${id}" is no ${name}. The ${name}s are ${listed(ids)}.${nearestPart(id, ids)}`) : [];
+    }
     case 'target': return targetProblems(value, at, context);
     case 'keys': return keyProblems(value, at, context);
     case 'menu':

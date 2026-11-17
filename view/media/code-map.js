@@ -65,9 +65,10 @@ const CodeMap = {
  * The map of the rows of `view` (codeWithNotes), in `side`: the column of the notes, or a column of its own. It sticks at the right of the box `scroller`,
  * from `top()` down; it moves with the file when the file is taller than the map, so that its top shows at the top and its end at the end.
  * `rowHtml(index)` is the coloured HTML of a row (the colours of the code view); `spans` are the rows of each note, for the marks at its edge;
- * `narrow` puts it beside the marks of the notes; `holder` is the element that gets the class "with-map" while the map shows.
+ * `narrow` puts it beside the marks of the notes; `holder` is the element that gets the class "with-map" while the map shows; `tint(line)` is the colour that a rule of
+ * the look gives a line of the file now, or nothing.
  */
-function codeMap(side, { scroller, view, rowHtml, spans = [], top = () => 0, narrow = false, holder }) {
+function codeMap(side, { scroller, view, rowHtml, spans = [], top = () => 0, narrow = false, holder, tint = () => undefined }) {
   const width = narrow ? MAP_NARROW : MAP_WIDTH;
   const el = html(`<div class="cmap" style="width:${width}px"><canvas></canvas><i class="slider"></i><i class="probe"></i></div>`);
   side.prepend(el);
@@ -115,6 +116,8 @@ function codeMap(side, { scroller, view, rowHtml, spans = [], top = () => 0, nar
       const y = yOf(index);
       const tall = yOf(index + 1) - y;
       if (row.kind === 'add' || row.kind === 'del') { paint.globalAlpha = 1; paint.fillStyle = colors[row.kind]; paint.fillRect(0, y, width, tall); }
+      const tone = row.now && row.kind !== 'del' && tint(row.now) && Marks.lineColors(tint(row.now)); // the tint of a rule of the look, in the colour of the theme
+      if (tone) { paint.globalAlpha = 0.45; paint.fillStyle = document.body.classList.contains('vscode-dark') ? tone.dark : tone.light; paint.fillRect(0, y, width, tall); }
       if (row.kind === 'gap' || row.kind === 'cell') continue;
       if (!pieces.has(index)) pieces.set(index, mapPieces(rowHtml(index)));
       paint.globalAlpha = MAP_INK; // the code is faint, as on the map of VS Code: the map is for the shape

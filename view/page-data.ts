@@ -119,7 +119,7 @@ export interface PageData {
   head?: string; // the commit that the diffs end at: a pull request that is not checked out
   pullOnly?: PullOnly; // a pull request with no stored change: the page has "Conversation" and "Diffs"
   plain?: true; // a file tab with no change: the code as it is, with no diff, and the notes beside it
-  look?: LookData; // the look of the repo for the note cards of a file tab; the marks of a file come with its code
+  look?: LookData; // the look of the repo for the page and its file tabs; the marks of a file come with its code
 }
 
 /** A page for a pull request with no stored change. */
@@ -395,11 +395,13 @@ export function notesBeside(store: Store, page: PageData, path: string, lines: s
 /** Gives the notes of other changes beside a file, for the answer to "code:<path>". */
 export type OtherNotes = (path: string, lines: string[]) => PageNote[];
 
-/** The look of the repo of a page, for its note cards; with no map the look has nothing to draw. */
-export function lookOfPage(store: Store, page: PageData): LookData | undefined {
+/**
+ * The look of the repo of a page, for the whole page of a change and its file tabs; also for a repo with no map, whose look then has no marks.
+ * `address` turns a kept file of the look into an address that the page may load (a picture in place of a step).
+ */
+export function lookOfPage(store: Store, page: PageData, address: (file: string) => string = (file) => file): LookData | undefined {
   try {
-    const repo = repoId(page.folder);
-    return store.getMap(repo) ? lookData(store, repo, page.folder, (file) => file, false) : undefined;
+    return lookData(store, repoId(page.folder), page.folder, address, false);
   } catch {
     return undefined;
   }

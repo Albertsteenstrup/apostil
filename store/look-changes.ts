@@ -1,11 +1,13 @@
 // What each rule of a look picks now, in words, for `apostil set-look` and `apostil set-look --check`: "Rule 1: 2 nodes get a colour.", and a note
 // for a rule that picks nothing now (not a fault: the marks of a new set come after the save). The picks are the pages' own: the first part of
-// view/media/marks.js, read in Node as view/marks.test.ts does, on the diagrams of Home (homeData) and on the note cards of the map.
+// view/media/marks.js, read in Node as view/marks.test.ts does, on the diagrams of Home (homeData) and on the note cards of the map; and on the page of
+// the saved change of the branch and its file tabs (changeThings and fileThings of marks.js, build 60).
 
-import { LOOK_PARTS, type Look, type LookPartsList, type Pick } from '../shared/look';
-import { repoId, repoRoot } from '../shared/git';
+import { LOOK_PARTS, nameOf, namesPart, type Look, type LookPartsList, type Pick } from '../shared/look';
+import { currentBranch, repoId, repoRoot } from '../shared/git';
 import type { Store } from '../shared/store';
 import { homeData, type HomeDiagram } from '../view/home-data';
+import { pageData } from '../view/page-data';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const Marks = require('../../view/media/marks.js');
@@ -14,8 +16,12 @@ const LIST: LookPartsList = LOOK_PARTS;
 
 type Thing = { kind: string; slots?: Record<string, unknown> } & Record<string, unknown>;
 
-/** Counts the things that a pick takes now, as the pages pick them. */
-function counter(store: Store, folder: string): (pick: Pick) => number {
+/** The kinds of the page of a change and of its file tabs: they are counted on the saved change of the branch and the files with notes or marks. */
+const PAGE_AREAS = ['change', 'diffs', 'comments', 'file-tab'];
+const onPage = (kind: string): boolean => PAGE_AREAS.includes((LIST.components[kind]?.area ?? ''));
+
+/** Counts the things that a pick takes now, as the pages pick them. `page` says whether the branch has a saved change. */
+function counter(store: Store, folder: string): ((pick: Pick) => number) & { page: boolean } {
   const root = repoRoot(folder);
   const home = homeData(store, root);
   const marks = home.look?.marks ?? [];
@@ -29,13 +35,29 @@ function counter(store: Store, folder: string): (pick: Pick) => number {
     return { ...card, marks: Marks.marksIn(card, marks) };
   });
   const windows: Thing[] = diagrams.flatMap(({ diagram, things: ofDiagram }) => Object.entries(ofDiagram).filter(([node]) => diagram.nodes[node]?.note).map(([, thing]) => ({ ...thing, kind: 'note' })));
-  return (pick) => {
+  // The page of the saved change of the branch, and the file tabs of the files with notes (of the change or of the map) or with marks.
+  const change = store.findChange(repoId(root), currentBranch(root));
+  const page = change ? pageData(store, change.id, root) : undefined;
+  const notes = [...(page?.notes ?? []).filter((note) => !note.removed), ...(map?.fileNotes ?? [])].sort((a, b) => a.lines[0] - b.lines[0]);
+  const files = [...new Set([...notes.map((note) => note.file), ...marks.map((mark: { file: string }) => mark.file)])];
+  const tests = (name: string): number => page?.functionTests[name] ?? 0;
+  const ofPage: Thing[] = [...(page ? Marks.changeThings(page) : []), ...files.flatMap((path) => Marks.fileThings(path, notes.filter((note) => note.file === path), marks, tests))];
+  const count = (pick: Pick): number => {
+    if (onPage(pick.kind)) return ofPage.filter((thing) => thing.kind === pick.kind && Marks.picks(pick, thing)).length;
     if (pick.kind === 'note') return (pick.diagram ? windows : cards).filter((thing) => Marks.picks(pick, thing)).length;
     if (pick.kind !== 'arrow') return things.filter((thing) => Marks.picks(pick, thing)).length;
     // An arrow is a thing only inside edgesOf(), which gives the slots of a rule to the arrows that it picks: a probe slot tells which.
     const probe = { marks, rules: [{ pick, probe: { on: true } }] };
     return diagrams.reduce((sum, { diagram, things: ofDiagram }) => sum + Marks.edgesOf(diagram, probe, ofDiagram).filter((edge: Thing) => edge.slots?.['probe.on']).length, 0);
   };
+  return Object.assign(count, { page: !!page });
+}
+
+/** Many of a kind in words: "nodes", "cards of the change", "boxes of the files in no part", "comment marks". */
+function many(kind: string): string {
+  const name = nameOf(kind);
+  const [head, rest = ''] = name.split(/(?= (?:of|between|in|to) )/);
+  return `${head.replace(/(x|s)$/, '$1e')}s${rest}`;
 }
 
 const joined = (items: string[]): string => (items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`);
@@ -48,9 +70,10 @@ function gives(rule: Look['rules'][number]): string {
 }
 
 /** Why a pick takes nothing now: the first part of it that alone takes nothing. */
-function whyNothing(pick: Pick, count: (pick: Pick) => number): string {
+function whyNothing(pick: Pick, count: ((pick: Pick) => number) & { page: boolean }): string {
   const { kind, ...rest } = pick;
-  if (!count({ kind })) return `the map has no ${kind} now`;
+  if (!count({ kind }) && onPage(kind) && !count.page && LIST.components[kind]?.area !== 'file-tab') return 'this branch has no saved change';
+  if (!count({ kind })) return onPage(kind) ? `no page has a ${nameOf(kind)} now` : `the map has no ${kind} now`;
   for (const [key, value] of Object.entries(rest) as [string, unknown][]) {
     if (count({ kind, [key]: value } as Pick)) continue;
     const list = Array.isArray(value) ? value.join(', ') : String(value);
@@ -58,9 +81,9 @@ function whyNothing(pick: Pick, count: (pick: Pick) => number): string {
     if (key === 'paths') return `no ${kind} lies inside ${list}`;
     if (key === 'diagram') return `the diagram "${list}" has no ${kind}`;
     if (key === 'nodes') return kind === 'arrow' ? `no arrow runs between the nodes ${list}` : `no ${kind} is one of the nodes ${list}`;
-    return `no ${kind} fits its "${key}"`;
+    return `no ${nameOf(kind)} fits its "${key}"`;
   }
-  return `no ${kind} fits all of its pick at once`;
+  return `no ${nameOf(kind)} fits all of its pick at once`;
 }
 
 /** One line for each rule of a look that passed the check: how many things it picks now and what it gives them; and a note for each rule that picks nothing. */
@@ -69,9 +92,11 @@ export function lookChanges(store: Store, folder: string, look: Look): { changes
   const changes: string[] = [];
   const notes: string[] = [];
   look.rules.forEach((rule, index) => {
-    const many = count(rule.pick);
-    changes.push(`Rule ${index + 1}: ${many} ${rule.pick.kind}${many === 1 ? ' gets' : 's get'} ${gives(rule)}.`);
-    if (!many) notes.push(`Rule ${index + 1} picks nothing now: ${whyNothing(rule.pick, count)}.`);
+    const picked = count(rule.pick);
+    changes.push(`Rule ${index + 1}: ${picked} ${picked === 1 ? `${nameOf(rule.pick.kind)} gets` : `${many(rule.pick.kind)} get`} ${gives(rule)}.`);
+    if (!picked) notes.push(`Rule ${index + 1} picks nothing now: ${whyNothing(rule.pick, count)}.`);
+    // A part id is checked against the saved change of the branch; with none, it is not checked.
+    if (namesPart(rule) && !count.page) notes.push(`Rule ${index + 1} names a part, and this branch has no saved change: the part is not checked.`);
   });
   return { changes, notes };
 }
