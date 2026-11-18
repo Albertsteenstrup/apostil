@@ -66,6 +66,15 @@ try {
       && after.text === 'Description by a new Claude Code session 1a2b3c4d · working · Open the session' && !after.press && after.open?.tip === 'Opens a terminal of VS Code that continues the session'
       && after.moves === 0 && JSON.stringify(opened) === JSON.stringify([{ type: 'openAskSession', words: WORDS }]),
     JSON.stringify({ sent, after, opened }));
+
+  // A press that started no run (build 77: Apostil could not get the branch of the pull request): the line says why in one sentence, with the press again.
+  const why = 'Could not check out the branch made-up/reminders of pull request #35: couldn\'t find remote ref pull/35/head.';
+  await page.evaluate(({ words, why }) => window.postMessage({ type: 'asked', ask: { words, problem: why, press: { label: 'Describe it with a new Claude Code session', tip: 'Starts a new Claude Code session that writes the description.' } } }, '*'), { words: WORDS, why });
+  await page.waitForFunction(() => !document.querySelector('#summary [data-ask-open]'), null, { timeout: 3000 }).catch(() => {});
+  const failed = await line();
+  check('a press that started no run, because the branch of the pull request could not be checked out: the line says why in one sentence, with the press again, and nothing in it moves',
+    failed.text === `${why} Describe it with a new Claude Code session` && failed.press?.label === 'Describe it with a new Claude Code session' && failed.moves === 0,
+    JSON.stringify(failed));
   await page.close();
 } catch (error) {
   check('the check ran to its end', false, error.stack);

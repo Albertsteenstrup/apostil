@@ -88,8 +88,12 @@ writeFileSync(path.join(temp, 'pulls.json'), JSON.stringify([
 // The open pull requests of the repo (gh pr list --state open): one with no stored change, whose branch has no row.
 writeFileSync(path.join(temp, 'open-pulls.json'), JSON.stringify([pr(35, 'OPEN', 'REVIEW_REQUIRED', false, { author: JONAS, headRefName: 'made-up/reminders' })]));
 writeFileSync(path.join(temp, 'conversation.json'), JSON.stringify({ data: { repository: { pullRequest: examplePullRequest().raw.pr } } }));
-// The read of #35 answers as #35: with the conversation of #12 the page of #35 said "#12" as soon as the answer came.
-writeFileSync(path.join(temp, 'conversation-35.json'), JSON.stringify({ data: { repository: { pullRequest: { ...examplePullRequest().raw.pr, number: 35, title: 'Made-up pull request 35', url: 'https://github.com/made-up/example/pull/35' } } } }));
+// The read of #35 answers as #35: with the conversation of #12 the page of #35 said "#12" as soon as the answer came. Its branch is the one of the list, at
+// commits that the example has, so that its press checks that branch out for the run with no network (build 77).
+writeFileSync(path.join(temp, 'conversation-35.json'), JSON.stringify({ data: { repository: { pullRequest: {
+  ...examplePullRequest().raw.pr, number: 35, title: 'Made-up pull request 35', url: 'https://github.com/made-up/example/pull/35',
+  headRefName: 'made-up/reminders', baseRefName: 'main', headRefOid: example.head, baseRefOid: example.base,
+} } } }));
 writeFileSync(path.join(bin, 'write.mjs'), [
   "import { appendFileSync, readFileSync } from 'node:fs';",
   "const input = readFileSync(0, 'utf8');",
@@ -1226,10 +1230,12 @@ try {
   const pressRun = await until(() => runsNow().length > runsBeforePress && runsNow().at(-1));
   const wentLine = await until(() => barePage?.evaluate(() => (document.querySelector('#summary [data-ask-open]') ? document.getElementById('summary').textContent : '')), 8000);
   await shot('2c-the-words-went-to-a-session');
-  check('the link names the Claude Code session that will describe the pull request; a click starts one run of the stand-in claude with the words, the rights of a description (it reads the repo, gh pr view too), and the small model at the most effort, also in a session that it continues, and the line names the session, with "Open the session"',
-    /^Describe it with (a new Claude Code session|Claude Code session .+)$/.test(pressLabel ?? '') && !!pressRun && pressRun.includes('Describe pull request #35 for Apostil\n')
+  // Build 77: the sessions that Apostil knows here are on the branch of the example, and a session cannot continue in another folder, so the link names a new
+  // session; Apostil checks the branch of #35 out for it, and its words say so.
+  check('the link names the Claude Code session that will describe the pull request, a new one since no known session has its branch; a click starts one run of the stand-in claude with the words and that the branch is checked out, the rights of a description (it reads the repo, gh pr view too), and the small model at the most effort, and the line names the session, with "Open the session"',
+    pressLabel === 'Describe it with a new Claude Code session' && !!pressRun && pressRun.includes('Describe pull request #35 for Apostil. The branch of the pull request is checked out in this folder.\n')
       && pressRun.includes('--model\nhaiku\n') && pressRun.includes('--effort\nmax\n')
-      && pressRun.includes('Bash(git show *)\n') && pressRun.includes('Bash(gh pr view *)\n') && /^Description by (a new )?Claude Code session \S.* · (working|done) · Open the session$/.test(wentLine ?? ''),
+      && pressRun.includes('Bash(git show *)\n') && pressRun.includes('Bash(gh pr view *)\n') && /^Description by a new Claude Code session \S.* · (working|done) · Open the session$/.test(wentLine ?? ''),
     JSON.stringify({ pressLabel, run: (pressRun || '').replace(/\n/g, ' ').slice(0, 300), wentLine }));
   // The Apostil icon in the activity bar has a badge with the count of open pull requests (the stand-in gh lists one), as Source Control has.
   const badge = await until(() => page.evaluate(() => {

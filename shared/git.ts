@@ -51,16 +51,21 @@ export const changedBetween = (before: Map<string, string>, after: Map<string, s
   [...new Set([...before.keys(), ...after.keys()])].filter((path) => before.get(path) !== after.get(path)).sort();
 
 /**
- * Gets the commits of a pull request from a remote (`git fetch <remote> pull/<n>/head`), in the background: only objects and FETCH_HEAD change, no branch.
- * Gives back nothing when it worked, else the first line of what git said.
+ * Runs git in the background, for what may take a while (a fetch, a new worktree). Git never asks for a password here.
+ * Gives back nothing when it worked, else what git said: its line "fatal: …" or "error: …", else its first line.
  */
-export function fetchPullCommits(folder: string, remote: string, pull: number, timeout = 60_000): Promise<string | undefined> {
+export function gitLater(folder: string, args: string[], timeout = 60_000): Promise<string | undefined> {
   return new Promise((done) => {
-    execFile('git', ['fetch', '--no-tags', remote, `pull/${pull}/head`], { cwd: folder, timeout, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } }, (error, _out, err) => {
-      done(error ? (String(err).trim().split('\n').find(Boolean) ?? error.message) : undefined);
+    execFile('git', args, { cwd: folder, timeout, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } }, (error, _out, err) => {
+      const lines = String(err).trim().split('\n').filter(Boolean);
+      done(error ? (lines.find((line) => /^(fatal|error):/.test(line)) ?? lines[0] ?? error.message) : undefined);
     });
   });
 }
+
+/** Gets the commits of a pull request from a remote (`git fetch <remote> pull/<n>/head`), in the background: only objects and FETCH_HEAD change, no branch. */
+export const fetchPullCommits = (folder: string, remote: string, pull: number, timeout = 60_000): Promise<string | undefined> =>
+  gitLater(folder, ['fetch', '--no-tags', remote, `pull/${pull}/head`], timeout);
 
 /** The commits of a range such as "base..head", from one call of git: how many, and when the first one was written (ISO). None when git fails. */
 export function commitsOf(folder: string, range: string): { count: number; first?: string } {

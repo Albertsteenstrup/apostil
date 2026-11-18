@@ -82,4 +82,5 @@ export interface AskView {
   words: string;
   press?: { label: string; tip: string };
   line?: AskLine;
+  problem?: string; // why the last press started no run, in one sentence (the branch of the pull request could not be checked out)
 }

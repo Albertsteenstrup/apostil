@@ -6,16 +6,17 @@ import { existsSync, readFileSync } from 'node:fs';
 import { basename, join, relative, sep } from 'node:path';
 import * as vscode from 'vscode';
 import { openSessionCommand, sessionLink, resumeCommand, type AgentSession } from '../shared/agents';
-import { describeWords } from '../shared/ask';
+import { describeWords, type AskView } from '../shared/ask';
 import { keptInChange, withKept } from '../shared/comment-lines';
 import { fetchPullCommits, rawFileText } from '../shared/git';
 import type { Target } from '../shared/look';
 import { ghPictures, inlinePictures } from '../shared/pull-pictures';
-import { pullRequestFrom, readPullRequest, runGh, type PullRequestView } from '../shared/read-pull-request';
+import { githubRepoOf, pullRequestFrom, readPullRequest, runGh, type PullRequestView } from '../shared/read-pull-request';
 import { writePullRequest, type Write } from '../shared/write-pull-request';
 import type { AppState, RemarkTarget, RemarkTo, Store } from '../shared/store';
 import { startRun } from './agent-run';
 import { askRunOf, askView, startAsk } from './ask-run';
+import type { PullHead } from './pull-folder';
 import { appName, commentRuns, runModels, showRunProblem } from './run-settings';
 import { iconCss } from './state-icons';
 import { blocksAnswer } from './look-blocks';
@@ -168,6 +169,8 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
   private sentPulls = ''; // the pull requests of the branch that the page got last
   private fetched = new Set<string>(); // the pull requests whose commits Apostil tried to get, while VS Code runs
   private pullRead?: { link: string; read: PullAnswer }; // the pull request that the page read last: the file tabs comment on its code
+  private asking = false; // a press gets the branch of its pull request ready: a second click starts nothing
+  private askProblem?: { words: string; problem: string }; // why the last press of these words started no run
   private signature = '';
   private visibleSince = 0;
   private pointerOn?: View; // the view that the pointer is on
@@ -335,28 +338,49 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
     return { type: 'data', page: this.page, pulls, file: view.file, lines, at, trail: this.trail?.steps, minimap: minimapOn(), ask: this.askNow(), ...(view.file && this.pullRead ? { pullRead: this.pullRead } : {}) };
   }
 
-  /** The words for an agent of the page, with the press that sends them and the line of their run: a pull request of this repo with no stored change has them. */
-  private askNow(): ReturnType<typeof askView> | undefined {
+  /**
+   * The words for an agent of the page, with the press that sends them and the line of their run: a pull request of this repo with no stored change has them.
+   * After a press that started no run (the branch of the pull request could not be checked out), the press comes with why.
+   */
+  private askNow(): AskView | undefined {
     const bare = this.page?.pullOnly;
-    return bare && !bare.otherRepo ? askView(this.store, this.openFolder(), describeWords(bare.number), this.apps) : undefined;
+    if (!bare || bare.otherRepo) return undefined;
+    const words = describeWords(bare.number);
+    const view = askView(this.store, this.openFolder(), words, this.apps, { pull: this.pullHead() });
+    return view.press && this.askProblem?.words === words ? { ...view, problem: this.askProblem.problem } : view;
   }
 
-  /** The press: the words go to the session that it named (view/ask-run.ts), and the page shows the line of their run as it changes. */
-  private askAgent(words: string): void {
-    if (this.askNow()?.press?.label === undefined) return; // a second click while the run works starts nothing
+  /** The pull request of the page, as the run that describes it needs it: Apostil checks its head branch out for the run (view/pull-folder.ts). */
+  private pullHead(): PullHead | undefined {
+    const page = this.page;
+    if (!page?.pullOnly) return undefined;
+    return { number: page.pullOnly.number, branch: page.branch, head: page.head ?? '', base: page.base, remote: githubRepoOf(this.openFolder())?.remote };
+  }
+
+  /**
+   * The press: the words go to the session that it named (view/ask-run.ts), in a folder with the head branch of the pull request checked out, and the page
+   * shows the line of their run as it changes. When that branch cannot be checked out, no run starts, and the line says why, with the press again.
+   */
+  private async askAgent(words: string): Promise<void> {
+    const now = this.askNow();
+    // A second click while the branch is checked out or the run works starts nothing; nor do words of a pull request that the page no longer shows ("try again").
+    if (this.asking || now?.words !== words || now.press === undefined) return;
     const folder = this.openFolder();
     const tell = (): void => {
       const ask = this.askNow();
       const page = [...this.views].find((one) => one.panel === this.panel);
       if (page && ask?.words === words) this.post(page, { type: 'asked', ask });
     };
-    const again = (): void => this.askAgent(words);
-    const started = startAsk(this.store, folder, words, this.apps, runModels(), tell, (problem, facts) => {
+    const again = (): void => void this.askAgent(words);
+    this.asking = true;
+    this.askProblem = undefined;
+    const started = await startAsk(this.store, folder, words, this.apps, runModels(), tell, (problem, facts) => {
       const app = askRunOf(this.store, folder, words)?.agent.app ?? '';
       // "codex" stays in small letters at the start: the problem of its model is told by that word (runProblem).
       if (problem) showRunProblem(`${app === 'codex' ? 'codex' : appName(app)} did not finish "${words}". It said: ${problem}`, { app, again, folder, ...facts });
-    });
-    if (!started) return void vscode.window.showWarningMessage('No agent app can be started from here.');
+    }, { pull: this.pullHead() }).finally(() => { this.asking = false; });
+    if (started === false) return void vscode.window.showWarningMessage('No agent app can be started from here.');
+    if (typeof started === 'string') this.askProblem = { words, problem: started };
     tell();
   }
 
@@ -559,11 +583,12 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
         else this.post(view, { type: 'answer', id: message.id, value: this.page ? answer(this.page, message.question, (path, lines) => notesBeside(this.store, this.page!, path, lines), (path) => marksBeside(this.store, this.page!, path)) : undefined });
         break;
       case 'askAgent':
-        this.askAgent(message.words);
+        await this.askAgent(message.words);
         break;
       case 'openAskSession': {
+        // The worktree of a run for a pull request is gone when the run ended: the terminal then opens in the open folder.
         const run = askRunOf(this.store, this.openFolder(), message.words);
-        openAgentSession(run?.agent, run?.folder ?? this.openFolder());
+        openAgentSession(run?.agent, run?.folder && existsSync(run.folder) ? run.folder : this.openFolder());
         break;
       }
       case 'looked':
