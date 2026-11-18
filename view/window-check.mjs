@@ -239,6 +239,12 @@ try {
     let at = await until(place, 4000);
     if (!at) throw new Error(`No tab "${name}" to close; the tabs: ${(await tabs()).join(', ')}`);
     for (let turn = 0; at && turn < 3; turn += 1) {
+      // A quick input that a step before left open keeps the tab from closing: Escape closes it first.
+      if (await quickInput.isVisible()) {
+        console.log(`NOTE  a quick input was open before the tab "${name}" closed: "${await page.locator('.quick-input-box input').getAttribute('aria-label').catch(() => '')}"; Escape first`);
+        await page.keyboard.press('Escape');
+        await quickInput.waitFor({ state: 'hidden', timeout: 2000 }).catch(() => {});
+      }
       await page.mouse.click(at.x, at.y, { button: 'middle' });
       if (await until(async () => !(await place()), 1500)) return;
       console.log(`NOTE  the tab "${name}" still stands after a middle click; once more (tabs ${(await tabs()).join(', ')}; menu ${await page.locator('.monaco-menu').count()}; quick input ${await quickInput.isVisible()}; block ${await page.locator('.context-view-block, .monaco-dialog-modal-block').count()}; focus ${await page.evaluate(() => `${document.activeElement?.tagName}.${String(document.activeElement?.className).slice(0, 50)}`)})`);
@@ -559,7 +565,13 @@ try {
   await list?.locator('.home').click();
   const processHome = await homeFrame();
   for (const key of ['routes', 'q0', 's2', 's7']) await processHome?.locator(`#view g.node[id*="flowchart-${key}-"]`).click({ timeout: 8000 });
-  const stepTab = await frameWhere(() => typeof App === 'object' && App.tab?.endsWith('lending/requests.py') && App.state?.lines?.join() === '62,62' && !!document.querySelector('.cv [data-line="62"]'), undefined, 8000);
+  const inStepTab = () => frameWhere(() => typeof App === 'object' && App.tab?.endsWith('lending/requests.py') && App.state?.lines?.join() === '62,62' && !!document.querySelector('.cv [data-line="62"]'), undefined, 8000);
+  let stepTab = await inStepTab();
+  if (!stepTab && /^Home/.test(await activeTab() ?? '')) { // under load the last click can land while Home draws the step again
+    console.log('NOTE  the click on the step left Home in front; once more');
+    await processHome?.locator('#view g.node[id*="flowchart-s7-"]').click({ timeout: 8000 }).catch(() => {});
+    stepTab = await inStepTab();
+  }
   check('from Home a click on a node goes down to its processes, and a click on a step opens its file at its first line, in the file tab with its notes', !!stepTab && /^requests\.py/.test(await activeTab() ?? ''), `tab ${await activeTab()}`);
 
   // A click whose target is a prompt (a look of the repo, build 57): VS Code asks with the whole words and "Send". With no "Send" the stand-in claude
@@ -572,8 +584,13 @@ try {
   const promptHome = await frameWhere(() => typeof Home === 'object' && Home.data?.look?.rules.some((rule) => rule.click?.prompt) && !!document.querySelector('#view g.node[id*="flowchart-jobs-"]'));
   const dialog = page.locator('.monaco-dialog-box');
   const answerPrompt = async (button) => {
-    await promptHome?.locator('#view g.node[id*="flowchart-jobs-"]').click({ timeout: 4000 }).catch(() => {});
-    const shownAsk = await shown(dialog, 6000);
+    // Under load Home can draw again right after a question closes: a click that brings no question is made once more.
+    let shownAsk = false;
+    for (let turn = 0; turn < 2 && !shownAsk; turn += 1) {
+      if (turn) console.log('NOTE  the click on the node brought no question; once more');
+      await promptHome?.locator('#view g.node[id*="flowchart-jobs-"]').click({ timeout: 4000 }).catch(() => {});
+      shownAsk = await shown(dialog, 6000);
+    }
     const words = shownAsk ? (await dialog.textContent()).replace(/\s+/g, ' ') : '';
     const buttons = shownAsk ? await dialog.locator('.dialog-buttons .monaco-button').allTextContents() : [];
     if (shownAsk) await dialog.locator('.dialog-buttons .monaco-button', { hasText: button }).click();
