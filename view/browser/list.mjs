@@ -179,8 +179,18 @@ try {
   });
   await narrow.keyboard.press('Escape');
   const shutAgain = await narrow.evaluate(() => document.querySelector('.find').hidden);
-  check('the search of the list is one icon at the right end of the row "Home"; a click shows the field with the keyboard in it and a clear background, and Escape in the empty field hides it again',
-    shut.hidden && shut.beside && shut.right <= 12 && shut.label === 'Search changes' && field.focused && field.clear === 'rgba(0, 0, 0, 0)' && shutAgain, JSON.stringify({ shut, field, shutAgain }));
+  // A click on the icon while the field shows hides it (the owner: "when I click on search icon when it is shown then hide"): the empty field with the keyboard
+  // in it, and a field with text, whose search then ends so that no hidden text keeps rows away.
+  await narrow.click('.cl .seek');
+  await narrow.click('.cl .seek');
+  const emptyHidden = await narrow.evaluate(() => document.querySelector('.find').hidden);
+  await narrow.click('.cl .seek');
+  await narrow.keyboard.type('zz');
+  await narrow.click('.cl .seek');
+  const typedHidden = await narrow.evaluate(() => ({ hidden: document.querySelector('.find').hidden, text: document.querySelector('.find .q').value, rows: document.querySelectorAll('.cl .changes .row, .cl .changes [data-change]').length }));
+  check('the search of the list is one icon at the right end of the row "Home"; a click shows the field with the keyboard in it and a clear background, and Escape in the empty field hides it again; a click on the icon while the field shows hides it, also with text in it, and that search ends',
+    shut.hidden && shut.beside && shut.right <= 12 && shut.label === 'Search changes' && field.focused && field.clear === 'rgba(0, 0, 0, 0)' && shutAgain
+      && emptyHidden && typedHidden.hidden && typedHidden.text === '', JSON.stringify({ shut, field, shutAgain, emptyHidden, typedHidden }));
   await narrow.click('.cl .seek');
   const empty = await narrow.evaluate(readList);
   check('at 250 px the opened empty field stands under "Home" and above "Changes", as wide as the view, with "Search changes" in it and the icon of sort and filter, 16 px, inside it at the right; the list is grouped as before, with no dot',

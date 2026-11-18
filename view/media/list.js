@@ -184,6 +184,7 @@ function orderedHtml(order) {
  * asked for by `askMenu`). It stays hidden behind the search icon of the row "Home" until a click on that icon, or while a search or a sort is on.
  */
 let searchOpen = false;
+let searchShut = false; // he hid the field with its icon: it stays hidden also while a sort or filter is on (the icon is marked then)
 const findHtml = () => {
   const words = States.WORDS;
   return `<div class="find" hidden><input class="q" type="text" placeholder="${esc(words.searchChanges)}" aria-label="${esc(words.searchChanges)}" spellcheck="false" autocomplete="off">`
@@ -199,15 +200,23 @@ function markField(query) {
   find.classList.toggle('typed', !!search.text);
   find.querySelector('.clear').hidden = !search.text;
   find.querySelector('.sf .on').hidden = Search.defaultSort(search) && !query.words.length;
-  find.hidden = !searchOpen && !search.text && find.querySelector('.sf .on').hidden;
-  document.querySelector('.cl .seek')?.classList.toggle('on', !find.hidden);
+  const sorted = !find.querySelector('.sf .on').hidden; // a sort or filter that is not the default
+  if (search.text) searchShut = false; // text from VS Code (a look's first words, another repo) always shows its field
+  find.hidden = searchShut || (!searchOpen && !search.text && !sorted);
+  document.querySelector('.cl .seek')?.classList.toggle('on', !find.hidden || sorted);
 }
 
-/** A click on the search icon shows the field with the keyboard in it; with the field shown and nothing in it, the click hides it again. */
+/**
+ * A click on the search icon shows the field with the keyboard in it; with the field shown, the click hides it and ends the search, so no hidden text
+ * keeps rows away. A sort or filter stays, and the icon stays marked while one is on.
+ */
 function toggleSearch() {
   const find = document.querySelector('.find');
   searchOpen = find.hidden;
-  draw();
+  searchShut = !searchOpen;
+  if (searchShut && find.contains(document.activeElement)) document.activeElement.blur();
+  if (searchShut && search.text) setSearch({ text: '' });
+  else draw();
   if (searchOpen) find.querySelector('.q').focus();
 }
 
@@ -289,6 +298,8 @@ document.addEventListener('input', (event) => {
   if (event.target.matches?.('.find .q')) setSearch({ text: event.target.value });
 });
 document.addEventListener('focusout', (event) => { if (event.target.closest?.('.find')) setTimeout(closeSearchIfEmpty); });
+// The icon takes no keyboard on a press: else the field would lose it, close as empty, and the click would open it again.
+document.addEventListener('mousedown', (event) => { if (event.target.closest?.('[data-seek]')) event.preventDefault(); });
 
 // Escape in the field empties it. Down in the field opens "Sort and filter".
 document.addEventListener('keydown', (event) => {
