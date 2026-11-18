@@ -106,6 +106,7 @@ try {
   await home.hover(nodeOf(wanted.key));
   await home.waitForSelector('.win .tb .act [data-act]', { timeout: 3000 }).catch(() => {});
   const link = await home.textContent('.win .tb .act [data-act]').catch(() => '');
+  const linkKeys = await home.textContent('.win .tb .act .ak').catch(() => ''); // the small clue of the key beside the link
   await home.click('.win .tb .act [data-act]').catch(() => {});
   const byLink = await focusNow();
   await home.click('#summary [data-end-focus]').catch(() => {});
@@ -137,10 +138,10 @@ try {
   const onPanel = await panelNow();
   await home.keyboard.press('Escape');
   const panelAfter = await panelNow();
-  check('Option+click on a node of a diagram focuses it: the node, its arrows and the nodes at their other ends stay and the rest is faint, one quiet line names it, and the click leads nowhere; Escape ends it; the link "Focus on this node" in its window does the same, the × of the line ends it, and Option+click on the same node again ends it; a look that gives that click a target wins; a step of a drawn process is named without the count of its steps; on the graphs page the click focuses the node inside its panel and the page stays',
+  check('Option+click on a node of a diagram focuses it: the node, its arrows and the nodes at their other ends stay and the rest is faint, one quiet line names it, and the click leads nowhere; Escape ends it; the link "Focus on this node" in its window, with the key beside it as a small clue, does the same, the × of the line ends it, and Option+click on the same node again ends it; a look that gives that click a target wins; a step of a drawn process is named without the count of its steps; on the graphs page the click focuses the node inside its panel and the page stays',
     focused.on && focused.focused === wanted.key && focused.near === wanted.near && focused.faint === wanted.all - wanted.near.split(',').length && focused.faint > 0 && focused.arrows === wanted.arrows
       && focused.line === `Focus: ${wanted.name} · ×` && led.join() === '' && stayed === 'lib-lending'
-      && !afterEscape.on && afterEscape.faint === 0 && afterEscape.line === '' && link === 'Focus on this node' && byLink.focused === wanted.key && byLink.near === wanted.near
+      && !afterEscape.on && afterEscape.faint === 0 && afterEscape.line === '' && link === 'Focus on this node' && /^(⌥ click|Alt\+click)$/.test(linkKeys) && byLink.focused === wanted.key && byLink.near === wanted.near
       && !afterCross.on && !afterAgain.on && afterAgain.faint === 0 && !lookWins.on && lookWins.sent === 'target'
       && onStep.on && onStep.at === 'process:ask-request' && /\d+ steps?$/.test(stepWords) && /^Focus: \S/.test(onStep.line) && !/\d+ steps?/.test(onStep.line)
       && onPanel.graphs && onPanel.focused === 'service' && onPanel.panels === 1 && /Focus: \S/.test(onPanel.line) && panelAfter.graphs && panelAfter.panels === 0 && panelAfter.line === '',

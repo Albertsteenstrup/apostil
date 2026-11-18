@@ -31,8 +31,8 @@ export type SetupApp = (typeof SETUP_APPS)[number];
 /** A skill folder that Apostil put there holds this file, with the version that put it. */
 export const VERSION_FILE = '.apostil-version';
 
-/** The last line of `apostil setup` in a terminal, where nothing can be pressed: where the press is, and the words for an agent. */
-export const NEXT_STEP = 'Now open the repo in VS Code and press "Map this repo" on Apostil Home, or ask your agent: "Map this repo for Apostil."';
+/** The last line of `apostil setup` in a terminal, where nothing can be pressed: where the press is. It gives no words to type to an agent. */
+export const NEXT_STEP = 'Now open the repo in VS Code and press "Map this repo" on Apostil Home.';
 
 /** The install that runs this code: the skills and package.json two folders above out/store. */
 export function thisInstall(root = join(__dirname, '..', '..')): Install {

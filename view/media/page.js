@@ -442,14 +442,14 @@ async function drawPartView(tabs, view, part) {
 const describeWords = (number) => `Describe pull request #${number} for Apostil`;
 
 /**
- * A pull request with no stored change says so in one quiet line, with the words for an agent and one press that sends them to the session that it names
- * (`App.ask`, from VS Code); after the press, the line of their run. As a file in a browser, with no VS Code, the words stay as text.
+ * A pull request with no stored change says so in one quiet line, with one direct link that has the session that it names describe it (`App.ask`, from
+ * VS Code); after the press, the line of that run. The words for the agent never show. As a file in a browser, with no VS Code, the links that install an app.
  */
 function pullOnlyLineHtml() {
   const { pullOnly } = App.page;
   if (pullOnly.otherRepo) return '';
   const words = describeWords(pullOnly.number);
-  return askHtml(App.ask?.words === words ? App.ask : { words }, 'This pull request has no description of Apostil yet. Give an agent these words:');
+  return askHtml(App.ask?.words === words ? App.ask : { words }, 'This pull request has no description of Apostil yet.');
 }
 
 /** The line under the head, only for what shows nowhere else: the branch that a stacked change is compared with, and what the check found wrong. Empty for a change with nothing wrong: the counts of its files are in the diagram. */

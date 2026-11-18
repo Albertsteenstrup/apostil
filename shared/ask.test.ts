@@ -24,21 +24,21 @@ test('the session that words go to: on the page of a change its session, elsewhe
   assert.deepEqual(askTo([], installed, 'codex'), { kind: 'new', app: 'codex' });
   assert.deepEqual(askTo([known('codex', 'made-up-thread-0002', '09:00')], [], undefined), undefined);
 
-  // The press names the session that gets the words, so that nobody is surprised.
+  // The press is a direct link: it names the session that will describe the pull request, so that nobody is surprised, and gives no words to type.
   assert.equal(describeWords(35), 'Describe pull request #35 for Apostil');
-  assert.equal(askPress({ kind: 'new', app: 'claude-code' }).label, 'Ask a new Claude Code session');
-  assert.equal(askPress({ kind: 'current', agent: CHANGE, ofChange: true }).label, 'Ask the session of this change');
-  assert.equal(askPress({ kind: 'current', agent: { app: 'codex', session: 'made-up-thread-0002' } }, 'Fines for late books').label, 'Ask Codex session "Fines for late books"');
-  assert.equal(askPress({ kind: 'current', agent: { app: 'claude-code', session: '1a2b3c4d-0000-4000-8000-00000000cafe' } }).label, 'Ask Claude Code session 1a2b3c4d');
-  assert.match(askPress({ kind: 'current', agent: { app: 'claude-code', session: '1a2b3c4d-0000-4000-8000-00000000cafe' } }).tip, /newest Claude Code session that Apostil knows in this repo \(session 1a2b3c4d-0000-4000-8000-00000000cafe\)/);
+  assert.equal(askPress({ kind: 'new', app: 'claude-code' }).label, 'Describe it with a new Claude Code session');
+  assert.equal(askPress({ kind: 'current', agent: CHANGE, ofChange: true }).label, 'Describe it with the session of this change');
+  assert.equal(askPress({ kind: 'current', agent: { app: 'codex', session: 'made-up-thread-0002' } }, 'Fines for late books').label, 'Describe it with Codex session "Fines for late books"');
+  assert.equal(askPress({ kind: 'current', agent: { app: 'claude-code', session: '1a2b3c4d-0000-4000-8000-00000000cafe' } }).label, 'Describe it with Claude Code session 1a2b3c4d');
+  assert.match(askPress({ kind: 'current', agent: { app: 'claude-code', session: '1a2b3c4d-0000-4000-8000-00000000cafe' } }).tip, /newest Claude Code session that Apostil knows in this repo writes the description \(session 1a2b3c4d-0000-4000-8000-00000000cafe\)/);
 
-  // The line after the press: that the words went to the session, its state, and where the session opens (in its app, else in a terminal).
+  // The line after the press: which session writes the description, its state, and where the session opens (in its app, else in a terminal).
   const run: AskRun = { to: 'new', agent: { app: 'claude-code', session: '1a2b3c4d-0000-4000-8000-00000000cafe' }, folder: '/made-up/repo', startedAt: '2026-11-18T12:00:00Z', pid: 1 };
-  assert.deepEqual(askLine(run, true), { words: 'went to a new Claude Code session 1a2b3c4d', state: 'working', tip: 'Session 1a2b3c4d-0000-4000-8000-00000000cafe', opens: 'terminal' });
+  assert.deepEqual(askLine(run, true), { words: 'Description by a new Claude Code session 1a2b3c4d', state: 'working', tip: 'Session 1a2b3c4d-0000-4000-8000-00000000cafe', opens: 'terminal' });
   assert.equal(askLine({ ...run, endedAt: '2026-11-18T12:05:00Z' }, false).state, 'done');
   assert.equal(askLine({ ...run, endedAt: '2026-11-18T12:05:00Z', problem: 'It ended with code 1.' }, false).state, 'stopped');
   assert.equal(askLine(run, false).state, 'stopped'); // its program is gone with no end: VS Code closed while it ran
-  assert.deepEqual(askLine({ ...run, to: 'current', agent: CHANGE }, true, 'Holds on books').words, 'went to Claude Code session "Holds on books"');
+  assert.deepEqual(askLine({ ...run, to: 'current', agent: CHANGE }, true, 'Holds on books').words, 'Description by Claude Code session "Holds on books"');
   assert.equal(askLine({ ...run, to: 'current', agent: CHANGE }, true).opens, 'app');
 });
 

@@ -34,13 +34,16 @@ export function askTo(known: KnownSession[], installed: string[], app: string | 
 
 const appName = (app: string): string => APP_NAMES[app] ?? app;
 
-/** The words of the press, which name the session that gets the words, so that nobody is surprised; `name` is the name of the session in its app. */
+/**
+ * The words of the press, a direct link that does the work: it names the session that will write the description, so that nobody is surprised,
+ * and never asks the person to give words to an agent. `name` is the name of the session in its app.
+ */
 export function askPress(to: AskTo, name?: string): { label: string; tip: string } {
-  if (to.kind === 'new') return { label: `Ask a new ${appName(to.app)} session`, tip: `Starts a new ${appName(to.app)} session with these words.` };
+  if (to.kind === 'new') return { label: `Describe it with a new ${appName(to.app)} session`, tip: `Starts a new ${appName(to.app)} session that writes the description.` };
   const app = appName(to.agent.app);
   const id = to.agent.session ? ` (session ${to.agent.session})` : '';
-  if (to.ofChange) return { label: 'Ask the session of this change', tip: `Sends these words to the ${app} session that made this change${id}.` };
-  return { label: `Ask ${app} session ${sessionCalled(to.agent, name)}`, tip: `Sends these words to the newest ${app} session that Apostil knows in this repo${id}.` };
+  if (to.ofChange) return { label: 'Describe it with the session of this change', tip: `The ${app} session that made this change writes the description${id}.` };
+  return { label: `Describe it with ${app} session ${sessionCalled(to.agent, name)}`, tip: `The newest ${app} session that Apostil knows in this repo writes the description${id}.` };
 }
 
 /** The record of a run that words started: the session (its app, and its id when known), where it runs, and how it ended. */
@@ -58,7 +61,7 @@ export interface AskRun {
 export const askState = (run: AskRun, alive: boolean): 'working' | 'done' | 'stopped' =>
   (run.endedAt ? (run.problem ? 'stopped' : 'done') : alive ? 'working' : 'stopped');
 
-/** The line after the press: that the words went to the session, its state, and where "Open the session" opens it (sessionOpens). */
+/** The line after the press: which session writes the description ("Description by a new Claude Code session 1a2b3c4d"), its state, and where "Open the session" opens it (sessionOpens). */
 export interface AskLine {
   words: string;
   state: 'working' | 'done' | 'stopped';
@@ -71,7 +74,7 @@ export function askLine(run: AskRun, alive: boolean, name?: string): AskLine {
   const called = sessionCalled(run.agent, name);
   const session = `${run.to === 'new' ? 'a new ' : ''}${appName(run.agent.app)} session${called ? ` ${called}` : ''}`;
   const opens = sessionOpens(run.agent);
-  return { words: `went to ${session}`, state: askState(run, alive), ...(run.agent.session ? { tip: `Session ${run.agent.session}` } : {}), ...(opens ? { opens } : {}) };
+  return { words: `Description by ${session}`, state: askState(run, alive), ...(run.agent.session ? { tip: `Session ${run.agent.session}` } : {}), ...(opens ? { opens } : {}) };
 }
 
 /** What the page gets for its words: the press (when an app can be started and no run of them works or is done), and the line of their run. */

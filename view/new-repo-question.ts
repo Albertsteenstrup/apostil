@@ -1,4 +1,4 @@
-// One question in a repo with no map, once for a repo, after the first-start questions: a new session of an agent app that says "Map this repo for Apostil."
+// One question in a repo with no map, once for a repo, after the first-start questions: a new session of an agent app that maps it, one button for each app.
 // Only an app that is connected is offered, Claude Code first. With no app connected, the question that connects them comes first.
 // An answer starts the run that "Map this repo with …" on Home starts. Home keeps that press, so "Not now" loses nothing.
 
@@ -8,7 +8,7 @@ import { baseOf, changedFiles, currentBranch, repoId, tryGit } from '../shared/g
 import type { Store } from '../shared/store';
 import { connectedApps, newRepoStep } from './new-repo-steps';
 
-export const NEW_REPO_QUESTION = 'This repo has no map and no notes yet. Start a new session with "Map this repo for Apostil."?';
+export const NEW_REPO_QUESTION = 'This repo has no map and no notes yet. Map it with a new agent session?';
 const askedKey = (repo: string): string => `apostil.askedForMap.${repo}`; // by the first commit, so that every worktree of a repo counts as one
 
 /** True when the branch has changed files that no saved change describes: the run then describes them after the map. */

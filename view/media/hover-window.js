@@ -65,7 +65,9 @@ const Hover = (() => {
     if (!content || mine !== turn || !here() || picking) return;
     hide();
     // At the right of the title bar: a quiet link of the content (`act`: { words, run }), and "Open".
-    const actions = `${content.act ? `<a data-act>${esc(content.act.words)}</a>` : ''}${content.open ? '<a data-open>Open</a>' : ''}`;
+    // A link may name its key, quiet beside it (`act.keys`), as "⌘ Enter" stands beside "Answer".
+    const keys = content.act?.keys ? `<span class="ak">${esc(content.act.keys)}</span>` : '';
+    const actions = `${content.act ? `<a data-act>${esc(content.act.words)}</a>${keys}` : ''}${content.open ? '<a data-open>Open</a>' : ''}`;
     const frame = windowFrame({ title: content.title, sub: content.sub, width: content.width, actions });
     if (typeof content.body === 'string') frame.body.innerHTML = content.body;
     else frame.body.append(content.body);

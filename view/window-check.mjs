@@ -1215,8 +1215,8 @@ try {
   await bareList?.locator('.prow .nm').first().click();
   const barePage = await frameWhere(() => /no description of Apostil yet/.test(document.getElementById('summary')?.textContent ?? '') && /Made-up pull request 35/.test(document.body.textContent)); // after the read of the pull request
   const bareLine = await barePage?.evaluate(() => document.getElementById('summary').textContent);
-  check('the open pull request of the stand-in gh with no stored change stands in the list under "Pull requests" with its title, number and state, and a click opens its page, which says that it has no description of Apostil yet and gives the words to give an agent',
-    /^Made-up pull request 35#35review needed$/.test(bareRow ?? '') && /Describe pull request #35 for Apostil/.test(bareLine ?? ''), JSON.stringify({ bareRow, bareLine }));
+  check('the open pull request of the stand-in gh with no stored change stands in the list under "Pull requests" with its title, number and state, and a click opens its page, which says that it has no description of Apostil yet, with one link that describes it and no words to give an agent',
+    /^Made-up pull request 35#35review needed$/.test(bareRow ?? '') && /no description of Apostil yet\. Describe it with /.test(bareLine ?? '') && !/Describe pull request #35/.test(bareLine ?? ''), JSON.stringify({ bareRow, bareLine }));
   await shot('2b-an-open-pull-request-with-no-change');
   // Its press (build 75) names the session that gets the words; a click starts a run of the stand-in claude with the words and the small model, and the line
   // then says where the words went, with the link that opens that session.
@@ -1226,9 +1226,10 @@ try {
   const pressRun = await until(() => runsNow().length > runsBeforePress && runsNow().at(-1));
   const wentLine = await until(() => barePage?.evaluate(() => (document.querySelector('#summary [data-ask-open]') ? document.getElementById('summary').textContent : '')), 8000);
   await shot('2c-the-words-went-to-a-session');
-  check('the press of the words names the Claude Code session that gets them; a click starts one run of the stand-in claude with the words, the small model and the rights of a description, and the line says where they went, with "Open the session"',
-    /^Ask (a new Claude Code session|Claude Code session .+)$/.test(pressLabel ?? '') && !!pressRun && pressRun.includes('Describe pull request #35 for Apostil\n') && pressRun.includes('--model\nhaiku\n')
-      && pressRun.includes('Bash(git show *)\n') && /^Describe pull request #35 for Apostil went to (a new )?Claude Code session \S.* · (working|done) · Open the session$/.test(wentLine ?? ''),
+  check('the link names the Claude Code session that will describe the pull request; a click starts one run of the stand-in claude with the words, the rights of a description, and the small model only for a new session (a continued session keeps its own), and the line names the session, with "Open the session"',
+    /^Describe it with (a new Claude Code session|Claude Code session .+)$/.test(pressLabel ?? '') && !!pressRun && pressRun.includes('Describe pull request #35 for Apostil\n')
+      && (/a new/.test(pressLabel ?? '') ? pressRun.includes('--model\nhaiku\n') : !pressRun.includes('--model\n'))
+      && pressRun.includes('Bash(git show *)\n') && /^Description by (a new )?Claude Code session \S.* · (working|done) · Open the session$/.test(wentLine ?? ''),
     JSON.stringify({ pressLabel, run: (pressRun || '').replace(/\n/g, ' ').slice(0, 300), wentLine }));
   // The Apostil icon in the activity bar has a badge with the count of open pull requests (the stand-in gh lists one), as Source Control has.
   const badge = await until(() => page.evaluate(() => {

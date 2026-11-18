@@ -54,9 +54,9 @@ test('the link, the resume command, the command of a new session and the command
   assert.deepEqual(newRunCommand('claude-code', 'Do it'), ['claude', '-p', 'Do it', '--output-format', 'json', '--permission-mode', 'acceptEdits', '--allowedTools', 'Bash(apostil *)']);
   assert.deepEqual(newRunCommand('codex', 'Do it'), ['codex', 'exec', 'Do it', '--json', '-c', 'sandbox_mode="workspace-write"']);
   assert.deepEqual(newRunCommand('codex', 'Do it', { store: '/home/me/.apostil' })?.slice(-2), ['-c', 'sandbox_workspace_write.writable_roots=["/home/me/.apostil"]']);
-  // The model that the owner set in Apostil goes to Codex only, for a new session and for a continued one; with none set, Codex keeps its own.
+  // The model that the owner set in Apostil goes to Codex only, for a new session; a continued session keeps its own model; with none set, Codex keeps its own.
   assert.deepEqual(newRunCommand('codex', 'Do it', { codexModel: 'model-a' })?.slice(-2), ['-c', 'model="model-a"']);
-  assert.deepEqual(resumeCommand({ app: 'codex', session: 't1' }, 'Do it', { codexModel: 'model-a' })?.slice(-2), ['-c', 'model="model-a"']);
+  assert.ok(!resumeCommand({ app: 'codex', session: 't1' }, 'Do it', { codexModel: 'model-a' })?.some((word) => word.startsWith('model=')));
   assert.ok(!newRunCommand('codex', 'Do it')?.some((word) => word.startsWith('model=')));
   assert.deepEqual(newRunCommand('claude-code', 'Do it', { codexModel: 'model-a' }), newRunCommand('claude-code', 'Do it'));
   assert.deepEqual(newRunCommand('antigravity', 'Do it'), ['agy', '-p', 'Do it', '--mode', 'accept-edits']);
@@ -78,24 +78,24 @@ test('the link, the resume command, the command of a new session and the command
   assert.equal(sessionOpens({ app: 'claude-code' }), undefined);
 });
 
-test('every run takes the small model of its app unless the owner set another: haiku for Claude Code, luna for Codex, the small_model of the OpenCode config; a run that describes a change gets what the skill runs and no Edit', () => {
+test('every new session takes the small model of its app unless the owner set another, and a continued session keeps its own model: haiku for Claude Code, luna for Codex, the small_model of the OpenCode config; a run that describes a change gets what the skill runs and no Edit', () => {
   const models = { claudeModel: SMALL_MODELS['claude-code'], codexModel: SMALL_MODELS.codex, opencodeModel: 'made-up-provider/small-one' };
   assert.deepEqual(SMALL_MODELS, { 'claude-code': 'haiku', codex: 'luna' });
   // The settings in VS Code start with these models: an empty setting means the model of the app's own settings.
   const settings = JSON.parse(readFileSync(join(__dirname, '..', '..', 'package.json'), 'utf8')).contributes.configuration.properties;
   assert.deepEqual([settings['apostil.claudeModel'].default, settings['apostil.codexModel'].default], [SMALL_MODELS['claude-code'], SMALL_MODELS.codex]);
-  // The arguments of each app, for a new session and for one that a run continues.
+  // The arguments of each app for a new session; a run that continues a session gives no model, so the session keeps the model that it has.
   assert.deepEqual(modelWords('claude-code', models), ['--model', 'haiku']);
   assert.deepEqual(modelWords('codex', models), ['-c', 'model="luna"']);
   assert.deepEqual(modelWords('opencode', models), ['--model', 'made-up-provider/small-one']);
   assert.deepEqual(modelWords('antigravity', models), []);
   assert.deepEqual(modelWords('claude-code', {}), []); // an empty setting: the model of the app's own settings
   assert.deepEqual(newRunCommand('claude-code', 'Do it', models)?.slice(5, 7), ['--model', 'haiku']);
-  assert.deepEqual(resumeCommand({ app: 'claude-code', session: 's1' }, 'Do it', models)?.slice(7, 9), ['--model', 'haiku']);
+  assert.ok(!resumeCommand({ app: 'claude-code', session: 's1' }, 'Do it', models)?.includes('--model'));
   assert.deepEqual(newRunCommand('codex', 'Do it', models)?.slice(-2), ['-c', 'model="luna"']);
-  assert.deepEqual(resumeCommand({ app: 'codex', session: 't1' }, 'Do it', models)?.slice(-2), ['-c', 'model="luna"']);
+  assert.ok(!resumeCommand({ app: 'codex', session: 't1' }, 'Do it', models)?.some((word) => word.startsWith('model=')));
   assert.deepEqual(newRunCommand('opencode', 'Do it', models), ['opencode', 'run', 'Do it', '--format', 'json', '--model', 'made-up-provider/small-one']);
-  assert.deepEqual(resumeCommand({ app: 'opencode', session: 'o1' }, 'Do it', models)?.slice(-2), ['--model', 'made-up-provider/small-one']);
+  assert.deepEqual(resumeCommand({ app: 'opencode', session: 'o1' }, 'Do it', models), ['opencode', 'run', '--session', 'o1', 'Do it', '--format', 'json']);
   assert.deepEqual(newRunCommand('antigravity', 'Do it', models), ['agy', '-p', 'Do it', '--mode', 'accept-edits']);
 
   // The small model of OpenCode, read and never written: the config of the folder first, then OPENCODE_CONFIG, then the global one; JSONC with comments too.

@@ -76,7 +76,8 @@ i{font-style:normal}
 .switch a.on{color:var(--ink);font-weight:600;border-bottom:2px solid var(--teal)}
 .summary{margin-top:6px;color:var(--muted);font-size:var(--small)}
 .summary b{color:var(--ink);font-weight:600}
-.summary [data-ask]{color:var(--tealink)}
+.summary [data-ask],a.inst{color:var(--tealink)}
+a.inst:hover{text-decoration:underline;text-underline-offset:3px}
 .tabs{margin-top:12px;font-size:var(--small);color:var(--muted)}
 .tabs a{margin-right:4px}
 .tabs a.on{color:var(--ink);font-weight:600}
@@ -136,7 +137,8 @@ body:not(.picking) .stage g.node.go:hover > *{scale:1.03}
 .win .tb .sub{overflow:hidden;text-overflow:ellipsis}
 .win .tb .sub a:hover,.win .tb .act a:hover{color:var(--ink)}
 .win .tb .act{margin-left:auto;padding-left:14px}
-.win .tb .act a + a{margin-left:12px}
+.win .tb .act a + a,.win .tb .act .ak + a{margin-left:12px}
+.win .tb .act .ak{margin-left:6px;color:var(--faint);font-size:var(--small)}
 .win .wc{padding:8px 0;overflow:auto;min-height:0;overscroll-behavior:contain}
 .win .wc.pad{padding:12px}
 .win .stage svg{max-width:100%;max-height:460px;width:auto}

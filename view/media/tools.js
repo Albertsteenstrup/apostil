@@ -100,8 +100,12 @@ document.addEventListener('click', (event) => {
   if (link) tell({ type: 'openLink', url: link.dataset.link });
 });
 
-/** What to say to an agent that Apostil cannot start: the words that map the repo, which brings the notes beside the code. */
-const ASK_FOR_MAP = 'Ask your agent: <b>"Map this repo for Apostil."</b> It draws the map and writes notes beside your code.';
+/**
+ * With no agent app that Apostil can start, a direct link to install one, never words to give an agent: a page that only says what to type is not wanted.
+ * The pages are INSTALL of shared/agents.ts (VS Code opens them in the browser).
+ */
+const INSTALL_LINKS = '<a class="inst" data-link="https://code.claude.com/docs/en/setup">Claude Code</a> or <a class="inst" data-link="https://developers.openai.com/codex/cli">Codex</a>';
+const NO_APP_FOR_MAP = `To map this repo, install ${INSTALL_LINKS}. It draws the map and writes notes beside your code.`;
 /** What the press does, so that nobody fears the click: a new agent session reads the repo and saves the map and the notes; no file of the repo changes. */
 const MAP_RUN_WORDS = 'A new agent session reads the repo, draws its map and writes notes beside your code. It takes a few minutes and changes no file of the repo.';
 
@@ -124,18 +128,18 @@ function mapRunHtml(run, again = null) {
 }
 
 /**
- * Words for an agent with one press that sends them to the session that it names (`ask`, an AskView of shared/ask.ts), in place of a copy.
- * Before the press: `intro`, the words and the press; with no app that can be started, the words stay as text. After it: the words, the session that got
- * them, its state ("working", "done", "stopped") and "Open the session"; after a run that stopped, the press once more. Nothing in the line moves.
+ * One direct link that starts the work in the session that it names (`ask`, an AskView of shared/ask.ts). The page never shows the words that go to the
+ * agent and never asks the person to give them: they ride in `data-ask` for VS Code alone. Before the press: `intro` and the press; with no app that
+ * can be started, `intro` and the links that install one. After it: the session that does the work, its state ("working", "done", "stopped") and
+ * "Open the session"; after a run that stopped, the press once more. Nothing in the line moves.
  */
 function askHtml(ask, intro) {
-  const words = `<b>${esc(ask.words)}</b>`;
   const press = ask.press ? `<a data-ask="${esc(ask.words)}" title="${esc(ask.press.tip)}">${esc(ask.press.label)}</a>` : '';
   const { line } = ask;
-  if (!line) return [`${intro} ${words}`, press].filter(Boolean).join(' · ');
+  if (!line) return press ? `${intro} ${press}` : `${intro} Install ${INSTALL_LINKS} to describe it.`;
   const open = line.opens ? `<a data-ask-open="${esc(ask.words)}" title="${OPENS_TIP[line.opens]}">Open the session</a>` : '';
-  const went = `${words} <span${line.tip ? ` title="${esc(line.tip)}"` : ''}>${esc(line.words)}</span>`;
-  return `<span class="state ask" data-run="${esc(line.state)}">${[went, esc(line.state), open, press].filter(Boolean).join(' · ')}</span>`;
+  const who = `<span${line.tip ? ` title="${esc(line.tip)}"` : ''}>${esc(line.words)}</span>`;
+  return `<span class="state ask" data-run="${esc(line.state)}">${[who, esc(line.state), open, press].filter(Boolean).join(' · ')}</span>`;
 }
 // A click on "Open the session" of a map run, or on the press of words and the link of their run: VS Code does it.
 document.addEventListener('click', (event) => {
@@ -149,13 +153,13 @@ document.addEventListener('click', (event) => {
 /**
  * The press that maps a repo, on Home of a repo with no map: one link, "Map this repo", that starts a new session of `app` (the app that Apostil started
  * last, see appToStart in shared/map-app.ts); nobody has to type the words into a chat. Under it one quiet line that says which app, with "Another app" when
- * two or more are installed (`apps`), and what the press does. With no app (none is installed), the words to say to an agent.
+ * two or more are installed (`apps`), and what the press does. With no app (none is installed), the links that install one.
  * While a map run writes (`run`), its line stands in place of the press; after a run that stopped, its line stands above it.
  */
 function mapPressHtml(apps = [], run = null, app = undefined) {
   const line = run ? `<p>${mapRunHtml(run)}</p>` : '';
   if (run?.state === 'writing') return line;
-  if (!app) return `${line}<p>${ASK_FOR_MAP}</p>`;
+  if (!app) return `${line}<p>${NO_APP_FOR_MAP}</p>`;
   return `${line}<p class="acts"><a data-write="${esc(app)}">Map this repo</a></p><p class="quiet">Starts a new ${esc(AGENT_NAMES[app] ?? app)} session. ${anotherAppHtml(apps)}</p><p class="quiet">${MAP_RUN_WORDS}</p>`;
 }
 // A click on the press: VS Code starts the session, and Home shows that it works.

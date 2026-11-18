@@ -295,10 +295,13 @@ async function drawHome() {
       if (!node) continue;
       nodes++;
       const thing = things[nodeKey(g)];
-      // The window of the node, with a quiet link that focuses it as Option+click does.
+      // The window of the node, with a quiet link that focuses it as Option+click does, and the key beside it as a small clue.
       const content = node.note ? noteWindow(node, thing) : nodeWindow(g, node, thing);
       const focusIt = () => focusOn(view, joined, nodeKey(g), diagram.id);
-      Hover.attach(g, async () => ({ ...(await content()), act: { words: focus?.stage === view && focus.node === nodeKey(g) ? 'End the focus' : 'Focus on this node', run: focusIt } }));
+      Hover.attach(g, async () => {
+        const on = focus?.stage === view && focus.node === nodeKey(g);
+        return { ...(await content()), act: { words: on ? 'End the focus' : 'Focus on this node', keys: on ? 'Esc' : MAC ? '⌥ click' : 'Alt+click', run: focusIt } };
+      });
       g.addEventListener('click', (event) => focusClick(event, view, joined, thing?.slots['input.alt'], diagram.id)); // before the click of the node (Marks.bind)
       const paths = node.paths.map(({ path }) => path);
       // A click on an area with a diagram of its own goes into it, and the tree "Files" of the side bar follows when it shows. An area with none

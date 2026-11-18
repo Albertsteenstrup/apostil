@@ -22,7 +22,7 @@ test('the press starts a new session with the words, its id known at once and th
   const store = new Store(home);
   const words = describeWords(35);
   try {
-    assert.equal(askView(store, repo.folder, words, ['claude-code']).press?.label, 'Ask a new Claude Code session');
+    assert.equal(askView(store, repo.folder, words, ['claude-code']).press?.label, 'Describe it with a new Claude Code session');
     const ended = await new Promise<{ problem?: string; denied?: string[] }>((done) => {
       assert.equal(startAsk(store, repo.folder, words, ['claude-code'], { claude: 'haiku' }, () => {}, (problem, facts) => done({ problem, denied: facts?.denied })), true);
       assert.equal(askView(store, repo.folder, words, ['claude-code']).line?.state, 'working');
@@ -34,7 +34,7 @@ test('the press starts a new session with the words, its id known at once and th
     assert.equal(args[args.indexOf('--model') + 1], 'haiku');
     assert.deepEqual(ended, { problem: 'It ended before it was done.', denied: ['Bash(gh pr *)'] });
     assert.equal(view.line?.state, 'stopped');
-    assert.equal(view.press?.label, 'Ask a new Claude Code session'); // the session of a run that stopped is not asked again
+    assert.equal(view.press?.label, 'Describe it with a new Claude Code session'); // the session of a run that stopped is not asked again
   } finally {
     store.close();
     Object.assign(process.env, kept);

@@ -92,7 +92,10 @@ const claudeRights = ({ claudeMode, commentRuns, describe }: RunOptions): string
   ...(describe ? ['--disallowedTools', 'Edit', 'NotebookEdit'] : commentRuns === 'read only' ? ['--disallowedTools', 'Edit', 'Write', 'NotebookEdit'] : []),
 ];
 
-/** The small model of each app, which every run that Apostil starts takes unless the owner set another (the settings apostil.claudeModel and apostil.codexModel). */
+/**
+ * The small model of each app, which every new session that Apostil starts takes unless the owner set another (the settings apostil.claudeModel and
+ * apostil.codexModel). A run that continues a session gives no model: the session keeps the model that it has.
+ */
 export const SMALL_MODELS: Record<string, string> = { 'claude-code': 'haiku', codex: 'luna' };
 
 /**
@@ -190,10 +193,11 @@ const codexWords = (options: RunOptions): string[] => [...codexRights(options.st
 export function resumeCommand(agent: AgentSession, prompt: string, options: RunOptions = {}): string[] | undefined {
   const { session } = agent;
   if (!session) return undefined;
-  if (agent.app === 'claude-code') return ['claude', '-p', '--resume', session, prompt, '--output-format', 'json', ...modelWords(agent.app, options), ...claudeRights(options)];
-  if (agent.app === 'codex') return ['codex', 'exec', 'resume', session, prompt, '--json', ...codexWords(options)];
+  // No model: the session keeps the model that it has (SMALL_MODELS is for a new session only).
+  if (agent.app === 'claude-code') return ['claude', '-p', '--resume', session, prompt, '--output-format', 'json', ...claudeRights(options)];
+  if (agent.app === 'codex') return ['codex', 'exec', 'resume', session, prompt, '--json', ...codexRights(options.store, options.codexSandbox)];
   if (agent.app === 'antigravity') return ['agy', '-p', prompt, '--conversation', session];
-  if (agent.app === 'opencode') return ['opencode', 'run', '--session', session, prompt, '--format', 'json', ...modelWords(agent.app, options)];
+  if (agent.app === 'opencode') return ['opencode', 'run', '--session', session, prompt, '--format', 'json'];
   return undefined;
 }
 

@@ -491,12 +491,12 @@
         "apostil.claudeModel": {
           "type": "string",
           "default": "haiku",
-          "markdownDescription": "The model for the Claude Code runs that Apostil starts: for the map, for a comment to `@claude-new` or `@claude-current`, and for words that a press sends to an agent. The small model `haiku` by default. Leave it empty to use the model of your Claude Code settings."
+          "markdownDescription": "The model for each new Claude Code session that Apostil starts: for the map, for a comment to `@claude-new`, and for a description that a link starts. The small model `haiku` by default. A run that continues a session (`@claude-current`) keeps the model of that session. Leave it empty to use the model of your Claude Code settings."
         },
         "apostil.codexModel": {
           "type": "string",
           "default": "luna",
-          "markdownDescription": "The model for the Codex runs that Apostil starts: for the map, for a comment to `@codex-new` or `@codex-current`, and for words that a press sends to an agent. The small model `luna` by default. Leave it empty to use the model of your Codex settings. Set another when the command-line Codex refuses that model for your account."
+          "markdownDescription": "The model for each new Codex session that Apostil starts: for the map, for a comment to `@codex-new`, and for a description that a link starts. The small model `luna` by default. A run that continues a session (`@codex-current`) keeps the model of that session. Leave it empty to use the model of your Codex settings. Set another when the command-line Codex refuses that model for your account."
         },
         "apostil.commentRuns": {
           "type": "string",
