@@ -129,8 +129,8 @@ try {
     await one.waitForFunction(() => window.apostilRendered >= 3, null, { timeout: 5000 });
     const cleared = await one.evaluate(() => ({ lit: document.querySelectorAll('#view g.node.lit').length, line: !!document.querySelector('.mk-filter'), crumb: document.getElementById('crumb').textContent }));
     check('a value with one place opens that file at its line at once; on a node with a level under it, the click goes down with the nodes that hold the value lit and the quiet line "<value> · n places in <node> ×", which the × clears',
-      once?.type === 'openFile' && once.path === 'src/library/lending/notices.py' && once.line === 35 && down.crumb === 'Home›Lending: holds, requests and mails · PostgreSQL' && down.lit.join() === 'requests'
-        && down.line === 'PostgreSQL · 12 places in Lending ×' && !cleared.lit && !cleared.line && cleared.crumb === 'Home›Lending: holds, requests and mails', JSON.stringify({ once, down, cleared }));
+      once?.type === 'openFile' && once.path === 'src/library/lending/notices.py' && once.line === 35 && down.crumb === 'Home›Lending: holds, requests and mails · PostgreSQL' && down.lit.join() === 'service,requests'
+        && down.line === 'PostgreSQL · 27 places in Lending ×' && !cleared.lit && !cleared.line && cleared.crumb === 'Home›Lending: holds, requests and mails', JSON.stringify({ once, down, cleared }));
     // The contents and the button of the look: a picture node opens on a click like any node, a film plays with no sound only on a click, a button does its action.
     await drawnAt(homeFile, '?look=1');
     await one.click(node('writing'));

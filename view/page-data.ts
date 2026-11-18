@@ -402,24 +402,35 @@ export type OtherNotes = (path: string, lines: string[]) => PageNote[];
 
 /**
  * The look of the repo of a page, for the whole page of a change and its file tabs; also for a repo with no map, whose look then has no marks.
- * `address` turns a kept file of the look into an address that the page may load (a picture in place of a step).
+ * `address` turns a kept file of the look into an address that the page may load (a picture in place of a step). Its marks are those of the files of
+ * the parts and of the places of their diagrams (build 63): the parts and the steps of their flow charts roll them up. A file tab gets the marks of
+ * its file with its code.
  */
 export function lookOfPage(store: Store, page: PageData, address: (file: string) => string = (file) => file): LookData | undefined {
   try {
-    return lookData(store, repoId(page.folder), page.folder, address, false);
+    const places = page.diagrams.filter((diagram) => !diagram.broad).flatMap((diagram) => Object.values(diagram.code).flatMap((code) => code.places.map((place) => place.file)));
+    return { ...lookData(store, repoId(page.folder), page.folder, address, false), marks: marksIn(store, page, [...page.parts.flatMap((part) => part.files), ...places]) };
   } catch {
     return undefined;
   }
 }
 
-/** The marks of the map that stand at the lines of a file now, for the answer to "code:<path>": the note cards show those at their lines. */
-export function marksBeside(store: Store, page: PageData, path: string): MarkHere[] {
+/**
+ * The marks of the map that stand in some files of a page, each with its line in the file as the change has it. None for a page that shows a commit
+ * (a change or a pull request that is not checked out): a mark stands in the text of the folder, and the lines of the page are those of the commit.
+ */
+function marksIn(store: Store, page: PageData, paths: string[]): MarkHere[] {
+  if (page.head) return [];
+  const wanted = new Set(paths);
   try {
-    return standingMarks(page.folder, (store.getMap(repoId(page.folder))?.map.marks ?? []).filter((mark) => mark.file === path));
+    return standingMarks(page.folder, (store.getMap(repoId(page.folder))?.map.marks ?? []).filter((mark) => wanted.has(mark.file)));
   } catch {
     return [];
   }
 }
+
+/** The marks of the map that stand at the lines of a file now, for the answer to "code:<path>": the note cards show those at their lines. */
+export const marksBeside = (store: Store, page: PageData, path: string): MarkHere[] => marksIn(store, page, [path]);
 
 // ----- where GitHub takes a comment on code -----
 

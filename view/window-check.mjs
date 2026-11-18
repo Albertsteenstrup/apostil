@@ -1101,10 +1101,10 @@ try {
     await entry.click({ timeout: 3000 }).catch(() => {});
   }
   const placeCount = await until(async () => { const count = await quickCount(); return count >= 20 && count; }, 4000) || await quickCount();
-  await page.locator('.quick-input-widget .quick-input-box input').fill('139');
-  await until(async () => (await searchRows()).join() === 'src/library/night_jobs.py | line 139', 3000);
+  await page.locator('.quick-input-widget .quick-input-box input').fill('435'); // a line number that one place only has: two files have a mark at their line 139
+  await until(async () => (await searchRows()).join() === 'src/library/night_jobs.py | line 435', 3000);
   await page.keyboard.press('Enter');
-  const placeOpened = await until(async () => /^night_jobs\.py/.test(await activeTab() ?? '') && /^Ln 139,/.test(await page.locator('[id="status.editor.selection"]').textContent().catch(() => '')) && 'yes', 4000);
+  const placeOpened = await until(async () => /^night_jobs\.py/.test(await activeTab() ?? '') && /^Ln 435,/.test(await page.locator('[id="status.editor.selection"]').textContent().catch(() => '')) && 'yes', 4000);
   await page.keyboard.press('Control+Alt+KeyL');
   const actionList = await until(async () => { const rows = await searchRows(); return rows.length === 3 && rows; }, 4000) || await searchRows();
   await page.keyboard.press('Escape');

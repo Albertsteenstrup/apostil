@@ -3,11 +3,12 @@
 //   node view/browser/custom.mjs [--pictures] [<folder for pictures>]
 // It runs in the look "Apostil", on the made-up look "?look=shared" (view/check-example/look/look-shared.json). The later briefs add their checks here:
 // build 58 the blocks of a page of the look and of a window, on "?look=blocks" (look-blocks.json), also in the dark default theme; build 61 the list "Repo"
-// and the page of a pull request, on "?look=side-bar" (look-side-bar.json).
+// and the page of a pull request, on "?look=side-bar" (look-side-bar.json); build 63 the icons of the services on the diagrams of a change, in the
+// default look.
 
 import { fileURLToPath } from 'node:url';
 import { lookOfPage, THEMES, wearTheme } from '../theme-look.mjs';
-import { check, errors, finish, listFile, openPage, pageFile, takePicture } from './tools.mjs';
+import { check, errors, finish, listFile, newPage, openPage, pageFile, takePicture } from './tools.mjs';
 
 const homeFile = fileURLToPath(new URL('../media/home.html', import.meta.url));
 const node = (key) => `#view :is(g.node, g.image-shape)[id*="flowchart-${key}-"]`;
@@ -544,6 +545,76 @@ try {
   const [listPlain, listOther, pullPlain, pullOther] = [await listHtml(), await listHtml('1'), await pullHtml(), await pullHtml('1')];
   check('with no rule for their parts (no look, or the look of build 51), the list and the page of a pull request are drawn as before, to the same HTML',
     listPlain.length > 1000 && listPlain === listOther && pullPlain.length > 1000 && pullPlain === pullOther, `list ${listPlain.length}/${listOther.length}, page ${pullPlain.length}/${pullOther.length}`);
+  }
+
+  // ----- the icons of the services on the diagrams of a change (build 63), in the default look of the example -----
+  {
+  const three = await newPage({ viewport: { width: 1400, height: 900 }, deviceScaleFactor: 2 });
+  three.on('pageerror', (error) => errors.push(error.message));
+  const goTo = async (go) => { await three.goto(`file://${pageFile}?go=${encodeURIComponent(JSON.stringify({ view: 'diagram', ...go }))}`); await drawn(three); };
+  /** The chips of each thing of the drawing that has some, by its node id (a part by its id): the value of each chip, or "+n". */
+  const chips = () => three.evaluate(() => Object.fromEntries([...document.querySelectorAll('#view g.node')].filter((g) => g.querySelector('.mk-stack')).map((g) => [
+    g.querySelector('b[data-part]')?.dataset.part ?? (g.querySelector('b[data-nopart]') ? 'no-part' : nodeKey(g)), [...g.querySelectorAll('.mk-chip, .mk-more')].map((chip) => chip.dataset.mk ?? chip.textContent).join(' '),
+  ])));
+  const flowAt = { level: 'part', part: 'hold-service', diagram: 'offer-flow' };
+  /** Does something that draws the page again, and waits until it is drawn. */
+  const redrawn = async (act) => {
+    const before = await three.evaluate(() => window.apostilRendered ?? 0);
+    await act();
+    await three.waitForFunction((count) => (window.apostilRendered ?? 0) > count, before, { timeout: 15000 });
+  };
+
+  // A step of a flow chart: the icon of the service of its lines, its window, and its click.
+  await goTo(flowAt);
+  const onSteps = await chips();
+  await takePicture(three, '630-custom-flow-service-icon.png');
+  const chip = '#view g.node[id*="flowchart-pick-"] .mk-chip';
+  let [row, clicked] = ['', ''];
+  if (await three.locator(chip).count()) {
+    await pointAt(three, chip);
+    row = await three.waitForSelector('.win .mk-row', { timeout: 3000 }).then((el) => el.innerText(), () => '');
+    await takePicture(three, '632-custom-flow-service-window.png');
+    await redrawn(() => three.click(chip));
+    clicked = await three.evaluate(() => `${App.state.view}:${App.state.file}:${App.state.lines}`);
+  }
+  await goTo({ ...flowAt, diagram: 'offer-sequence' });
+  const onSequence = await three.evaluate(() => document.querySelectorAll('#view .mk-stack').length);
+  check('a step of the flow chart of a part shows the icons of the services of its lines, as on Home: PostgreSQL on "Select the returned copies", whose window lists it with its count and its table and whose click opens its line; a sequence diagram shows no icon',
+    JSON.stringify(onSteps) === '{"pick":"services:postgresql"}' && row.replace(/\s+/g, ' ') === 'PostgreSQL 1 place keeps data in it · book_copy'
+      && clicked === 'code:src/library/lending/hold_service.py:219,219' && onSequence === 0, JSON.stringify({ onSteps, row, clicked, onSequence }));
+
+  // A part of the overview: the icons of the services of its files; a click on one goes down into the flow chart of the part, with the steps that hold it lit.
+  await away(three);
+  await goTo({ level: 'change' });
+  const onParts = await chips();
+  await takePicture(three, '631-custom-overview-service-icons.png');
+  const partChip = '#view g.node:has(b[data-part="hold-service"]) .mk-chip';
+  if (await three.locator(partChip).count()) await redrawn(() => three.click(partChip));
+  const down = await three.evaluate(() => ({ at: `${App.state.level}:${App.state.part}:${App.state.diagram}`, lit: [...document.querySelectorAll('#view g.node.lit')].map((g) => nodeKey(g)) }));
+  check('a part of the overview shows the icons of the services of its files, as on Home: PostgreSQL on "Hold service" and "Tables", three and "+1" on "Night job", none on the box in no part; a click on an icon goes down into the flow chart of the part with the step that holds it lit',
+    JSON.stringify(onParts) === '{"night-job":"services:book-feed services:hours-desk services:night-bell +1","hold-service":"services:postgresql","tables":"services:postgresql"}'
+      && down.at === 'part:hold-service:offer-flow' && down.lit.join() === 'pick', JSON.stringify({ onParts, down }));
+
+  // With no marks the page is as it was: the overview and the flow chart are the same pictures as with no look at all, which draws no icon.
+  const picture = async (look) => {
+    await three.evaluate(async (which) => {
+      const { look: given } = window.APOSTIL_EXAMPLE.page;
+      App.page = { ...App.page, look: which === 'none' ? undefined : which === 'no marks' ? { ...given, marks: [] } : given };
+      await App.render();
+    }, look);
+    await three.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
+    return three.locator('#view').screenshot({ animations: 'disabled' }); // the mark of a working thread pulses
+  };
+  const same = {};
+  for (const [name, go] of [['overview', { level: 'change' }], ['flow', flowAt]]) {
+    await goTo(go);
+    await away(three);
+    const [marked, noMarks, none] = [await picture('marks'), await picture('no marks'), await picture('none')];
+    same[name] = { noMarks: noMarks.equals(none), marked: marked.equals(none) };
+  }
+  check('with no marks the overview and the flow chart of a part are the same pictures as the page with no look, which draws no icon; with the marks they differ',
+    Object.values(same).every((one) => one.noMarks && !one.marked), JSON.stringify(same));
+  await three.close();
   }
 } catch (error) {
   check('the checks ran to the end', false, error.message.split('\n').slice(0, 14).join(' / '));

@@ -29,14 +29,19 @@ export interface LookData {
   pages?: { id: string; title: string }[]; // the pages of the look, by id and title, for the words of a target "page"; their blocks load when a page opens
 }
 
-/** The rules of a look in the order that they apply. The corner of each set is a rule for its kinds, after the default and before the rules of the look. */
+/**
+ * The rules of a look in the order that they apply. The corner of each set is a rule for its kinds, after the default and before the rules of the look.
+ * A part of the page of a change and a step of the flow chart of a part (build 63) have the corner of each set on a node, the services too: no rule of a
+ * look sets their corners.
+ */
 export function lookRules(sets: MarkSet[], rules: LookRule[] = []): LookRule[] {
   const ofSets: LookRule[] = sets.filter((set) => set.id !== SERVICES.id).flatMap((set) => [
     { pick: { kind: 'node' as const }, corners: { [set.corner.node]: { set: set.id } } },
     { pick: { kind: 'step' as const }, corners: { [set.corner.node]: { set: set.id } } },
     { pick: { kind: 'note' as const }, corners: { [set.corner.note]: { set: set.id } } },
   ]);
-  return [...DEFAULT_RULES, ...ofSets, ...rules];
+  const ofChange: LookRule[] = sets.flatMap((set) => (['part', 'part-step'] as const).map((kind) => ({ pick: { kind }, corners: { [set.corner.node]: { set: set.id } } })));
+  return [...DEFAULT_RULES, ...ofSets, ...ofChange, ...rules];
 }
 
 
