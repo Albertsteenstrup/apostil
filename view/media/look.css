@@ -1146,13 +1146,17 @@ a.srow:hover{background:var(--seg)}
 .mk-note{position:relative}
 .win .mk-note{padding:2px 0}
 .mk-lines{margin-top:6px;display:flex;flex-direction:column;gap:4px}
-.mk-line{font-size:var(--small);color:var(--muted);line-height:1.4}
-.mk-line .mk-chip{margin:0 5px 0 0;vertical-align:-4px;width:16px;height:16px}
+/* The icon of a service line stands at its left, its middle at the middle of the first text line: the chip sits at the top of the line box,
+   pushed down by half of what the line is taller than the chip. A hanging indent of 21 px (the chip and its gap) keeps a wrapped line after the icon. */
+.mk-line{--lh:calc(var(--small) * 1.4);font-size:var(--small);color:var(--muted);line-height:var(--lh);padding-left:21px;text-indent:-21px}
+.mk-line .mk-chip{margin:calc((var(--lh) - 16px) / 2) 5px 0 0;vertical-align:top;width:16px;height:16px;text-indent:0}
+/* In the window of a step the lines start where the text of the note starts (.stepnote has 12 px at the sides) */
+.win .wc:not(.pad) .mk-note > .mk-lines{padding:0 12px 2px}
 .mk-line .mk-chip img{width:11px;height:11px}
 .mk-line b{color:var(--ink);font-weight:600}
 .mk-line a{color:var(--tealink)}
 .mk-line a:hover{text-decoration:underline;text-underline-offset:3px}
-.mk-links{display:flex;flex-wrap:wrap;gap:2px 10px;margin:2px 0 0 21px;font:var(--small) var(--mono)}
+.mk-links{display:flex;flex-wrap:wrap;gap:2px 10px;margin:2px 0 0;text-indent:0;font:var(--small) var(--mono)}
 .lk-bar{border-left:3px solid var(--lk-bar-l)!important}
 body.vscode-dark .lk-bar{border-left-color:var(--lk-bar-d)!important}
 body.vscode-high-contrast .lk-bar{border-left-color:var(--line)!important}

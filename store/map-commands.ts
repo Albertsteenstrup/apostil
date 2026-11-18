@@ -166,7 +166,7 @@ const MARK_COMMANDS: Record<string, (store: Store, folder: string, argument: str
   'look-slots': (_store, _folder, argument, { find, all = false }) => lookSlots(argument, find, all),
   look: (store, folder) => {
     const stored = store.getLook(repoId(folder));
-    // With no look saved, the default look applies: today's look, with the logos of the services at the upper right of a node, a step and a note.
+    // With no look saved, the default look applies: today's look, with the logos of the services at the upper right of a node, a step and a call, and at the left of each service line of a note.
     return { output: stored ? { savedAt: stored.savedAt, ...stored.look } : { look: 'default', rules: DEFAULT_RULES, sets: [SERVICES] }, ok: true };
   },
 };

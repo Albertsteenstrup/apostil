@@ -535,7 +535,7 @@ export const LOOK_PARTS = {
       example: { pick: ONE_NODE, content: { picture: '<file>' } },
     },
     corners: {
-      what: 'the corners of a node or note; the upper right one takes the place of the service icons', area: 'marks', core: true,
+      what: 'the corners of a node or note; the upper right one of a node takes the place of the service icons', area: 'marks', core: true,
       fields: Object.fromEntries(CORNERS.map((corner) => [corner, 'corner'])), words: ['icon', 'badge', 'logo', 'button', 'corner', 'hide'],
       gets: Object.fromEntries(CORNERS.map((corner) => [corner, `a new ${corner} corner`])),
       example: { pick: { kind: 'note', paths: ['<file>'] }, corners: { 'upper-left': { set: 'services' }, 'lower-right': { icon: '<file>', name: 'Open the code', action: { file: '<file>', line: 1 } } } },
@@ -817,8 +817,11 @@ export interface Look {
   actions?: LookAction[];
 }
 
-/** The default look, as rules: the icons of the services at the upper right of a node, a step, a call out of the repo and a note. It is always the first rule. */
-export const DEFAULT_RULES: LookRule[] = (['node', 'step', 'call', 'note'] as const).map((kind) => ({ pick: { kind }, corners: { 'upper-right': { set: SERVICES.id } } }));
+/**
+ * The default look, as rules: the icons of the services at the upper right of a node, a step and a call out of the repo. It is always the first rule.
+ * A note has no corner for them: its service lines show each icon at the left of its line, and an icon shows in one place only (the owner, 18 November).
+ */
+export const DEFAULT_RULES: LookRule[] = (['node', 'step', 'call'] as const).map((kind) => ({ pick: { kind }, corners: { 'upper-right': { set: SERVICES.id } } }));
 
 /** The slots that the page takes whole: one field only, or one target. */
 export const ONE_FIELD_SLOTS = Object.entries(LOOK_PARTS.slots).filter(([, slot]) => ('one' in slot && slot.one) || ('target' in slot && slot.target)).map(([name]) => name);

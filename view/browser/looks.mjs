@@ -156,22 +156,41 @@ try {
     check('a picture in place of a node opens on a click like any node; a film shows its first frame and plays, with no sound, only on a click, and its play mark is no word of the name of the node; a button opens its file at its line',
       picture?.type === 'showInTree' && picture.paths.join() === 'docs/,README.md' && button?.type === 'target' && button.target.file === 'src/library/night_jobs.py' && button.target.line === 516
         && still.paused && still.at === 0 && still.name === 'Holds: books to wait for' && playing.muted && playing.crumb === 'Home›The areas of the member page', JSON.stringify({ picture, button, still, playing }));
+    // A service icon shows in one place only (the owner: "only show service icon in one place. left side and aligned with line so middle is same height as middle as text"):
+    // a note has no corner for the services, and the icon of its service line has its middle at the middle of the text, and in the window of a step it starts where the note does.
+    /** The icon of the first service line: its middle against the middle of the name beside it, and its left edge. */
+    const lineIcon = (el) => {
+      const chip = el.querySelector('.mk-line > .mk-chip'), name = chip?.parentElement.querySelector(':scope > b');
+      if (!chip || !name) return null;
+      const [c, t] = [chip.getBoundingClientRect(), name.getBoundingClientRect()];
+      return { off: Math.round(((c.top + c.bottom) / 2 - (t.top + t.bottom) / 2) * 10) / 10, left: c.left, size: c.height };
+    };
+    await drawnAt(homeFile, `?diagram=${encodeURIComponent('process:answer-request/2')}`);
+    await one.hover(`#view g.node[id="${await one.evaluate(() => [...document.querySelectorAll('#view g.node')].find((g) => /Order the book/.test(g.textContent))?.id)}"]`);
+    await one.waitForSelector('.win .mk-line', { timeout: 3000 }).catch(() => {});
+    const stepWindow = await one.evaluate((lineIconText) => {
+      const win = document.querySelector('.win'), note = win?.querySelector('.stepnote');
+      if (!win || !note) return null;
+      const icon = eval(`(${lineIconText})`)(win);
+      return { corners: win.querySelectorAll('.mk-at .mk-chip').length, icon, textLeft: note.getBoundingClientRect().left + parseFloat(getComputedStyle(note).paddingLeft) };
+    }, lineIcon.toString());
     // A note in the file tab: its marks at the corners of its set, its colour, one line for its service and its named things as small links.
     await one.goto(`file://${pageFile}?file=src/library/lending/requests.py&look=1`);
     await one.waitForSelector('.mc .mk-lines', { state: 'attached', timeout: 15000 });
     await one.click('[data-fold]', { timeout: 3000 }).catch(() => {});
     await one.evaluate(() => App.showCode('src/library/lending/requests.py', [43, 43]));
-    const card = await one.evaluate(() => {
+    const card = await one.evaluate((lineIconText) => {
       const el = [...document.querySelectorAll('.mc')].find((one) => one.querySelector('.nt')?.textContent === 'Answer the request');
       return { left: el.querySelectorAll('.mk-at.upper-left .mk-chip').length, right: el.querySelectorAll('.mk-at.upper-right .mk-chip').length, bar: el.classList.contains('lk-bar'),
-        line: el.querySelector('.mk-line').textContent.replace(/\s+/g, ' ').trim(), links: [...el.querySelectorAll('.mk-links a')].map((link) => link.textContent) };
-    });
+        line: el.querySelector('.mk-line').textContent.replace(/\s+/g, ' ').trim(), links: [...el.querySelectorAll('.mk-links a')].map((link) => link.textContent), icon: eval(`(${lineIconText})`)(el) };
+    }, lineIcon.toString());
     await one.evaluate(() => { const show = App.showCode.bind(App); window.shownCode = []; App.showCode = (...asked) => { window.shownCode.push(asked); return show(...asked); }; });
     await one.click('.mc .mk-links a:text-is("librarian")');
     const shown = await one.evaluate(() => window.shownCode);
-    check('a note card shows the marks at its lines at the corners of their sets, the colour of the look, one line for its service and its named things as links; a click on a link shows that line',
-      card.left === 2 && card.right === 1 && card.bar && card.line.startsWith('PostgreSQL · keeps data in it · 7 places') && card.links.join() === 'book_request,librarian,purchase_order,member'
-        && JSON.stringify(shown) === '[["src/library/lending/requests.py",[51,51]]]', JSON.stringify({ card, shown }));
+    check('a note card shows the marks at its lines at the corners of their sets but no corner for the services, the colour of the look, one line for its service with its icon at the left, its middle at the middle of the text, and its named things as links; a click on a link shows that line; the window of a step shows its service icon in its line only, where the text of the note starts',
+      card.left === 2 && card.right === 0 && card.icon?.size === 16 && Math.abs(card.icon.off) <= 1
+        && stepWindow?.corners === 0 && stepWindow.icon?.size === 16 && Math.abs(stepWindow.icon.off) <= 1 && Math.abs(stepWindow.icon.left - stepWindow.textLeft) <= 1 && card.bar && card.line.startsWith('PostgreSQL · keeps data in it · 7 places') && card.links.join() === 'book_request,librarian,purchase_order,member'
+        && JSON.stringify(shown) === '[["src/library/lending/requests.py",[51,51]]]', JSON.stringify({ card, shown, stepWindow }));
     await one.close();
   }
 

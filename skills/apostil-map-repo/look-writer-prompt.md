@@ -4,7 +4,7 @@ The owner asked, in his own words, to change how the diagrams, the nodes, the ar
 
 ## How a look works
 
-- With no look, the default look applies: the icons of the services at the upper right of each node, step and note whose code reaches a service.
+- With no look, the default look applies: the icons of the services at the upper right of each node and step whose code reaches a service, and at the left of each service line of a note.
 - A rule picks things and changes one or more slots of them. All that no rule names keeps the default.
 - When two rules set the same slot of the same thing, the rule that names the thing most closely wins: a node id, then a mark, then a path, then a kind. Between two rules of the same kind of pick, the later one wins.
 - A rule that fills the upper right corner of a thing takes the place of the icons of the services there.
