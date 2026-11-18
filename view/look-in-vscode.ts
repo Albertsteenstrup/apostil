@@ -42,7 +42,6 @@ export class LookInVsCode implements vscode.TreeDataProvider<LookRow> {
     const command = (name: string, run: (arg?: unknown) => unknown) => vscode.commands.registerCommand(name, run);
     context.subscriptions.push(
       { dispose: () => { for (const type of this.icons.values()) type.dispose(); } },
-      vscode.window.createTreeView('apostil.look', { treeDataProvider: this }),
       vscode.languages.registerWorkspaceSymbolProvider({ provideWorkspaceSymbols: (query) => this.symbols(query) }),
       command('apostil.openNoteOnHome', (arg) => this.openNoteOnHome(arg)),
       command('apostil.showProcessOfLine', (arg) => this.showProcessOfLine(arg)),
@@ -55,7 +54,23 @@ export class LookInVsCode implements vscode.TreeDataProvider<LookRow> {
       vscode.window.onDidChangeActiveTextEditor(() => this.fileChanged()),
       vscode.workspace.onDidChangeTextDocument((event) => { if (vscode.window.visibleTextEditors.some((editor) => editor.document === event.document)) this.later(); }),
     );
+    void this.makeList(context);
     this.storeChanged();
+  }
+
+  /**
+   * The list "Look" in the side bar. After an update and "Restart Extensions", VS Code runs the new code with the views of the version before: a list
+   * that is new in this version is not known until the window reloads, and VS Code would show "No view is registered". Then Apostil asks for the reload.
+   */
+  private async makeList(context: vscode.ExtensionContext): Promise<void> {
+    if ((await vscode.commands.getCommands(true)).includes('apostil.look.focus')) {
+      context.subscriptions.push(vscode.window.createTreeView('apostil.look', { treeDataProvider: this }));
+      return;
+    }
+    const reload = 'Reload Window';
+    if (await vscode.window.showInformationMessage('Apostil was updated. Reload the window to finish the update.', reload) === reload) {
+      void vscode.commands.executeCommand('workbench.action.reloadWindow');
+    }
   }
 
   /** The store changed: the look and the map are read again when they are new, and the search reads the notes again. */
