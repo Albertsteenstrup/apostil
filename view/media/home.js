@@ -226,15 +226,15 @@ function pickMark(thing, one) {
 
 /**
  * The repo has no map: the wordmark of Apostil, large and quiet, where VS Code shows its own logo in an empty editor area.
- * Under it the press that maps the repo, one link for each app that can write the map (mapPressHtml in tools.js), and the next steps (the set-up step and the example).
+ * Under it the press that maps the repo, one press for the app that Apostil started last (mapPressHtml in tools.js), and the next steps (the set-up step and the example).
  * While a map run writes, the line of the run stands in place of the press (mapRunHtml in tools.js).
  */
 function noMapHtml() {
-  const { apps, mapRun, needsSetup } = Home.data;
+  const { apps, mapApp, mapRun, needsSetup } = Home.data;
   const mark = '<img class="wordmark" src="apostil-wordmark.svg" alt="Apostil">';
-  if (mapRun?.state === 'writing') return `<div class="nomap">${mark}${mapPressHtml(apps, mapRun)}</div>`;
+  if (mapRun?.state === 'writing') return `<div class="nomap">${mark}${mapPressHtml(apps, mapRun, mapApp)}</div>`;
   // After a map run that stopped, its line says so in place of the first line, above the press that starts again.
-  return `<div class="nomap">${mark}${mapRun ? '' : '<p>This repo has no map and no notes yet.</p>'}${mapPressHtml(apps, mapRun)}<div class="next">${nextStepsHtml(needsSetup)}</div></div>`;
+  return `<div class="nomap">${mark}${mapRun ? '' : '<p>This repo has no map and no notes yet.</p>'}${mapPressHtml(apps, mapRun, mapApp)}<div class="next">${nextStepsHtml(needsSetup)}</div></div>`;
 }
 
 async function drawHome() {
@@ -257,7 +257,7 @@ async function drawHome() {
   if (Home.filter && diagram) summary.insertAdjacentHTML('beforeend', `${map.written ? ' · ' : ''}<span class="mk-filter">${esc(Home.filter.text)} <a data-clear-filter title="Clear">×</a></span>`);
   // While a map run writes, the map shows what is saved, and this line says which session writes and what is done; after a stop, the press that starts again.
   const run = Home.data.mapRun;
-  if (run && diagram) summary.insertAdjacentHTML('beforeend', `${summary.hasChildNodes() ? ' · ' : ''}${mapRunHtml(run, run.state === 'stopped' ? Home.data.apps : [])}`);
+  if (run && diagram) summary.insertAdjacentHTML('beforeend', `${summary.hasChildNodes() ? ' · ' : ''}${mapRunHtml(run, run.state === 'stopped' ? { app: Home.data.mapApp, apps: Home.data.apps } : null)}`);
   let nodes = 0;
   if (!diagram) view.innerHTML = noMapHtml();
   else {

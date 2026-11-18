@@ -9,6 +9,7 @@ import { DatabaseSync } from 'node:sqlite';
 import type { AgentSession } from './agents';
 import type { ChangeFile } from './change-file';
 import type { Look } from './look';
+import type { StartedRun } from './map-app';
 import type { MapRun } from './map-run';
 import type { MarkValue } from './marks';
 import type { NoteCode, NoteSource } from './notes-beside-code';
@@ -648,6 +649,18 @@ export class Store {
   mapRun(repoId: string): MapRun | undefined {
     const row = this.db.prepare('select run_json from map_run where repo_id = ?').get(repoId) as Row | undefined;
     return row && JSON.parse(row.run_json);
+  }
+
+  /** The runs that Apostil started, in any repo: the map runs of its press, and the runs for a remark that it sent to a new session of an app. */
+  startedRuns(): StartedRun[] {
+    const maps = (this.db.prepare('select repo_id, run_json from map_run').all() as Row[])
+      .map((row): [string, MapRun] => [row.repo_id, JSON.parse(row.run_json)]).filter(([, run]) => run.home && run.agent?.app)
+      .map(([repoId, run]): StartedRun => ({ app: run.agent!.app, at: run.startedAt, repoId }));
+    const remarks = (this.db.prepare('select r.to_json, r.run_json, coalesce(r.repo_id, c.repo_id) as repo_id from remark r left join change c on c.id = r.change_id where r.to_json is not null and r.run_json is not null').all() as Row[])
+      .map((row) => ({ to: JSON.parse(row.to_json) as RemarkTo, run: JSON.parse(row.run_json) as { startedAt: string }, repoId: row.repo_id as string }))
+      .filter(({ to, repoId }) => to.kind === 'new' && repoId)
+      .map(({ to, run, repoId }): StartedRun => ({ app: to.app, at: run.startedAt, repoId }));
+    return [...maps, ...remarks];
   }
 
   /** Reads the record of the map run, lets `change` return the new one, and keeps it, all in one step, so that two writers at once lose no part. `change` returns undefined to keep it as it is. */

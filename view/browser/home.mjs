@@ -328,17 +328,22 @@ try {
   await homeAt('?path=nothing.txt');
   const nothing = await home.textContent('#view');
   await homeAt('?nomap=1');
-  const noMap = await home.evaluate(() => ({ line: document.querySelector('.nomap p').textContent, actions: [...document.querySelectorAll('[data-write]')].map((a) => a.textContent), svg: !!document.querySelector('#view svg') }));
+  const noMap = await home.evaluate(() => ({ line: document.querySelector('.nomap p').textContent, actions: [...document.querySelectorAll('[data-write]')].map((a) => a.textContent), quiet: [...document.querySelectorAll('.nomap > p.quiet')].map((p) => p.textContent), svg: !!document.querySelector('#view svg') }));
   await takePicture(home, '34-home-with-no-map.png');
   await home.click('[data-write="claude-code"]');
   const wrote = await home.evaluate(() => window.apostilSent.find((message) => message.type === 'writeMap'));
+  await home.click('.nomap [data-other-app]');
+  const other = await home.evaluate(() => window.apostilSent.find((message) => message.type === 'anotherApp'));
+  // With one installed app: no "Another app", and the quiet line names that app.
+  const oneApp = await home.evaluate(async () => { Home.data = { ...Home.data, apps: ['codex'], mapApp: 'codex' }; await Home.render(); return { quiet: document.querySelector('.nomap > p.quiet').textContent, link: !!document.querySelector('[data-other-app]') }; });
+  await homeAt('?nomap=1');
   const NEXT_LINES = 'Your agent apps do not have the Apostil skills yet. Set up for agents';
   const markPage = () => home.evaluate(() => {
     const mark = document.querySelector('.nomap .wordmark').getBoundingClientRect();
     const view = document.documentElement.clientWidth;
     return {
       loaded: document.querySelector('.nomap .wordmark').naturalWidth > 0, width: Math.round(mark.width),
-      centred: Math.abs(mark.left + mark.width / 2 - view / 2) < 2, middle: mark.top > 120, ask: document.querySelector('.nomap > p.quiet').textContent,
+      centred: Math.abs(mark.left + mark.width / 2 - view / 2) < 2, middle: mark.top > 120, ask: document.querySelectorAll('.nomap > p.quiet')[1].textContent,
       next: [...document.querySelectorAll('.nomap .next p')].map((p) => p.textContent).join('|'), wide: document.documentElement.scrollWidth <= view,
     };
   });
@@ -349,11 +354,12 @@ try {
   await home.evaluate(() => { window.apostilSent.length = 0; });
   await home.click('.nomap [data-setup]');
   const nextSent = await home.evaluate(() => window.apostilSent.map((message) => message.type).filter((type) => type !== 'pointer').join());
-  check('a path in no diagram shows one calm line; a repo with no map shows one calm line, one press for each installed app that maps the repo (a click asks VS Code to start it), the wordmark large and centred, what the press does, and the line of the next step whose link asks VS Code to set up; in a 370 px tab it fits',
-    nothing === 'nothing.txt is a part of no diagram yet.' && noMap.line === 'This repo has no map and no notes yet.' && noMap.actions.join() === 'Map this repo with Claude Code,Map this repo with Codex,Map this repo with OpenCode' && !noMap.svg && wrote?.app === 'claude-code'
+  check('a path in no diagram shows one calm line; a repo with no map shows one calm line, one press "Map this repo" (a click asks VS Code to start the app that it names in a quiet line under it; "Another app" asks VS Code to pick one, and is not there with one installed app), the wordmark large and centred, what the press does, and the line of the next step whose link asks VS Code to set up; in a 370 px tab it fits',
+    nothing === 'nothing.txt is a part of no diagram yet.' && noMap.line === 'This repo has no map and no notes yet.' && noMap.actions.join() === 'Map this repo' && noMap.quiet[0] === 'Starts a new Claude Code session. Another app' && !noMap.svg && wrote?.app === 'claude-code' && !!other
+      && oneApp.quiet === 'Starts a new Codex session. ' && !oneApp.link
       && marked.loaded && marked.width >= 280 && marked.centred && marked.middle && marked.ask === 'A new agent session reads the repo, draws its map and writes notes beside your code. It takes a few minutes and changes no file of the repo.' && marked.next === NEXT_LINES
       && nextSent === 'setUp' && narrowMark.width < 370 && narrowMark.centred && narrowMark.wide,
-    JSON.stringify({ nothing, noMap, marked, narrowMark, nextSent }));
+    JSON.stringify({ nothing, noMap, other, oneApp, marked, narrowMark, nextSent }));
 
   // The line of a map run (build prompt 65), from the made-up records of example-data.ts. While a run writes: which session, and what is saved so far.
   const SAVED = 'overview, 3 of 8 areas, notes of 40 files';
@@ -395,12 +401,12 @@ try {
   await takePicture(home, '36-home-after-a-map-run-stopped.png');
   await homeAt('?run=stopped');
   const stoppedOnMap = await runLine();
-  await home.click('.maprun [data-write="codex"]', { timeout: 3000 }).catch(() => {});
+  await home.click('.maprun [data-write]', { timeout: 3000 }).catch(() => {});
   const again = await home.evaluate(() => window.apostilSent.find((message) => message.type === 'writeMap'));
-  check('after a map run that stopped, Home says so in one line with the session and what was saved: in a repo with no map in place of its first line, above the press that maps the repo; on the map with one press for each app that starts again (a click asks VS Code to start it)',
+  check('after a map run that stopped, Home says so in one line with the session and what was saved: in a repo with no map in place of its first line, above the press that maps the repo; on the map with one "Start again" for the app of the press (a click asks VS Code to start it)',
     stoppedNoMap?.text === `${STOPPED} · Open the session` && stoppedNoMap.state === 'stopped' && stoppedNoMap.firstLine === stoppedNoMap.text && stoppedNoMap.lines === 1
-      && stoppedNoMap.presses.join() === 'Map this repo with Claude Code,Map this repo with Codex,Map this repo with OpenCode'
-      && stoppedOnMap?.text === `${STOPPED} · Open the session · Start again with Claude Code · Start again with Codex · Start again with OpenCode` && stoppedOnMap.nodes === 8 && stoppedOnMap.lines === 1 && again?.app === 'codex',
+      && stoppedNoMap.presses.join() === 'Map this repo'
+      && stoppedOnMap?.text === `${STOPPED} · Open the session · Start again · Another app` && stoppedOnMap.nodes === 8 && stoppedOnMap.lines === 1 && again?.app === 'claude-code',
     JSON.stringify({ stoppedNoMap, stoppedOnMap, again }));
 
   // Comments on the map of Home: a node and an arrow hold one, as on the change page; "@" offers only new sessions; a card clicked after a level down lights its node.
