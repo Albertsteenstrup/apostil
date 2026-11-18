@@ -306,8 +306,7 @@ test('the picker of where a comment goes: for each connected app this session, t
   assert.deepEqual(choices[1].to, { app: 'claude-code', kind: 'session', session: 'known-0001', name: 'Tests for holds' });
   assert.equal(States.choiceWords(choices[0]), 'Claude Code · this session');
   assert.equal(States.choiceWords(choices[5]), 'Codex · new session');
-  // A map run and a description run name the lead and the writers; an effort that a model does not take falls to the nearest lower one.
-  assert.equal(States.teamWords({ app: 'claude-code', lead: 'sonnet', writer: 'haiku', effort: 'max', list: claude.list }), 'Sonnet 5.5 leads · Haiku 5.5 writes · Max');
+  // An effort that a model does not take falls to the nearest lower one.
   assert.deepEqual([States.nearestEffort(efforts, 'ultra'), States.nearestEffort([...efforts, 'ultra'], 'ultra'), States.nearestEffort(['high', 'max'], 'medium')], ['max', 'ultra', 'high']);
   assert.equal(States.choiceWords(choices.at(-1)), 'Keep it as a note');
   // No session of the change, no pull request that takes it: a new session of each connected app and no agent; with no app connected only no agent.

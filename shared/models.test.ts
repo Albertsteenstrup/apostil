@@ -55,7 +55,7 @@ test('a known session starts with the model and the effort that its own record s
   assert.deepEqual([nearestEffort(['low', 'high', 'max'], 'ultra'), nearestEffort(['low', 'high', 'max'], 'medium'), nearestEffort(['high'], 'low')], ['max', 'low', 'high']);
 });
 
-test('a map run is led by the second smallest model at the most effort and every writer runs on the smallest at the most effort: the lead in the run words, the writers in the prompt and, for Claude Code, in --agents; a description run has the same lead and writers, also when it continues a session; a choice of a page counts only with models of the catalog', () => {
+test('a map run is led by the second smallest model at the most effort and every writer runs on the smallest at the most effort: the lead in the run words, the writers in the prompt and, for Claude Code, in --agents; a description run has the same lead and writers, also when it continues a session; a choice of a page changes only the lead and its effort, and counts only with models of the catalog', () => {
   const home = madeUpAgentHome();
   const claude = teamOf('claude-code', home);
   assert.deepEqual([claude.lead, claude.writer, claude.effort], ['sonnet', 'haiku', 'max']);
@@ -82,12 +82,15 @@ test('a map run is led by the second smallest model at the most effort and every
   assert.equal(JSON.parse(described[described.indexOf('--agents') + 1])[WRITER_AGENT].model, 'haiku');
   assert.deepEqual(resumeCommand({ app: 'codex', session: 't1' }, 'Describe', { describe: true, ...teamRun(codex) })?.slice(-4), ['-c', 'model="gpt-6.1-terra"', '-c', 'model_reasoning_effort="max"']);
 
-  // A choice from the control: Opus leads at Extra; a model that the catalog does not have, or another app, gives the default.
-  assert.deepEqual(teamFrom('claude-code', { app: 'claude-code', lead: 'opus', writer: 'haiku', effort: 'xhigh' }, home).lead, 'opus');
-  assert.deepEqual(teamRun(teamFrom('claude-code', { app: 'claude-code', lead: 'opus', writer: 'haiku', effort: 'xhigh' }, home)), { model: 'opus', effort: 'xhigh', writers: { model: 'haiku', effort: 'xhigh' }, opencodeModel: undefined });
+  // A choice from the control: Opus leads at Extra, and the writers stay on Haiku at Max; a model that the catalog does not have, or another app, gives the default.
+  assert.deepEqual(teamRun(teamFrom('claude-code', { app: 'claude-code', lead: 'opus', effort: 'xhigh' }, home)), { model: 'opus', effort: 'xhigh', writers: { model: 'haiku', effort: 'max' }, opencodeModel: undefined });
   assert.deepEqual([teamFrom('claude-code', { app: 'claude-code', lead: '--danger', effort: 'ultra' }, home).lead, teamFrom('claude-code', { app: 'codex', lead: 'opus' }, home).lead], ['sonnet', 'sonnet']);
-  // Codex: Sol may lead at Ultra, and Luna, which has no Ultra, writes at Max.
-  assert.deepEqual(teamRun(teamFrom('codex', { app: 'codex', lead: 'gpt-6.1-sol', writer: 'gpt-6-luna', effort: 'ultra' }, home)).writers, { model: 'gpt-6-luna', effort: 'max' });
+  // A writer that a page sends is ignored, and the writers keep Max when the lead runs at Low.
+  assert.deepEqual(teamRun(teamFrom('claude-code', { app: 'claude-code', lead: 'opus', writer: 'sonnet', effort: 'low' }, home)), { model: 'opus', effort: 'low', writers: { model: 'haiku', effort: 'max' }, opencodeModel: undefined });
+  // Codex: Sol may lead at Ultra, and Luna, which has no Ultra, writes at Max. A smallest model with no Max writes at the most that it takes.
+  assert.deepEqual(teamRun(teamFrom('codex', { app: 'codex', lead: 'gpt-6.1-sol', effort: 'ultra' }, home)).writers, { model: 'gpt-6-luna', effort: 'max' });
+  const noMax = [{ id: 'gpt-6-luna', name: 'Luna 6', efforts: ['low', 'high'] }, { id: 'gpt-6.1-terra', name: 'Terra 6.1', efforts: ['low', 'max'] }];
+  assert.deepEqual(teamRun({ app: 'codex', lead: 'gpt-6.1-terra', writer: 'gpt-6-luna', effort: 'low', list: noMax }).writers, { model: 'gpt-6-luna', effort: 'high' });
 });
 
 test('a comment run that continues a session gives no model when he did not change it, and the effort; with a model that he chose, both; a new session the chosen model', () => {

@@ -50,7 +50,7 @@ const appOf = (to: AskTo): string => (to.kind === 'current' ? to.agent.app : to.
 
 /**
  * What the page shows for its words: the line of their run when one started, and the press when an app can be started and no run of them works or is
- * done, with the team of the run (the lead and the writers) for the control after the press.
+ * done, with the team of the run for the control after the press (it shows the lead and its effort).
  */
 export function askView(store: Store, folder: string, words: string, installed: string[], about: AskAbout = {}): AskView {
   const run = askRunOf(store, folder, words);
@@ -64,8 +64,8 @@ export function askView(store: Store, folder: string, words: string, installed: 
  * apostil-describe-change runs (`describe`). A new session runs in `folder`; for a pull request, in a folder with its head branch checked out, which Apostil
  * finds or makes (view/pull-folder.ts) and removes when the run ends, if it made it. The record keeps the session (a new Claude Code session gets its id at
  * once) and the end. `changed` is called when the record changes, `ended` when the run ends, with its problem when it failed or was not allowed a command.
- * `team`: the lead and the writers that the control after the press sent (checked by teamFrom), else the default: the second smallest model leads, the
- * smallest writes, at the most effort; a session that the run continues takes the lead's model.
+ * `team`: the lead and the effort that the control after the press sent (checked by teamFrom), else the default: the second smallest model leads at the
+ * most effort. The writers are always the smallest model at its most effort. A session that the run continues takes the lead's model.
  * Gives back true when the run started, false when no app can be started from here, and one sentence when the branch of the pull request could not be checked out.
  */
 export async function startAsk(store: Store, folder: string, words: string, installed: string[], models: RunModels, changed: () => void, ended: (problem?: string, facts?: RunFacts) => void, about: AskAbout = {}, team?: unknown): Promise<boolean | string> {

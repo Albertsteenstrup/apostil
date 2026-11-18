@@ -414,8 +414,6 @@ p.fact{margin:0;padding:8px 12px;color:var(--muted)} /* what a file is, in one l
 .rpick .rmenu{position:absolute;left:0;top:calc(100% + 6px);z-index:30;width:max-content;min-width:200px;max-width:calc(100vw - 16px)}
 .rpick .rmenu.up{top:auto;bottom:calc(100% + 6px)}
 .rpick .rmenu .pi{padding-left:20px}
-.rpick .rmenu .cols{display:grid;grid-template-columns:1fr 1fr;gap:0 4px}
-.rpick .rmenu.team .pi{padding-left:12px}
 .rpick .rmenu .chips{display:flex;flex-wrap:wrap;gap:5px;padding:4px 8px 6px}
 .rpick .rmenu .chip{padding:2px 10px;border:1px solid var(--line);border-radius:999px;color:var(--ink);cursor:pointer}
 .rpick .rmenu .chip:hover{background:var(--seg)}

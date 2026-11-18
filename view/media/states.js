@@ -48,10 +48,6 @@ const States = (() => {
     usedAgo: (ago) => `used ${ago}`,
     defaultModel: 'default model',
     ownModel: "OpenCode's own model",
-    leads: (name) => `${name} leads`,
-    writes: (name) => `${name} writes`,
-    lead: 'Leads',
-    writers: 'Writers',
     model: 'Model',
     effort: 'Effort',
     noAppConnected: 'No agent app is connected.',
@@ -148,12 +144,6 @@ const States = (() => {
     if (!run) return '';
     const model = run.model ? modelName(list, run.model, run.name) : run.name ?? (app === 'opencode' ? WORDS.ownModel : WORDS.defaultModel);
     return run.effort ? `${model} · ${effortWord(app, run.effort)}` : model;
-  }
-
-  /** The words of a map run or a description run: "Sonnet 5.5 leads · Haiku 5.5 writes · Max"; OpenCode keeps its own models. */
-  function teamWords(team) {
-    if (!team.lead) return team.app === 'opencode' ? WORDS.ownModel : effortWord(team.app, team.effort);
-    return [WORDS.leads(modelName(team.list, team.lead)), WORDS.writes(modelName(team.list, team.writer)), effortWord(team.app, team.effort)].join(' · ');
   }
 
   /**
@@ -343,7 +333,7 @@ const States = (() => {
 
   return {
     WORDS, MENTION_WORDS, mentionName, mentionChoices, cutChoices, sendChoices, choiceKey, startChoice, choiceWords, agoWords, forWords, rowLine, rowState, remarkLine,
-    EFFORTS, effortWord, nearestEffort, runWords, teamWords,
+    EFFORTS, effortWord, nearestEffort, runWords,
     threadLead, threadState, markState, isOpen, foldPulls, foldRows, stackOrder, lineHtml, markHtml, bubbleSvg, BUBBLE_PATH, pullTip, pullIcon,
   };
 })();

@@ -72,7 +72,7 @@ export interface HomeData {
   look?: LookData; // the look of the repo and its marks: the default look when none is saved
   apps: string[]; // the agent apps whose program is on the path: each can write the map, and "@" offers a new session of each
   mapApp?: string; // the app that the press "Map this repo" starts (appToStart); missing with no installed app
-  team?: Team; // the lead and the writers of that run (teamOf in shared/models.ts), which the control after the press shows and changes
+  team?: Team; // the team of that run (teamOf in shared/models.ts); the control after the press shows and changes its lead and effort, never its writers
   sendTo?: SendTo; // what the picker of a comment on the map offers: a new session of each app, with its models
   writing?: string; // the app that writes the map now
   mapRun?: MapRunLine; // while a map run writes, or after one stopped: which session, and what is saved so far

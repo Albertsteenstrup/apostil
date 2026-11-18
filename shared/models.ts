@@ -1,5 +1,5 @@
 // The newest models of each agent app, read only from the app's own catalog, in the order of their size; the model and the effort that a session last
-// used; and the choice of a run (a model and an effort, or for a map and a description a lead and its writers). Every run takes its model and effort from
+// used; and the choice of a run (a model and an effort; for a map and a description those of the lead, whose writers are fixed). Every run takes its model and effort from
 // here, and `modelWords()` in agents.ts turns them into the words of the app. No `vscode` import.
 
 import { spawnSync } from 'node:child_process';
@@ -22,7 +22,7 @@ export interface Catalog {
 /** A choice of a run: the model (missing: the session keeps its own, or the app takes its own settings) and the effort. */
 export interface RunPick { model?: string; name?: string; effort?: string }
 
-/** The choice of a map run or a description run: the lead, the model of its writer subagents, and one effort for both. */
+/** The choice of a map run or a description run: the lead and its effort, which a page may change, and the model of its writer subagents, which it may not. */
 export interface Team { app: string; lead?: string; writer?: string; effort: string; list: ModelInfo[] }
 
 /** The order of the families, smallest first. The catalogs name each model's family, not its size, so the order is fixed here. */
@@ -188,17 +188,18 @@ export function pickOf(catalog: Catalog | undefined, model: string | undefined, 
   return { model: id, name: catalog?.names[id] ?? catalog?.names[model] ?? id, effort: nearestEffort(efforts, effort) };
 }
 
+/** The most effort of a model: max, or its highest when it has no max. */
+const mostEffort = (model: ModelInfo | undefined): string => (!model || model.efforts.includes('max') ? 'max' : model.efforts.at(-1) ?? 'max');
+
 /**
- * The choice of a map run or a description run (the owner, 18 November): the second smallest model leads, every writer runs on the smallest, both at the
- * most effort that the lead takes. OpenCode has no order: it keeps its own model and small model.
+ * The choice of a map run or a description run (the owner, 18 November): the second smallest model leads at its most effort, and every writer runs on
+ * the smallest. OpenCode has no order: it keeps its own model and small model.
  */
 export function teamOf(app: string, home = agentHome()): Team {
   const catalog = catalogOf(app, home);
   if (!catalog) return { app, effort: 'max', list: [] };
   const lead = secondSmallest(app, catalog);
-  const writer = smallest(app, catalog);
-  const top = lead?.efforts.includes('max') ? 'max' : lead?.efforts.at(-1) ?? 'max';
-  return { app, lead: lead?.id, writer: writer?.id, effort: top, list: catalog.models };
+  return { app, lead: lead?.id, writer: smallest(app, catalog)?.id, effort: mostEffort(lead), list: catalog.models };
 }
 
 // ----- what a session last used, from its own record -----
@@ -298,25 +299,27 @@ export function pickFrom(sent: unknown): RunPick | undefined {
 }
 
 /**
- * The team of a map or description run: the one that a page sent when it is of the same app and its models are in the catalog, else the default of
- * teamOf(). The effort must be one that the lead takes.
+ * The team of a map or description run: the lead and the effort that a page sent, when it is of the same app, the lead is in the catalog and the lead
+ * takes the effort; else those of teamOf(). The writers stay those of teamOf(): a writer that a page sends is ignored.
  */
 export function teamFrom(app: string, sent: unknown, home = agentHome()): Team {
   const team = teamOf(app, home);
   const chosen = sent && typeof sent === 'object' ? sent as Record<string, unknown> : {};
   if (chosen.app !== app || !team.list.length) return team;
-  const known = (id: unknown): string | undefined => team.list.find((model) => model.id === id)?.id;
-  const lead = known(chosen.lead) ?? team.lead;
-  const effort = typeof chosen.effort === 'string' && effortsIn(team, lead).includes(chosen.effort) ? chosen.effort : team.effort;
-  return { ...team, lead, writer: known(chosen.writer) ?? team.writer, effort };
+  const lead = modelIn(team, chosen.lead)?.id ?? team.lead;
+  const effort = typeof chosen.effort === 'string' && (modelIn(team, lead)?.efforts ?? []).includes(chosen.effort) ? chosen.effort : team.effort;
+  return { ...team, lead, effort };
 }
 
-const effortsIn = (team: Team, id: string | undefined): string[] => team.list.find((model) => model.id === id)?.efforts ?? [];
+const modelIn = (team: Team, id: unknown): ModelInfo | undefined => team.list.find((model) => model.id === id);
 
-/** What a run of a team takes: the lead's model and effort, and the writers' model at the effort that it takes. OpenCode keeps its own model. */
+/**
+ * What a run of a team takes: the lead's model and effort, and the writers' model at its most effort, whatever effort the lead has. OpenCode keeps its
+ * own model.
+ */
 export const teamRun = (team: Team): { model?: string; effort: string; writers?: { model: string; effort: string }; opencodeModel: undefined } => ({
-  ...(team.lead ? { model: team.lead } : {}), effort: nearestEffort(effortsIn(team, team.lead), team.effort),
-  ...(team.writer ? { writers: { model: team.writer, effort: nearestEffort(effortsIn(team, team.writer), team.effort) } } : {}),
+  ...(team.lead ? { model: team.lead } : {}), effort: nearestEffort(modelIn(team, team.lead)?.efforts ?? [], team.effort),
+  ...(team.writer ? { writers: { model: team.writer, effort: mostEffort(modelIn(team, team.writer)) } } : {}),
   opencodeModel: undefined,
 });
 

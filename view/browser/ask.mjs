@@ -54,13 +54,14 @@ try {
       && pressed.press?.tip === 'Starts a new Claude Code session that writes the description.' && !pressed.text.includes(WORDS) && !before.plain.includes(WORDS) && !pressed.copy && !/Copy/.test(pressed.text) && before.views.join() === 'Conversation,Diffs',
     JSON.stringify({ before, pressed }));
 
-  // The control after the press: the lead and the writers at Max; its menu has the models of the lead, of the writers, and the efforts. A choice goes with the press.
+  // The control after the press: the model of the lead at Max, as everywhere else; its menu has one model list and the efforts. A choice goes with the
+  // press, and no writer: the writers are always the smallest model at Max (teamFrom and teamRun in shared/models.ts).
   await page.click('#summary [data-rp-open]', { timeout: 3000 }).catch(() => {});
   const menu = await page.$$eval('#summary .rmenu :is(.ph, .pi, .chip)', (rows) => rows.map((row) => `${row.textContent.trim()}${row.classList.contains('on') ? ' ✓' : ''}`).filter(Boolean));
-  await page.click('#summary [data-rp-lead="opus"]', { timeout: 3000 }).catch(() => {});
+  await page.click('#summary [data-rp-model="opus"]', { timeout: 3000 }).catch(() => {});
   await page.click('#summary [data-rp-effort="xhigh"]', { timeout: 3000 }).catch(() => {});
   await page.mouse.move(5, 5);
-  await takePicture(page, '81-the-control-after-describe.png');
+  await takePicture(page, '82-the-control-after-describe-with-its-menu-open.png');
   const chosen = (await line()).control;
   await page.keyboard.press('Escape');
   // A click sends the words to VS Code, which starts the run and answers with the line of the run; its link opens the session (in a terminal here).
@@ -73,11 +74,11 @@ try {
   await takePicture(page.locator('#summary'), '75-the-line-after-the-press.png');
   await page.click('#summary [data-ask-open]', { timeout: 3000 }).catch(() => {});
   const opened = await page.evaluate(() => window.apostilSent.filter((message) => message.type === 'openAskSession'));
-  check('after the press the control says "Sonnet 5.5 leads · Haiku 5.5 writes · Max", and its menu has the models of the lead, the models of the writers and the efforts; a click on the press sends the words once to VS Code with the lead, the writers and the effort that the control shows, and the line then names the session that writes the description, its state and one link that opens it, with no words for the agent (a click asks VS Code to open it); nothing in the line moves',
-    pressed.control === 'Sonnet 5.5 leads · Haiku 5.5 writes · Max'
-      && JSON.stringify(menu) === JSON.stringify(['Leads', 'Haiku 5.5', 'Sonnet 5.5 ✓', 'Opus 5.5', 'Fable 5.2', 'Writers', 'Haiku 5.5 ✓', 'Sonnet 5.5', 'Opus 5.5', 'Fable 5.2', 'Effort', 'Low', 'Medium', 'High', 'Extra', 'Max ✓'])
-      && chosen === 'Opus 5.5 leads · Haiku 5.5 writes · Extra'
-      && JSON.stringify(sent) === JSON.stringify([{ type: 'askAgent', words: WORDS, team: { app: 'claude-code', lead: 'opus', writer: 'haiku', effort: 'xhigh' } }])
+  check('after the press the control says "Sonnet 5.5 · Max", and its menu has one model list and the efforts, as on a comment card; a click on the press sends the words once to VS Code with the model and the effort that the control shows and no writer, and the line then names the session that writes the description, its state and one link that opens it, with no words for the agent (a click asks VS Code to open it); nothing in the line moves',
+    pressed.control === 'Sonnet 5.5 · Max'
+      && JSON.stringify(menu) === JSON.stringify(['Model', 'Haiku 5.5', 'Sonnet 5.5 ✓', 'Opus 5.5', 'Fable 5.2', 'Effort', 'Low', 'Medium', 'High', 'Extra', 'Max ✓'])
+      && chosen === 'Opus 5.5 · Extra'
+      && JSON.stringify(sent) === JSON.stringify([{ type: 'askAgent', words: WORDS, team: { app: 'claude-code', lead: 'opus', effort: 'xhigh' } }])
       && after.text === 'Description by a new Claude Code session 1a2b3c4d · working · Open the session' && !after.press && after.open?.tip === 'Opens a terminal of VS Code that continues the session'
       && after.moves === 0 && JSON.stringify(opened) === JSON.stringify([{ type: 'openAskSession', words: WORDS }]),
     JSON.stringify({ control: pressed.control, menu, chosen, sent, after, opened }));
