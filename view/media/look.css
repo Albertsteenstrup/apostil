@@ -108,6 +108,10 @@ body:not(.picking) .stage g.node.go:hover > *{scale:1.03}
 /* Room for the comment mark of a part, so that a node whose name is its widest line does not cut the mark off. */
 .nodeLabel b[data-part],.nodeLabel b[data-nopart]{padding-right:38px}
 .nodeLabel b[data-part] .cb,.nodeLabel b[data-nopart] .cb{margin-right:-38px}
+/* The mark at the end of a file row reaches past the words that Mermaid measured, into the padding of the node: the label lets it show. */
+g.node foreignObject{overflow:visible}
+.nodeLabel .f .cb{width:20px;height:18px;margin:-4px 0 -4px 3px;vertical-align:-4px}
+.nodeLabel .f .cb img{width:10px;height:10px}
 .nodeLabel .f{display:block;font:var(--code-weight) var(--code)/1.6 var(--mono);color:var(--soft);white-space:nowrap;text-align:left;cursor:pointer}
 .nodeLabel .f:hover{background:var(--tealsoft);border-radius:3px}
 .nodeLabel .f.more{color:var(--muted);font-family:var(--sans);font-size:var(--small);cursor:default}
@@ -118,24 +122,24 @@ body:not(.picking) .stage g.node.go:hover > *{scale:1.03}
    waiting: the icon faint; working: a small teal dot at its corner; answered and not read yet: tinted with a teal edge; a note to no agent: empty. */
 .cb{position:relative;display:inline-grid;place-items:center;width:24px;height:22px;margin:-5px 0 -5px 6px;vertical-align:-6px;font-style:normal;cursor:pointer;flex:none} /* its margins keep the line as high as before */
 .cb .cbs{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
-.cb .cbs path,.cb.svg path{fill:var(--card);stroke:var(--line2);stroke-width:1.4}
+/* the bubble sets its own colours: inside a node of a diagram the rules of Mermaid on its paths would win otherwise */
+.cb{--cb-fill:var(--card);--cb-edge:var(--line2);--cb-width:1.4}
+.cb .cbs path,.cb.svg path{fill:var(--cb-fill)!important;stroke:var(--cb-edge)!important;stroke-width:var(--cb-width)!important}
 .cb img{position:relative;top:-1.5px;width:11px;height:11px;object-fit:contain}
 .cb.waiting img{opacity:.45}
-.cb.working .cbs path,.cb.answered .cbs path,.cb.on .cbs path{stroke:var(--teal)}
+.cb.working,.cb.answered,.cb.on{--cb-edge:var(--teal)}
 .cb.working::after{content:'';position:absolute;right:-1px;top:0;width:7px;height:7px;border-radius:50%;background:var(--teal);box-shadow:0 0 0 1.5px var(--card)}
-.cb.answered .cbs path{fill:var(--tealsoft)}
-.cb.on .cbs path{stroke-width:2}
+.cb.answered{--cb-fill:var(--tealsoft)}
+.cb.on{--cb-width:2}
 .cb .n{position:absolute;right:-6px;top:-5px;min-width:13px;height:13px;padding:0 3px;box-sizing:border-box;border-radius:7px;background:var(--card);box-shadow:0 0 0 1px var(--line2);color:var(--soft);font:600 9px/13px var(--sans);text-align:center}
 .cb.working .n{right:auto;left:-6px}
 .cb.svg{cursor:pointer}
-.cb.svg.working path,.cb.svg.answered path,.cb.svg.on path{stroke:var(--teal)}
-.cb.svg.answered path{fill:var(--tealsoft)}
 .cb.svg.waiting image{opacity:.45}
-.cb.svg .wd{fill:var(--teal);stroke:var(--card);stroke-width:1.5}
+.cb.svg .wd{fill:var(--teal)!important;stroke:var(--card)!important;stroke-width:1.5!important}
 .cb.svg text.n{fill:var(--soft);font:600 9px var(--sans);text-anchor:middle;dominant-baseline:central}
 /* at the end of the text of a code line it takes no room, so the line keeps its rows */
 .cn .code .x .cb{width:0;height:1em;margin:0;vertical-align:top}
-.cn .code .x .cb .cbs{left:10px;top:-2px;width:24px;height:22px;inset:auto}
+.cn .code .x .cb .cbs{inset:auto;left:10px;top:-2px;width:24px;height:22px}
 .cn .code .x .cb img{position:absolute;left:16.5px;top:2.5px}
 .cn .code .x .cb.working::after{left:29px;right:auto;top:-3px}
 .cn .code .x .cb .n{left:27px;right:auto;top:-6px}
@@ -388,8 +392,8 @@ p.fact{margin:0;padding:8px 12px;color:var(--muted)} /* what a file is, in one l
 .cbox .pick .icon,.cbox .pick .ico{width:13px;height:13px;margin:0}
 .cbox .pick .chev{width:14px;height:14px;flex:none}
 .cbox .pick:hover,.cbox .pick.on{background:var(--seg)}
-.cbox .pmenu{position:absolute;left:-12px;right:-12px;top:calc(100% + 8px);z-index:2;max-height:min(360px,calc(100vh - 24px));overflow:auto;padding:5px;border:1px solid var(--line);border-radius:11px;background:var(--card);box-shadow:var(--shadow);font-size:var(--small)}
-.cbox .pmenu.up{top:auto;bottom:calc(100% + 30px)}
+.cbox .pmenu{position:absolute;left:-12px;right:-12px;top:calc(100% + 8px);z-index:2;overflow:auto;padding:5px;border:1px solid var(--line);border-radius:11px;background:var(--card);box-shadow:var(--shadow);font-size:var(--small)}
+.cbox .pmenu.up{top:auto;bottom:calc(100% + 8px)}
 .cbox .ph{display:flex;align-items:center;gap:7px;padding:7px 8px 3px;color:var(--muted);font-weight:600}
 .cbox .ph .icon,.cbox .pi .ico{width:13px;height:13px;margin:0}
 .cbox .pi{display:flex;align-items:center;gap:8px;padding:5px 8px 5px 28px;border-radius:7px;color:var(--ink)}
@@ -425,6 +429,7 @@ p.fact{margin:0;padding:8px 12px;color:var(--muted)} /* what a file is, in one l
 .cmc .cmi{width:15px;height:15px;overflow:visible}
 .cmc .cmi path{fill:none;stroke:currentColor;stroke-width:2.2}
 .cmc:hover{color:var(--ink)}
+.home .bar .cmc{margin-left:auto} /* Home has no switch of views: the count stands at the right end of the bar */
 .cmc.on{background:color-mix(in srgb,var(--teal) 12%,var(--card));color:var(--tealink)}
 .cml{position:fixed;z-index:24;width:min(380px,calc(100vw - 16px));box-sizing:border-box;max-height:calc(100vh - 80px);overflow:auto;padding:6px;border-color:var(--line);border-radius:12px;color:var(--ink);line-height:1.4}
 .cml .cmr{display:grid;grid-template-columns:28px minmax(0,1fr) auto;column-gap:10px;padding:8px 8px 9px;border-radius:9px;color:var(--ink);cursor:pointer}
@@ -1359,7 +1364,7 @@ body:where(.vscode-dark,.vscode-high-contrast) .bk-press{background:transparent}
 .cn svg.links path.lk-wide{stroke-width:var(--lk-width)}
 .cn svg.links path.lk-dashed{stroke-dasharray:5 4}
 .cn svg.links path.cur{stroke:var(--teal)}
-.cb.lk-words .cbs path,.cb.svg.lk-words path{stroke:var(--lk-words)}
+.cb.lk-words{--cb-edge:var(--lk-words)}
 .opt.lk-words circle{stroke:var(--lk-words)}
 .opt.lk-words text{fill:var(--lk-words)}
 .lk-icon{width:14px;height:14px;margin-right:5px;vertical-align:-2px;object-fit:contain}

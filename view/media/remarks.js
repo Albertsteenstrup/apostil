@@ -320,7 +320,13 @@ const Remarks = (() => {
     if (!at) return;
     at.innerHTML = pickerHtml();
     const menu = at.querySelector('.pmenu');
-    if (menu && menu.getBoundingClientRect().bottom > innerHeight - 8) menu.classList.add('up'); // no room under the card: the menu opens above the picker
+    if (!menu) return;
+    // Under the picker when it fits, else above it; when neither fits, on the side with more room, which it scrolls.
+    const pick = at.getBoundingClientRect();
+    const [below, above] = [innerHeight - pick.bottom - 16, pick.top - 16];
+    const up = menu.offsetHeight > below && (menu.offsetHeight <= above || above > below);
+    menu.classList.toggle('up', up);
+    menu.style.maxHeight = `${Math.max(120, up ? above : below)}px`;
   }
 
   // ----- saving and acting -----
@@ -443,7 +449,10 @@ const Remarks = (() => {
     const thread = threadOf(id);
     if (!thread) return;
     await showPlace(thread[0].target);
-    const mark = document.querySelector(`.cb[data-threads~="${id}"]`);
+    if (App.tab && !codeShows(placeOf(thread[0].target))) return; // a file tab asked the change page to show it, which opens the card there
+    // The mark of the thing itself, before the mark of the part around it, which counts the threads of its things too.
+    const own = Places.find(placeOf(thread[0].target)).map((el) => (el.nextElementSibling?.matches?.(`.cb[data-threads~="${id}"]`) ? el.nextElementSibling : el.querySelector?.(`.cb[data-threads~="${id}"]`))).find(Boolean);
+    const mark = own ?? document.querySelector(`.cb[data-threads~="${id}"]`);
     const ids = mark ? mark.dataset.threads.split(' ').map(Number) : [id];
     openCard(ids, mark ?? Places.find(placeOf(thread[0].target))[0]);
   }
@@ -504,10 +513,13 @@ const Remarks = (() => {
     const mark = markOf(list);
     if (!mark) return;
     if (html) return (html.querySelector(':scope > .top') ?? html).insertAdjacentHTML('beforeend', mark);
-    const el = els.find((one) => one.tagName === 'g') ?? els.find((one) => one.tagName === 'text');
+    // An arrow with no words has an empty label at the corner of the drawing: its mark stands beside the middle of its line instead.
+    const drawn = (one) => { const { width, height } = one.getBBox(); return width > 0 || height > 0; };
+    const el = els.find((one) => one.tagName === 'g' && drawn(one)) ?? els.find((one) => one.tagName === 'text') ?? els.find((one) => one.tagName === 'path' && !one.classList.contains('hit'));
     if (!el) return;
-    const box = el.getBBox();
-    const [x, y] = el.tagName === 'g' ? [box.x + box.width - 10, box.y - 12] : [box.x + box.width + 4, box.y + box.height / 2 - 13];
+    const box = el.tagName === 'path' ? null : el.getBBox();
+    const middle = el.tagName === 'path' ? el.getPointAtLength(el.getTotalLength() / 2) : null;
+    const [x, y] = middle ? [middle.x - 40, middle.y - 13] : el.tagName === 'g' ? [box.x + box.width - 10, box.y - 12] : [box.x + box.width + 4, box.y + box.height / 2 - 13];
     const holder = document.createElement('i');
     holder.innerHTML = mark;
     const bubble = holder.firstChild;
@@ -539,7 +551,7 @@ const Remarks = (() => {
       title.insertAdjacentHTML('beforeend', markOf(open.filter((thread) => ofPart(thread, part))));
     }
     const noPart = view.querySelector('b[data-nopart]');
-    if (noPart) noPart.insertAdjacentHTML('beforeend', markOf(open.filter((thread) => App.page.checks.filesInNoPart.includes(thread[0].target.file))));
+    if (noPart) noPart.insertAdjacentHTML('beforeend', markOf(open.filter((thread) => thread[0].target.kind === 'no-part' || App.page.checks.filesInNoPart.includes(thread[0].target.file))));
     paintNotes(view, open);
     const byThing = new Map();
     for (const thread of open.filter((one) => !OWN_MARKS.has(one[0].target.kind))) {
@@ -668,13 +680,16 @@ const Remarks = (() => {
       + `<div class="tx">${textHtml(remark.answer)}</div>${changedHtml(remark)}</div></div>`;
   }
 
+  /** True when a remark has a session to open: the one that its run reported, the known session that it went to, else the session of the change. */
+  const hasSession = (remark) => !!(remark.run?.session || (remark.to?.kind === 'session' ? remark.to.session : remark.to?.kind !== 'new' && App.page.agent?.session));
+
   /** The quiet state line of a thread, with the way on that fits it. */
   function stateOf(remark) {
     const { agent, listening } = App.page;
     const line = States.remarkLine(remark, agent, listening);
     const link = (text, attrs) => `<a ${attrs}>${esc(text)}</a>`;
     // The session that works or worked on it: a click opens it, in its app or in a terminal that continues it.
-    const session = remark.run?.session || (remark.to?.kind === 'current' && agent?.session) ? link(W.session, `data-session="${remark.id}"`) : '';
+    const session = hasSession(remark) ? link(W.session, `data-session="${remark.id}"`) : '';
     if (remark.state === 'running' || remark.state === 'done') {
       const since = remark.state === 'running' && remark.run?.startedAt ? esc(W.since(new Date(remark.run.startedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }))) : '';
       return States.lineHtml(line, [since, session].filter(Boolean).map((bit) => ` · ${bit}`).join(''));
@@ -711,7 +726,7 @@ const Remarks = (() => {
     const fields = slots.content?.fields ?? ['where', 'messages', 'state', 'reply'];
     const lead = States.threadLead(thread);
     const parts = {
-      where: many ? `<div class="sub">${whereHtml(thread[0].target)}</div>` : '',
+      where: many && !sameThing(thread[0].target, card.target) ? `<div class="sub">${whereHtml(thread[0].target)}</div>` : '', // the head names the first thing
       messages: thread.map(messagesHtml).join(''),
       state: `<div class="st">${stateOf(lead)}</div>`,
       reply: many && thread[0].id !== card.reply ? `<a class="toreply" data-reply-to="${thread[0].id}">${esc(W.reply)}</a>` : '',
@@ -725,7 +740,7 @@ const Remarks = (() => {
     if (!lead) return [];
     const line = States.remarkLine(lead, App.page.agent, App.page.listening);
     return [
-      ...(lead.run?.session || (lead.to?.kind === 'current' && App.page.agent?.session) ? [`<a data-session="${lead.id}">${esc(W.openTheSession)}</a>`] : []),
+      ...(['running', 'done'].includes(lead.state) && hasSession(lead) ? [`<a data-session="${lead.id}">${esc(W.openTheSession)}</a>`] : []),
       ...(line.way === 'start' ? [`<a data-start="${lead.id}">${esc(W.startRun)}</a>`] : []),
     ];
   }
@@ -763,12 +778,12 @@ const Remarks = (() => {
     if (focused) focusField(card.el, focused);
     for (const thread of shown) if (newestAnswer(thread)) readAnswers[thread[0].id] = newestAnswer(thread); // the answers are read now
     if (shown.some((thread) => newestAnswer(thread))) keep({ readAnswers });
+    lightLines(inCode(card.target) && card.target.lines && !card.target.removed ? card.target : null); // draws the rows of the code again, with their marks
     document.querySelectorAll('.cb.on').forEach((el) => el.classList.remove('on'));
     for (const id of card.threads) {
       document.querySelectorAll(`.cb[data-threads~="${id}"]`).forEach((el) => el.classList.replace('answered', 'seen'));
       document.querySelectorAll(`.cb[data-threads~="${id}"]`).forEach((el) => el.classList.add('on'));
     }
-    lightLines(inCode(card.target) && card.target.lines && !card.target.removed ? card.target : null);
     placeCard();
   }
 
@@ -785,9 +800,9 @@ const Remarks = (() => {
     const mark = card.threads.length ? document.querySelector(`.cb[data-threads~="${card.threads[0]}"]`) : null;
     const target = placeOf(card.target);
     if (inCode(target) && codeShows(target)) {
-      const row = document.querySelector(`.cn .code .l[data-line="${target.lines?.[0]}"]`)?.getBoundingClientRect();
+      const [row, last] = (target.lines ?? []).map((line) => document.querySelector(`.cn .code .l[data-line="${line}"]`)?.getBoundingClientRect());
       const code = document.querySelector('.cn .code')?.getBoundingClientRect();
-      if (row && code && row.bottom > 0 && row.top < innerHeight) return { left: row.left, right: code.right, top: row.top, bottom: row.bottom };
+      if (row && code && row.bottom > 0 && row.top < innerHeight) return { left: row.left, right: code.right, top: row.top, bottom: (last ?? row).bottom };
     }
     const things = !inCode(target) ? Places.find(target).filter((el) => el.tagName !== 'svg' && el.getClientRects().length) : [];
     const thing = things.map((el) => el.closest('g.node, g.cluster') ?? el)[0];
