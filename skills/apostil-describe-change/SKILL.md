@@ -29,7 +29,7 @@ Do not paste code or the chat into the brief.
 
 ## Step 2: Start the writer subagent
 
-Use the newest small model that the app offers. Do not use a fixed model name. Notes and the diagram of one function are local work: the writer reads the changed code line by line, and a small model does that well. The overview of the whole repo is the work of the skill `apostil-map-repo`, which uses a medium or large model for it.
+You are the lead: you write the brief, start the writer and the checkers, and read their reports. When Apostil starts the run, its prompt names the model and the effort of the writer and the checkers: use the model that Apostil names. When it names none (a person started this skill by hand), use the newest small model that the app offers. Do not use a fixed model name. Notes and the diagram of one function are local work: the writer reads the changed code line by line, and a small model does that well. The overview of the whole repo is the work of the skill `apostil-map-repo`.
 
 Give the writer:
 
@@ -41,7 +41,7 @@ The writer writes its JSON to `apostil-draft.json` in the top folder of the repo
 
 ## Step 3: Start the fresh checkers
 
-The writer's report names the parts that have notes and the parts that a link leaves. Start one checker for each of those parts, all at the same time. Each checker is a new subagent with fresh context, on the same small model. One part for each checker keeps its input small, and the checks finish sooner.
+The writer's report names the parts that have notes and the parts that a link leaves. Start one checker for each of those parts, all at the same time. Each checker is a new subagent with fresh context, on the same model as the writer. One part for each checker keeps its input small, and the checks finish sooner.
 
 The fresh check must stay fresh. Give each checker these things and nothing else:
 

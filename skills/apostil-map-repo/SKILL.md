@@ -27,13 +27,17 @@ Marks are written at lines of code by writers, as notes are. The services are ma
 
 The top diagram is drawn first, from folders and a few files, so the owner sees it soon. Step 6 corrects it when the notes and the processes show that it is wrong. A run that stops can go on: `apostil note-groups`, `apostil process-groups` and `apostil mark-groups` list only what is left, so a new session starts at Step 3 and does the groups that they list.
 
-## Why four kinds of writer
+## Why four kinds of writer, and which model
 
-The overview needs judgment about the whole repo: what belongs together, and what flows between the areas. A medium or large model does that better. The diagram of one area, and the notes of one group of files, are local work: read the files, write what they hold. A small model does that well, and many writers can run at the same time. A process follows calls across files and must judge what a job is, so a medium model writes it. Use the newest model of each size that the app offers.
+You are the lead. You start the writers, check what they save, and correct them by starting a writer again. You never write a part of the map yourself.
+
+When Apostil starts the run, its prompt names the model and the effort of every writer: use the model that Apostil names for each writer below, also for the overview writer and the process writers. You check their work with `apostil map --fit` (Step 6) and with the commands of each step.
+
+When no model is named (a person started this skill by hand), choose by the work. The overview needs judgment about the whole repo: what belongs together, and what flows between the areas. A medium or large model does that better. The diagram of one area, and the notes of one group of files, are local work: read the files, write what they hold. A small model does that well, and many writers can run at the same time. A process follows calls across files and must judge what a job is, so a medium model writes it. Use the newest model of each size that the app offers.
 
 ## Step 1: Start the overview writer
 
-Use a medium or large model.
+Use the model that Apostil names. When it names none, use a medium or large model.
 
 Give the writer:
 
@@ -46,7 +50,7 @@ Do not paste code or the chat into the brief. The writer saves the top diagram w
 
 ## Step 2: Start one area writer for each named area
 
-Use a small model. Start all of them at the same time.
+Use the model that Apostil names. When it names none, use a small model. Start all of them at the same time.
 
 Give each writer:
 
@@ -61,7 +65,7 @@ Each writer adds its diagram with `apostil add-diagram`. It writes no notes. The
 
 Run `apostil note-groups` in the repo. It prints `{ "groups": [ ... ], "skipped": { ... } }`: each group has a `name` and its `files`, about 900 lines in sum. It lists only the files that need notes. When it lists more than 40 groups, tell the owner the count of groups and of lines (the sum of `lines` of the files) and ask whether to map all of it or only the paths that he names. Use `apostil note-groups --all` only when the owner wants the notes of every file written again.
 
-Use a small model. Start one notes writer for each group, all at the same time. When the app limits how many run at once, start at most 8 and start the next when one ends.
+Use the model that Apostil names. When it names none, use a small model. Start one notes writer for each group, all at the same time. When the app limits how many run at once, start at most 8 and start the next when one ends.
 
 Give each writer:
 
@@ -75,7 +79,7 @@ Each writer saves its notes with `apostil add-notes`. The command keeps the note
 
 Run `apostil note-groups` first: when it lists a group, a notes writer failed, so start that one again before this step. Then run `apostil process-groups`. It prints `{ "groups": [ ... ] }`: each group has a `name`, its `area` and its `files` with their count of notes. It lists only the groups with work left. Use `apostil process-groups --all` only when the owner wants all processes written again.
 
-Use a medium model. Start one process writer for each group, all at the same time. When the app limits how many run at once, start at most 8 and start the next when one ends.
+Use the model that Apostil names. When it names none, use a medium model. Start one process writer for each group, all at the same time. When the app limits how many run at once, start at most 8 and start the next when one ends.
 
 Give each writer:
 
@@ -105,19 +109,19 @@ Do this round once. Then run `apostil processes` again.
 
 The top diagram was drawn before the notes and the processes existed. Run `apostil map --fit`. It prints three short lists: `filesInNoNode` (files with notes that stand in no node of a diagram), `nodesWithNoFile` (nodes whose paths hold no file with a note or a process), and `callsWithNoArrow` (calls of the processes between two nodes of the top diagram that have no arrow between them, with an example line for each). Each list has at most 20 entries and the count of the rest.
 
-When all three lists are empty, skip this step. Else start the overview writer once more, with a medium or large model, with the same things as in Step 1, the three lists as `apostil map --fit` printed them, and this sentence: "Correct only what these facts show, and keep the ids of the nodes that stay." Start the area writer of Step 2 again only for an area whose node the top diagram changed (new paths, or a new node). Do this round once.
+When all three lists are empty, skip this step. Else start the overview writer once more, on the model of Step 1, with the same things as in Step 1, the three lists as `apostil map --fit` printed them, and this sentence: "Correct only what these facts show, and keep the ids of the nodes that stay." Start the area writer of Step 2 again only for an area whose node the top diagram changed (new paths, or a new node). Do this round once.
 
 ## Step 7: Start the service writers and the mark writers
 
 Run `apostil mark-groups --set services`. It prints `{ "set", "values", "groups": [ ... ] }`: each group has a `name` and its `files`, each file with its `candidates` (lines that a list of signs found, with the service that each may be). It lists only the files that need work. Use `--all` only when the owner wants all services written again.
 
-Use a small model. Start one service writer for each group, all at the same time. When the app limits how many run at once, start at most 8 and start the next when one ends. Give each writer:
+Use the model that Apostil names. When it names none, use a small model. Start one service writer for each group, all at the same time. When the app limits how many run at once, start at most 8 and start the next when one ends. Give each writer:
 
 - the full text of `service-writer-prompt.md` and of `../apostil-describe-change/text-rules.md`,
 - the path of the repo folder,
 - its group: the `name` and the `files` of that group with their candidates, as the command printed them.
 
-Then, for each set of `apostil look` other than `services`, run `apostil mark-groups --set <id of the set>`, and start one mark writer for each group it lists, with a small model. Give each writer the full text of `mark-writer-prompt.md` and of `../apostil-describe-change/text-rules.md`, the path of the repo folder, its group as the command printed it, and the id, the name, the rule and the values of the set, as `apostil look` printed them, in place of the words in `<…>` of the prompt.
+Then, for each set of `apostil look` other than `services`, run `apostil mark-groups --set <id of the set>`, and start one mark writer for each group it lists, on the model that Apostil names, else a small model. Give each writer the full text of `mark-writer-prompt.md` and of `../apostil-describe-change/text-rules.md`, the path of the repo folder, its group as the command printed it, and the id, the name, the rule and the values of the set, as `apostil look` printed them, in place of the words in `<…>` of the prompt.
 
 Each writer saves its marks with `apostil add-marks`. The command keeps the marks of the other writers. If `groups` is empty, skip that set.
 
