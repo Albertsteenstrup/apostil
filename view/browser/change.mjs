@@ -625,6 +625,17 @@ try {
     firstChoice.names === 'renew_loan flow,place_hold flow' && firstChoice.on === 'renew_loan flow' && firstChoice.drawn === 4
       && firstChoice.title === two[0].title && secondChoice.on === 'place_hold flow' && secondChoice.title === two[1].title, JSON.stringify({ firstChoice, secondChoice }));
   await readsShot('43-two-diagrams-named-by-function');
+  // A diagram that an agent writes may carry settings of Mermaid in its text. Its own CSS or theme must not reach the page: a box could cover all of it.
+  const ownStyle = await reads.evaluate(async () => {
+    const into = document.createElement('div');
+    document.body.append(into);
+    const svg = await drawMermaid(into, '%%{init: {"themeCSS": ".node rect { fill: rgb(1, 2, 3); }", "fontFamily": "Papyrus"}}%%\nflowchart TB\n  a[One] --> b[Two]');
+    const style = svg?.querySelector('style')?.textContent ?? '';
+    into.remove();
+    return { drawn: !!svg, css: style.includes('rgb(1, 2, 3)'), font: style.includes('Papyrus') };
+  });
+  check('the CSS, theme and font that the text of a diagram sets for itself are left out: only the look of the page draws it',
+    ownStyle.drawn && !ownStyle.css && !ownStyle.font, JSON.stringify(ownStyle));
   await reads.close();
 } catch (error) {
   check('the checks ran to the end', false, error.message.split('\n').slice(0, 14).join(' / '));
