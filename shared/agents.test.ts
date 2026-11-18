@@ -40,22 +40,22 @@ test('the link, the resume command, the command of a new session and the command
 
   const claude = resumeCommand({ app: 'claude-code', session: 's1' }, 'Do it')!;
   assert.deepEqual(claude.slice(0, 4), ['claude', '-p', '--resume', 's1']);
-  assert.deepEqual(claude.slice(-4), ['--permission-mode', 'acceptEdits', '--allowedTools', 'Bash(apostil *)']);
+  assert.deepEqual(claude.slice(-6), ['--effort', 'high', '--permission-mode', 'acceptEdits', '--allowedTools', 'Bash(apostil *)']);
   assert.ok(!claude.some((word) => word.includes('dangerously')));
   // Codex may write in the folder of the change and in the folder of the store, where its answer goes; nothing switches its sandbox off.
   const codex = resumeCommand({ app: 'codex', session: 't1' }, 'Do it', { store: '/home/me/.apostil' })!;
-  assert.deepEqual(codex, ['codex', 'exec', 'resume', 't1', 'Do it', '--json', '-c', 'sandbox_mode="workspace-write"', '-c', 'sandbox_workspace_write.writable_roots=["/home/me/.apostil"]']);
+  assert.deepEqual(codex, ['codex', 'exec', 'resume', 't1', 'Do it', '--json', '-c', 'sandbox_mode="workspace-write"', '-c', 'sandbox_workspace_write.writable_roots=["/home/me/.apostil"]', '-c', 'model_reasoning_effort="high"']);
   assert.ok(!codex.some((word) => word.includes('dangerously')));
   assert.deepEqual(resumeCommand({ app: 'antigravity', session: 'c1' }, 'Do it'), ['agy', '-p', 'Do it', '--conversation', 'c1']);
   assert.deepEqual(resumeCommand({ app: 'opencode', session: 'o1' }, 'Do it'), ['opencode', 'run', '--session', 'o1', 'Do it', '--format', 'json']);
   assert.equal(resumeCommand({ app: 'claude-code' }, 'Do it'), undefined);
 
   // NewRunCommand starts a new session of each app with a prompt, and edits files without switching all prompts off.
-  assert.deepEqual(newRunCommand('claude-code', 'Do it'), ['claude', '-p', 'Do it', '--output-format', 'json', '--permission-mode', 'acceptEdits', '--allowedTools', 'Bash(apostil *)']);
-  assert.deepEqual(newRunCommand('codex', 'Do it'), ['codex', 'exec', 'Do it', '--json', '-c', 'sandbox_mode="workspace-write"']);
-  assert.deepEqual(newRunCommand('codex', 'Do it', { store: '/home/me/.apostil' })?.slice(-2), ['-c', 'sandbox_workspace_write.writable_roots=["/home/me/.apostil"]']);
+  assert.deepEqual(newRunCommand('claude-code', 'Do it'), ['claude', '-p', 'Do it', '--output-format', 'json', '--effort', 'high', '--permission-mode', 'acceptEdits', '--allowedTools', 'Bash(apostil *)']);
+  assert.deepEqual(newRunCommand('codex', 'Do it'), ['codex', 'exec', 'Do it', '--json', '-c', 'sandbox_mode="workspace-write"', '-c', 'model_reasoning_effort="high"']);
+  assert.deepEqual(newRunCommand('codex', 'Do it', { store: '/home/me/.apostil' })?.slice(-4, -2), ['-c', 'sandbox_workspace_write.writable_roots=["/home/me/.apostil"]']);
   // The model that the owner set in Apostil goes to Codex only, for a new session; a continued session keeps its own model; with none set, Codex keeps its own.
-  assert.deepEqual(newRunCommand('codex', 'Do it', { codexModel: 'model-a' })?.slice(-2), ['-c', 'model="model-a"']);
+  assert.deepEqual(newRunCommand('codex', 'Do it', { codexModel: 'model-a' })?.slice(-4, -2), ['-c', 'model="model-a"']);
   assert.ok(!resumeCommand({ app: 'codex', session: 't1' }, 'Do it', { codexModel: 'model-a' })?.some((word) => word.startsWith('model=')));
   assert.ok(!newRunCommand('codex', 'Do it')?.some((word) => word.startsWith('model=')));
   assert.deepEqual(newRunCommand('claude-code', 'Do it', { codexModel: 'model-a' }), newRunCommand('claude-code', 'Do it'));
@@ -78,25 +78,41 @@ test('the link, the resume command, the command of a new session and the command
   assert.equal(sessionOpens({ app: 'claude-code' }), undefined);
 });
 
-test('every new session takes the small model of its app unless the owner set another, and a continued session keeps its own model: haiku for Claude Code, luna for Codex, the small_model of the OpenCode config; a run that describes a change gets what the skill runs and no Edit', () => {
+test('every new session takes the small model of its app unless the owner set another, and a comment run that continues a session keeps its own model: haiku for Claude Code, gpt-6-luna for Codex, the small_model of the OpenCode config; a run that draws diagrams thinks at max and takes the small model also in a session that it continues, other runs at high; a run that describes a change or writes the map reads the repo, and the description has no Edit', () => {
   const models = { claudeModel: SMALL_MODELS['claude-code'], codexModel: SMALL_MODELS.codex, opencodeModel: 'made-up-provider/small-one' };
-  assert.deepEqual(SMALL_MODELS, { 'claude-code': 'haiku', codex: 'luna' });
+  assert.deepEqual(SMALL_MODELS, { 'claude-code': 'haiku', codex: 'gpt-6-luna' });
   // The settings in VS Code start with these models: an empty setting means the model of the app's own settings.
   const settings = JSON.parse(readFileSync(join(__dirname, '..', '..', 'package.json'), 'utf8')).contributes.configuration.properties;
   assert.deepEqual([settings['apostil.claudeModel'].default, settings['apostil.codexModel'].default], [SMALL_MODELS['claude-code'], SMALL_MODELS.codex]);
-  // The arguments of each app for a new session; a run that continues a session gives no model, so the session keeps the model that it has.
-  assert.deepEqual(modelWords('claude-code', models), ['--model', 'haiku']);
-  assert.deepEqual(modelWords('codex', models), ['-c', 'model="luna"']);
-  assert.deepEqual(modelWords('opencode', models), ['--model', 'made-up-provider/small-one']);
+  // The model and the effort of each app: a run that is not about diagrams thinks at high; a comment run that continues a session gives no model.
+  assert.deepEqual(modelWords('claude-code', models), ['--model', 'haiku', '--effort', 'high']);
+  assert.deepEqual(modelWords('codex', models), ['-c', 'model="gpt-6-luna"', '-c', 'model_reasoning_effort="high"']);
+  assert.deepEqual(modelWords('opencode', models), ['--model', 'made-up-provider/small-one#high']); // OpenCode: the variant of the model is its effort
+  assert.deepEqual(modelWords('opencode', { opencodeModel: 'made-up-provider/small-one#fast' }), ['--model', 'made-up-provider/small-one#fast']); // a variant that the person set stays
   assert.deepEqual(modelWords('antigravity', models), []);
-  assert.deepEqual(modelWords('claude-code', {}), []); // an empty setting: the model of the app's own settings
-  assert.deepEqual(newRunCommand('claude-code', 'Do it', models)?.slice(5, 7), ['--model', 'haiku']);
+  assert.deepEqual(modelWords('claude-code', {}), ['--effort', 'high']); // an empty setting: the model of the app's own settings, at the effort of the run
+  assert.deepEqual(newRunCommand('claude-code', 'Do it', models)?.slice(5, 9), ['--model', 'haiku', '--effort', 'high']);
   assert.ok(!resumeCommand({ app: 'claude-code', session: 's1' }, 'Do it', models)?.includes('--model'));
-  assert.deepEqual(newRunCommand('codex', 'Do it', models)?.slice(-2), ['-c', 'model="luna"']);
+  assert.deepEqual(newRunCommand('codex', 'Do it', models)?.slice(-4), ['-c', 'model="gpt-6-luna"', '-c', 'model_reasoning_effort="high"']);
   assert.ok(!resumeCommand({ app: 'codex', session: 't1' }, 'Do it', models)?.some((word) => word.startsWith('model=')));
-  assert.deepEqual(newRunCommand('opencode', 'Do it', models), ['opencode', 'run', 'Do it', '--format', 'json', '--model', 'made-up-provider/small-one']);
+  assert.deepEqual(newRunCommand('opencode', 'Do it', models), ['opencode', 'run', 'Do it', '--format', 'json', '--model', 'made-up-provider/small-one#high']);
   assert.deepEqual(resumeCommand({ app: 'opencode', session: 'o1' }, 'Do it', models), ['opencode', 'run', '--session', 'o1', 'Do it', '--format', 'json']);
   assert.deepEqual(newRunCommand('antigravity', 'Do it', models), ['agy', '-p', 'Do it', '--mode', 'accept-edits']);
+  // A run that draws diagrams (the map, a description): the small model at the most effort, also in a session that it continues (the owner, 18 November).
+  for (const kind of [{ diagrams: true as const }, { describe: true as const }]) {
+    const drawing = { ...models, ...kind };
+    assert.deepEqual(modelWords('claude-code', drawing), ['--model', 'haiku', '--effort', 'max']);
+    assert.deepEqual(modelWords('codex', drawing), ['-c', 'model="gpt-6-luna"', '-c', 'model_reasoning_effort="max"']);
+    assert.deepEqual(modelWords('opencode', drawing), ['--model', 'made-up-provider/small-one#max']);
+    const resumed = resumeCommand({ app: 'claude-code', session: 's1' }, 'Do it', drawing)!;
+    assert.deepEqual(resumed.slice(7, 11), ['--model', 'haiku', '--effort', 'max']);
+    assert.deepEqual(resumeCommand({ app: 'codex', session: 't1' }, 'Do it', drawing)?.slice(-4), ['-c', 'model="gpt-6-luna"', '-c', 'model_reasoning_effort="max"']);
+    assert.deepEqual(resumeCommand({ app: 'opencode', session: 'o1' }, 'Do it', drawing)?.slice(-2), ['--model', 'made-up-provider/small-one#max']);
+  }
+  // The map run reads the repo: the read tools and the commands of git and gh that only read.
+  const map = newRunCommand('claude-code', 'Write the map', { ...models, diagrams: true })!;
+  assert.deepEqual(map.slice(map.indexOf('--allowedTools') + 1), ['Bash(apostil *)', 'Read', 'Grep', 'Glob', 'Bash(git log *)', 'Bash(git show *)', 'Bash(git diff *)', 'Bash(git ls-files *)',
+    'Bash(git grep *)', 'Bash(git blame *)', 'Bash(git status *)', 'Bash(ls *)', 'Bash(gh pr view *)', 'Bash(gh pr diff *)']);
 
   // The small model of OpenCode, read and never written: the config of the folder first, then OPENCODE_CONFIG, then the global one; JSONC with comments too.
   const home = tempFolder('apostil-home-');
@@ -110,10 +126,11 @@ test('every new session takes the small model of its app unless the owner set an
   writeFileSync(join(folder, 'opencode.json'), JSON.stringify({ model: 'made-up/large', small_model: 'made-up/repo-small' }));
   assert.equal(opencodeSmallModel(folder, home, { OPENCODE_CONFIG: join(folder, 'custom.json') }), 'made-up/repo-small');
 
-  // A run that describes a change: it reads, runs git show and git diff, writes its drafts and saves with apostil; it has no Edit.
+  // A run that describes a change: it reads the repo as the map run does, writes its drafts and saves with apostil; it has no Edit.
   const describe = newRunCommand('claude-code', 'Describe pull request #35 for Apostil', { describe: true, sessionId: '00000000-0000-4000-8000-000000000035' })!;
   assert.deepEqual(describe.slice(5, 7), ['--session-id', '00000000-0000-4000-8000-000000000035']);
-  assert.deepEqual(describe.slice(describe.indexOf('--allowedTools') + 1), ['Bash(apostil *)', 'Read', 'Grep', 'Glob', 'Write', 'Bash(git show *)', 'Bash(git diff *)', '--disallowedTools', 'Edit', 'NotebookEdit']);
+  assert.deepEqual(describe.slice(describe.indexOf('--allowedTools') + 1), ['Bash(apostil *)', 'Read', 'Grep', 'Glob', 'Bash(git log *)', 'Bash(git show *)', 'Bash(git diff *)', 'Bash(git ls-files *)',
+    'Bash(git grep *)', 'Bash(git blame *)', 'Bash(git status *)', 'Bash(ls *)', 'Bash(gh pr view *)', 'Bash(gh pr diff *)', 'Write', '--disallowedTools', 'Edit', 'NotebookEdit']);
 });
 
 const pr = (changes: Partial<RawPullRequest>): RawPullRequest => ({
@@ -297,8 +314,8 @@ test('a run keeps the default permission mode of Claude Code when a run can work
     assert.equal(codexDefaultSandbox(home, ''), 'workspace-write');
     writeFileSync(join(home, '.codex', 'config.toml'), 'profile = "free"\nsandbox_mode = "workspace-write"\n\n[profiles.free]\nsandbox_mode = "danger-full-access"\n');
     assert.equal(codexDefaultSandbox(home, ''), 'danger-full-access');
-    assert.deepEqual(newRunCommand('codex', 'Do it', { store: '/s', codexSandbox: 'danger-full-access' })?.slice(-2), ['-c', 'sandbox_mode="danger-full-access"']);
-    assert.deepEqual(newRunCommand('codex', 'Do it', { store: '/s', codexSandbox: 'read-only' })?.slice(-4), ['-c', 'sandbox_mode="workspace-write"', '-c', 'sandbox_workspace_write.writable_roots=["/s"]']);
+    assert.deepEqual(newRunCommand('codex', 'Do it', { store: '/s', codexSandbox: 'danger-full-access' })?.slice(-4, -2), ['-c', 'sandbox_mode="danger-full-access"']);
+    assert.deepEqual(newRunCommand('codex', 'Do it', { store: '/s', codexSandbox: 'read-only' })?.slice(-6, -2), ['-c', 'sandbox_mode="workspace-write"', '-c', 'sandbox_workspace_write.writable_roots=["/s"]']);
   }
 });
 

@@ -9,7 +9,7 @@ const CLAUDE_MODEL = 'apostil.claudeModel';
 const CODEX_MODEL = 'apostil.codexModel';
 const COMMENT_RUNS = 'apostil.commentRuns';
 
-/** A model setting: its value ("haiku" and "luna" by default, the small models of SMALL_MODELS), or undefined when the owner emptied it: the app then takes the model of its own settings. */
+/** A model setting: its value ("haiku" and "gpt-6-luna" by default, the small models of SMALL_MODELS), or undefined when the owner emptied it: the app then takes the model of its own settings. */
 const modelSetting = (name: string): string | undefined => vscode.workspace.getConfiguration().get<string>(name)?.trim() || undefined;
 
 /** The models of every run that Apostil starts, for Claude Code and for Codex; OpenCode takes the small model of its own config (opencodeSmallModel). */

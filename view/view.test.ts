@@ -489,6 +489,7 @@ test('the output of a run: its session, why it failed or stopped, and the comman
   assert.equal(problemFromOutput('{"type":"result","is_error":true,"subtype":"error_during_execution","terminal_reason":"aborted"}\n'), 'It stopped with an error (aborted).');
   assert.equal(allowRule('git ls-files --cached --others scripts/'), 'Bash(git ls-files *)');
   assert.equal(allowRule('cd /repo && apostil add-notes apostil-notes-a.json'), 'Bash(apostil add-notes *)');
+  assert.equal(allowRule('(apostil map --json | head -5)'), 'Bash(apostil map *)'); // the brackets of a subshell are no program
   assert.equal(allowRule('python3 -c "print(1)"'), 'Bash(python3 *)');
   const result = JSON.stringify({ type: 'result', is_error: false, result: 'Done', permission_denials: [
     { tool_name: 'Bash', tool_input: { command: 'git ls-files src/' } }, { tool_name: 'Bash', tool_input: { command: 'git ls-files tests/' } }, { tool_name: 'WebFetch', tool_input: {} },

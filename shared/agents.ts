@@ -75,37 +75,54 @@ export const COMMENT_RUNS = ['read and edit', 'read only'] as const;
 const READ_TOOLS = ['Read', 'Grep', 'Glob'];
 
 /**
- * What a run that describes a change uses, as the skill apostil-describe-change runs it: it reads the code, reads the code before the change and the size
- * of the change with `git show` and `git diff`, writes its drafts whole (apostil-draft.json, apostil-diagram-<id>.json) and saves them with apostil.
- * It changes no code, so it has no Edit.
+ * What a run that draws diagrams (the map of a repo, the description of a change) uses to read the repo: the read tools, and the commands of git and gh
+ * that only read, also those of a pull request that is not checked out (the owner, 18 November: "make sure it has access to read repo").
  */
-const DESCRIBE_TOOLS = [...READ_TOOLS, 'Write', 'Bash(git show *)', 'Bash(git diff *)'];
+const READ_REPO = [...READ_TOOLS, 'Bash(git log *)', 'Bash(git show *)', 'Bash(git diff *)', 'Bash(git ls-files *)', 'Bash(git grep *)', 'Bash(git blame *)', 'Bash(git status *)',
+  'Bash(ls *)', 'Bash(gh pr view *)', 'Bash(gh pr diff *)'];
+
+/**
+ * What a run that describes a change uses, as the skill apostil-describe-change runs it: it reads the repo, writes its drafts whole (apostil-draft.json,
+ * apostil-diagram-<id>.json) and saves them with apostil. It changes no code, so it has no Edit.
+ */
+const DESCRIBE_TOOLS = [...READ_REPO, 'Write'];
 
 /**
  * What a Claude Code run may do: its mode, and the command apostil, with which it saves what it writes. A run that a comment starts (`commentRuns` set) also
  * reads the repo and, with "read and edit", edits it: no other command. "Read only" takes the editing tools away also when the mode would accept edits.
- * A run that describes a change (`describe`) gets what the skill runs, and no Edit.
+ * A run that describes a change (`describe`) gets what the skill runs, and no Edit; a run that writes the map (`diagrams`) reads the repo as it does.
  */
-const claudeRights = ({ claudeMode, commentRuns, describe }: RunOptions): string[] => [
+const claudeRights = ({ claudeMode, commentRuns, describe, diagrams }: RunOptions): string[] => [
   '--permission-mode', claudeRunMode(claudeMode),
-  '--allowedTools', 'Bash(apostil *)', ...(describe ? DESCRIBE_TOOLS : commentRuns === undefined ? [] : commentRuns === 'read only' ? READ_TOOLS : [...READ_TOOLS, 'Edit', 'Write']),
+  '--allowedTools', 'Bash(apostil *)', ...(describe ? DESCRIBE_TOOLS : diagrams ? READ_REPO : commentRuns === undefined ? [] : commentRuns === 'read only' ? READ_TOOLS : [...READ_TOOLS, 'Edit', 'Write']),
   ...(describe ? ['--disallowedTools', 'Edit', 'NotebookEdit'] : commentRuns === 'read only' ? ['--disallowedTools', 'Edit', 'Write', 'NotebookEdit'] : []),
 ];
 
 /**
  * The small model of each app, which every new session that Apostil starts takes unless the owner set another (the settings apostil.claudeModel and
- * apostil.codexModel). A run that continues a session gives no model: the session keeps the model that it has.
+ * apostil.codexModel), and also a run that draws diagrams in a session that it continues. A comment run that continues a session gives no model: the
+ * session keeps the model that it has. Codex knows its small model by its full name only (its model list has no "luna" alone).
  */
-export const SMALL_MODELS: Record<string, string> = { 'claude-code': 'haiku', codex: 'luna' };
+export const SMALL_MODELS: Record<string, string> = { 'claude-code': 'haiku', codex: 'gpt-6-luna' };
+
+/** A run that draws diagrams: the map of a repo, or the description of a change (whose skill draws the diagrams of the change). */
+const drawsDiagrams = (options: RunOptions): boolean => !!(options.diagrams || options.describe);
+
+/** The reasoning effort of a run (the owner, 18 November): the most for a run that draws diagrams, else high. */
+export const runEffort = (options: RunOptions): 'max' | 'high' => (drawsDiagrams(options) ? 'max' : 'high');
 
 /**
- * The words that choose the model of a run: `--model` for Claude Code and OpenCode, `-c model=` for Codex (as it reads its config.toml).
- * None when no model is set: the app then takes the model of its own settings.
+ * The words that choose the model and the reasoning effort of a run: `--model` and `--effort` for Claude Code; `-c model=` and `-c model_reasoning_effort=`
+ * for Codex (as it reads its config.toml); for OpenCode `--model provider/model#variant`, where the variant is the effort and needs a model (a model that the
+ * person set with a variant keeps it). `withModel` false sets the effort only, so that a session that a run continues keeps its model.
+ * With no model set, the app takes the model of its own settings.
  */
-export function modelWords(app: string, { claudeModel, codexModel, opencodeModel }: RunOptions): string[] {
-  if (app === 'claude-code' && claudeModel) return ['--model', claudeModel];
-  if (app === 'codex' && codexModel) return ['-c', `model=${JSON.stringify(codexModel)}`];
-  if (app === 'opencode' && opencodeModel) return ['--model', opencodeModel];
+export function modelWords(app: string, options: RunOptions, withModel = true): string[] {
+  const { claudeModel, codexModel, opencodeModel } = options;
+  const effort = runEffort(options);
+  if (app === 'claude-code') return [...(withModel && claudeModel ? ['--model', claudeModel] : []), '--effort', effort];
+  if (app === 'codex') return [...(withModel && codexModel ? ['-c', `model=${JSON.stringify(codexModel)}`] : []), '-c', `model_reasoning_effort=${JSON.stringify(effort)}`];
+  if (app === 'opencode' && withModel && opencodeModel) return ['--model', opencodeModel.includes('#') ? opencodeModel : `${opencodeModel}#${effort}`];
   return [];
 }
 
@@ -169,12 +186,13 @@ const codexRights = (store?: string, sandbox?: string): string[] => (sandbox ===
 export interface RunOptions {
   store?: string;
   claudeModel?: string; // the model of a Claude Code run (setting apostil.claudeModel, "haiku" by default); empty: Claude Code takes the model of its own settings
-  codexModel?: string; // the model of a Codex run (setting apostil.codexModel, "luna" by default); empty: Codex takes the model of its own settings
+  codexModel?: string; // the model of a Codex run (setting apostil.codexModel, "gpt-6-luna" by default); empty: Codex takes the model of its own settings
   opencodeModel?: string; // the small model that the person set for OpenCode (opencodeSmallModel); none: OpenCode keeps its own
   claudeMode?: string; // the default permission mode of the person for Claude Code (claudeDefaultMode)
   codexSandbox?: string; // the sandbox of the person for Codex (codexDefaultSandbox)
   commentRuns?: string; // set for a run that a comment starts: "read and edit" or "read only" (Claude Code); Codex keeps its sandbox
-  describe?: true; // a run that describes a change (words for an agent): what the skill apostil-describe-change runs, and no Edit
+  describe?: true; // a run that describes a change (words for an agent): what the skill apostil-describe-change runs, and no Edit; it draws diagrams
+  diagrams?: true; // a run that writes the map of a repo: it reads the repo, with the most reasoning effort
   sessionId?: string; // a new Claude Code session takes this id, so that its link is known before the run ends
 }
 
@@ -186,18 +204,21 @@ export const runOptions = (folder: string, store: string, models: RunModels = {}
   store, claudeModel: models.claude, codexModel: models.codex, opencodeModel: opencodeSmallModel(folder), claudeMode: claudeDefaultMode(folder), codexSandbox: codexDefaultSandbox(),
 });
 
-/** The words that set the sandbox of a Codex run, and its model when one is set. */
-const codexWords = (options: RunOptions): string[] => [...codexRights(options.store, options.codexSandbox), ...modelWords('codex', options)];
+/** The words that set the sandbox of a Codex run, its model when one is set, and its effort. */
+const codexWords = (options: RunOptions, withModel = true): string[] => [...codexRights(options.store, options.codexSandbox), ...modelWords('codex', options, withModel)];
 
-/** The command and arguments that continue the session with a prompt, or undefined. */
+/**
+ * The command and arguments that continue the session with a prompt, or undefined. A comment run gives no model, so the session keeps the model that it has,
+ * and sets the effort only; a run that draws diagrams takes the small model at the most effort, as a new session does.
+ */
 export function resumeCommand(agent: AgentSession, prompt: string, options: RunOptions = {}): string[] | undefined {
   const { session } = agent;
   if (!session) return undefined;
-  // No model: the session keeps the model that it has (SMALL_MODELS is for a new session only).
-  if (agent.app === 'claude-code') return ['claude', '-p', '--resume', session, prompt, '--output-format', 'json', ...claudeRights(options)];
-  if (agent.app === 'codex') return ['codex', 'exec', 'resume', session, prompt, '--json', ...codexRights(options.store, options.codexSandbox)];
+  const withModel = drawsDiagrams(options);
+  if (agent.app === 'claude-code') return ['claude', '-p', '--resume', session, prompt, '--output-format', 'json', ...modelWords(agent.app, options, withModel), ...claudeRights(options)];
+  if (agent.app === 'codex') return ['codex', 'exec', 'resume', session, prompt, '--json', ...codexWords(options, withModel)];
   if (agent.app === 'antigravity') return ['agy', '-p', prompt, '--conversation', session];
-  if (agent.app === 'opencode') return ['opencode', 'run', '--session', session, prompt, '--format', 'json'];
+  if (agent.app === 'opencode') return ['opencode', 'run', '--session', session, prompt, '--format', 'json', ...modelWords(agent.app, options, withModel)];
   return undefined;
 }
 

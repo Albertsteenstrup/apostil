@@ -491,12 +491,12 @@
         "apostil.claudeModel": {
           "type": "string",
           "default": "haiku",
-          "markdownDescription": "The model for each new Claude Code session that Apostil starts: for the map, for a comment to `@claude-new`, and for a description that a link starts. The small model `haiku` by default. A run that continues a session (`@claude-current`) keeps the model of that session. Leave it empty to use the model of your Claude Code settings."
+          "markdownDescription": "The model for each new Claude Code session that Apostil starts: for the map, for a comment to `@claude-new`, and for a description that a link starts. The small model `haiku` by default. A run that draws diagrams (the map, a description) thinks at the most effort (`max`) and takes this model also in a session that it continues; a comment run thinks at `high`, and when it continues a session (`@claude-current`) that session keeps its model. Leave it empty to use the model of your Claude Code settings."
         },
         "apostil.codexModel": {
           "type": "string",
-          "default": "luna",
-          "markdownDescription": "The model for each new Codex session that Apostil starts: for the map, for a comment to `@codex-new`, and for a description that a link starts. The small model `luna` by default. A run that continues a session (`@codex-current`) keeps the model of that session. Leave it empty to use the model of your Codex settings. Set another when the command-line Codex refuses that model for your account."
+          "default": "gpt-6-luna",
+          "markdownDescription": "The model for each new Codex session that Apostil starts: for the map, for a comment to `@codex-new`, and for a description that a link starts. The small model `gpt-6-luna` by default. A run that draws diagrams (the map, a description) thinks at the most effort (`max`) and takes this model also in a session that it continues; a comment run thinks at `high`, and when it continues a session (`@codex-current`) that session keeps its model. Leave it empty to use the model of your Codex settings. Set another when the command-line Codex refuses that model for your account."
         },
         "apostil.commentRuns": {
           "type": "string",

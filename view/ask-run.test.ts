@@ -32,6 +32,7 @@ test('the press starts a new session with the words, its id known at once and th
     assert.deepEqual(args.slice(0, 2), ['-p', words]);
     assert.equal(args[args.indexOf('--session-id') + 1], view.line?.tip?.replace('Session ', '')); // the link of the session is there before the run ends
     assert.equal(args[args.indexOf('--model') + 1], 'haiku');
+    assert.equal(args[args.indexOf('--effort') + 1], 'max'); // a description draws diagrams: the most effort
     assert.deepEqual(ended, { problem: 'It ended before it was done.', denied: ['Bash(gh pr *)'] });
     assert.equal(view.line?.state, 'stopped');
     assert.equal(view.press?.label, 'Describe it with a new Claude Code session'); // the session of a run that stopped is not asked again

@@ -50,9 +50,12 @@ export function problemFromErrors(errors: string): string | undefined {
   return lines.length ? lines.slice(-2).join(' ').slice(0, 400) : undefined;
 }
 
-/** The rule of Claude Code that allows a command like this one: the program and its first word, as "Bash(git ls-files *)"; a "cd <folder> &&" in front is left out. */
+/**
+ * The rule of Claude Code that allows a command like this one: the program and its first word, as "Bash(git ls-files *)"; a "cd <folder> &&" in front is
+ * left out, and so are the brackets of a subshell or a group ("(apostil map …)" gives "Bash(apostil map *)").
+ */
 export function allowRule(command: string): string {
-  const first = command.split(/&&|\|\||;|\|/).map((part) => part.trim()).find((part) => part && !/^cd\s/.test(part)) ?? command.trim();
+  const first = command.split(/&&|\|\||;|\|/).map((part) => part.trim().replace(/^[({]\s*/, '')).find((part) => part && !/^cd\s/.test(part)) ?? command.trim();
   const [program = '', word] = first.split(/\s+/);
   return `Bash(${program}${word && /^[a-z][\w-]*$/i.test(word) ? ` ${word}` : ''} *)`;
 }
@@ -132,7 +135,7 @@ export function mapPrompt(describe = false): string {
  * the app cannot be started from here. `found` gets the session that the run reports on its output: Codex at its start, Claude Code with its result.
  */
 export function startMapRun(app: string, folder: string, ended: (problem?: string, facts?: RunFacts) => void, models: RunModels = {}, describe = false, found: (session: string) => void = () => {}): boolean {
-  const command = newRunCommand(app, mapPrompt(describe), runOptions(folder, storeFolder(), models));
+  const command = newRunCommand(app, mapPrompt(describe), { ...runOptions(folder, storeFolder(), models), diagrams: true }); // it draws diagrams: the most effort, and it reads the repo
   if (!command) return false;
   spawnRun(command, folder, found, (problem, facts) => {
     rmSync(join(folder, MAP_DRAFT), { force: true });

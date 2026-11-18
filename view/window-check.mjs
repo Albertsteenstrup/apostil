@@ -1226,10 +1226,10 @@ try {
   const pressRun = await until(() => runsNow().length > runsBeforePress && runsNow().at(-1));
   const wentLine = await until(() => barePage?.evaluate(() => (document.querySelector('#summary [data-ask-open]') ? document.getElementById('summary').textContent : '')), 8000);
   await shot('2c-the-words-went-to-a-session');
-  check('the link names the Claude Code session that will describe the pull request; a click starts one run of the stand-in claude with the words, the rights of a description, and the small model only for a new session (a continued session keeps its own), and the line names the session, with "Open the session"',
+  check('the link names the Claude Code session that will describe the pull request; a click starts one run of the stand-in claude with the words, the rights of a description (it reads the repo, gh pr view too), and the small model at the most effort, also in a session that it continues, and the line names the session, with "Open the session"',
     /^Describe it with (a new Claude Code session|Claude Code session .+)$/.test(pressLabel ?? '') && !!pressRun && pressRun.includes('Describe pull request #35 for Apostil\n')
-      && (/a new/.test(pressLabel ?? '') ? pressRun.includes('--model\nhaiku\n') : !pressRun.includes('--model\n'))
-      && pressRun.includes('Bash(git show *)\n') && /^Description by (a new )?Claude Code session \S.* · (working|done) · Open the session$/.test(wentLine ?? ''),
+      && pressRun.includes('--model\nhaiku\n') && pressRun.includes('--effort\nmax\n')
+      && pressRun.includes('Bash(git show *)\n') && pressRun.includes('Bash(gh pr view *)\n') && /^Description by (a new )?Claude Code session \S.* · (working|done) · Open the session$/.test(wentLine ?? ''),
     JSON.stringify({ pressLabel, run: (pressRun || '').replace(/\n/g, ' ').slice(0, 300), wentLine }));
   // The Apostil icon in the activity bar has a badge with the count of open pull requests (the stand-in gh lists one), as Source Control has.
   const badge = await until(() => page.evaluate(() => {
