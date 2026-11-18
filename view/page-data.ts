@@ -415,8 +415,12 @@ export function lookOfPage(store: Store, page: PageData, address: (file: string)
   }
 }
 
-/** The marks of the map that stand in some files of a page, each with its line in the file as the change has it. */
+/**
+ * The marks of the map that stand in some files of a page, each with its line in the file as the change has it. None for a page that shows a commit
+ * (a change or a pull request that is not checked out): a mark stands in the text of the folder, and the lines of the page are those of the commit.
+ */
 function marksIn(store: Store, page: PageData, paths: string[]): MarkHere[] {
+  if (page.head) return [];
   const wanted = new Set(paths);
   try {
     return standingMarks(page.folder, (store.getMap(repoId(page.folder))?.map.marks ?? []).filter((mark) => wanted.has(mark.file)));

@@ -138,6 +138,8 @@ test('the page of a change gets the marks of the files of its parts, each at its
   store.saveMap(repoId(example.folder), example.head, { format: 1, diagrams: [], marks } as unknown as RepoMap);
   const changed = { ...filePage(example.folder), parts: [{ id: 'hold-service', name: 'Hold service', files: [file], diagrams: [] }] };
   assert.deepEqual(lookOfPage(store, changed)?.marks.map((mark) => `${mark.line}>${mark.at}`), ['219>219', '300>280']);
+  // A change that is not checked out shows the lines of a commit, and a mark stands in the text of the folder: its page has no marks.
+  assert.deepEqual(lookOfPage(store, { ...changed, head: example.head })?.marks, []);
   store.close();
 });
 
