@@ -1207,6 +1207,12 @@ try {
   check('the open pull request of the stand-in gh with no stored change stands in the list under "Pull requests" with its title, number and state, and a click opens its page, which says that it has no description of Apostil yet and gives the words to give an agent',
     /^Made-up pull request 35#35review needed$/.test(bareRow ?? '') && /Describe pull request #35 for Apostil/.test(bareLine ?? ''), JSON.stringify({ bareRow, bareLine }));
   await shot('2b-an-open-pull-request-with-no-change');
+  // The Apostil icon in the activity bar has a badge with the count of open pull requests (the stand-in gh lists one), as Source Control has.
+  const badge = await until(() => page.evaluate(() => {
+    const item = [...document.querySelectorAll('.activitybar .action-item')].find((one) => /Apostil/.test(one.querySelector('.action-label')?.getAttribute('aria-label') ?? ''));
+    return item?.querySelector('.badge-content')?.textContent?.trim() || '';
+  }), 8000);
+  check('the Apostil icon in the activity bar shows the count of open pull requests as a badge', badge === '1', `badge "${badge}"`);
 
   // ---- 7. A notebook ----
   // A notebook of another repo opens the normal way in the notebook editor, with the note of its change in its cell; the key hides it; no cell runs.

@@ -186,8 +186,12 @@ export class ChangeList implements vscode.WebviewViewProvider {
       const same = JSON.stringify(answer) === JSON.stringify(this.repoPulls);
       this.repoPulls = answer;
       if (!same) this.view?.webview.postMessage({ type: 'repoPulls', ...answer }); // the view keeps what it got, so the same answer is not sent twice
+      this.onRepoPulls(answer);
     });
   }
+
+  /** Told each time the open pull requests of the repo come: the badge of the Apostil icon follows them. */
+  onRepoPulls: (answer: RepoPulls) => void = () => {};
 
   /** Refreshes when the stored changes of the repo or the states of their remarks differ from the last time. */
   refreshIfChanged(): void {
