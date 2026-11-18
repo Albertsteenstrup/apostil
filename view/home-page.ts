@@ -20,6 +20,7 @@ type Message =
   | { type: 'back'; to: Step }
   | { type: 'move'; way: -1 | 1; from?: Step } // Cmd+Left and Cmd+Right: one step back or forward
   | { type: 'writeMap'; app: string }
+  | { type: 'anotherApp' } // the link under the press: pick one of the other installed apps
   | NewRemark
   | { type: 'remarkAction'; id: number; action: 'resolve' | 'reopen' | 'start' }
   | { type: 'openSession'; id: number }
@@ -209,6 +210,13 @@ export class HomePages {
     this.reload();
   }
 
+  /** "Another app": VS Code's quick pick with the other installed apps; a pick starts the map with that app at once, so it is the app used last. */
+  async pickApp(): Promise<void> {
+    const items = this.apps.filter((app) => app !== this.homeShown?.mapApp).map((app) => ({ label: appName(app), app }));
+    const picked = await vscode.window.showQuickPick(items, { title: 'Map this repo with another app' });
+    if (picked) this.writeMap(picked.app);
+  }
+
   private homeMessage(): unknown {
     // A picture or a film of the look is loaded from Apostil's store by its webview address.
     const webview = this.home?.panel.webview;
@@ -306,6 +314,9 @@ export class HomePages {
         break;
       case 'writeMap':
         this.writeMap(message.app);
+        break;
+      case 'anotherApp':
+        void this.pickApp();
         break;
       case 'remark':
         this.saveRemark(message);
