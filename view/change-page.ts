@@ -7,7 +7,7 @@ import { basename, join, relative, sep } from 'node:path';
 import * as vscode from 'vscode';
 import { openSessionCommand, sessionLink, resumeCommand } from '../shared/agents';
 import { keptInChange, withKept } from '../shared/comment-lines';
-import { rawFileText } from '../shared/git';
+import { fetchPullCommits, rawFileText } from '../shared/git';
 import type { Target } from '../shared/look';
 import { ghPictures, inlinePictures } from '../shared/pull-pictures';
 import { pullRequestFrom, readPullRequest, runGh, type PullRequestView } from '../shared/read-pull-request';
@@ -158,6 +158,7 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
   private changeId?: number;
   private pullOnly?: string; // the link of a pull request with no stored change that the page shows
   private sentPulls = ''; // the pull requests of the branch that the page got last
+  private fetched = new Set<string>(); // the pull requests whose commits Apostil tried to get, while VS Code runs
   private pullRead?: { link: string; read: PullAnswer }; // the pull request that the page read last: the file tabs comment on its code
   private signature = '';
   private visibleSince = 0;
@@ -362,6 +363,26 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
     void vscode.commands.executeCommand('setContext', 'apostil.pointerOnPage', !!view);
   }
 
+  /**
+   * A pull request with no stored change whose commits are not in the folder: Apostil gets them in the background, once for each pull request while
+   * VS Code runs, and then draws its diffs. While it gets them, and when that fails, the page says so in one quiet line.
+   */
+  private fetchCommits(link: string, pull: PullRequestView): void {
+    const page = this.page;
+    if (!page?.pullOnly?.remote) return;
+    this.fetched.add(link);
+    page.pullOnly.fetching = true;
+    void fetchPullCommits(this.openFolder(), page.pullOnly.remote, pull.number).then((problem) => {
+      if (this.pullOnly !== link || !this.page?.pullOnly) return;
+      if (problem) this.page.pullOnly = { ...this.page.pullOnly, fetching: false, fetchProblem: problem };
+      else {
+        this.page = pullOnlyPage(this.openFolder(), pull, this.apps);
+        this.page.look = lookOfPage(this.store, this.page);
+      }
+      for (const view of this.views) this.post(view, this.dataFor(view));
+    });
+  }
+
   /** Reads a pull request for the page. For a page with no stored change, its page data comes with it, and the file tabs read it. */
   private async readPull(link: string, view?: View): Promise<PullAnswer> {
     // A large pull request: the page shows the head and what is read so far, at most twice a second.
@@ -382,6 +403,7 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
     const pullOnly = this.pullOnly === link;
     if (pullOnly) this.page = pullOnlyPage(this.openFolder(), pull, this.apps);
     if (pullOnly && this.page) this.page.look = lookOfPage(this.store, this.page);
+    if (pullOnly && this.page?.pullOnly?.remote && !this.fetched.has(link)) this.fetchCommits(link, pull);
     const read: PullAnswer = { pull, lastLooked, lines: this.page && pullLines(this.page, pull), ...(pullOnly ? { page: this.page } : {}) };
     if (view?.panel === this.panel) this.tellFileTabs(link, read);
     return read;

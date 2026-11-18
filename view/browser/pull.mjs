@@ -627,6 +627,19 @@ try {
   check('the page of a pull request with no stored change says in one quiet line that it has no description of Apostil yet and gives the words "Describe pull request #35 for Apostil", its button copies them, and its switch has "Conversation" first and "Diffs" second',
     /^This pull request has no description of Apostil yet\. Give an agent these words: Describe pull request #35 for Apostil Copy$/.test(noDescription.text)
     && noDescription.copied.join() === 'Describe pull request #35 for Apostil' && noDescription.button === 'Copied' && noDescription.views.join() === 'Conversation,Diffs', JSON.stringify(noDescription));
+  // Its commits are not in the folder: Apostil gets them itself, and "Diffs" says so meanwhile; when that fails it says why, with the command.
+  const fetchLines = await pullOnly.evaluate(async () => {
+    const lineOf = async (more) => {
+      App.page = { ...App.page, pullOnly: { ...App.page.pullOnly, ...more } };
+      App.state.view = 'diffs';
+      await App.render();
+      return document.querySelector('#view .pline')?.textContent ?? '';
+    };
+    return { getting: await lineOf({ fetching: true }), failed: await lineOf({ fetching: false, fetchProblem: 'fatal: could not read from the remote.' }) };
+  });
+  check('the "Diffs" of a pull request whose commits are not in the folder says that Apostil gets them, and when that fails, why, with the command',
+    fetchLines.getting === 'Getting the commits of this pull request from GitHub…'
+    && /^Apostil could not get the commits of this pull request: fatal: could not read from the remote\. Get them with git fetch origin pull\/35\/head, then open it again\.$/.test(fetchLines.failed), JSON.stringify(fetchLines));
   await pullOnly.close();
 
   // ----- "@github" in the comment box on code: in the open diffs of the list of "Diagram" (since build prompt 42 "Diffs" opens no diff), on an added line,

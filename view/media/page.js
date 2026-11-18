@@ -317,8 +317,9 @@ function drawConversation(view) {
 function drawPullFiles(view) {
   const { pullOnly, files } = App.page;
   const read = App.read[pullOnly.link]?.pull;
-  const line = pullOnly.otherRepo
-    ? 'This pull request is in another repo. Here are its changed files.'
+  const line = pullOnly.otherRepo ? 'This pull request is in another repo. Here are its changed files.'
+    : pullOnly.fetching ? 'Getting the commits of this pull request from GitHub…'
+    : pullOnly.fetchProblem ? `Apostil could not get the commits of this pull request: ${esc(pullOnly.fetchProblem)} Get them with <code>${esc(pullOnly.fetch)}</code>, then open it again.`
     : `The commits of this pull request are not in this folder. Get them with <code>${esc(pullOnly.fetch)}</code>, then open it again.`;
   const cut = read?.cut.files ? `<p class="quiet">${plural(read.cut.files, 'more file')} past the limit are on <a data-link="${esc(read.url)}">GitHub</a>.</p>` : '';
   view.innerHTML = `<p class="quiet pline">${line}</p><div class="pfiles">${files.map((file) => `<div class="pf"><span>${esc(file.path)}</span><i class="c">${countsHtml(file)}</i></div>`).join('')}</div>${cut}`;
