@@ -4,7 +4,9 @@ import { join } from 'node:path';
 import * as vscode from 'vscode';
 import { keptOnMap, withKept } from '../shared/comment-lines';
 import type { Target } from '../shared/look';
-import { homeRun, QUIET_MS, withEnd, withSession } from '../shared/map-run';
+import { shownTime, type ShownTime, type TimeLeft } from '../shared/map-estimate';
+import { homeRun, QUIET_MS, runTimeLeft, withEnd, withSession } from '../shared/map-run';
+import { homePlan } from '../store/map-run';
 import { teamFrom } from '../shared/models';
 import type { Store } from '../shared/store';
 import { startMapRun, startRun } from './agent-run';
@@ -62,6 +64,8 @@ export class HomePages {
   private pages = new Map<string, Tab>(); // a page of the look, by its id
   private writing?: string; // the app that writes the map now
   private quiet?: NodeJS.Timeout; // while the line of a map run says "writing": draws Home again when the run saved nothing for 30 minutes
+  private ticker?: NodeJS.Timeout; // while a map run writes: the time left again every 30 seconds (build 84)
+  private shown?: { run: string; time: ShownTime }; // the minutes that Home shows of the run that started then, with a rise that is held back
   private pointerOn?: Tab; // the tab that the pointer is on, so the comment key works there
   private signature = '';
   homeShown?: HomeData; // what Home shows now, for the check inside VS Code
@@ -227,7 +231,8 @@ export class HomePages {
     }, runModels(), describe, (session) => { record((run) => withSession(run, session)); this.reload(); }, team);
     if (!started) return void vscode.window.showWarningMessage(`A new session of ${app} cannot be started from here.`);
     this.writing = app;
-    record(() => homeRun(app, new Date().toISOString()));
+    // The plan of the work is saved with the record at once (build 84): the code files and their lines, the notes groups, and the steps that are expected.
+    record(() => homePlan(this.store, folder, homeRun(app, new Date().toISOString())));
     this.reload();
   }
 
@@ -247,7 +252,34 @@ export class HomePages {
     // A run that stops saves nothing, so the store does not change and nothing loads Home again: one timer does, after the quiet time, and the line then says that the run stopped.
     clearTimeout(this.quiet);
     if (data.mapRun?.state === 'writing') this.quiet = setTimeout(() => this.reload(), QUIET_MS + 1000);
+    // The time left is computed again after each save (a save loads Home again) and every 30 seconds; Home gets only the new time then, and draws nothing again.
+    const startedAt = this.runStart();
+    if (data.mapRun?.time && startedAt) data.mapRun.time = this.held(startedAt, data.mapRun.time);
+    clearInterval(this.ticker);
+    if (data.mapRun?.time) this.ticker = setInterval(() => this.tick(), 30_000);
     return { type: 'data', data: this.homeShown, trail: this.trail.steps, full: this.layout.full() };
+  }
+
+  /** The start of the map run of the open repo: the key of the minutes that Home shows. */
+  private runStart(): string | undefined {
+    const repo = idOf(this.openFolder());
+    return repo ? this.store.mapRun(repo)?.startedAt : undefined;
+  }
+
+  /** The time to show: a fall at once, a rise only when two computations in a row agree on it (shownTime). */
+  private held(run: string, time: TimeLeft): TimeLeft {
+    const next = shownTime(this.shown?.run === run ? this.shown.time : undefined, time.minutes);
+    this.shown = { run, time: next };
+    return { minutes: next.minutes, share: Math.round(time.share * 1000) / 1000 };
+  }
+
+  /** Every 30 seconds while a run writes: the time left, computed again, to Home; when the run has none any more, the timer stops. */
+  private tick(): void {
+    const repo = idOf(this.openFolder());
+    const run = repo ? this.store.mapRun(repo) : undefined;
+    const time = run && runTimeLeft(run);
+    if (!run || !time || !this.home) return clearInterval(this.ticker);
+    this.post(this.home, { type: 'time', time: this.held(run.startedAt, time) });
   }
 
   private graphsMessage(path: string): unknown {

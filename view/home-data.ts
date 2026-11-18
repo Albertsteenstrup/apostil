@@ -12,6 +12,7 @@ import { sessionName } from '../shared/agents';
 import { changedFiles, commitExists, tryGit } from '../shared/git';
 import { appToStart } from '../shared/map-app';
 import { homeRun, mapRunLine, type MapRunLine } from '../shared/map-run';
+import { areaWork } from '../store/map-run';
 import { teamOf, type Team } from '../shared/models';
 import { diagramsOf, touches, type DiagramOfPath } from '../shared/repo-map';
 import { allProcessDrawings, placeDiagramId, placeDrawing, processDiagramId, processesStartingIn, type LineOf, type ProcessDiagram, type ProcessNode, type Span } from '../shared/process-diagrams';
@@ -178,6 +179,9 @@ export function homeData(store: Store, folder: string, apps: string[] = [], addr
   const mapApp = appToStart(store.startedRuns(), id, apps, connected);
   const base: HomeData = { kind: 'home', repo: repoName(folder), folder, apps, ...(mapApp ? { mapApp, team: teamOf(mapApp) } : {}), remarks: id ? store.repoRemarks(id) : [], ...(mapRun ? { mapRun } : {}) };
   if (!id || !stored) return base;
+  // While a run of the whole map writes (build 84): the areas of the top diagram with work left, for the states of its nodes and cards.
+  const run = store.mapRun(id);
+  if (mapRun?.time && run) mapRun.areas = areaWork(store, folder, stored, run);
   const files = repoFiles(folder);
   const changes = store.listChanges(id).map((change) => ({ ref: { id: change.id, branch: change.branch, title: change.file.title }, files: filesOfChange(change) }));
   const count = (path: string): number => files.filter((file) => touches(path, file)).length;

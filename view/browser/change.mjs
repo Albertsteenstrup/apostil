@@ -215,7 +215,7 @@ try {
   await page.hover('#view b[data-part="hold-service"]');
   const scrolled = await page.evaluate(() => window.scrollY);
   // A click in place: under the cards of the overview the page scrolls, and a click of Playwright scrolls it to reach a part under its hover window.
-  await drawn(() => page.$eval('#view b[data-part="hold-service"]', (title) => title.closest('g.node').dispatchEvent(new MouseEvent('click', { bubbles: true }))));
+  await drawn(() => page.$eval('#view b[data-part="hold-service"]', (title) => title.closest('g.node').dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))));
   const down = await page.evaluate(() => ({ crumb: document.getElementById('crumb').textContent, tabs: [...document.querySelectorAll('#tabs > :not(.dchg, .dfact, .drepo, .codeswitch)')].map((el) => el.textContent).join(' · ') }));
   await drawn(() => page.click('#tabs [data-diagram="offer-sequence"]'));
   const sequence = await page.$eval('#view svg', (svg) => ({

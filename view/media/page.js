@@ -217,6 +217,8 @@ const App = {
       Trail.show(document.getElementById('crumb'), this.ownStep(), { attrs: broad ? Places.attrs({ kind: 'diagram', diagram: broad.id }) : '', extra: state.view === 'code' ? baseName(state.file) : '', look: this.page?.look });
     }
     document.getElementById('summary').innerHTML = this.tab ? '' : page.pullOnly ? pullOnlyLineHtml() : summaryHtml();
+    focus = null; // a new drawing starts with no focus on a node (diagram-stage.js)
+    endFocusLine();
     drawSwitch();
     drawStrip();
     const tabs = document.getElementById('tabs');

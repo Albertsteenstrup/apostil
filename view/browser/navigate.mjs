@@ -22,7 +22,7 @@ try {
 
   // ----- Cmd+Left and Cmd+Right: back and forward along the path, inside one page and from page to page; not in a text field -----
   await homeAt('');
-  await home.click(nodeOf('lending'));
+  await home.dblclick(nodeOf('lending'));
   await settled();
   const lower = await crumb();
   await away();
@@ -61,7 +61,7 @@ try {
   await home.keyboard.press('Meta+ArrowLeft');
   await settled();
   const top = await crumb();
-  await home.click(nodeOf('routes')).catch(() => {});
+  await home.dblclick(nodeOf('routes')).catch(() => {});
   await settled();
   const other = await crumb();
   await home.keyboard.press('Meta+ArrowRight');
@@ -83,7 +83,7 @@ try {
       on: view.classList.contains('focus'), focused: nodes.filter((g) => g.classList.contains('focused')).map(nodeKey).join(),
       near: nodes.filter((g) => !faint(g)).map(nodeKey).sort().join(), faint: nodes.filter(faint).length,
       arrows: [...view.querySelectorAll('.edgePaths > path:not(.hit)')].filter((path) => !faint(path)).length,
-      line: (document.querySelector('#summary .fc')?.textContent ?? '').replace(/^ · /, ''), // after other words of the line a dot stands before it
+      line: document.querySelector('.bar > .fc')?.textContent ?? '', // in the head, after the path (build 84)
     };
   });
   // The node with the most arrows that still leaves a node out, and what the graph says is near it.
@@ -102,17 +102,18 @@ try {
   await away();
   await home.keyboard.press('Escape');
   const afterEscape = await focusNow();
-  // The quiet link in the window of the node does the same; the × of the line ends it; so does Option+click on the same node again.
+  // The quiet link in the window of the node does the same; the × of the line ends it; so does a click on an empty place of the frame (build 84).
   await home.hover(nodeOf(wanted.key));
   await home.waitForSelector('.win .tb .act [data-act]', { timeout: 3000 }).catch(() => {});
   const link = await home.textContent('.win .tb .act [data-act]').catch(() => '');
   const linkKeys = await home.textContent('.win .tb .act .ak').catch(() => ''); // the small clue of the key beside the link
   await home.click('.win .tb .act [data-act]').catch(() => {});
   const byLink = await focusNow();
-  await home.click('#summary [data-end-focus]').catch(() => {});
+  await home.click('.bar [data-end-focus]').catch(() => {});
   const afterCross = await focusNow();
   await home.click(nodeOf(wanted.key), { modifiers: ['Alt'] });
-  await home.click(nodeOf(wanted.key), { modifiers: ['Alt'] });
+  const empty = await home.$eval('#view', (el) => { const box = el.getBoundingClientRect(); return { x: box.left + 8, y: box.bottom - 8 }; });
+  await home.mouse.click(empty.x, empty.y);
   const afterAgain = await focusNow();
   // A look that gives Option+click on a node a target wins: no focus, and the click goes to that target.
   await homeAt('?look=shared');
@@ -132,20 +133,53 @@ try {
   await inPanel.click({ modifiers: ['Alt'] }).catch(() => {});
   const panelNow = () => home.evaluate(() => ({
     graphs: /[?&]path=/.test(location.search), focused: [...document.querySelectorAll('.pnl .pd.focus g.node.focused')].map((g) => nodeKey(g)).join(),
-    panels: document.querySelectorAll('.pnl .pd.focus').length, line: document.querySelector('#summary .fc')?.textContent ?? '',
+    panels: document.querySelectorAll('.pnl .pd.focus').length, line: document.querySelector('.bar > .fc')?.textContent ?? '',
   })).catch(() => ({})); // a click that led away leaves a page that is still loading
   await home.waitForTimeout(300); // a click of the panel itself would have left the page by now
   const onPanel = await panelNow();
   await home.keyboard.press('Escape');
   const panelAfter = await panelNow();
-  check('Option+click on a node of a diagram focuses it: the node, its arrows and the nodes at their other ends stay and the rest is faint, one quiet line names it, and the click leads nowhere; Escape ends it; the link "Focus on this node" in its window, with the key beside it as a small clue, does the same, the × of the line ends it, and Option+click on the same node again ends it; a look that gives that click a target wins; a step of a drawn process is named without the count of its steps; on the graphs page the click focuses the node inside its panel and the page stays',
+  check('Option+click on a node of a diagram focuses it: the node, its arrows and the nodes at their other ends stay and the rest is faint, one quiet line names it, and the click leads nowhere; Escape ends it; the link "Focus on this node" in its window, with the key beside it as a small clue, does the same, the × of the line ends it, and a click on an empty place of the frame ends it; a look that gives that click a target wins; a step of a drawn process is named without the count of its steps; on the graphs page the click focuses the node inside its panel and the page stays',
     focused.on && focused.focused === wanted.key && focused.near === wanted.near && focused.faint === wanted.all - wanted.near.split(',').length && focused.faint > 0 && focused.arrows === wanted.arrows
       && focused.line === `Focus: ${wanted.name} · ×` && led.join() === '' && stayed === 'lib-lending'
-      && !afterEscape.on && afterEscape.faint === 0 && afterEscape.line === '' && link === 'Focus on this node' && /^(⌥ click|Alt\+click)$/.test(linkKeys) && byLink.focused === wanted.key && byLink.near === wanted.near
+      && !afterEscape.on && afterEscape.faint === 0 && afterEscape.line === '' && link === 'Focus on this node' && linkKeys === 'Click' && byLink.focused === wanted.key && byLink.near === wanted.near
       && !afterCross.on && !afterAgain.on && afterAgain.faint === 0 && !lookWins.on && lookWins.sent === 'target'
       && onStep.on && onStep.at === 'process:ask-request' && /\d+ steps?$/.test(stepWords) && /^Focus: \S/.test(onStep.line) && !/\d+ steps?/.test(onStep.line)
       && onPanel.graphs && onPanel.focused === 'service' && onPanel.panels === 1 && /Focus: \S/.test(onPanel.line) && panelAfter.graphs && panelAfter.panels === 0 && panelAfter.line === '',
     JSON.stringify({ wanted, focused, led, stayed, afterEscape, link, byLink, afterCross, afterAgain, lookWins, stepWords, onStep, onPanel, panelAfter }));
+
+  // ----- build 84: one click on a node focuses it, a click on the node with the focus goes into it, a double click goes into it at once -----
+  await homeAt('');
+  await home.click(nodeOf('lending'));
+  const clicked = {
+    ...(await focusNow()), at: await home.evaluate(() => Home.at), scrolled: await home.evaluate(() => scrollY),
+    card: await home.evaluate(() => [...document.querySelectorAll('.ovc.focused')].map((card) => card.querySelector('.ovn').textContent).join()),
+    edges: await home.evaluate(() => [...document.querySelectorAll('.ovc')].map((card) => getComputedStyle(card).borderTopColor)),
+  };
+  await home.click(nodeOf('lending'));
+  await settled();
+  const second = { at: await home.evaluate(() => Home.at), crumb: await crumb() };
+  // At the last level a double click opens the code: a step with no inner steps opens its file at its line. It never fits the drawing.
+  await homeAt('?diagram=process:answer-request/2');
+  const viewBox = () => home.$eval('#view svg', (svg) => svg.getAttribute('viewBox'));
+  const boxBefore = await viewBox();
+  const leafFrom = await home.evaluate(() => window.apostilSent.length);
+  await home.dblclick(nodeOf('s7'));
+  await settled();
+  const leaf = {
+    sent: await home.evaluate((from) => window.apostilSent.slice(from).filter((one) => /^(walk|showInTree|openFile)$/.test(one.type)), leafFrom),
+    at: await home.evaluate(() => Home.at), box: (await viewBox()) === boxBefore, focus: (await focusNow()).focused,
+  };
+  await away();
+  await home.keyboard.press('Escape');
+  const leafAfter = await focusNow();
+  check('one click on a node focuses it: the rest of the diagram goes quiet, the line "Focus: <name> ×" stands in the head, nothing scrolls and its card in the overview gets an accent edge; a click on the node with the focus goes one level down; a double click on a step of a process opens its file at its line once and does not fit the drawing; Escape ends the focus',
+    clicked.on && clicked.focused === 'lending' && clicked.faint > 0 && /^Focus: Lending/.test(clicked.line) && clicked.at === 'lib-top' && clicked.scrolled === 0
+      && clicked.card === 'Lending' && new Set(clicked.edges).size === 2
+      && second.at === 'lib-lending' && second.crumb === 'Home›Lending: holds, requests and mails'
+      && leaf.sent.length === 1 && leaf.sent[0].type === 'openFile' && leaf.sent[0].path === 'src/library/lending/requests.py' && leaf.sent[0].line === 62
+      && leaf.at === 'process:answer-request/2' && leaf.box && leaf.focus === 's7' && !leafAfter.on && leafAfter.line === '',
+    JSON.stringify({ clicked, second, leaf, leafAfter }));
 
   // ----- the view stays: a diagram that draws again with new marks keeps its zoom and its place; a fit and a new diagram fit again -----
   await homeAt('');

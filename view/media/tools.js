@@ -127,6 +127,9 @@ function mapRunHtml(run, again = null) {
   return `<span class="state maprun" data-run="${esc(run.state)}">${[words, reach, press, again?.app ? anotherAppHtml(again.apps) : ''].filter(Boolean).join(' · ')}</span>`;
 }
 
+/** The words of the time left of a map run (build 84), as timeWords in shared/map-estimate.ts: "About 14 min left", or "Less than a minute left". */
+const timeWords = (minutes) => (minutes < 1 ? 'Less than a minute left' : `About ${Math.round(minutes)} min left`);
+
 /**
  * The quiet control of the model and the effort of a run, the same everywhere a run starts or continues: "Haiku 5.5 · High"; for a map and a
  * description the lead, "Sonnet 5.5 · Max" (its writers are fixed and do not show). A click opens its small menu in the look of the picker: the models,
@@ -535,10 +538,14 @@ function virtualRows(scroller, box, count, row, size = () => 1) {
   };
 }
 
-/** Gives an element the height that is left in the tab, now and after each resize of the tab, until it leaves the page. */
+/**
+ * Gives an element the height that is left in the tab, now and after each resize of the tab, until it leaves the page or another drawing in it sets its
+ * height (`sized`, as keepOverview in overview.js).
+ */
 function keepFilled(el, least = 240) {
   fillHeight(el, least);
-  const refill = () => (el.isConnected ? fillHeight(el, least) : removeEventListener('resize', refill));
+  const refill = () => (el.isConnected && el.sized === refill ? fillHeight(el, least) : removeEventListener('resize', refill));
+  el.sized = refill;
   addEventListener('resize', refill);
 }
 

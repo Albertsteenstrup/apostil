@@ -320,7 +320,7 @@ try {
   const localSettings = path.join(repo, '.claude', 'settings.local.json');
   const allowed = existsSync(localSettings) ? JSON.parse(readFileSync(localSettings, 'utf8')).permissions?.allow ?? [] : [];
   // While the stand-in writes, Home says which session writes the map: the id that the run reports. Then the stand-in goes on and saves the map.
-  const writingFrame = await frameWhere((session) => document.querySelector('.nomap .maprun[data-run="writing"]')?.textContent.includes(session), MAP_SESSION, 8000);
+  const writingFrame = await frameWhere((session) => document.querySelector('#summary .maprun[data-run="writing"]')?.textContent.includes(session), MAP_SESSION, 8000);
   const writingLine = writingFrame ? await writingFrame.evaluate(() => document.querySelector('.maprun').textContent) : '';
   await shot('1c2-home-while-the-map-is-written');
   writeFileSync(mapGo, '');
@@ -531,7 +531,7 @@ try {
   });
   await list?.locator('.home').click();
   const walkHome = await homeFrame();
-  await walkHome?.locator('#view g.node[id*="flowchart-lending-"]').click();
+  await walkHome?.locator('#view g.node[id*="flowchart-lending-"]').dblclick();
   const walkLower = await until(() => lineIn(walkHome).then((line) => line.includes('›') && line, () => ''));
   // The tree "Files" follows the map: the folder of the area is marked and open. Then it marks the file of the tab in front, and keeps it while a tab with no file is in front.
   const marked = () => filesPane.locator('.monaco-list-row.selected').first().evaluate((row) => `${row.querySelector('.label-name')?.textContent ?? row.textContent.trim()}${row.getAttribute('aria-expanded') === 'true' ? ' (open)' : ''}`).catch(() => '');
@@ -544,13 +544,13 @@ try {
     window.apostilWatch = new MutationObserver(look);
     window.apostilWatch.observe(document.querySelector('.part.editor'), { subtree: true, childList: true, attributes: true });
   });
-  await walkHome?.locator('#view g.node[id*="flowchart-service-"]').click();
+  await walkHome?.locator('#view g.node[id*="flowchart-service-"]').dblclick();
   const fileTabShown = await until(async () => { const now = await activeTab(); return /^hold_service\.py/.test(now ?? '') && await frameWhere(() => typeof App === 'object' && !!App.tab?.endsWith('hold_service.py'), undefined, 300) && now; });
   const textEditorSeen = await page.evaluate(() => { window.apostilWatch.disconnect(); return window.apostilTextEditorSeen; });
   const treeAtFile = await markedIs('hold_service.py');
   await page.locator('.editor-group-container.active .editor-actions .action-label[aria-label*="Graphs of this folder or file"]').first().click();
   const walkGraphs = await graphsOf(servicePath, 2);
-  await walkGraphs?.locator('.pnl[data-panel="2"]').click();
+  await walkGraphs?.locator('.pnl[data-panel="2"] .pl').click();
   const walkPage = await frameWhere(() => typeof Home !== 'object' && typeof App === 'object' && !App.tab && !!App.page && !!document.querySelector('#view svg') && document.getElementById('crumb').textContent.startsWith('Home'));
   const walkLine = walkPage ? await until(() => lineIn(walkPage).then((line) => line.split('›').length === 3 && line)) : '';
   const walkTitle = walkPage ? await walkPage.evaluate(() => App.page.title) : '';
@@ -580,12 +580,12 @@ try {
   // From Home down to a process: a click on a step with no inner steps opens its file at its first line, in the file tab with its notes.
   await list?.locator('.home').click();
   const processHome = await homeFrame();
-  for (const key of ['routes', 'q0', 's2', 's7']) await processHome?.locator(`#view g.node[id*="flowchart-${key}-"]`).click({ timeout: 8000 });
+  for (const key of ['routes', 'q0', 's2', 's7']) await processHome?.locator(`#view g.node[id*="flowchart-${key}-"]`).dblclick({ timeout: 8000 });
   const inStepTab = () => frameWhere(() => typeof App === 'object' && App.tab?.endsWith('lending/requests.py') && App.state?.lines?.join() === '62,62' && !!document.querySelector('.cv [data-line="62"]'), undefined, 8000);
   let stepTab = await inStepTab();
   if (!stepTab && /^Home/.test(await activeTab() ?? '')) { // under load the last click can land while Home draws the step again
     console.log('NOTE  the click on the step left Home in front; once more');
-    await processHome?.locator('#view g.node[id*="flowchart-s7-"]').click({ timeout: 8000 }).catch(() => {});
+    await processHome?.locator('#view g.node[id*="flowchart-s7-"]').dblclick({ timeout: 8000 }).catch(() => {});
     stepTab = await inStepTab();
   }
   check('from Home a click on a node goes down to its processes, and a click on a step opens its file at its first line, in the file tab with its notes', !!stepTab && /^requests\.py/.test(await activeTab() ?? ''), `tab ${await activeTab()}`);

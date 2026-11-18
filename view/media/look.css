@@ -75,6 +75,8 @@ i{font-style:normal}
 .switch a{color:var(--muted);padding-bottom:3px}
 .switch a.on{color:var(--ink);font-weight:600;border-bottom:2px solid var(--teal)}
 .summary{margin-top:6px;color:var(--muted);font-size:var(--small)}
+/* the line of a focus on a node, in the head after the path (build 84): on the line of the path, so nothing under the pointer moves when it comes */
+.bar > .fc{flex:0 1 auto;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:var(--small)}
 .summary b{color:var(--ink);font-weight:600}
 .summary [data-ask],a.inst{color:var(--tealink)}
 a.inst:hover{text-decoration:underline;text-underline-offset:3px}
@@ -601,12 +603,50 @@ div.nomap .runpick{margin:0 0 8px}
 
 /* the overview of a diagram (build 83): under the diagram of a level, one card for each node that leads somewhere, in a quiet well of its own a little
    apart from the frame: the frame is where this level stands, the cards are what it holds */
-.ovcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;margin-top:20px;padding:14px;background:var(--region);border-radius:10px}
+/* build 84: the rows of the grid are half a card high (overview.js places each card over 1 to 3 units each way, 2 units are the card of build 83) */
+.ovcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(119px,1fr));grid-auto-rows:100px;gap:12px;margin-top:20px;padding:14px;background:var(--region);border-radius:10px}
 .ovcards[hidden]{display:none}
-.ovc{display:flex;flex-direction:column;height:212px;min-width:0;border:1px solid var(--line);border-radius:8px;background:var(--paper);overflow:hidden}
+.ovc{display:flex;flex-direction:column;min-height:0;min-width:0;border:1px solid var(--line);border-radius:8px;background:var(--paper);overflow:hidden}
 .ovc.go{cursor:pointer}
 .ovc.go:hover{border-color:var(--line2)}
-.ovh{flex:none;padding:8px 12px 0;font-size:var(--small);font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ovc.focused,.ovc.focused.go:hover{border-color:color-mix(in srgb,var(--teal) 55%,var(--paper))} /* the card of the node that has the focus */
+.ovh{flex:none;display:flex;align-items:center;gap:10px;padding:8px 12px 0;font-size:var(--small);font-weight:600;color:var(--ink);white-space:nowrap}
+.ovn{min-width:0;overflow:hidden;text-overflow:ellipsis}
+/* while a map is written: a card with work now has a quiet accent edge, a turning mark and its own bar; a card that waits is empty, dashed, its name faint */
+.ovc.run-working{border-color:var(--tealline)}
+.ovc.run-waiting{background:transparent;border-style:dashed}
+.ovc.run-waiting .ovn{color:var(--faint);font-weight:500}
+.ovw{flex:none;margin-left:auto;display:flex;align-items:center;gap:8px}
+.spin{display:block;box-sizing:border-box;width:11px;height:11px;border-radius:50%;border:1.5px solid var(--line);border-top-color:var(--teal);animation:ov-turn 2.4s linear infinite}
+@keyframes ov-turn{to{transform:rotate(360deg)}}
+.ovbar{display:block;width:56px;height:3px;border-radius:2px;background:var(--line);overflow:hidden}
+.ovbar i,.runbar i{display:block;height:100%;background:var(--teal);transition:width 1.6s ease}
+/* the soft sketch of a map that is not written yet: grey boxes and lines, and a light band that passes over the boxes slowly */
+.sketch{display:block;width:100%;height:100%}
+.sketch .skb rect{fill:var(--seg)}
+.sketch .skl{fill:none;stroke:var(--line);stroke-width:1.5}
+.sketch .sk0{stop-color:var(--paper);stop-opacity:0}
+.sketch .sk1{stop-color:var(--paper);stop-opacity:.75}
+.sketch .sks{transform-box:fill-box;animation:sk-pass 4.5s ease-in-out infinite}
+@keyframes sk-pass{to{transform:translateX(400%)}}
+.ovc .sketch{padding:4px 0}
+.view.runframe{border:1px solid var(--line);border-radius:8px;background:var(--paper);overflow:hidden;padding:24px;box-sizing:border-box}
+/* the bar of the whole run on the top edge of the frame, and the time left at the right end of the head */
+.runbar{position:absolute;left:0;right:0;top:0;z-index:3;height:2px;pointer-events:none;border-radius:7px 7px 0 0;overflow:hidden}
+.runbar i{border-radius:0 2px 2px 0}
+.home .bar .runtime{margin-left:auto;flex:none;position:relative;font-size:var(--small);font-variant-numeric:tabular-nums;white-space:nowrap}
+.home .bar .runtime[hidden]{display:none}
+.home .bar .runtime:not([hidden]) ~ .cmc{margin-left:0}
+.rt{display:inline-block}
+.rt-in{animation:rt-in 1.4s ease both}
+.rt-old{position:absolute;right:0;top:0;animation:rt-out 1.4s ease both}
+@keyframes rt-in{from{opacity:0;transform:translateY(60%)}}
+@keyframes rt-out{to{opacity:0;transform:translateY(-90%)}}
+/* the nodes of the top map while it is written: work left is quiet with a faint name; an area that writers work on now has a quiet accent edge */
+.stage g.node.rn-waiting > :is(rect,polygon,path,circle){fill:var(--region)!important;stroke:var(--line)!important}
+.stage g.node.rn-waiting :is(.nodeLabel,.nodeLabel *,text){color:var(--faint)!important;fill:var(--faint)!important}
+.stage g.node.rn-working > :is(rect,polygon,path,circle){stroke:var(--teal)!important;stroke-width:1.5px!important}
+@media (prefers-reduced-motion:reduce){.spin,.sketch .sks,.rt-in,.rt-old{animation:none}.sketch .sks,.rt-old{display:none}.ovbar i,.runbar i{transition:none}}
 .ovb{flex:1;min-height:0;padding:6px 12px 10px}
 .ovb.stage{display:block;overflow:hidden;pointer-events:none} /* drawn small and read only: a click is the click of the card */
 .ovb.stage svg{width:100%;height:100%;margin:0}

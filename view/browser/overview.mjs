@@ -45,6 +45,26 @@ try {
       && top.files['Guides and notes']?.join() === 'docs/4 files,README.md' && top.files.Tests?.join() === 'tests/4 files' && Object.keys(top.files).length === 4
       && top.shows && top.under >= 16 && top.well !== top.paper, JSON.stringify(top));
 
+  // 1b. Build 84: each card takes the size of its content, from half of the card of build 83 to half again each way, and the cards are packed with no
+  // hole: the card of the first node at the top left, and each point of the block inside a card or in a gap of 12 px; again after the tab gets narrower.
+  const packing = () => home.evaluate(() => {
+    const cards = [...document.querySelectorAll('#cards .ovc')].map((card) => { const box = card.getBoundingClientRect(); return { title: card.querySelector('.ovn').textContent, units: card.dataset.units, left: box.left, top: box.top, right: box.right, bottom: box.bottom }; });
+    const [left, top, right, bottom] = [Math.min(...cards.map((one) => one.left)), Math.min(...cards.map((one) => one.top)), Math.max(...cards.map((one) => one.right)), Math.max(...cards.map((one) => one.bottom))];
+    const near = (x, y) => Math.min(...cards.map((one) => Math.hypot(Math.max(one.left - x, 0, x - one.right), Math.max(one.top - y, 0, y - one.bottom)))); // 0 inside a card
+    const holes = [];
+    for (let y = top + 1; y < bottom; y += 3) for (let x = left + 1; x < right; x += 3) if (near(x, y) > 12.5) holes.push([Math.round(x), Math.round(y)]);
+    return { sizes: [...new Set(cards.map((one) => one.units))].sort(), first: cards[0].title, firstAt: cards[0].left === left && cards[0].top === top, holes: holes.length, hole: holes[0], columns: document.getElementById('cards').style.gridTemplateColumns };
+  });
+  const packed = await packing();
+  await home.setViewportSize({ width: 1000, height: 900 });
+  await home.waitForFunction((before) => document.getElementById('cards').style.gridTemplateColumns !== before, packed.columns, { timeout: 5000 }).catch(() => {});
+  await cardsFilled();
+  const narrower = await packing();
+  await home.setViewportSize({ width: 1400, height: 900 });
+  check('each card of the overview takes the size of its content, so cards of different sizes stand under the map; they are packed with no hole: the card of the first node at the top left, and each point of the block inside a card or in a gap of 12 px; when the tab gets narrower they are placed again, still with no hole',
+    packed.sizes.length >= 3 && packed.first === 'Web pages' && packed.firstAt && packed.holes === 0
+      && narrower.columns !== packed.columns && narrower.first === 'Web pages' && narrower.firstAt && narrower.holes === 0, JSON.stringify({ packed, narrower }));
+
   // 2. A click on a card goes one level down in the same layout; a click on a file of a card asks VS Code to open that file.
   const card = (title) => home.locator('.ovc', { has: home.locator('.ovh', { hasText: new RegExp(`^${title}$`) }) });
   await card('Lending').click({ timeout: 3000 }).catch(() => {});

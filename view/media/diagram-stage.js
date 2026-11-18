@@ -171,6 +171,7 @@ function makeSurface(stage, readable = false, stack = false, key = undefined, ov
     const scale = Math.max(READABLE, Math.min(1, stage.clientWidth / width));
     stage.style.height = `${Math.round(Math.min(height * scale, stage.closest('.half').clientHeight * 0.8))}px`;
   };
+  delete stage.dataset.height; // the height of the frame in an overview, which Overview.trim reads
   if (stack) stackHeight();
   else if (overview) keepOverview(stage, width, height);
   else keepFilled(stage);
@@ -336,6 +337,83 @@ function focusNode(stage, graph, node) {
   own.classList.add('focused');
   return plainName(graph, node);
 }
+
+// ----- one click focuses a node, two clicks go into it (build 84; on Home, the graphs page and "Diagram" of a change) -----
+
+let focus = null; // { stage, graph, node, diagram }: the drawing with its graph, the node that the focus is on, and on Home the diagram
+
+/**
+ * Focuses a node of a drawing, with its arrows and the nodes at their other ends (focusNode); the same node again, or no node, ends the focus.
+ * One quiet line in the head, after the path, names the node, with a × that ends it; it stands on the line of the path, so nothing under the pointer
+ * moves when it comes (build 84). The card of the node in the overview gets a quiet accent edge.
+ */
+function focusOn(stage, graph, node, diagram) {
+  const again = focus?.stage === stage && focus.node === node;
+  if (focus) focusNode(focus.stage, focus.graph, null);
+  const name = node && !again ? focusNode(stage, graph, node) : null;
+  focus = name ? { stage, graph, node, diagram } : null;
+  endFocusLine();
+  if (name) document.getElementById('crumb')?.insertAdjacentHTML('afterend', `<span class="mk-filter fc">Focus: ${esc(name)} · <a data-end-focus title="End the focus (Escape)">×</a></span>`);
+  if (typeof Overview === 'object') Overview.focused(focus?.node ?? null);
+}
+
+/** The line of the focus goes: the focus ended, or the page draws another view (a new drawing starts with no focus). */
+const endFocusLine = () => document.querySelector('.bar > .fc')?.remove();
+
+/** True when the focus is on this node of this drawing. */
+const hasFocus = (stage, node) => focus?.stage === stage && focus.node === node;
+
+/** What a click inside a node leaves to its own row: a file, "5 more files", a mark or another link. */
+const IN_A_NODE = '.f, a, .mk-holder, .mk-chip';
+
+let wentInAt = 0; // the time of the last click that went into a node: the double click that follows it does not go in again
+
+/**
+ * The clicks of a node: one click focuses it (focusOn), as Option+click does; a click on the node that has the focus, or a double click, goes into it
+ * (`into`: one level down, or its code). A double click on a node never fits the drawing. The look wins where it gives the click, Option+click,
+ * Shift+click or the double click of the node a target (Marks.bind, whose listeners come after these). `el` takes the clicks; `find(event)` is the
+ * node that a click is on, or null (a panel of the graphs page finds it by the place of the click). Call it before Marks.bind.
+ */
+function focusClicks(el, { stage, graph, slots = {}, into, diagram, find = () => el }) {
+  const looks = (event) => !!(slots.click || (event.altKey && slots['input.alt']) || (event.shiftKey && slots['input.shift']));
+  const nodeOf = (event) => {
+    const g = find(event);
+    const row = event.target.closest?.(IN_A_NODE);
+    return g && !(row && g.contains(row)) ? g : null;
+  };
+  el.addEventListener('click', (event) => {
+    const g = !looks(event) && nodeOf(event);
+    if (!g || !stage.contains(g)) return;
+    event.stopImmediatePropagation(); // not also the click of the node, or of the panel that holds it
+    event.preventDefault();
+    if (event.detail > 1) return; // the second click of a double click: the double click goes in
+    Hover.hide();
+    if (!hasFocus(stage, nodeKey(g))) return focusOn(stage, graph, nodeKey(g), diagram);
+    wentInAt = Date.now();
+    into?.(event);
+  });
+  el.addEventListener('dblclick', (event) => {
+    const g = !slots['input.double'] && nodeOf(event);
+    if (!g || !stage.contains(g)) return;
+    event.stopPropagation();
+    if (Date.now() - wentInAt < 700) return;
+    Hover.hide();
+    into?.(event);
+  });
+}
+
+// Escape ends the focus, when no window is open and no comment is being placed (Escape closes those first), and not in a text field.
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape' || !focus || document.querySelector('.win') || document.body.classList.contains('picking') || event.target.closest?.('[data-field], textarea, input, [contenteditable]')) return;
+  focusOn(null);
+}, true);
+
+// The × of the line ends the focus, and so does a click on an empty place of the drawing (a drag is no click: the surface takes it).
+document.addEventListener('click', (event) => {
+  if (!focus) return;
+  if (event.target.closest('[data-end-focus]')) return focusOn(null);
+  if (focus.stage.isConnected && focus.stage.contains(event.target) && !event.target.closest(`${ON_A_THING}, .ovt, .mk-holder`) && !document.body.classList.contains('picking')) focusOn(null);
+});
 
 // ----- the things of a drawing that a comment can be stuck on -----
 
@@ -621,6 +699,8 @@ async function drawChange(into, fromPart, tie) {
   }
   const fileSlotsOf = fileSlots(page);
   if (svg) Places.mark(svg, { kind: 'diagram' });
+  // The graph of the drawing for a focus (build 84): the parts by the ids of their nodes, and the links in the order of their drawn arrows.
+  const graph = { nodes: Object.fromEntries(page.parts.map((one, at) => [`ap${at}`, one.name])), edges: links };
   for (const title of into.querySelectorAll('b[data-part]')) {
     const node = title.closest('g.node');
     const id = title.dataset.part;
@@ -628,14 +708,21 @@ async function drawChange(into, fromPart, tie) {
     const slots = (inLook && looked.things[`ap${index(id)}`]?.slots) || {};
     node.classList.add('go');
     Places.mark(node, { kind: 'part', part: id });
-    Marks.bind(node, slots, (event) => { if (!event.target.closest('.f')) tie?.click ? tie.click(id) : App.openPart(id); }, thePart.name);
+    // One click focuses the part, and two clicks open it (focusClicks): its diagram, or beside the list its first file there (tie.click).
+    const open = () => (tie?.click ? tie.click(id) : App.openPart(id));
+    focusClicks(node, { stage: into, graph, slots, into: open });
+    Marks.bind(node, slots, (event) => { if (!event.target.closest('.f')) open(); }, thePart.name);
     if (tie) Hover.after(node, () => tie.part(id));
     else Hover.attach(title, partWindow(thePart, slots), node);
   }
   const noPart = into.querySelector('b[data-nopart]');
   if (noPart) {
-    Places.mark(noPart.closest('g.node'), { kind: 'no-part' });
-    if (tie?.click) noPart.closest('g.node').addEventListener('click', () => tie.click('no-part'));
+    const box = noPart.closest('g.node');
+    Places.mark(box, { kind: 'no-part' });
+    // Beside the list it leads to its files there: one click focuses it, two clicks open them (focusClicks).
+    graph.nodes[nodeKey(box)] = 'In no part';
+    if (tie?.click) focusClicks(box, { stage: into, graph, into: () => tie.click('no-part') });
+    if (tie?.click) box.addEventListener('click', (event) => { if (!event.target.closest('.f')) tie.click('no-part'); });
     if (tie) Hover.after(noPart.closest('g.node'), () => tie.part('no-part'));
     else Hover.attach(noPart, filesWindow('In no part', page.checks.filesInNoPart), noPart.closest('g.node'));
   }
@@ -929,10 +1016,11 @@ function changeCards(body) {
   const nodes = [...body.querySelectorAll('b[data-part], b[data-nopart]')].map((title) => title.closest('g.node')).filter(Boolean);
   return Overview.inReadingOrder(nodes).map((g) => {
     const id = g.querySelector('b[data-part]')?.dataset.part;
-    if (!id) return { title: 'In no part', files: page.checks.filesInNoPart.map(fileOf) };
+    if (!id) return { title: 'In no part', files: page.checks.filesInNoPart.map(fileOf), node: nodeKey(g) };
     const part = page.parts.find((one) => one.id === id);
     const [diagram] = partDiagrams(part);
-    return diagram ? { title: part.name, open: () => App.openPart(id), draw: (box) => drawSmall(box, diagram) } : { title: part.name, files: part.files.map(fileOf) };
+    return diagram ? { title: part.name, open: () => App.openPart(id), draw: (box) => drawSmall(box, diagram), shape: drawingShape(diagram.graph, diagram.draw, diagram.schema), node: nodeKey(g) }
+      : { title: part.name, files: part.files.map(fileOf), node: nodeKey(g) };
   });
 }
 

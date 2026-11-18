@@ -144,7 +144,7 @@ try {
         && down.line === 'PostgreSQL · 27 places in Lending ×' && !cleared.lit && !cleared.line && cleared.crumb === 'Home›Lending: holds, requests and mails', JSON.stringify({ once, down, cleared }));
     // The contents and the button of the look: a picture node opens on a click like any node, a film plays with no sound only on a click, a button does its action.
     await drawnAt(homeFile, '?look=1');
-    await one.click(node('writing'));
+    await one.dblclick(node('writing'));
     const picture = await sent();
     await one.click(`${node('jobs')} .mk-button`);
     const button = await sent();
