@@ -258,7 +258,7 @@ try {
     && fileTold?.path === 'src/library/lending/hold_service.py' && fileTold.lines?.join() === '245,247', JSON.stringify({ feed, early: extras.early, drawn: extras.drawn, fileTold }));
   // Messages of one author that share an avatar, the count of earlier commits and events, and a run of force pushes that repeated its day were corrected faults.
   check('"Messages": earlier messages are one row, drawn when he opens it; messages of one author within minutes share one avatar; commits in a row are one row "4 commits" that unfolds to the short hashes; a long message shows its first lines and "Show all"; day lines, review cards with their verdict, chips for reactions, a heading as the title line; comments of one product are one compact row with a count; equal messages are one row with a count; a run of force pushes is one row, with no day when the day line says it',
-    /^▸2 earlier messages · 2 commits · 1 event/.test(feed.earlier) && feed.messagesAfter === feed.messagesBefore + 2 && feed.same >= 1
+    /^2 earlier messages · 2 commits · 1 event/.test(feed.earlier) && feed.messagesAfter === feed.messagesBefore + 2 && feed.same >= 1
     && /4 commits/.test(feed.commitText) && feed.commitRows.join() === '9e2d4b7,5d0a3e1,8a1d2e3,2c3d4e5' && feed.longAfter > feed.longBefore + 50
     && modern.days.length >= 2 && modern.days.includes('Yesterday') && modern.verdict.includes('asked for changes') && modern.verdict.includes('approved') && modern.chips >= 2 && modern.title.includes('Pre-merge review')
     && modern.products.length === 1 && /GitHub Actions2 comments · Test report/.test(modern.products[0]) && modern.productInner === 0 && modern.repeat.some((one) => /^posted 2 times/.test(one))
@@ -612,6 +612,24 @@ try {
     return { drawn: !!document.querySelector('.conv .mmd svg'), hit: hit?.closest('.mmd') ? 'the drawing' : hit?.className };
   });
   check('a Mermaid block of a pull request that brings its own CSS stays in its box and does not cover the page', covered.drawn && covered.hit === 'ptitle', JSON.stringify(covered));
+  // A pull request of this repo with no stored change (its line of words for an agent is checked in the group "ask").
+  await pullOnly.evaluate(() => {
+    const read = APOSTIL_EXAMPLE.answers['pull:https://example.com/made-up/pull/12'];
+    App.page = { ...App.page, pullOnly: { link: read.pull.url, number: 35, local: false, otherRepo: false, fetch: 'git fetch origin pull/35/head' }, files: read.pull.files, parts: [] };
+  });
+  // Its commits are not in the folder: Apostil gets them itself, and "Diffs" says so meanwhile; when that fails it says why, with the command.
+  const fetchLines = await pullOnly.evaluate(async () => {
+    const lineOf = async (more) => {
+      App.page = { ...App.page, pullOnly: { ...App.page.pullOnly, ...more } };
+      App.state.view = 'diffs';
+      await App.render();
+      return document.querySelector('#view .pline')?.textContent ?? '';
+    };
+    return { getting: await lineOf({ fetching: true }), failed: await lineOf({ fetching: false, fetchProblem: 'fatal: could not read from the remote.' }) };
+  });
+  check('the "Diffs" of a pull request whose commits are not in the folder says that Apostil gets them, and when that fails, why, with the command',
+    fetchLines.getting === 'Getting the commits of this pull request from GitHub…'
+    && /^Apostil could not get the commits of this pull request: fatal: could not read from the remote\. Get them with git fetch origin pull\/35\/head, then open it again\.$/.test(fetchLines.failed), JSON.stringify(fetchLines));
   await pullOnly.close();
 
   // ----- "@github" in the comment box on code: in the open diffs of the list of "Diagram" (since build prompt 42 "Diffs" opens no diff), on an added line,

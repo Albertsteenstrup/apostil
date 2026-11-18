@@ -561,7 +561,7 @@ const Conversation = (() => {
     const commits = entries.filter((entry) => entry.kind === 'commits').reduce((sum, entry) => sum + entry.items.length, 0);
     const events = entries.filter((entry) => entry.kind === 'events').reduce((sum, entry) => sum + entry.items.length, 0);
     const words = [messages.length ? plural(messages.length, 'earlier message') : '', commits ? plural(commits, 'commit') : '', events ? plural(events, 'event') : ''].filter(Boolean).join(' · ');
-    return `<a class="fold" data-earlier><span class="chev">▸</span>${esc(words)}<span class="avs">${people.map((one) => avatar(one, 's')).join('')}</span>`
+    return `<a class="fold" data-earlier>${esc(words)}<span class="avs">${people.map((one) => avatar(one, 's')).join('')}</span>`
       + `<span class="t">${esc(ago(entries[0].at))} – ${esc(ago(entries[entries.length - 1].at))}</span></a>`;
   }
 

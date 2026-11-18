@@ -133,6 +133,9 @@ export interface PullOnly {
   local: boolean; // its commits are in the folder, so "Diffs" shows its diffs
   otherRepo: boolean; // a pull request of another repo: "Conversation" and the list of its files only
   fetch?: string; // the command that gets its commits, when they are not in the folder
+  remote?: string; // the remote of that command: Apostil runs it itself in the background
+  fetching?: boolean; // Apostil is getting its commits now
+  fetchProblem?: string; // what git said when getting them failed
 }
 
 /** The stored map of the repo of a folder. */
@@ -367,6 +370,7 @@ export function pullOnlyPage(folder: string, pull: PullRequestView, apps: string
   const pullOnly: PullOnly = {
     link: pull.url, number: pull.number, local: !!base, otherRepo,
     fetch: !base && !otherRepo ? `git fetch ${github!.remote} pull/${pull.number}/head` : undefined,
+    remote: !base && !otherRepo ? github!.remote : undefined,
   };
   return {
     changeId: 0, repo: pull.repo, folder, branch: pull.head, base: base ?? pull.baseOid, head: pull.headOid, title: pull.title, reason: '', outOfDate: false,

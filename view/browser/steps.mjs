@@ -411,7 +411,8 @@ try {
         alone: !!document.querySelector('#view > .alone.file-left'), list: !!list, rows: list?.querySelectorAll('.dfile').length ?? 0,
         opened: list?.querySelectorAll('.dfile.open, .dbody, .cn').length ?? 0, twisties: [...(list?.querySelectorAll('.tw') ?? [])].length,
         here: row?.dataset.file ?? '', hereInView: !!row && rect(row).top >= rect(list).top - 1 && rect(row).bottom <= rect(list).bottom + 1,
-        nav: document.querySelector('#tabs .nav')?.textContent ?? '', tabs: document.querySelector('#tabs')?.textContent ?? '',
+        nav: document.querySelector('#tabs .nav')?.textContent ?? '', tabs: `${document.querySelector('#tabs')?.textContent ?? ''} ${document.querySelector('.dctl')?.textContent ?? ''}`, // "Hide files" stands over the list
+        hideOverList: (() => { const hide = document.querySelector('.dctl [data-half="files"]')?.getBoundingClientRect(); const head = document.querySelector('#view .half.right .dp')?.getBoundingClientRect(); return !!hide && !!head && Math.abs((hide.top + hide.height / 2) - (head.top + head.height / 2)) <= 3 && hide.right <= head.right + 1; })(),
         path: at?.path ?? '', run: at?.run ?? -2, runs: at?.section?.view ? changeRuns(at.section.view.rows).length : 0,
         visible, top: cv ? Math.round(cv.scrollTop) : 0,
         widths: [rect(list)?.width ?? 0, rect(file)?.width ?? 0].map(Math.round), xs: [rect(list)?.left ?? 0, rect(file)?.left ?? 0].map(Math.round),
@@ -520,10 +521,12 @@ try {
     const withSide = await diffsNow();
     const sideReads = await fileReads();
     console.log(`NOTE  "Diffs" at 1400 px with the comments window open: the list ${withSide.widths[0]} px, the file ${withSide.widths[1]} px (${withSide.cards ? 'cards' : 'marks'})`);
-    await redrawn(() => one.click('#tabs .codeswitch[data-half="files"]'));
+    await redrawn(() => one.click('.dctl .codeswitch[data-half="files"]'));
     const hidden = await diffsNow();
     await redrawn(() => one.click('#tabs .codeswitch[data-half="files"]'));
     const shownAgain = await diffsNow();
+    check('"Hide files" stands over the list at the right end of the line of its first group head, as "Hide code" over the code; "Show files" then stands at the left of the line above the file',
+      withSide.hideOverList && !!hidden && /Show files/.test(hidden.tabs) && shownAgain.hideOverList, JSON.stringify({ over: withSide.hideOverList, hidden: hidden?.tabs, again: shownAgain.hideOverList }));
     await redrawn(() => one.setViewportSize({ width: 900, height: 900 }));
     const narrow = await diffsNow();
     await redrawn(() => one.setViewportSize({ width: 1400, height: 900 }));

@@ -1219,6 +1219,12 @@ try {
     /^Ask (a new Claude Code session|Claude Code session .+)$/.test(pressLabel ?? '') && !!pressRun && pressRun.includes('Describe pull request #35 for Apostil\n') && pressRun.includes('--model\nhaiku\n')
       && pressRun.includes('Bash(git show *)\n') && /^Describe pull request #35 for Apostil went to (a new )?Claude Code session \S.* · (working|done) · Open the session$/.test(wentLine ?? ''),
     JSON.stringify({ pressLabel, run: (pressRun || '').replace(/\n/g, ' ').slice(0, 300), wentLine }));
+  // The Apostil icon in the activity bar has a badge with the count of open pull requests (the stand-in gh lists one), as Source Control has.
+  const badge = await until(() => page.evaluate(() => {
+    const item = [...document.querySelectorAll('.activitybar .action-item')].find((one) => /Apostil/.test(one.querySelector('.action-label')?.getAttribute('aria-label') ?? ''));
+    return item?.querySelector('.badge-content')?.textContent?.trim() || '';
+  }), 8000);
+  check('the Apostil icon in the activity bar shows the count of open pull requests as a badge', badge === '1', `badge "${badge}"`);
 
   // ---- 7. A notebook ----
   // A notebook of another repo opens the normal way in the notebook editor, with the note of its change in its cell; the key hides it; no cell runs.
