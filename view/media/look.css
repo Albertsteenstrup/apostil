@@ -398,6 +398,7 @@ body.with-rail .paper{margin-right:44px}
 /* the list of changes in the sidebar: it fills the side bar */
 body.list{--bar:var(--vscode-sideBar-background,var(--paper));background:var(--bar);padding:6px 4px}
 .cl .eyebrow{margin:4px 10px 6px;font-size:var(--small);color:var(--muted);font-weight:600}
+.cl .eyebrow .cnt{margin-left:6px;font-weight:400;font-variant-numeric:tabular-nums;color:var(--faint)} /* the count of the open pull requests, as the badge */
 .cl .grp{border-top:1px solid var(--line);padding:2px 0}
 .cl .eyebrow + .grp{border-top:0}
 .cl .row{display:block;padding:7px 10px;cursor:pointer}

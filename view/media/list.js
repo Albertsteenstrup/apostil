@@ -107,9 +107,15 @@ const pullRows = () => {
 /** One pull request with no stored change: its title, then its line (number and state). A click opens its page. */
 const pullRow = (pull) => `<div class="row prow" data-pull="${pull.number}"><div class="top"><span class="nm" title="${esc(pull.title)}">${esc(pull.title)}</span></div>${pullLine(pull)}</div>`;
 
+/** The count of the open pull requests of the repo beside the head, the same number as the badge of the Apostil icon (pullBadge in shared/pull-requests.ts). */
+const pullCount = () => {
+  const count = repoPulls.pulls.length;
+  return count ? `<span class="cnt" title="${count} open pull request${count === 1 ? '' : 's'} in this repo">${count}</span>` : '';
+};
+
 /**
- * The head "Pull requests" and the open pull requests with no change, the first 20 and a line for the rest; or one quiet line that says why gh gave none.
- * With a rule of the look that orders the rows, the rows stand in that order.
+ * The head "Pull requests" with the count of the open ones, and the open pull requests with no change, the first 20 and a line for the rest; or one quiet
+ * line that says why gh gave none. With a rule of the look that orders the rows, the rows stand in that order.
  */
 function repoPullsHtml(order) {
   if (repoPulls.problem) return `<div class="eyebrow">${esc(States.WORDS.pullRequests)}</div><div class="note">${esc(repoPulls.problem)}</div>`;
@@ -117,7 +123,7 @@ function repoPullsHtml(order) {
   if (!rows.length) return '';
   const ordered = order ? PartLook.rowGroups([{ rows }], pullsOf, { ...order, group: undefined })[0]?.rows ?? [] : rows;
   const all = unfolded.has('repo-pulls');
-  return `<div class="eyebrow">${esc(States.WORDS.pullRequests)}</div>${ordered.slice(0, all ? Infinity : SHOWN_PULLS).map((row) => pullRow(row.only)).join('')}`
+  return `<div class="eyebrow">${esc(States.WORDS.pullRequests)}${pullCount()}</div>${ordered.slice(0, all ? Infinity : SHOWN_PULLS).map((row) => pullRow(row.only)).join('')}`
     + (ordered.length > SHOWN_PULLS ? foldLine('repo-pulls', all, all ? States.WORDS.fewer : States.WORDS.nMore(ordered.length - SHOWN_PULLS)) : '');
 }
 
