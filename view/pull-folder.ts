@@ -37,6 +37,19 @@ function worktrees(folder: string): { folder: string; branch?: string }[] {
 export const worktreeWith = (folder: string, branch: string): string | undefined =>
   (branch ? worktrees(folder).find((one) => one.branch === branch)?.folder : undefined);
 
+/**
+ * True when the local branch of a pull request holds its last commit (that commit or a later one of the person). A branch of that name without it is
+ * another branch (a pull request from a fork, often "main") or one that is behind: describing it would describe other code.
+ */
+export const holdsHead = (folder: string, branch: string, head: string): boolean =>
+  !!head && commitExists(folder, head) && tryGit(folder, 'merge-base', '--is-ancestor', head, `refs/heads/${branch}`) !== undefined;
+
+/** The folder of a worktree that has the head branch of a pull request checked out with its last commit, or undefined: a session there may describe it. */
+export const worktreeWithHead = (folder: string, pull: PullHead): string | undefined => {
+  const there = worktreeWith(folder, pull.branch);
+  return there && holdsHead(folder, pull.branch, pull.head) ? there : undefined;
+};
+
 /** True when a worktree lies in Apostil's own folder of worktrees in its store: Apostil made it, also for an earlier run that it could not end (VS Code closed). */
 function isOwn(worktree: string, store: string): boolean {
   const inside = relative(realFolder(join(store, 'worktrees')), realFolder(worktree));
@@ -47,27 +60,32 @@ function isOwn(worktree: string, store: string): boolean {
 const reason = (said: string): string => said.replace(/^(fatal|error): /, '').replace(/\.?$/, '.');
 
 /**
- * Finds or makes a folder with the head branch of a pull request checked out. A worktree of the repo that has the branch: the run works there, and Apostil
- * makes nothing (one in its own folder it made before, so it counts as made). Else Apostil gets the commits of the pull request when the clone lacks them,
- * and adds a worktree in its store (worktrees/<repo>-pr-<n>): with the local branch of that name, as it is, when there is one; else with a new branch at the
- * last commit of the pull request. Gives back one sentence when that fails; no run starts then.
+ * Finds or makes a folder with the head branch of a pull request checked out. Apostil first gets the commits of the pull request when the clone lacks them.
+ * A local branch of that name counts only when it holds the last commit (holdsHead); else no run starts, and the sentence says so. A worktree of the repo
+ * that has the branch: the run works there, and Apostil makes nothing (one in its own folder it made before counts as made). Else Apostil adds a worktree
+ * in its store (worktrees/<repo>-pr-<n>): with the local branch, as it is, or with a new branch at the last commit of the pull request.
+ * Gives back one sentence when that fails; no run starts then.
  */
 export async function pullFolder(folder: string, pull: PullHead, store: string): Promise<{ folder: string; made: boolean } | { problem: string }> {
   const fail = (said: string) => ({ problem: `Could not check out the branch ${pull.branch} of pull request #${pull.number}: ${reason(said)}` });
   if (!pull.branch) return { problem: `Pull request #${pull.number} is not read yet. Try again in a moment.` };
   if (pull.branch.startsWith('-')) return fail('a branch name that starts with "-" would be read as an option of git'); // the name comes from GitHub
+  // The last commit first: a branch of that name counts only when it holds it.
+  let head = pull.head;
+  if (!(head && commitExists(folder, head))) {
+    const said = pull.remote ? await fetchPullCommits(folder, pull.remote, pull.number) : 'this clone has no remote on GitHub';
+    if (said) return fail(said);
+    if (!head || !commitExists(folder, head)) head = tryGit(folder, 'rev-parse', 'FETCH_HEAD') ?? '';
+  }
+  const known = tryGit(folder, 'rev-parse', '--verify', '--quiet', `refs/heads/${pull.branch}`) !== undefined;
+  if (known && !holdsHead(folder, pull.branch, head)) {
+    return fail(`the branch ${pull.branch} of this clone does not hold the last commit of the pull request. It is another branch with that name, or it is behind`);
+  }
   const there = worktrees(folder).find((one) => one.branch === pull.branch);
   if (there && existsSync(there.folder)) return { folder: there.folder, made: isOwn(there.folder, store) };
   if (there && !isOwn(there.folder, store)) return fail(`it is checked out in ${there.folder}, which is gone (git worktree prune lets it go)`);
   if (there) await gitLater(folder, ['worktree', 'remove', '--force', there.folder]); // its own worktree, whose folder is gone
 
-  const known = tryGit(folder, 'rev-parse', '--verify', '--quiet', `refs/heads/${pull.branch}`) !== undefined;
-  let head = pull.head;
-  if (!known && !(head && commitExists(folder, head))) {
-    const said = pull.remote ? await fetchPullCommits(folder, pull.remote, pull.number) : 'this clone has no remote on GitHub';
-    if (said) return fail(said);
-    if (!head || !commitExists(folder, head)) head = tryGit(folder, 'rev-parse', 'FETCH_HEAD') ?? '';
-  }
   const said = known ? undefined : newBranch(folder, pull, head);
   if (said) return fail(said);
   const at = await freeFolder(folder, store, pull.number);

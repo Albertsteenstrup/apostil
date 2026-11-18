@@ -9,7 +9,7 @@ import { isAlive, storeFolder, type Store } from '../shared/store';
 import { spawnRun, type RunFacts } from './agent-run';
 import { idOf } from './home-data';
 import { connectedApps } from './new-repo-steps';
-import { pullFolder, realFolder, removePullFolder, worktreeWith, type PullHead } from './pull-folder';
+import { pullFolder, realFolder, removePullFolder, worktreeWithHead, type PullHead } from './pull-folder';
 
 /** The change of the page, whose session gets the words there; elsewhere none. */
 export type OfChange = { agent?: AgentSession; folder?: string };
@@ -25,13 +25,14 @@ export const ON_BRANCH = 'The branch of the pull request is checked out in this 
 
 /**
  * Where words go from a folder (askTo): the session of the change, else the newest session that Apostil knows in the repo, else a new session of the app
- * that the press of Home starts. A session continues only in its own folder: for a pull request, only a session whose folder has its head branch checked out counts.
+ * that the press of Home starts. A session continues only in its own folder: for a pull request, only a session whose folder has its head branch checked out, with
+ * its last commit, counts.
  */
 function askToFrom(store: Store, folder: string, installed: string[], about: AskAbout = {}): AskTo | undefined {
   const repo = idOf(folder);
   const app = appToStart(store.startedRuns(), repo, installed, connectedApps(installed, folder));
   const known = repo ? store.knownSessions(repo, folder) : [];
-  const there = about.pull && worktreeWith(folder, about.pull.branch);
+  const there = about.pull && worktreeWithHead(folder, about.pull); // its branch, with the last commit of the pull request
   const usable = about.pull ? known.filter((one) => !!there && !!one.folder && realFolder(one.folder) === realFolder(there)) : known;
   return askTo(usable, installed, app, about.change);
 }

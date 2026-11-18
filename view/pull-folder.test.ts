@@ -36,17 +36,21 @@ test('a pull request whose branch is not checked out: its commits come, and a wo
   }
 });
 
-test('a local branch of that name is checked out as it is, never moved; a worktree of the person with the branch is the folder, and Apostil makes and removes nothing; with no commits to get, no folder and one sentence', async () => {
+test('a local branch of that name without the last commit of the pull request (a fork with a branch "main", or one that is behind): no folder, one sentence, and the branch is not moved; one that holds it is checked out as it is; a worktree of the person with the branch is the folder, and Apostil makes and removes nothing; with no commits to get, no folder and one sentence', async () => {
   const repo = makePullRepo();
   const store = tempFolder('apostil-home-');
   const pull = { number: repo.number, branch: repo.branch, head: repo.head, base: repo.base, remote: 'origin' };
   const other = tempFolder('apostil-mine-');
   try {
-    git(repo.folder, 'branch', repo.branch, repo.base); // a branch of the person with that name, at main
+    git(repo.folder, 'branch', repo.branch, repo.base); // a branch of the person with that name, at main: not the branch of the pull request
+    assert.deepEqual(await pullFolder(repo.folder, pull, store), { problem: `Could not check out the branch ${repo.branch} of pull request #${repo.number}: the branch ${repo.branch} of this clone does not hold the last commit of the pull request. It is another branch with that name, or it is behind.` });
+    assert.equal(git(repo.folder, 'rev-parse', `refs/heads/${repo.branch}`), repo.base); // not moved to the head of the pull request
+    assert.equal(existsSync(join(store, 'worktrees')), false);
+
+    git(repo.folder, 'branch', '-f', repo.branch, repo.head); // the person brings the branch up to date
     const made = await pullFolder(repo.folder, pull, store);
     assert.ok('folder' in made && made.made, JSON.stringify(made));
-    assert.equal(headCommit(made.folder), repo.base);
-    assert.equal(git(repo.folder, 'rev-parse', `refs/heads/${repo.branch}`), repo.base); // not moved to the head of the pull request
+    assert.equal(headCommit(made.folder), repo.head);
     await removePullFolder(repo.folder, made.folder, store);
 
     const mine = join(other, 'mine');
