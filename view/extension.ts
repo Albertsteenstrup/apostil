@@ -30,6 +30,7 @@ import { registerUninstall } from './uninstall-in-vscode';
 import type { Target } from '../shared/look';
 
 let store: Store | undefined;
+const TREE_SHOWS_MS = 300; // how long the tree "Files" shows before it marks the file in front
 // The store files that the watcher looks at. SQLite writes to the "-wal" file first; a folder watch on macOS misses those writes.
 const storeFiles = (): string[] => ['apostil.sqlite', 'apostil.sqlite-wal'].map((name) => join(storeFolder(), name));
 
@@ -147,6 +148,7 @@ export function activate(context: vscode.ExtensionContext) {
   home.showInTree = (paths, open) => {
     void (async () => {
       for (const { path, select, expand } of treeSteps(paths, filesView.visible, open)) {
+        if (!open && !filesView.visible) return; // he hid the side bar meanwhile: a reveal shows a hidden view, so it would open again
         await filesView.reveal(path, { select, focus: false, expand }).then(undefined, () => {}); // a path that the tree does not hold is passed
       }
     })();
@@ -200,13 +202,20 @@ export function activate(context: vscode.ExtensionContext) {
     if (path) void filesView.reveal(path, { select: true, focus: false }).then(undefined, () => {}); // a file that the tree does not hold is passed
   };
   markFileInFront(true);
+  // When the tree shows again it marks the file in front: after a moment, and only when it still shows. VS Code's reveal() shows a hidden view,
+  // so a mark that was asked for as the side bar showed opened it again when he hid it at once (Cmd+B twice).
+  let shownTimer: NodeJS.Timeout | undefined;
+  const treeShows = (visible: boolean): void => {
+    clearTimeout(shownTimer);
+    if (visible) shownTimer = setTimeout(() => markFileInFront(true), TREE_SHOWS_MS);
+  };
 
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider('apostil.changes', list),
     filesView,
     vscode.window.tabGroups.onDidChangeTabs(() => markFileInFront()),
     vscode.window.tabGroups.onDidChangeTabGroups(() => markFileInFront()),
-    filesView.onDidChangeVisibility((event) => { if (event.visible) markFileInFront(true); }),
+    filesView.onDidChangeVisibility((event) => treeShows(event.visible)),
     vscode.commands.registerCommand('apostil.home', () => openHome()),
     vscode.commands.registerCommand('apostil.graphsOf', (target?: unknown) => graphsOf(target)),
     vscode.commands.registerCommand('apostil.openLookPage', () => pickLookPage()),

@@ -225,7 +225,7 @@ const App = {
       lightNodes(view, keys);
       const first = view.querySelector('g.node.lit');
       const stage = first?.closest('.surface');
-      if (stage) stage.surface.show(first);
+      if (stage && !stage.surface.kept) stage.surface.show(first); // not when the same diagram drew again: the view stays where he left it
     }
     Remarks.paint(view);
     Remarks.draw();

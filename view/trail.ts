@@ -26,6 +26,8 @@ interface Rules {
   upTo(steps: Step[], step: Step): Step[];
   walk(steps: Step[], from: Step, to: Step): Step[];
   before(steps: Step[], own: Step): Step | null;
+  goTo(steps: Step[], ahead: Step[], step: Step): { steps: Step[]; ahead: Step[] };
+  next(steps: Step[], ahead: Step[], own: Step | null, way: -1 | 1): Step | null;
 }
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 export const TrailRules: Rules = require('../../view/media/trail.js');
@@ -33,6 +35,7 @@ export const TrailRules: Rules = require('../../view/media/trail.js');
 /** The path of the window. `open` shows the view of a step in its tab; `told` gets the path each time that it changes. */
 export class WindowTrail {
   steps: Step[] = [TrailRules.HOME];
+  ahead: Step[] = []; // the steps that a way back left: forward goes to them, until he takes a new step
 
   constructor(private open: (step: Step) => void, private told: (steps: Step[]) => void) {}
 
@@ -47,14 +50,23 @@ export class WindowTrail {
     if (open) this.open(to);
   }
 
-  /** Back to an earlier step of a line: the path ends there again, and its view opens. */
+  /** To a step of a line, or of the steps ahead: the path ends there, the steps after it stay ahead, and its view opens. */
   back(to: Step): void {
-    this.set(TrailRules.upTo(this.steps, to));
+    const { steps, ahead } = TrailRules.goTo(this.steps, this.ahead, to);
+    this.set(steps, ahead);
     this.open(to);
   }
 
-  private set(steps: Step[]): void {
+  /** One step back (-1) or forward (1) from the view of a page (none: a file tab): its view opens; nothing when there is no such step. */
+  move(way: -1 | 1, from?: Step): void {
+    const to = TrailRules.next(this.steps, this.ahead, from ?? null, way);
+    if (to) this.back(to);
+  }
+
+  /** A new path or a new step has nothing ahead. */
+  private set(steps: Step[], ahead: Step[] = []): void {
     this.steps = steps;
+    this.ahead = ahead;
     this.told(steps);
   }
 }

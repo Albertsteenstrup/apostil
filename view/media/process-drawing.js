@@ -47,7 +47,7 @@ const ProcessDrawing = (() => {
     const marker = svg.querySelector('marker[id$="pointEnd"]')?.id;
     for (const hidden of svg.querySelectorAll('[id^="L_col"], g.edgeLabel:has([data-id^="L_col"])')) hidden.style.display = 'none';
     const steps = (ids) => ids.map((id) => nodeOf(svg, id)).filter((g, at) => g && !diagram.nodes[ids[at]].quiet && diagram.nodes[ids[at]].kind === 'step');
-    const columns = diagram.columns.columns.map((ids) => ({ all: ids.map((id) => nodeOf(svg, id)).filter(Boolean).map((g) => boxIn(root, g)), steps: steps(ids).map((g) => boxIn(root, g)) }));
+    const columns = diagram.columns.columns.map((ids) => ({ all: ids.map((id) => nodeOf(svg, id)).filter(Boolean).map((g) => boxIn(root, g)), steps: steps(ids).map((g) => ({ ...boxIn(root, g), id: nodeKey(g) })) }));
     columns.slice(1).forEach((next, at) => {
       const [now, end, start] = [columns[at], columns[at].steps.at(-1), next.steps[0]];
       if (!end || !start) return;
@@ -56,6 +56,7 @@ const ProcessDrawing = (() => {
       const path = document.createElementNS(SVG_NS, 'path');
       path.setAttribute('class', 'flowchart-link colink');
       path.setAttribute('d', `M${end.middle} ${end.bottom} V${down} H${gap} V${up} H${start.middle} V${start.top}`);
+      Object.assign(path.dataset, { from: end.id, to: start.id }); // the two steps that it joins, for the focus on one of them (focusNode)
       if (marker) path.setAttribute('marker-end', `url(#${marker})`);
       root.append(path);
     });
