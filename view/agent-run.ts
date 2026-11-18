@@ -1,4 +1,4 @@
-// Starts an agent run: for one sent remark (one that continues the session of a change, or a new session of an app), or a new session that writes the map. No `vscode` import.
+// Starts an agent run: for one sent remark (one that continues the session of a change or another known session, or a new session of an app), or a new session that writes the map. No `vscode` import.
 
 import { spawn } from 'node:child_process';
 import { readFileSync, rmSync } from 'node:fs';
@@ -84,7 +84,8 @@ export interface RunFacts {
 }
 
 /**
- * Starts the run for a remark as a child process: the resume command of the change's agent, or with `newApp` a new session of that app.
+ * Starts the run for a remark as a child process: the resume command of the change's agent (or of the known session that the remark went to),
+ * or with `newApp` a new session of that app.
  * It runs in the folder of the change; a remark on the map has no change and runs in `folder`, the open folder, with a new session only.
  * The session that the run reports is kept on the remark. When the process ends and the remark is still running, the remark is open again,
  * and `ended` gets the reason: what the program said, or that it gave no answer. `models` are the models that the owner set in Apostil for the runs;
@@ -96,7 +97,9 @@ export function startRun(store: Store, remarkId: number, ended: (problem?: strin
   const prompt = remark && inboxText([remark], store, commentRuns === 'read only');
   const where = change?.folder ?? folder;
   const options = { ...runOptions(where ?? '', storeFolder(), models), commentRuns }; // the modes that the person set as default for the app go with the run
-  const command = prompt && (newApp ? newRunCommand(newApp, prompt, options) : change?.agent && resumeCommand(change.agent, prompt, options));
+  // The session that the run continues: another session that Apostil knows in the repo when the comment went there, else the session of the change.
+  const agent = remark?.to?.kind === 'session' && remark.to.session ? { app: remark.to.app, session: remark.to.session } : change?.agent;
+  const command = prompt && (newApp ? newRunCommand(newApp, prompt, options) : agent && resumeCommand(agent, prompt, options));
   if (!where || !command) return ended(newApp ? `A new session of ${newApp} cannot be started from here.` : 'This agent cannot be continued from here.');
   const before = workingFiles(where);
   const pid = spawnRun(command, where, (session) => store.setRunSession(remarkId, session), (problem) => {
@@ -106,7 +109,7 @@ export function startRun(store: Store, remarkId: number, ended: (problem?: strin
     store.reopenRemark(remarkId);
     ended(problem ? `${command[0]} gave no answer. It said: ${problem}` : `${command[0]} ended with no answer.`);
   });
-  if (pid !== undefined) store.startRemarkRun(remarkId, { pid, session: newApp ? undefined : change?.agent?.session, startedAt: new Date().toISOString() });
+  if (pid !== undefined) store.startRemarkRun(remarkId, { pid, session: newApp ? undefined : agent?.session, startedAt: new Date().toISOString() });
 }
 
 const SKILLS = join(__dirname, '..', '..', 'skills'); // the skills folder of this extension

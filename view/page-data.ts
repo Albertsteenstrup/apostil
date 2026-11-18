@@ -3,7 +3,7 @@
 
 import { existsSync } from 'node:fs';
 import { basename, dirname } from 'node:path';
-import { resumeCommand, sessionLink, sessionName, type AgentSession } from '../shared/agents';
+import { opencodeSmallModel, resumeCommand, runEffort, sessionLink, sessionName, type AgentSession, type RunModels } from '../shared/agents';
 import type { ChangeFile, Diagram, Link, Note } from '../shared/change-file';
 import { cellsIn, checkChangeFile, fileChange } from '../shared/checks';
 import { diagramChange, withRemoved, type DiagramChange, type DrawnEdge } from '../shared/diagram-change';
@@ -19,7 +19,7 @@ import { githubRepoOf, type PullRequestView } from '../shared/read-pull-request'
 import { changeWhere, savedWords, type SavedAt } from '../shared/change-rows';
 import { repoDiagramOf, type RepoDiagram } from '../shared/repo-diagram';
 import type { RepoMap } from '../shared/repo-map';
-import type { CheckResult, OpenPoint, Remark, Store } from '../shared/store';
+import type { CheckResult, OpenPoint, Remark, RemarkTo, Store } from '../shared/store';
 import { broadMermaid, broadTotal, changeMermaid, drillUpStyle, partMermaid, type BroadTotal } from './change-diagram';
 import { lookData, standingMarks, type LookData, type MarkHere } from './look-data';
 
@@ -117,13 +117,42 @@ export interface PageData {
   remarks: Remark[]; // every remark with its state and answer
   agent?: PageAgent;
   listening: boolean; // the session of the change has a live waiter, so a sent remark reaches it
-  apps: string[]; // the agent apps whose program is on the path: "@" offers a new session of each
+  apps: string[]; // the connected agent apps (on the path, with the skills of Apostil), Claude Code first: "@" and the picker of a card offer them
+  sendTo?: SendTo; // what the picker of a card offers besides the apps: the known sessions, the model of a new session, the last choice
   onHome: Record<string, RepoDiagram>; // by the id of a diagram of this change: the repo diagram that it draws on ("of"), which the link "on Home" opens
   head?: string; // the commit that the diffs end at: a pull request, or a change, that is not checked out
   savedWords?: string; // one quiet line: the change is shown as saved at a commit, or that this clone has no such commit
   pullOnly?: PullOnly; // a pull request with no stored change: the page has "Conversation" and "Diffs"
   plain?: true; // a file tab with no change: the code as it is, with no diff, and the notes beside it
   look?: LookData; // the look of the repo for the page and its file tabs; the marks of a file come with its code
+}
+
+/** What the picker of where a comment goes offers, besides the connected apps. */
+export interface SendTo {
+  sessions: { app: string; session: string; name?: string; at: string }[]; // the other sessions that Apostil knows in the repo and that a run can continue in its folder, newest first
+  models: Record<string, string | undefined>; // the model of a new session of each app (its setting, the small model of OpenCode); none: the model of the app's own settings
+  effort: string; // the reasoning effort of a comment run
+  last?: RemarkTo | null; // where the newest comment of the repo went (null: to no agent); missing when the repo has none
+}
+
+/** The sessions, models and last choice of the picker of a change: only connected apps, and sessions other than the session of the change. */
+export function sendToOf(store: Store, repo: string, folder: string, apps: string[], models: RunModels, own?: AgentSession): SendTo {
+  const newest = new Map<string, SendTo['sessions'][number]>();
+  for (const one of store.knownSessions(repo, folder)) {
+    const { app, session } = one.agent;
+    if (!session || session === own?.session || !apps.includes(app) || (one.folder ?? folder) !== folder || !resumeCommand(one.agent, '')) continue;
+    const key = `${app}:${session}`;
+    if ((newest.get(key)?.at ?? '') >= one.at) continue;
+    const name = sessionName(one.agent) ?? one.agent.name;
+    newest.set(key, { app, session, ...(name ? { name } : {}), at: one.at });
+  }
+  const last = store.lastRemarkTo(repo);
+  return {
+    sessions: [...newest.values()].sort((a, b) => b.at.localeCompare(a.at)),
+    models: { 'claude-code': models.claude, codex: models.codex, opencode: opencodeSmallModel(folder) },
+    effort: runEffort({}),
+    ...(last !== undefined ? { last } : {}),
+  };
 }
 
 /** A page for a pull request with no stored change. */
@@ -145,7 +174,7 @@ export function mapOfFolder(store: Store, folder: string): RepoMap | undefined {
 }
 
 /** The page data of a stored change. `openFolder` is used when the folder of the change is gone. */
-export function pageData(store: Store, changeId: number, openFolder: string, apps: string[] = []): PageData | undefined {
+export function pageData(store: Store, changeId: number, openFolder: string, apps: string[] = [], models: RunModels = {}): PageData | undefined {
   const change = store.getChange(changeId);
   if (!change) return undefined;
   const { folder, saved } = changeWhere(change, openFolder);
@@ -156,6 +185,7 @@ export function pageData(store: Store, changeId: number, openFolder: string, app
     changeId, folder, branch: change.branch, base: change.base, file: change.file, checks, outOfDate, saved,
     openPoints: store.openPoints(changeId), remarks: store.remarks(changeId),
     agent: change.agent, listening: isListening(store, change.agent), apps, map: mapOfFolder(store, folder), checked: change.checked ?? [],
+    sendTo: sendToOf(store, change.repoId, change.folder, apps, models, change.agent),
   });
 }
 
@@ -180,6 +210,7 @@ interface PageInput {
   saved?: SavedAt; // the folder is not on the branch: files and diffs come from the saved commit
   map?: RepoMap; // the stored map of the repo: the diagrams that the diagrams of the change draw on
   checked: string[]; // the diagrams that a second agent read for this save, and "links:<part id>" for the links that leave a part
+  sendTo?: SendTo;
 }
 
 /** What partDiagram reads from Git: the lines of a file that the change added and removed, the lines of a file now, and two facts of the diagram. */
@@ -280,7 +311,7 @@ function buildPage(input: PageInput): PageData {
     changeDiagram: changeMermaid(diagramInput),
     altered: diagrams.filter((diagram) => diagram.difference).map((diagram) => diagram.id),
     notes, functionTests, openPoints, remarks: input.remarks,
-    agent: input.agent && agentOf(input.agent), listening: input.listening, apps: input.apps,
+    agent: input.agent && agentOf(input.agent), listening: input.listening, apps: input.apps, ...(input.sendTo ? { sendTo: input.sendTo } : {}),
     onHome: Object.fromEntries((file.diagrams ?? []).flatMap((diagram) => {
       const repo = repoDiagramOf(input.map, diagram);
       return repo ? [[diagram.id, repo]] : [];
@@ -351,10 +382,10 @@ export function repoName(folder: string): string {
 }
 
 /** Page data for a change file that is not stored, for the example page in a browser. */
-export function examplePage(folder: string, base: string, file: ChangeFile, openPoints: OpenPoint[], remarks: Remark[] = [], agent?: AgentSession, apps: string[] = [], map?: RepoMap, changeId = 0, checked: string[] = []): PageData {
+export function examplePage(folder: string, base: string, file: ChangeFile, openPoints: OpenPoint[], remarks: Remark[] = [], agent?: AgentSession, apps: string[] = [], map?: RepoMap, changeId = 0, checked: string[] = [], sendTo?: SendTo): PageData {
   return buildPage({
     changeId, folder, branch: tryGit(folder, 'branch', '--show-current') ?? 'example', base, file,
-    checks: checkChangeFile(folder, base, file), outOfDate: false, openPoints, remarks, agent, listening: false, apps, map, checked,
+    checks: checkChangeFile(folder, base, file), outOfDate: false, openPoints, remarks, agent, listening: false, apps, map, checked, sendTo,
   });
 }
 

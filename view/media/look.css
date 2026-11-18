@@ -105,18 +105,42 @@ body:not(.picking) .stage g.node.go:hover > *{scale:1.03}
 @media (prefers-reduced-motion:reduce){.stage g.node.go > *{transition:none}}
 .nodeLabel{font-weight:600;line-height:1.35}
 .nodeLabel b{display:block;font-size:var(--size);font-weight:600;margin-bottom:3px;text-align:left}
-/* Room for the count circle of a part, so that a node whose name is its widest line does not cut the circle off. */
+/* Room for the comment mark of a part, so that a node whose name is its widest line does not cut the mark off. */
 .nodeLabel b[data-part],.nodeLabel b[data-nopart]{padding-right:38px}
-.nodeLabel b[data-part] .rk,.nodeLabel b[data-nopart] .rk{margin-right:-38px}
+.nodeLabel b[data-part] .cb,.nodeLabel b[data-nopart] .cb{margin-right:-38px}
 .nodeLabel .f{display:block;font:var(--code-weight) var(--code)/1.6 var(--mono);color:var(--soft);white-space:nowrap;text-align:left;cursor:pointer}
 .nodeLabel .f:hover{background:var(--tealsoft);border-radius:3px}
 .nodeLabel .f.more{color:var(--muted);font-family:var(--sans);font-size:var(--small);cursor:default}
 .nodeLabel .p{color:var(--add)}
 .nodeLabel .m{color:var(--del)}
 .nodeLabel .ln{display:block;font:400 var(--small) var(--mono);color:var(--muted);margin-top:2px}
-.rk{display:inline-block;min-width:16px;height:16px;line-height:14px;padding:0 4px;border-radius:8px;box-shadow:inset 0 0 0 1.2px var(--teal);color:var(--teal);font:600 calc(var(--size) - 3px)/14px var(--sans);text-align:center;margin-left:8px;vertical-align:1px;font-style:normal}
-.rk.closed{color:var(--faint);box-shadow:inset 0 0 0 1px var(--line2)}
-.rk.running{animation:pulse 2.4s ease-in-out infinite}
+/* The mark of the comments of a thing: a chat bubble with the icon of the agent app that has them; nothing in it moves.
+   waiting: the icon faint; working: a small teal dot at its corner; answered and not read yet: tinted with a teal edge; a note to no agent: empty. */
+.cb{position:relative;display:inline-grid;place-items:center;width:24px;height:22px;margin:-5px 0 -5px 6px;vertical-align:-6px;font-style:normal;cursor:pointer;flex:none} /* its margins keep the line as high as before */
+.cb .cbs{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.cb .cbs path,.cb.svg path{fill:var(--card);stroke:var(--line2);stroke-width:1.4}
+.cb img{position:relative;top:-1.5px;width:11px;height:11px;object-fit:contain}
+.cb.waiting img{opacity:.45}
+.cb.working .cbs path,.cb.answered .cbs path,.cb.on .cbs path{stroke:var(--teal)}
+.cb.working::after{content:'';position:absolute;right:-1px;top:0;width:7px;height:7px;border-radius:50%;background:var(--teal);box-shadow:0 0 0 1.5px var(--card)}
+.cb.answered .cbs path{fill:var(--tealsoft)}
+.cb.on .cbs path{stroke-width:2}
+.cb .n{position:absolute;right:-6px;top:-5px;min-width:13px;height:13px;padding:0 3px;box-sizing:border-box;border-radius:7px;background:var(--card);box-shadow:0 0 0 1px var(--line2);color:var(--soft);font:600 9px/13px var(--sans);text-align:center}
+.cb.working .n{right:auto;left:-6px}
+.cb.svg{cursor:pointer}
+.cb.svg.working path,.cb.svg.answered path,.cb.svg.on path{stroke:var(--teal)}
+.cb.svg.answered path{fill:var(--tealsoft)}
+.cb.svg.waiting image{opacity:.45}
+.cb.svg .wd{fill:var(--teal);stroke:var(--card);stroke-width:1.5}
+.cb.svg text.n{fill:var(--soft);font:600 9px var(--sans);text-anchor:middle;dominant-baseline:central}
+/* at the end of the text of a code line it takes no room, so the line keeps its rows */
+.cn .code .x .cb{width:0;height:1em;margin:0;vertical-align:top}
+.cn .code .x .cb .cbs{left:10px;top:-2px;width:24px;height:22px;inset:auto}
+.cn .code .x .cb img{position:absolute;left:16.5px;top:2.5px}
+.cn .code .x .cb.working::after{left:29px;right:auto;top:-3px}
+.cn .code .x .cb .n{left:27px;right:auto;top:-6px}
+/* the name line of a message of a pull request: the mark at its end */
+.conv .top > .cb{align-self:center;margin-left:2px}
 
 /* a state: quiet words with at most one small dot; the dot of a running remark pulses slowly */
 .state{color:var(--muted);font-size:var(--small);font-weight:400}
@@ -127,10 +151,10 @@ body:not(.picking) .stage g.node.go:hover > *{scale:1.03}
 .dot{display:inline-block;width:6px;height:6px;border-radius:3px;background:var(--teal);margin-right:6px;vertical-align:1px}
 .dot.pulse{animation:pulse 2.4s ease-in-out infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
-@media (prefers-reduced-motion:reduce){.dot.pulse,.rk.running{animation:none;opacity:.6}}
+@media (prefers-reduced-motion:reduce){.dot.pulse{animation:none;opacity:.6}}
 
-/* one window frame: hover windows, the file picker, the comment box, the comments window */
-.win,.side,.cbox{background:var(--card);border:1px solid var(--line2);border-radius:8px;box-shadow:var(--shadow)}
+/* one window frame: hover windows, the file picker, the card of a comment, the list of comments */
+.win,.cml,.cbox{background:var(--card);border:1px solid var(--line2);border-radius:8px;box-shadow:var(--shadow)}
 .win{position:fixed;z-index:20;overflow:hidden;display:flex;flex-direction:column;max-height:min(520px,calc(100vh - 24px))}
 .win .tb{display:flex;align-items:baseline;gap:8px;padding:6px 12px;border-bottom:1px solid var(--line);background:var(--cardhead);font-size:var(--small);color:var(--muted);white-space:nowrap;flex:none}
 .win .tb b{color:var(--ink);font-weight:600;font-size:var(--size)}
@@ -317,69 +341,77 @@ p.fact{margin:0;padding:8px 12px;color:var(--muted)} /* what a file is, in one l
 .stage .edgeLabel.flash span.edgeLabel{box-shadow:0 0 0 2px var(--teal);background:var(--tealsoft)!important;border-radius:3px}
 .stage svg:is(.aim,.near,.flash),:is(.sec .sh,.tabs .title,.tabs a.on,.crumb b,.dfile .dh,.trw,.mc,.f):is(.aim,.near){outline:1.5px solid var(--tealline);outline-offset:-1.5px;border-radius:4px}
 :is(.sec .sh,.tabs .title,.tabs a.on,.crumb b,.dfile .dh,.fh,.trw,.mc,.f).flash{outline:2px solid var(--teal);outline-offset:-2px;border-radius:4px}
-.f.near,.cn .code .l.near,.l.aim{background:var(--region)}
+.f.near,.l.aim{background:var(--region)}
+.cn .code .l.near{background:var(--teallit)} /* the lines of the comment whose card is open */
 .f.flash,.cn .code .l.flash{background:var(--tealsoft)}
 .cn .code .l[data-thread] .n{box-shadow:inset -2px 0 var(--tealline)}
-.rk.svg circle{fill:var(--card);stroke:var(--teal);stroke-width:1.2px}
-.rk.svg text{fill:var(--teal);font:600 calc(var(--size) - 3px) var(--sans);text-anchor:middle;dominant-baseline:central}
-.rk.svg.closed circle{stroke:var(--line2)}
-.rk.svg{cursor:pointer}
-.where .gone-place{color:var(--faint)}
 
-/* the comments window: its own window at the right edge of the tab, over the full height; hidden when it holds nothing */
-body.with-side .paper{margin-right:var(--side-room,336px)} /* a rule of the look can give the comments window another width */
-/* beside code with notes it takes no room of its own: it lies over the notes column, so the code keeps its width; "›" folds it away */
-body.with-side .paper:has(#view > .cvw .notes){margin-right:0}
-body.with-side:has(#view > .cvw .notes) .side{top:var(--notes-top,8px)}
-body.with-rail .paper{margin-right:44px}
-.side{position:fixed;z-index:15;top:8px;right:8px;bottom:8px;width:320px;overflow:auto;overscroll-behavior:contain}
-.side[hidden]{display:none}
-.side.folded{bottom:auto;width:32px;overflow:hidden}
-.side .rail{display:block;padding:8px 0;text-align:center;font-weight:600;font-size:var(--small);color:var(--muted)}
-.side .rail:hover{color:var(--ink)}
-.side .sh{position:sticky;top:0;z-index:1;display:flex;align-items:baseline;gap:8px;padding:8px 12px;background:var(--card);border-bottom:1px solid var(--line)}
-.side .sh + .sh,.side .thread + .sh,.side .point + .sh,.side .resolved + .sh{border-top:1px solid var(--line)}
-.side .sh .grp{display:flex;align-items:baseline;gap:8px;color:var(--muted)}
-.side .sh b{font-size:var(--small);font-weight:600;color:var(--soft)}
-.side .sh .n{font-size:var(--small)}
-.side .sh .chev{width:10px;color:var(--faint);font-size:var(--small)}
-.side .sh .chev::before{content:"▾"}
-.side .sh.shut .chev::before{content:"▸"}
-.side .sh .fold{margin-left:auto;color:var(--faint);line-height:1;padding:0 2px}
-.side .sh .fold:hover,.side .sh .grp:hover{color:var(--ink)}
-.thread,.point{padding:10px 12px;border-bottom:1px solid var(--line);border-left:2px solid transparent;cursor:pointer}
-.thread:hover,.point:hover{background:var(--region)}
-.thread.cur{border-left-color:var(--teal)}
-.thread.gone{cursor:default;color:var(--muted)}
-.ch{display:flex;align-items:baseline;gap:10px;font-size:var(--small);color:var(--muted);margin-bottom:4px}
-.where{min-width:0;overflow-wrap:anywhere}
-.ch a{margin-left:auto;flex:none;color:var(--muted)}
-.ch a:hover{color:var(--ink)}
-.thread .msg + .msg{margin-top:8px}
-.thread .changed{margin-top:2px;font-size:var(--small);color:var(--faint)}
-.thread .changed a{color:var(--muted)}
-.thread .changed a:hover{color:var(--ink)}
-.remark-line{position:fixed;z-index:14;inset:0;pointer-events:none}
-.remark-line path{fill:none;stroke:var(--teal);stroke-width:1.2}
-.remark-line circle{fill:var(--teal)}
-.thread .who{display:flex;align-items:center;gap:6px;font-size:var(--small);color:var(--soft);font-weight:600}
-.thread .who .icon{width:14px;height:14px}
-.thread .who .at{color:var(--faint);font-weight:400}
+/* The card of a comment, beside its thing: a quiet head with the place and the tools, the threads as a small chat, the box with the picker under it. */
+.cbox{position:fixed;z-index:25;width:min(344px,calc(100vw - 16px));box-sizing:border-box;padding:10px 14px 12px;border-radius:14px;border-color:var(--line);color:var(--ink);line-height:1.45}
+.cbox .ch{display:flex;align-items:center;gap:8px;margin:0 0 4px;font-size:var(--small);color:var(--muted)}
+.where{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.where .gone-place{color:var(--faint)}
+.cbox .tools{display:flex;gap:2px;margin-left:auto;margin-right:-6px;flex:none}
+.cbox .tl{display:grid;place-items:center;width:26px;height:26px;border-radius:7px;color:var(--soft)}
+.cbox .tl:hover{background:var(--seg);color:var(--ink)}
+.cbox .tl svg{width:16px;height:16px}
+.cbox .moremenu{display:flex;flex-direction:column;align-items:flex-start;gap:2px;margin:0 0 6px;padding:4px 0;border-bottom:1px solid var(--line);font-size:var(--small)}
+.cbox .moremenu a{color:var(--tealink)}
+.cbox .sub{margin-top:8px;font-size:var(--small);color:var(--muted)}
+.cbox .cth{border-left:2px solid transparent}
+.cbox .cth.cur{border-left-color:var(--tealline);margin-left:-8px;padding-left:6px}
+.cbox .cth + .cth{margin-top:6px;padding-top:6px;border-top:1px solid var(--line)}
+.cbox .msg.mine{display:flex;justify-content:flex-end;margin-top:8px}
+.cbox .msg.mine .tx{max-width:85%;padding:6px 11px;border-radius:13px 13px 4px 13px;background:var(--tealsoft);margin:0}
+.cbox .msg.agent{display:grid;grid-template-columns:24px minmax(0,1fr);column-gap:9px;margin-top:10px}
+.cbox .msg.agent.point{grid-template-columns:minmax(0,1fr)}
+.cbox .msg.agent .av{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;box-shadow:inset 0 0 0 1px var(--line)}
+.cbox .msg.agent .av .icon{width:13px;height:13px}
+.cbox .who{line-height:24px;font-size:var(--small);color:var(--soft)}
+.cbox .who b{font-weight:600}
+.cbox .msg.agent .tx{margin-top:0}
+.cbox .st{margin:8px 0 0 33px}
+.cbox .st:empty{display:none}
+.cbox .toreply{display:inline-block;margin:4px 0 0 33px;font-size:var(--small);color:var(--muted)}
+.cbox .changed{margin-top:6px;padding:6px 9px;border:1px solid var(--line);border-radius:8px;font-size:var(--small)}
+.cbox .changed .cfh{color:var(--muted);margin-bottom:2px}
+.cbox .changed .cf{display:block;font:var(--code-weight) calc(var(--size) - 1px)/1.6 var(--mono);color:var(--soft);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.cbox .changed .cf:hover{color:var(--tealink)}
+.cbox .changed .cfm{color:var(--muted)}
+.cbox .cbx{margin-top:10px;padding:2px 10px 6px;border:1.5px solid var(--fieldline);border-radius:11px;background:var(--field)}
+.cbox .cbx:focus-within{border-color:var(--teal)}
+.cbox .cbx .field{margin:0;padding:6px 0 2px;border:0;background:none;min-height:22px}
+.cbox .pickbox{position:relative}
+.cbox .pick{display:inline-flex;align-items:center;gap:5px;max-width:100%;margin:4px 0 0 -6px;padding:2px 6px;border-radius:7px;font-size:var(--small);color:var(--muted);white-space:nowrap;overflow:hidden}
+.cbox .pick b{font-weight:600;color:var(--soft)}
+.cbox .pick .pw{overflow:hidden;text-overflow:ellipsis}
+.cbox .pick .icon,.cbox .pick .ico{width:13px;height:13px;margin:0}
+.cbox .pick .chev{width:14px;height:14px;flex:none}
+.cbox .pick:hover,.cbox .pick.on{background:var(--seg)}
+.cbox .pmenu{position:absolute;left:-12px;right:-12px;top:calc(100% + 8px);z-index:2;max-height:min(360px,calc(100vh - 24px));overflow:auto;padding:5px;border:1px solid var(--line);border-radius:11px;background:var(--card);box-shadow:var(--shadow);font-size:var(--small)}
+.cbox .pmenu.up{top:auto;bottom:calc(100% + 30px)}
+.cbox .ph{display:flex;align-items:center;gap:7px;padding:7px 8px 3px;color:var(--muted);font-weight:600}
+.cbox .ph .icon,.cbox .pi .ico{width:13px;height:13px;margin:0}
+.cbox .pi{display:flex;align-items:center;gap:8px;padding:5px 8px 5px 28px;border-radius:7px;color:var(--ink)}
+.cbox .pi.flat{padding-left:8px}
+.cbox .pi span{flex:1;min-width:0}
+.cbox .pi i{display:block;font-style:normal;color:var(--faint)}
+.cbox .pi svg{width:14px;height:14px;color:var(--teal);flex:none}
+.cbox .pi:hover{background:var(--seg)}
+.cbox .pi.on{background:color-mix(in srgb,var(--teal) 9%,var(--card))}
+.cbox .psep{height:1px;margin:4px;background:var(--line)}
+.cbox .pnone{margin:6px 8px 4px;color:var(--muted)}
+.cbox .pnone a{color:var(--tealink)}
+.cbox .cbline{margin:6px 0 0;font-size:var(--small);color:var(--muted)}
+.cbox .cbline.err{color:var(--del)}
+.cbox.ask{display:flex;align-items:baseline;gap:12px;width:auto;padding:8px 12px;border-radius:8px;font-size:var(--small);color:var(--ink)}
+.cbox.ask a{color:var(--tealink)}
+.cbox.ask a:hover{text-decoration:underline;text-underline-offset:3px}
 .tx{margin-top:2px;color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere}
-.thread > .state{display:block;margin-top:6px}
-.thread.gone > .state{margin-top:2px}
 .mention{color:var(--tealink);font-weight:500}
 .field{margin-top:8px;padding:5px 8px;min-height:28px;border:1px solid var(--fieldline);border-radius:6px;background:var(--field);color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere;outline:none;cursor:text}
 .field:focus{border-color:var(--focus)}
 .field:empty::before{content:attr(data-placeholder);color:var(--faint)}
-.side a.resolved{display:block;padding:8px 12px;font-size:var(--small);color:var(--muted)}
-.side a.resolved:hover{color:var(--ink)}
-/* the comment box at the pointer; when saved it moves into the comments window */
-.cbox{position:fixed;z-index:25;width:min(300px,calc(100vw - 16px));padding:8px 10px 10px;transform-origin:0 0}
-.cbox .field{margin-top:6px}
-.cbox.ask{display:flex;align-items:baseline;gap:12px;width:auto;font-size:var(--small);color:var(--ink)}
-.cbox.ask a{color:var(--tealink)}
-.cbox.ask a:hover{text-decoration:underline;text-underline-offset:3px}
 .mentions{position:fixed;z-index:30;min-width:220px;max-width:calc(100vw - 16px);background:var(--card);border:1px solid var(--line2);border-radius:8px;box-shadow:var(--shadow);padding:4px 0}
 .mentions .opt{display:flex;align-items:center;gap:8px;padding:5px 12px}
 .mentions .opt.lit{background:var(--seg)}
@@ -388,11 +420,29 @@ body.with-rail .paper{margin-right:44px}
 .mentions .opt .does{margin-left:auto;padding-left:14px;min-width:0;max-width:240px;overflow:hidden;text-overflow:ellipsis;color:var(--muted);font-size:var(--small);white-space:nowrap}
 .ghost{position:fixed;z-index:30;pointer-events:none;color:var(--faint);font:var(--size) var(--sans);white-space:pre}
 .mentions .none{padding:5px 12px;color:var(--muted);font-size:var(--small)}
-@media (max-width:899px){
-  body.with-side .paper,body.with-rail .paper{margin-right:0}
-  .side{width:min(340px,calc(100vw - 16px))}
-  .side.folded{top:auto;bottom:16px;width:32px}
-}
+/* The count of open comments in the top bar, beside the switch of views, and the list of all comments under it, not open by default. */
+.cmc{display:inline-flex;align-items:center;gap:5px;margin:-3px 0 -3px 14px;padding:3px 8px;border-radius:13px;color:var(--soft);font-size:var(--small);font-weight:600;line-height:1;cursor:pointer;flex:none}
+.cmc .cmi{width:15px;height:15px;overflow:visible}
+.cmc .cmi path{fill:none;stroke:currentColor;stroke-width:2.2}
+.cmc:hover{color:var(--ink)}
+.cmc.on{background:color-mix(in srgb,var(--teal) 12%,var(--card));color:var(--tealink)}
+.cml{position:fixed;z-index:24;width:min(380px,calc(100vw - 16px));box-sizing:border-box;max-height:calc(100vh - 80px);overflow:auto;padding:6px;border-color:var(--line);border-radius:12px;color:var(--ink);line-height:1.4}
+.cml .cmr{display:grid;grid-template-columns:28px minmax(0,1fr) auto;column-gap:10px;padding:8px 8px 9px;border-radius:9px;color:var(--ink);cursor:pointer}
+.cml .cmr:hover{background:var(--cardhead)}
+.cml .cmr .cb{margin:1px 0 0;vertical-align:top}
+.cml .cmr.gone{cursor:default;color:var(--muted)}
+.cml .rt{display:flex;flex-direction:column;min-width:0}
+.cml .rt b{font-weight:600;min-width:0;display:flex}
+.cml .rt b .where{color:var(--ink)}
+.cml .rx{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:var(--soft)}
+.cml .rs{margin-top:1px}
+.cml .reopen{align-self:start;font-size:var(--small);color:var(--tealink)}
+.cml .pgroup{padding:8px 8px 2px;font-size:var(--small);color:var(--muted);font-weight:600}
+.cml .foot{display:flex;gap:16px;margin-top:4px;padding:9px 8px 3px;border-top:1px solid var(--line);font-size:var(--small)}
+.cml .foot a{color:var(--tealink)}
+.cml .foot a.on{font-weight:600}
+.cml .foot .sp{flex:1}
+.dot.grey{background:var(--line2)}
 @media (max-width:640px){.paper{padding:12px 12px 20px}.bar{gap:10px}.switch{gap:12px}.sec .sh,.sec .alters{padding-left:10px;padding-right:10px}}
 
 /* the list of changes in the sidebar: it fills the side bar */
@@ -1305,23 +1355,20 @@ body:where(.vscode-dark,.vscode-high-contrast) .bk-press{background:transparent}
 /* The look on the page of a change and in the file tab (build 60). A box of a page (the card of the change, the comments window, a thread) takes the
    colours of one colour of a rule, as a node does; the lines beside the notes take its colour, width and dashes; the comment mark and the "?" of an
    open point take the colour of its words and an icon; the margin of the code shows the icon of a mark. */
-:is(.sec, .side, .side .thread).lk-fill{background:var(--lk-fill)}
-.side.lk-fill .sh{background:var(--lk-fill)}
-:is(.sec, .side).lk-line{border-color:var(--lk-line)}
-.side .thread.lk-line{box-shadow:inset 3px 0 0 var(--lk-line)}
-:is(.sec, .side .thread).lk-ink{color:var(--lk-ink)}
+:is(.sec, .cml, .cbox, .cml .cmr).lk-fill{background:var(--lk-fill)}
+:is(.sec, .cml, .cbox).lk-line{border-color:var(--lk-line)}
+.cml .cmr.lk-line{box-shadow:inset 3px 0 0 var(--lk-line)}
+:is(.sec, .cbox, .cml .cmr).lk-ink,.cml .cmr.lk-ink .rx{color:var(--lk-ink)}
 .cn svg.links path.lk-stroke{stroke:var(--lk-stroke)}
 .cn svg.links path.arrow.lk-stroke{fill:var(--lk-stroke)}
 .cn svg.links path.lk-wide{stroke-width:var(--lk-width)}
 .cn svg.links path.lk-dashed{stroke-dasharray:5 4}
 .cn svg.links path.cur{stroke:var(--teal)}
-.rk.lk-words{color:var(--lk-words);box-shadow:inset 0 0 0 1.2px var(--lk-words)}
-.rk.svg.lk-words circle,.opt.lk-words circle{stroke:var(--lk-words)}
-.rk.svg.lk-words text,.opt.lk-words text{fill:var(--lk-words)}
+.cb.lk-words .cbs path,.cb.svg.lk-words path{stroke:var(--lk-words)}
+.opt.lk-words circle{stroke:var(--lk-words)}
+.opt.lk-words text{fill:var(--lk-words)}
 .lk-icon{width:14px;height:14px;margin-right:5px;vertical-align:-2px;object-fit:contain}
-.rk .lk-icon{width:11px;height:11px;margin-right:3px}
-.point .ch.lk-words .where{color:var(--lk-words)}
-.side .pgroup{padding:6px 12px 2px;font-size:var(--small);color:var(--muted);border-top:1px solid var(--line)}
+.cml .cmr b.lk-words .where{color:var(--lk-words)}
 .cn .code .n{position:relative}
 .cn .code .mg{position:absolute;left:4px;top:calc((var(--row) - 16px) / 2);width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 0 0 1px var(--line2);display:flex;align-items:center;justify-content:center;font:600 10px/1 var(--sans);color:#1f2328;cursor:pointer}
 .cn .code .mg img{width:12px;height:12px;object-fit:contain}

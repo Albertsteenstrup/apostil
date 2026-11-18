@@ -25,7 +25,7 @@ import { pullRequestFrom, type Person } from '../shared/read-pull-request';
 import { iconScript } from './state-icons';
 import { exampleEarlierChange, examplePullRequest, exampleMergedPullRequest, exampleReadyPullRequest } from './example-pull-request';
 import { saveMapDraft } from '../store/save';
-import { agentOf, allQuestions, answer, diffRanges, examplePage, lookOfPage, marksBeside, notesBeside } from './page-data';
+import { agentOf, allQuestions, answer, diffRanges, examplePage, lookOfPage, marksBeside, notesBeside, type SendTo } from './page-data';
 
 const [folderArg, fileArg, pointsArg, mapArg] = process.argv.slice(2);
 const example = folderArg ? undefined : makeCheckExample();
@@ -50,6 +50,7 @@ const remarks: Remark[] = [
   remarkOn(4, 3, 'Is the shelf tested with an empty list?', {
     state: 'done', answeredAt: minutesAgo(2),
     answer: 'Added a test for an empty shelf in ReadyShelf.test.tsx. The shelf now says "No copy waits for a member".',
+    changed: ['web/src/desk/ReadyShelf.tsx', 'web/src/desk/ReadyShelf.test.tsx'],
   }),
   remarkOn(5, 4, 'Rename the column to last_pickup_day.', { state: 'closed', closedBy: 'claude-code' }),
   remarkOn(6, 3, 'And for a shelf with one copy?', {
@@ -71,7 +72,12 @@ const people: Record<string, Person> = {
 const labels = { review: { name: 'needs review', color: 'fbca04' }, borrowing: { name: 'borrowing', color: '0e8a16' }, bug: { name: 'bug', color: 'd73a4a' } };
 // ----- end of the made-up part -----
 
-const apps = ['claude-code', 'codex', 'opencode']; // made up: the apps whose program is on the path
+const apps = ['claude-code', 'codex', 'opencode']; // made up: the connected apps (on the path, with the skills of Apostil)
+// Made up: one more Claude Code session that Apostil knows in this repo, and the models that a new session would take.
+const sendTo: SendTo = {
+  sessions: [{ app: 'claude-code', session: 'made-up-session-0002', name: 'Tests for holds', at: minutesAgo(4) }],
+  models: { 'claude-code': 'haiku', codex: 'gpt-6-luna' }, effort: 'high',
+};
 const base = example?.base ?? baseOf(folder, currentBranch(folder));
 
 // Home and the graphs pages, from a store of their own in a temporary folder: the change and the made-up map.
@@ -103,7 +109,7 @@ const graphs: Record<string, GraphsData> = Object.fromEntries([...graphPaths].ma
 put?.clean(); // the files of the writers leave the repo before the page of the change reads its files
 
 // Made up: a second agent read the flow chart; the other diagrams are not checked yet.
-const page = examplePage(folder, base, file, points, remarks, agent, apps, map, changeId, ['offer-flow']); // the id of the stored change, so that the graphs pages open this page
+const page = examplePage(folder, base, file, points, remarks, agent, apps, map, changeId, ['offer-flow'], sendTo); // the id of the stored change, so that the graphs pages open this page
 
 // Each made-up look of the example (view/check-example/look/look*.json), saved as a writer saves it, one after the other: "look.json" (build 51,
 // with its second set and its marks) is "?look=1", "look-<name>.json" is "?look=<name>". Home and the note cards are read after each save.

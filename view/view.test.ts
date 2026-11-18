@@ -260,8 +260,10 @@ test('the state line of a row and of a remark: the first case that applies, the 
   assert.equal(States.remarkLine(sent, { canResume: true }, false).way, 'start');
   assert.equal(States.remarkLine(sent, undefined, false).way, undefined);
   assert.deepEqual(States.remarkLine({ state: 'running' }, undefined, false), { text: 'the agent is working', dot: 'pulse' });
-  assert.equal(States.circleOf({ state: 'sent' }), 'open');
-  assert.equal(States.circleOf({ state: 'done' }), 'done');
+  // The mark of a thread: a note to no agent, waiting, working, answered until its card shows the answer.
+  assert.deepEqual(['open', 'sent', 'running', 'done'].map((state) => States.markState({ state })), ['note', 'waiting', 'working', 'answered']);
+  assert.equal(States.markState({ state: 'done' }, true), 'seen');
+  assert.deepEqual(States.remarkLine({ state: 'running', to: { app: 'claude-code', kind: 'session', session: 's2', name: 'Tests for holds' } }, undefined, false), { text: 'Tests for holds is working', dot: 'pulse' });
 
   // The state line names whom a remark waits for, or who works on it.
   const current = { app: 'claude-code', kind: 'current' };
@@ -276,21 +278,55 @@ test('the state line of a row and of a remark: the first case that applies, the 
   assert.deepEqual(States.remarkLine({ state: 'open' }, undefined, false), { text: '' });
 });
 
-test('@ offers the session of the change first, then a new session of each installed app, and letters cut the list; the pull requests of a row fold after two lines', () => {
+test('the picker of where a comment goes: for each connected app this session, the known sessions of the repo (at most 3, newest first) and a new session, each with the model and effort of its run; GitHub only when the pull request takes it; no agent last; a page with no stored change offers only GitHub', () => {
+  const now = Date.parse('2026-11-18T12:00:00Z');
+  const at = (minutes: number) => new Date(now - minutes * 60_000).toISOString();
+  const sessions: { app: string; session: string; name?: string; at: string }[] = [1, 2, 3, 4].map((n) => ({ app: 'claude-code', session: `known-000${n}`, name: n === 1 ? 'Tests for holds' : undefined, at: at(n * 10) }));
+  sessions.push({ app: 'claude-code', session: 's1', at: at(1) }, { app: 'antigravity', session: 'a1', at: at(1) }); // the session of the change, and an app that is not connected
+  const choices = States.sendChoices({ agent: { app: 'claude-code', session: 's1' }, apps: ['claude-code', 'codex', 'opencode'], sessions, models: { 'claude-code': 'haiku', codex: 'gpt-6-luna' }, effort: 'high', github: true, now });
+  const shown = choices.map((choice: { key: string; words: string; sub: string; model: string }) => [choice.key, choice.words, choice.sub, choice.model].filter(Boolean).join(' | '));
+  assert.deepEqual(shown, [
+    'claude-code:current | This session | made this change | high',
+    'claude-code:session:known-0001 | Tests for holds | used 10 min ago | high', // a continued session keeps its own model: only the effort
+    'claude-code:session:known-0002 | known-00 | used 20 min ago | high',
+    'claude-code:session:known-0003 | known-00 | used 30 min ago | high',
+    'claude-code:new | New session | haiku · high',
+    'codex:new | New session | gpt-6-luna · high',
+    'opencode:new | New session | default model · high', // no model set: the model of the app's own settings
+    'github | The pull request on GitHub',
+    'none | No agent: keep it as a note',
+  ]);
+  assert.deepEqual(choices[1].to, { app: 'claude-code', kind: 'session', session: 'known-0001', name: 'Tests for holds' });
+  assert.equal(States.choiceWords(choices[0]), 'Claude Code · this session · high');
+  assert.equal(States.choiceWords(choices[5]), 'Codex · new session · gpt-6-luna · high');
+  assert.equal(States.choiceWords(choices.at(-1)), 'Keep it as a note');
+  // No session of the change, no pull request that takes it: a new session of each connected app and no agent; with no app connected only no agent.
+  const keys = (options: object) => States.sendChoices(options).map((choice: { key: string }) => choice.key);
+  assert.deepEqual(keys({ agent: { app: 'claude-code' }, apps: ['codex'] }), ['codex:new', 'none']);
+  assert.deepEqual(keys({ agent: { app: 'claude-code', session: 's1' }, apps: [], github: true }), ['github', 'none']);
+  assert.deepEqual(keys({ agent: { app: 'claude-code', session: 's1' }, apps: ['claude-code'], github: true, pullOnly: true }), ['github']);
+  // The picker starts at the last choice when it has it, else this session, else a new session of the first app.
+  assert.equal(States.startChoice(choices, { app: 'codex', kind: 'new' }).key, 'codex:new');
+  assert.equal(States.startChoice(choices, null).key, 'none'); // the last comment went to no agent
+  assert.equal(States.startChoice(choices, { app: 'codex', kind: 'current' }).key, 'claude-code:current');
+  assert.equal(States.startChoice(States.sendChoices({ apps: ['codex', 'opencode'] }), undefined).key, 'codex:new');
+});
+
+test('@ offers the session of the change first, then a new session of each connected app, and letters cut the list; the pull requests of a row fold after two lines', () => {
   const names = (agent: unknown, apps: string[]) => States.mentionChoices(agent, apps).map((choice: { name: string }) => choice.name);
   const claude = { app: 'claude-code', session: 's1' };
   const all = ['claude-code', 'codex', 'antigravity', 'opencode'];
   assert.deepEqual(names(claude, all), ['claude-current', 'claude-new', 'codex-new', 'antigravity-new', 'opencode-new']);
   assert.deepEqual(names({ app: 'claude-code' }, ['codex', 'claude-code']), ['claude-new', 'codex-new']); // no session: no current
   assert.deepEqual(names(undefined, ['opencode']), ['opencode-new']);
-  assert.deepEqual(names({ app: 'codex', session: 't1' }, []), ['codex-current']);
+  assert.deepEqual(names({ app: 'codex', session: 't1' }, []), []); // codex is not connected: its session is not offered
   const choices = States.mentionChoices(claude, all);
   assert.deepEqual(States.cutChoices(choices, 'c').map((choice: { name: string }) => choice.name), ['claude-current', 'claude-new', 'codex-new']);
   assert.deepEqual(States.cutChoices(choices, 'Cl').map((choice: { name: string }) => choice.name), ['claude-current', 'claude-new']);
   assert.deepEqual(States.cutChoices(choices, 'x'), []);
   assert.equal(choices[0].does, 'the session that made this change');
   assert.equal(choices[1].does, 'a new session');
-  assert.equal(States.mentionChoices({ ...claude, name: 'VS Code repo understanding tool' }, [])[0].does, 'the session VS Code repo understanding tool');
+  assert.equal(States.mentionChoices({ ...claude, name: 'VS Code repo understanding tool' }, ['claude-code'])[0].does, 'the session VS Code repo understanding tool');
 
   // The pull requests of a row fold after two lines; each row counts for itself.
   const pr = (number: number) => ({ number });

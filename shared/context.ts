@@ -186,6 +186,11 @@ export function aboutTarget(change: StoredChange, target: RemarkTarget, files: C
     }
     case 'test':
       return [`Test ${target.name ?? '?'}`, `In ${target.file}${target.lines ? `, ${linesText(target.lines)}` : ''}`];
+    case 'message': {
+      const said = target.message;
+      if (!said) return [target.label ?? 'A message of the pull request'];
+      return [`A message of ${said.author} in pull request #${said.pull}${said.thread ? ', in a thread on code' : ''}`, `Its words: ${said.words}`, ...(said.url ? [`Its link: ${said.url}`] : [])];
+    }
     default: {
       // Code lines, and an open point with its lines.
       if (!target.file || !target.lines) return [target.label ?? target.kind];
