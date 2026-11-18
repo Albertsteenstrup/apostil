@@ -2,6 +2,7 @@
 // The store keeps it (Store.mapRun and Store.changeMapRun), the saves of the writers add to it (store/map-run.ts), and Home shows its line (mapRunLine).
 
 import { APP_NAMES, sessionOpens, type AgentSession } from './agents';
+import { timeLeft, type MapPlan, type SaveKind, type SaveTime, type TimeLeft } from './map-estimate';
 
 /** An open record with no save for this long counts as stopped. */
 export const QUIET_MS = 30 * 60_000;
@@ -25,7 +26,15 @@ export interface MapRun {
   home?: true; // the press of Home started it: a session with no window
   agent?: AgentSession; // the session that writes the map
   parts: MapRunParts;
+  plan?: MapPlan; // the plan of the work (build 84): made when the run starts, again when the overview is saved and when the last notes are saved
+  saves?: SaveTime[]; // the time of each save of a writer, so that the pace of the run can be measured; at most MOST_SAVES
 }
+
+/** The record keeps the times of at most this many saves. */
+const MOST_SAVES = 600;
+
+/** The kind of a save in the list of times. */
+const kindOf = (save: MapSave): SaveKind => ('overview' in save ? 'o' : 'area' in save ? 'a' : 'noteFiles' in save ? 'n' : 'processGroup' in save ? 'p' : 'm');
 
 /** One save of a writer, as the record keeps it: the overview, an area by its title, the notes of so many files, the processes of a group, or the marks of a set. */
 export type MapSave = { overview: true } | { area: string } | { noteFiles: number } | { processGroup: string } | { marks: string };
@@ -58,11 +67,18 @@ export function withSave(run: MapRun | undefined, save: MapSave, agent: AgentSes
   if ('marks' in save) parts.marks = [...new Set([...(parts.marks ?? []), save.marks])];
   const session = agent?.session ?? open?.agent?.session;
   const by = open?.home ? { app: open.agent?.app ?? agent?.app ?? '', ...(session ? { session } : {}) } : agent?.session ? agent : open?.agent ?? agent;
+  const startedAt = open?.startedAt ?? at;
+  const minute = Math.round((Date.parse(at) - Date.parse(startedAt)) / 6_000) / 10; // in tenths of a minute
+  const time: SaveTime = 'noteFiles' in save ? ['n', minute, save.noteFiles] : [kindOf(save), minute];
   return {
-    startedAt: open?.startedAt ?? at, savedAt: at, ...(open?.whole || after || parts.overview ? { whole: true as const } : {}), ...(open?.home ? { home: true as const } : {}),
-    ...(by ? { agent: by } : {}), parts,
+    startedAt, savedAt: at, ...(open?.whole || after || parts.overview ? { whole: true as const } : {}), ...(open?.home ? { home: true as const } : {}),
+    ...(by ? { agent: by } : {}), parts, ...(open?.plan ? { plan: open.plan } : {}), saves: [...(open?.saves ?? []), time].slice(-MOST_SAVES),
   };
 }
+
+/** The time left of a run that writes the whole map and has a plan, at `now`; undefined for any other (shared/map-estimate.ts). */
+export const runTimeLeft = (run: MapRun, now = Date.now()): TimeLeft | undefined =>
+  (run.plan && run.whole && !run.endedAt ? timeLeft(run.plan, run.saves ?? [], Date.parse(run.startedAt), now) : undefined);
 
 /** The record of a run of Home with the session that the run reports on its output. Any other record stays as it is. */
 export const withSession = (run: MapRun | undefined, session: string): MapRun | undefined =>
@@ -80,7 +96,12 @@ export interface MapRunLine {
   words: string;
   tip?: string; // the whole id of the session and the titles of the saved areas
   opens?: 'app' | 'terminal'; // "Open the session" opens it in its app, or in a terminal of VS Code that continues it (sessionOpens)
+  time?: TimeLeft; // while a run of the whole map writes and has a plan: the minutes left and the share of the bar (build 84)
+  areas?: Record<string, AreaWork>; // the areas of the top diagram with work left, by node id; an area that is not named is done (homeData adds it)
 }
+
+/** An area of the top diagram with work left: "working" when a writer can work on it now, "waiting" when its work waits for a later step; `share`: the part of its work that is done. */
+export interface AreaWork { state: 'working' | 'waiting'; share: number }
 
 const count = (number: number, word: string): string => `${number} ${word}${number === 1 ? '' : 's'}`;
 const NAME_LENGTH = 40; // a longer name of a session is cut; the tip holds the id
@@ -133,5 +154,6 @@ export function mapRunLine(run: MapRun | undefined, has: { name?: string; alive?
   const id = run.agent?.session;
   const tip = [id ? `Session ${id}` : '', run.parts.areas?.length ? `Areas: ${run.parts.areas.join(', ')}` : ''].filter(Boolean).join('\n');
   const opens = run.agent && (!run.home || state === 'stopped') && (!id || /^[\w-]+$/.test(id)) ? sessionOpens(run.agent) : undefined;
-  return { state, words, ...(tip ? { tip } : {}), ...(opens ? { opens } : {}) };
+  const time = state === 'writing' ? runTimeLeft(run, has.now) : undefined;
+  return { state, words, ...(tip ? { tip } : {}), ...(opens ? { opens } : {}), ...(time ? { time } : {}) };
 }

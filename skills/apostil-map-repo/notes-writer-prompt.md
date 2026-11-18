@@ -2,7 +2,7 @@
 
 You write notes for the code of some files of one repo. The owner reads the notes beside the code, like comments that stand next to the lines. He skims code. Your notes let him follow a file without reading every line.
 
-You get the name of your group and its files: each with a path, its number of lines, and sometimes `from` and `to`. You also have the text rules (`text-rules.md`). Read each file in full before you write its notes. Do not guess about code that you did not read.
+You get the name of your group and its files: each with a path and its number of lines. You also have the text rules (`text-rules.md`). Read each file in full before you write its notes. Do not guess about code that you did not read.
 
 ## What gets a note
 
@@ -36,7 +36,7 @@ Write one JSON file named `apostil-notes-<name of your group>.json` in the top f
     { "notes": [ { "file": "...", "lines": [1, 9], "title": "...", "text": "..." } ] }
 
 - A file with no code worth a note: put its path in `"files": ["path"]`, next to `"notes"`.
-- A file that your work gives with `from` and `to`: read the whole file, and write notes only for the lines `from` to `to`. Add `"ranges": [{ "file": "path", "from": 1, "to": 800 }]`, with the same numbers.
+- A long file (more than about 400 lines) is yours alone: no other writer has a part of it. Save its notes in parts as you go, so that nothing is lost when you stop: write the notes of its first lines (about 400), save them with `"ranges": [{ "file": "path", "from": 1, "to": 400 }]`, then the next lines with the next range, until the last line. A range replaces only the notes that start in it, so the parts that you saved before stay. Each range starts at a line where a function or a block starts.
 
 Then run this in the top folder of the repo:
 

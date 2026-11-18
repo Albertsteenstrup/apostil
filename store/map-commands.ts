@@ -3,7 +3,7 @@
 
 import { afterSave, readJson } from './read-input';
 import { fileText, repoId } from '../shared/git';
-import { fileNotesSource, filesNeedingNotes, noteGroups, notesOf, processGroups } from '../shared/note-groups';
+import { fileNotesSource, filesNeedingNotes, noteGroups, notesOf, readyProcessGroups } from '../shared/note-groups';
 import { notesOfFile } from '../shared/notes-beside-code';
 import { processFacts, processWithHandoffs, stepKey } from '../shared/processes';
 import { diagramsOf, noteCount } from '../shared/repo-map';
@@ -98,7 +98,7 @@ export function runMapCommand(store: Store, command: string, argument: string, f
     }
     case 'process-groups': {
       const stored = store.getMap(repoId(folder));
-      return stored ? { output: processGroups(stored.map, all), ok: true } : NO_MAP;
+      return stored ? { output: readyProcessGroups(folder, stored, all), ok: true } : NO_MAP; // only the areas whose notes are all saved
     }
     case 'processes': {
       const stored = store.getMap(repoId(folder));

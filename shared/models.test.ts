@@ -70,7 +70,7 @@ test('a map run is led by the second smallest model at the most effort and every
   // Codex: Terra leads at max, Luna writes at max; its spawn_agent takes the model and the effort of a subagent.
   const codex = teamOf('codex', home);
   const codexMap = newRunCommand('codex', mapPrompt(false, codex), { codexModel: 'gpt-6-luna', diagrams: true, ...teamRun(codex) })!;
-  assert.deepEqual(codexMap.slice(-4), ['-c', 'model="gpt-6.1-terra"', '-c', 'model_reasoning_effort="max"']);
+  assert.deepEqual(codexMap.slice(-8), ['-c', 'agents.max_threads=16', '-c', 'agents.max_concurrent_threads_per_session=16', '-c', 'model="gpt-6.1-terra"', '-c', 'model_reasoning_effort="max"']); // 16 writers at once, for this run alone
   assert.match(codexMap[2], /Start every writer and checker subagent on Luna 6 at max effort: start each one with spawn_agent, with model "gpt-6-luna" and reasoning_effort "max"\./);
   // OpenCode keeps its own model and small model: no model, and the words of the skill.
   const opencode = teamOf('opencode', home);
