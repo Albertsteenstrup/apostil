@@ -215,7 +215,7 @@ try {
   await page.hover('#view b[data-part="hold-service"]');
   const scrolled = await page.evaluate(() => window.scrollY);
   await drawn(() => page.click('#view b[data-part="hold-service"]'));
-  const down = await page.evaluate(() => ({ crumb: document.getElementById('crumb').textContent, tabs: [...document.querySelectorAll('#tabs > :not(.dchg, .dfact, .codeswitch)')].map((el) => el.textContent).join(' · ') }));
+  const down = await page.evaluate(() => ({ crumb: document.getElementById('crumb').textContent, tabs: [...document.querySelectorAll('#tabs > :not(.dchg, .dfact, .drepo, .codeswitch)')].map((el) => el.textContent).join(' · ') }));
   await drawn(() => page.click('#tabs [data-diagram="offer-sequence"]'));
   const sequence = await page.$eval('#view svg', (svg) => ({
     actors: svg.querySelectorAll('.actor').length, actorHeight: Math.round(svg.querySelector('rect.actor').getBoundingClientRect().height),
