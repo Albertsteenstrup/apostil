@@ -640,8 +640,17 @@ const Remarks = (() => {
     for (const thread of open) byId.set(thread[0].target.message?.id, [...(byId.get(thread[0].target.message?.id) ?? []), thread]);
     for (const [id, list] of byId) {
       const el = conv.querySelector(`[data-rk="message:${CSS.escape(id)}"]`);
-      if (el && (all || fresh.includes(el)) && !el.querySelector(':scope > .body > .top > .cb, :scope > .top > .cb')) putMark([el.querySelector(':scope > .body') ?? el], list);
+      const holder = el && markHolder(el);
+      if (holder && (all || fresh.includes(el)) && !holder.querySelector(':scope > .cb')) putMark([holder], list);
     }
+  }
+  /** Where the mark of a message stands: at the end of its name line, after the relative time; a later message of a group has no name line, so at the end of its text. */
+  function markHolder(el) {
+    const body = el.querySelector(':scope > .body') ?? el;
+    const top = body.querySelector(':scope > .top');
+    if (top) return top;
+    const text = body.querySelector(':scope > .tx, :scope > .long > .tx, :scope > .bub > .tx, :scope > .bub > .long > .tx');
+    return text?.lastElementChild?.tagName === 'P' ? text.lastElementChild : text ?? body;
   }
   // The conversation draws its messages after it is read, and a write draws a thread again in its place: new messages are marked as they come.
   let messagesLater = false;

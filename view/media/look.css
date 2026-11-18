@@ -866,6 +866,8 @@ div.nomap a:hover{text-decoration:underline;text-underline-offset:3px}
 .conv .fp{font-family:var(--mono);overflow-wrap:anywhere}
 /* pictures: at most about 360 pixels high and never wider than the text; a click shows one large */
 .conv .md img{max-width:100%;max-height:360px;height:auto;width:auto;cursor:zoom-in;border-radius:4px}
+/* a comment mark at the end of a message's text keeps the size of a mark */
+.conv .md .cb img{width:11px;height:11px;max-height:none;cursor:pointer;border-radius:0}
 .win img.big{display:block;max-width:100%;height:auto;margin:0 auto}
 .nopic{color:var(--tealink);text-decoration:underline;text-decoration-color:var(--tealline)}
 /* a Mermaid block from GitHub can bring its own CSS: contain:paint keeps all of it in the box, so it cannot cover the page */
