@@ -241,7 +241,7 @@ try {
     for (let turn = 0; at && turn < 3; turn += 1) {
       await page.mouse.click(at.x, at.y, { button: 'middle' });
       if (await until(async () => !(await place()), 1500)) return;
-      console.log(`NOTE  the tab "${name}" still stands after a middle click; once more`);
+      console.log(`NOTE  the tab "${name}" still stands after a middle click; once more (tabs ${(await tabs()).join(', ')}; menu ${await page.locator('.monaco-menu').count()}; quick input ${await quickInput.isVisible()}; block ${await page.locator('.context-view-block, .monaco-dialog-modal-block').count()}; focus ${await page.evaluate(() => `${document.activeElement?.tagName}.${String(document.activeElement?.className).slice(0, 50)}`)})`);
       at = await place();
     }
   };
@@ -808,10 +808,11 @@ try {
   await stage.locator('b[data-part="hold-service"]').first().click();
   const newCard = await fieldFocused();
   const placed = newCard ? await stage.$eval('.cbox', (el) => ({ ...el.getBoundingClientRect().toJSON(), room: innerWidth })) : {};
-  if (newCard) { await page.keyboard.type('Why is the pickup day set before the mail is sent?', { delay: 2 }); await page.keyboard.press('Enter'); }
+  // The key once more with the box open: VS Code passes each press on to the extension a moment later, and that copy must not take the keyboard out of the field.
+  if (newCard) { await page.keyboard.press('Meta+Shift+Period'); await page.keyboard.type('Why is the pickup day set before the mail is sent?', { delay: 8 }); await page.keyboard.press('Enter'); }
   const onPart = await until(() => remarks().find((remark) => remark.target.kind === 'part' && remark.target.part === 'hold-service'));
   const inWindow = await until(() => stage.locator('#side .thread[data-thread]', { hasText: 'Why is the pickup day set before the mail is sent?' }).count());
-  check('Cmd+Shift+. with the pointer on a part and the keyboard in a text editor turns the pointer into a comment icon with no box; a click sticks the box at the pointer with the keyboard in its field; Enter saves it as open and it shows in the comments window',
+  check('Cmd+Shift+. with the pointer on a part and the keyboard in a text editor turns the pointer into a comment icon with no box; a click sticks the box at the pointer with the keyboard in its field; the key once more leaves the keyboard there, so all the typed words are saved; Enter saves it as open and it shows in the comments window',
     icon && noBoxYet && newCard && Math.abs(placed.left - Math.max(8, Math.min(pointer.x, placed.room - placed.width - 8))) <= 4 && Math.abs(placed.top - pointer.y) <= 4 && onPart?.state === 'open' && inWindow === 1,
     `icon ${icon}; box ${Math.round(placed.left)},${Math.round(placed.top)} at ${Math.round(pointer.x)},${Math.round(pointer.y)}; stored ${onPart?.state}`);
 

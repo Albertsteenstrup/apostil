@@ -791,9 +791,11 @@ const Remarks = (() => {
 
   /**
    * The remark key as VS Code passes it on. When the page had the keyboard it took that key press itself already, and the copy from VS Code
-   * can come late (the page waits with it until a drawing is done): it must not switch the comment pointer off again.
+   * can come late (the page waits with it until a drawing is done): it must not switch the comment pointer off again. VS Code shows the page
+   * before it sends the copy, which takes the keyboard out of an open box: the copy puts it back.
    */
   function openFromVsCode() {
+    if (draft) return focusField(draft.el, 'new');
     if (Date.now() - ownKeyAt < 2000) { ownKeyAt = 0; return; }
     open();
   }

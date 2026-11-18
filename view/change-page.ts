@@ -343,7 +343,7 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
   askForRemark(): void {
     const view = this.pointerOn ?? [...this.views].find((candidate) => candidate.panel.active);
     if (!view) return;
-    view.panel.reveal(undefined, false);
+    if (!view.panel.active) view.panel.reveal(undefined, false); // a page that has the keyboard keeps it: a reveal would take it out of an open comment box
     this.post(view, { type: 'remark' });
   }
 

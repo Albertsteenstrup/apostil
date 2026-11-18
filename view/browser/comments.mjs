@@ -131,6 +131,15 @@ try {
     hiddenEmpty && fullWidth.right > 1300 && Math.abs(placed.left - pointer.x) <= 3 && Math.abs(placed.top - pointer.y) <= 3 && placed.where === 'Part "Hold service"' && !/url/.test(placed.cursor),
     `click ${pointer.x},${pointer.y}; box ${Math.round(placed.left)},${Math.round(placed.top)}; ${placed.where}`);
   await shot('11-comment-box-at-the-pointer');
+  // VS Code passes the key press on late, after the click and the first words; it shows the page first, which takes the keyboard out of the field for
+  // a moment. Every word typed after it must still go into the field.
+  await page.keyboard.type('Who ');
+  await page.evaluate(() => { document.activeElement.blur(); Remarks.openFromVsCode(); });
+  await page.keyboard.type('reads this?');
+  const lateCopy = await page.evaluate(() => ({ typed: document.querySelector('.cbox [data-field="new"]').innerText.trim(), inField: document.activeElement?.matches('.cbox [data-field="new"]') }));
+  check('a late copy of the comment key from VS Code, after the box opened and the keyboard left it, puts the keyboard back in the field, so no typed word is lost',
+    lateCopy.typed === 'Who reads this?' && lateCopy.inField, JSON.stringify(lateCopy));
+  await page.evaluate(() => { const field = document.querySelector('.cbox [data-field="new"]'); field.textContent = ''; field.focus(); });
   // A click outside an empty box removes it; with text, a small window asks first.
   await page.mouse.click(30, 860);
   const emptyGone = await page.$$eval('.cbox', (all) => all.length);

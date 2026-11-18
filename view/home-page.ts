@@ -150,7 +150,7 @@ export class HomePages {
   /** Cmd+Shift+.: the comment pointer on Home. */
   askForRemark(): void {
     if (!this.home) return;
-    this.home.panel.reveal(undefined, false);
+    if (!this.home.panel.active) this.home.panel.reveal(undefined, false); // a page that has the keyboard keeps it: a reveal would take it out of an open comment box
     this.post(this.home, { type: 'remark' });
   }
 
