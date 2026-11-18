@@ -29,7 +29,7 @@ const Split = {
     App.render();
   },
 
-  /** True when the tab is wide enough for two halves, and the page beside the comments window still has room for two readable halves. */
+  /** True when the tab is wide enough for two halves, and the page still has room for two readable halves. */
   wide() {
     return document.body.clientWidth >= SPLIT && document.getElementById('view').clientWidth >= 2 * HALF_LEAST;
   },
@@ -83,7 +83,7 @@ const Split = {
     return view.firstChild;
   },
 
-  list: null, // the list of diffs beside a diagram while it shows, or "Diffs": the comments window finds the file of a comment there
+  list: null, // the list of diffs beside a diagram while it shows, or "Diffs": a row of the list of comments finds the file of a comment there
   diffsFile: null, // the file that "Diffs" showed last: it shows it again when it draws again
 
   /**
