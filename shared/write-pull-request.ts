@@ -1,11 +1,12 @@
 // Writes to one pull request on GitHub with "gh api graphql": an answer in a thread, resolve and unresolve, a comment, a comment on code lines, a review,
-// and suggested changes committed to the branch of the pull request.
+// suggested changes committed to the branch of the pull request, a merge, close and reopen, ready for review and back to a draft, an update of the
+// branch from its base, and the branch deleted after a merge.
 // Each function sends its mutations once: a failure comes back as one plain sentence and is never sent again here.
 // A write answers with what GitHub made (the comment, the review, the thread, the commit), so that the page takes it in place.
 // The text of a comment goes to gh on standard input, inside the JSON of the request, never on the command line.
 
 import { reviewState, person } from './pull-request-facts';
-import { commentFrom, runGh, SAID, type GhResult, type PullComment, type Person, type ReviewState, type RunGh } from './read-pull-request';
+import { commentFrom, runGh, SAID, WHO, type GhResult, type MergeMethod, type PullComment, type Person, type ReviewState, type RunGh } from './read-pull-request';
 
 export type Side = 'LEFT' | 'RIGHT'; // LEFT: the file as it was (a removed line); RIGHT: the file as it is now (an added or unchanged line)
 export type Verdict = 'COMMENT' | 'APPROVE' | 'REQUEST_CHANGES';
@@ -37,13 +38,22 @@ export type Write =
   | { kind: 'lines'; pullId: string; commit: string; pendingId?: string; lines: CodeLines; body: string }
   | { kind: 'review'; pullId: string; pendingId?: string; verdict: Verdict; body: string }
   // "Commit suggestion" and "Commit suggestions" of a batch: one commit on the branch of the pull request, then its threads resolved, as GitHub does.
-  | { kind: 'suggestions'; repo: string; branch: string; headOid: string; threadIds: string[]; changes: SuggestedChange[]; message: { headline: string; body: string } };
+  | { kind: 'suggestions'; repo: string; branch: string; headOid: string; threadIds: string[]; changes: SuggestedChange[]; message: { headline: string; body: string } }
+  // A merge, only while the branch is still at the head that the page showed; a rebase has no commit title or message.
+  | { kind: 'merge'; pullId: string; method: MergeMethod; title?: string; body?: string; headOid: string }
+  | { kind: 'close' | 'reopen' | 'ready' | 'draft'; pullId: string }
+  // The base merged into the branch, only while the branch is still at the head that the page showed.
+  | { kind: 'update'; pullId: string; headOid: string }
+  | { kind: 'delete-branch'; refId: string };
 
 /** A thread after a resolve or an unresolve, as GitHub answers it. */
 export interface ThreadState { resolved: boolean; resolvedBy?: Person; canReply: boolean; canResolve: boolean; canUnresolve: boolean }
 
+/** A merge as GitHub answers it: when, by whom, and the short merge commit. */
+export interface Merged { at?: string; by?: Person; commit?: string }
+
 export type WriteResult =
-  | { ok: true; comment?: PullComment; review?: PullComment & { state: ReviewState }; thread?: ThreadState; commit?: { oid: string; short: string } }
+  | { ok: true; comment?: PullComment; review?: PullComment & { state: ReviewState }; thread?: ThreadState; commit?: { oid: string; short: string }; merged?: Merged; headOid?: string }
   | { problem: string };
 
 // ----- the mutations -----
@@ -64,6 +74,15 @@ export const SEND_PENDING = `mutation($review: ID!, $event: PullRequestReviewEve
 export const FILE_AT = 'query($owner: String!, $name: String!, $at: String!) { repository(owner: $owner, name: $name) { object(expression: $at) { ... on Blob { text isBinary isTruncated } } } }';
 // One commit with the changed files on the branch, only while the branch is still at the commit that the page showed.
 export const COMMIT = 'mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid abbreviatedOid } } }';
+// A merge with the method, the title and the message that he chose, only while the branch is at the head that the page showed: a newer push is never merged unseen.
+export const MERGE = `mutation($pull: ID!, $method: PullRequestMergeMethod!, $title: String, $body: String, $head: GitObjectID!) { mergePullRequest(input: { pullRequestId: $pull, mergeMethod: $method, commitHeadline: $title, commitBody: $body, expectedHeadOid: $head }) { pullRequest { merged mergedAt mergedBy { ${WHO} } mergeCommit { abbreviatedOid } } } }`;
+export const CLOSE = 'mutation($pull: ID!) { closePullRequest(input: { pullRequestId: $pull }) { pullRequest { state } } }';
+export const REOPEN = 'mutation($pull: ID!) { reopenPullRequest(input: { pullRequestId: $pull }) { pullRequest { state } } }';
+export const READY = 'mutation($pull: ID!) { markPullRequestReadyForReview(input: { pullRequestId: $pull }) { pullRequest { isDraft } } }';
+export const TO_DRAFT = 'mutation($pull: ID!) { convertPullRequestToDraft(input: { pullRequestId: $pull }) { pullRequest { isDraft } } }';
+export const UPDATE_BRANCH = 'mutation($pull: ID!, $head: GitObjectID!) { updatePullRequestBranch(input: { pullRequestId: $pull, expectedHeadOid: $head }) { pullRequest { headRefOid } } }';
+export const DELETE_BRANCH = 'mutation($ref: ID!) { deleteRef(input: { refId: $ref }) { clientMutationId } }';
+const STATE_CHANGES = { close: CLOSE, reopen: REOPEN, ready: READY, draft: TO_DRAFT };
 
 // ----- one send -----
 
@@ -181,9 +200,31 @@ export async function commitSuggestions(write: Extract<Write, { kind: 'suggestio
   return { ok: true, ...(commit?.oid ? { commit: { oid: commit.oid, short: commit.abbreviatedOid ?? commit.oid.slice(0, 7) } } : {}) };
 }
 
+/**
+ * A merge with his method, title and message, only while the branch is at `headOid`. GitHub answers with when, by whom and the merge commit.
+ * An answer that says it did not merge is a problem: the page then keeps his choices and says why.
+ */
+export async function mergePullRequest(write: Extract<Write, { kind: 'merge' }>, run: RunGh = runGh): Promise<WriteResult> {
+  const texts = write.method === 'REBASE' ? {} : { title: write.title, body: write.body };
+  const sent = await send(run, MERGE, { pull: write.pullId, method: write.method, ...texts, head: write.headOid });
+  if ('problem' in sent) return sent;
+  const pull = sent.data?.mergePullRequest?.pullRequest;
+  if (pull && pull.merged === false) return { problem: 'GitHub did not merge it. Look on GitHub why.' };
+  return { ok: true, merged: { ...only('at', pull?.mergedAt ?? undefined), ...(pull?.mergedBy ? { by: person(pull.mergedBy) } : {}), ...only('commit', pull?.mergeCommit?.abbreviatedOid ?? undefined) } };
+}
+
+/** The base merged into the branch, only while the branch is at `headOid`; GitHub answers with the new head. */
+export async function updateBranch(pullId: string, headOid: string, run: RunGh = runGh): Promise<WriteResult> {
+  return answer(await send(run, UPDATE_BRANCH, { pull: pullId, head: headOid }), (data) => only('headOid', data?.updatePullRequestBranch?.pullRequest?.headRefOid ?? undefined));
+}
+
 /** One write that the page asked for, by its kind. */
 export function writePullRequest(write: Write, run: RunGh = runGh): Promise<WriteResult> {
   switch (write.kind) {
+    case 'merge': return mergePullRequest(write, run);
+    case 'close': case 'reopen': case 'ready': case 'draft': return send(run, STATE_CHANGES[write.kind], { pull: write.pullId }).then((sent) => answer(sent));
+    case 'update': return updateBranch(write.pullId, write.headOid, run);
+    case 'delete-branch': return send(run, DELETE_BRANCH, { ref: write.refId }).then((sent) => answer(sent));
     case 'reply': return addPullRequestReviewThreadReply(write.threadId, write.body, run);
     case 'resolve': return resolveReviewThread(write.threadId, run);
     case 'unresolve': return unresolveReviewThread(write.threadId, run);

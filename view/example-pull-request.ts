@@ -163,7 +163,13 @@ export function examplePullRequest(when = Date.now()): { raw: RawPullRequest; la
       locked: false, viewerDidAuthor: false, viewerCanApplySuggestion: true, pending: { nodes: [] }, viewer: who('you'), // he may push to the branch
       headRefName: 'made-up/holds', baseRefName: 'made-up/hold-store', headRefOid: '7c41b9e', baseRefOid: '0000000', author: MIRA, commits: { totalCount: 5 },
       changedFiles: 12, additions: 1840, deletions: 212, reviewDecision: 'REVIEW_REQUIRED', mergeable: 'MERGEABLE', mergeStateStatus: 'BLOCKED', bodyHTML: description,
-      repository: { nameWithOwner: 'made-up/example', isPrivate: false }, headRepository: { nameWithOwner: 'made-up/example' },
+      // What GitHub lets him do, and how the made-up repo merges: he may push, and the base asks for two approvals and every thread resolved.
+      repository: { nameWithOwner: 'made-up/example', isPrivate: false, viewerPermission: 'WRITE', mergeCommitAllowed: true, squashMergeAllowed: true, rebaseMergeAllowed: true, viewerDefaultMergeMethod: 'SQUASH', deleteBranchOnMerge: false },
+      headRepository: { nameWithOwner: 'made-up/example' }, isCrossRepository: false, headRef: { id: 'made-up-ref-holds' },
+      viewerCanMergeAsAdmin: false, viewerCanUpdate: true, viewerCanClose: true, viewerCanReopen: false, viewerCanUpdateBranch: true, viewerCanDeleteHeadRef: true,
+      mergeTitle: 'Merge pull request #12 from made-up/holds', mergeBody: 'Holds for books that are out',
+      squashTitle: 'Holds for books that are out (#12)', squashBody: '* Add the hold tables\n* Add the night offers\n* Add the pickup days\n* Send the mail before the copy is ready',
+      baseRef: { refUpdateRule: { requiredApprovingReviewCount: 2, requiresConversationResolution: true, requiresLinearHistory: false } },
       labels: { nodes: [{ name: 'backend', color: '1d76db' }, { name: 'needs a review from someone who knows the lending rules well', color: 'fbca04' }] },
       assignees: { nodes: [MIRA] }, milestone: { title: 'Version 0.5', dueOn: new Date(now + 30 * 24 * HOUR).toISOString(), url: 'https://example.com/made-up/milestone/1' },
       closingIssuesReferences: { nodes: [{ number: 24, title: 'A failed mail shortens the pickup time', url: 'https://example.com/made-up/issues/24', state: 'OPEN' }] },
@@ -194,6 +200,20 @@ export function examplePullRequest(when = Date.now()): { raw: RawPullRequest; la
   return { raw, lastLooked: at(26) };
 }
 
+/** The made-up pull request #12 as a read gives it once it can merge: approved, every check passed, every thread resolved, the pull request below it merged. */
+export function exampleReadyPullRequest(when = Date.now()): RawPullRequest {
+  const { pr } = examplePullRequest(when).raw;
+  const commit = pr.last.nodes[0].commit;
+  const passed = (node: { __typename: string; conclusion?: string }) => (node.__typename === 'StatusContext' ? { ...node, state: 'SUCCESS' }
+    : { ...node, status: 'COMPLETED', conclusion: node.conclusion === 'SKIPPED' ? 'SKIPPED' : 'SUCCESS', completedAt: at(15.9) });
+  return { pr: {
+    ...pr, reviewDecision: 'APPROVED', mergeStateStatus: 'CLEAN', stack: undefined, stackEntry: undefined,
+    latestReviews: { nodes: [...pr.latestReviews.nodes, { author: LENA, state: 'APPROVED' }] }, reviewRequests: { nodes: [] }, // the two approvals that the base needs
+    reviewThreads: { ...pr.reviewThreads, nodes: pr.reviewThreads.nodes.map((node: object) => ({ ...node, isResolved: true, resolvedBy: MIRA })) },
+    last: { nodes: [{ commit: { ...commit, statusCheckRollup: { contexts: { ...commit.statusCheckRollup.contexts, nodes: commit.statusCheckRollup.contexts.nodes.map(passed) } } } }] },
+  } };
+}
+
 /** A made-up merged pull request #11 with one comment, for the choice between the pull requests of the branch. */
 export function exampleMergedPullRequest(when = Date.now()): RawPullRequest {
   now = when;
@@ -202,7 +222,7 @@ export function exampleMergedPullRequest(when = Date.now()): RawPullRequest {
       id: 'made-up-pull-11', number: 11, title: 'First half of the holds', url: 'https://example.com/made-up/pull/11', state: 'MERGED', isDraft: false, createdAt: at(200),
       headRefName: 'made-up/holds-1', baseRefName: 'main', headRefOid: '1111111', baseRefOid: '0000000', author: MIRA, commits: { totalCount: 1 },
       changedFiles: 3, additions: 120, deletions: 4, reviewDecision: 'APPROVED', mergeable: 'UNKNOWN', bodyHTML: '', repository: { nameWithOwner: 'made-up/example' },
-      mergedAt: at(189), mergedBy: JONAS, mergeCommit: { parents: { totalCount: 1 } },
+      mergedAt: at(189), mergedBy: JONAS, mergeCommit: { abbreviatedOid: '1111111', parents: { totalCount: 1 } },
       latestReviews: { nodes: [] }, reviewRequests: { nodes: [] }, last: { nodes: [] },
       timelineItems: { totalCount: 3, nodes: [
         commit(199, '1111111', 'Add the first hold table'),

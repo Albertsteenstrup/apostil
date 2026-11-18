@@ -285,7 +285,7 @@ try {
     hidden: document.querySelectorAll('.conv .hidbox').length, newLine: !!document.getElementById('new-line'), on: document.querySelector('[data-mode].on').textContent,
     days: document.querySelectorAll('.conv .dayline').length, products: document.querySelectorAll('.conv .prod, .conv .prods').length, runs: document.querySelectorAll('.conv .evrun').length,
     reports: [...document.querySelectorAll('.conv .gbox')].filter((box) => /Test report/.test(box.textContent)).length,
-    shownResolved: document.querySelector('.conv .gfold .gbtn .show')?.textContent, merge: document.querySelector('.conv .merge')?.textContent,
+    shownResolved: document.querySelector('.conv .gfold .gbtn .show')?.textContent, card: document.querySelector('.conv > .pcard')?.textContent, box: !!document.querySelector('.conv .tl .merge, .conv .tl .pcard'),
     verified: document.querySelectorAll('.conv .ev .vf').length, marks: [...document.querySelectorAll('.conv .gh .lab')].map((el) => el.textContent),
     side: (() => { const side = document.querySelector('.conv .cside').getBoundingClientRect(); const main = document.querySelector('.conv .cmain').getBoundingClientRect(); return side.left >= main.right - 1; })() }));
   await resize(conv, 760);
@@ -338,9 +338,9 @@ try {
   check('the time has one place in each look: in "Messages" every time of the feed ends at the same right edge, and in a thread card at the right edge of its row; in "Classic" every time follows its words',
     messageTimes.count > 10 && messageTimes.feedRights.length === 1 && messageTimes.boxed.every((gap) => Math.abs(gap) <= 1)
     && classicTimes.count > 10 && classicTimes.followed.every((gap) => gap > 20), JSON.stringify({ messageTimes, classicTimes }));
-  check('"Classic" shows every comment in a box in the order of GitHub, folds only resolved, outdated and hidden, and opens at the first row that he has not seen with no line; the choice stays for the window; "Messages" comes back',
+  check('"Classic" shows every comment in a box in the order of GitHub, folds only resolved, outdated and hidden, and opens at the first row that he has not seen with no line; its state is the card at the top, with no merge box at the end; the choice stays for the window; "Messages" comes back',
     classic.boxes >= 10 && classic.events >= 15 && classic.gfold === 3 && classic.hidden === 1 && classicOpen.at === 'answer' && !classicOpen.line && classicOpen.top > 30 && classicOpen.top < 300 && classicOpen.scrolled > 0 && classic.on === 'Classic' && keptMode === 'Classic' && backMode.on === 'Messages' && backMode.line
-    && classic.days === 0 && classic.products === 0 && classic.reports === 2 && classic.runs === 0 && classic.shownResolved === 'Show resolved' && /Waits for #9 below it in the stack · 2 checks failed · An approving review is needed/.test(classic.merge)
+    && classic.days === 0 && classic.products === 0 && classic.reports === 2 && classic.runs === 0 && classic.shownResolved === 'Show resolved' && /^Blocked.*Waits for #9 below it in the stack · 2 checks failed · An approving review is needed/.test(classic.card) && !classic.box
     && classic.verified === 1 && classic.marks.includes('Author') && classic.marks.includes('bot'), JSON.stringify({ classicOpen }) + JSON.stringify({ classic, keptMode, backMode }));
 
   // The other pull request of the branch, from the small choice in the strip. A merged one: the strip says who merged it; "closed" right after "merged" is left out.
@@ -538,23 +538,32 @@ try {
   await conv.click('#status [data-review]');
   const panelOf = () => conv.evaluate(() => {
     const panel = document.querySelector('#status .review-panel');
-    return panel && { verdicts: [...panel.querySelectorAll('.ghv')].map((label) => `${label.textContent}${label.querySelector('input').disabled ? ' (off)' : ''}${label.title ? ` [${label.title}]` : ''}`),
+    return panel && { verdicts: [...panel.querySelectorAll('.ghv')].map((label) => `${label.textContent}${label.querySelector('input').disabled ? ' (off)' : ''}`), line: panel.querySelector('.ghown')?.textContent ?? '',
       chosen: panel.querySelector('input:checked')?.value, button: panel.querySelector('[data-gh-send]')?.textContent, focus: document.activeElement === panel.querySelector('textarea'),
       strip: document.querySelector('#status .status').textContent };
   });
   const reviewPanel = await panelOf();
+  // His own pull request (the owner: "why can't I review"): the send worked, but two greyed verdicts with the reason only in a tooltip looked broken.
   await conversationAfter(() => conv.evaluate((link) => { App.read[link].pull.mine = true; App.render(); }, LINK12));
   const ownPanel = await panelOf();
+  await conv.click('#status .review-panel textarea');
+  await conv.keyboard.type('A note on my own work.');
   await conv.evaluate(() => scrollTo(0, 0));
   await convShot('71-the-review-on-his-own-pull-request');
-  check('"Review" in the strip opens a panel with the text, "Comment", "Approve" and "Request changes", and "Send review"; the cursor is in its text; on his own pull request "Approve" and "Request changes" are not available, and the tooltip says why',
-    !!reviewPanel && reviewPanel.verdicts.join() === 'Comment,Approve,Request changes' && reviewPanel.chosen === 'COMMENT' && reviewPanel.button === 'Send review' && reviewPanel.focus
-    && ownPanel?.verdicts.join() === 'Comment,Approve (off) [This is your own pull request.],Request changes (off) [This is your own pull request.]', JSON.stringify({ reviewPanel, ownPanel }));
+  await conv.click('#status .review-panel [data-gh-send]');
+  await conv.waitForFunction(() => /A note on my own work\./.test([...document.querySelectorAll('.conv .feed .card.review')].at(-1)?.textContent ?? ''), null, { timeout: 3000 }).catch(() => {});
+  const ownSent = { write: (await writes()).at(-1), panel: !!(await conv.$('#status .review-panel')), last: await conv.evaluate(() => [...document.querySelectorAll('.conv .feed .card.review')].at(-1)?.textContent ?? '') };
+  check('"Review" in the strip opens a panel with the text, "Comment", "Approve" and "Request changes", and "Send review"; the cursor is in its text; on his own pull request it shows no verdict and one quiet line says that GitHub lets him comment, not approve or ask for changes, and "Send review" sends a comment review once',
+    !!reviewPanel && reviewPanel.verdicts.join() === 'Comment,Approve,Request changes' && reviewPanel.chosen === 'COMMENT' && reviewPanel.button === 'Send review' && reviewPanel.focus && reviewPanel.line === ''
+    && ownPanel?.verdicts.length === 0 && ownPanel.line === 'This is your pull request: GitHub lets you comment on it, not approve it or ask for changes.' && ownPanel.button === 'Send review'
+    && same(ownSent.write, { kind: 'review', pullId: 'made-up-pull-12', verdict: 'COMMENT', body: 'A note on my own work.' }) && (await writes()).length === 10 && !ownSent.panel && /reviewed.*A note on my own work\./.test(ownSent.last),
+    JSON.stringify({ reviewPanel, ownPanel, ownSent }));
   // The hint of the answer field was added after the trial with real sends.
   const answerHint = () => conv.evaluate(() => document.querySelector('[data-gh^="reply:"] .ghh')?.textContent ?? '');
   const hintBefore = await answerHint();
   await conversationAfter(() => conv.evaluate((link) => { Object.assign(App.read[link].pull, { mine: false, pending: { id: 'made-up-review-1', comments: 2 } }); App.render(); }, LINK12));
   const hintWithReview = await answerHint();
+  if (!(await conv.$('#status .review-panel'))) await conv.click('#status [data-review]');
   const pendingPanel = await panelOf();
   await conv.click('#status .review-panel .ghv:has(input[value="APPROVE"])');
   await conv.click('#status .review-panel textarea');
@@ -566,7 +575,7 @@ try {
   check('his review that is not sent yet: the answer field of a thread says that the answer goes into it (with none it says nothing); the strip says "Your review is not sent: 2 comments"; Cmd+Enter sends that review with the verdict once, the panel closes and the review shows',
     hintBefore === '' && hintWithReview === 'This goes into your review that is not sent yet.'
     && /Your review is not sent: 2 comments/.test(pendingPanel?.strip) && same((await writes()).at(-1), { kind: 'review', pullId: 'made-up-pull-12', verdict: 'APPROVE', body: 'Good to go.', pendingId: 'made-up-review-1' })
-    && (await writes()).length === 10 && !reviewed.panel && !/not sent/.test(reviewed.strip) && reviewed.focus && /approved.*Good to go\./.test(reviewed.last), JSON.stringify({ hintBefore, hintWithReview, pendingPanel, reviewed }));
+    && (await writes()).length === 11 && !reviewed.panel && !/not sent/.test(reviewed.strip) && reviewed.focus && /approved.*Good to go\./.test(reviewed.last), JSON.stringify({ hintBefore, hintWithReview, pendingPanel, reviewed }));
 
   // A merged pull request has no "Review"; a locked conversation has no field and one line; an answer stored before these fields draws with no field.
   const fieldsNow = () => conv.evaluate(() => ({ fields: document.querySelectorAll('.conv textarea').length, review: !!document.querySelector('#status [data-review]'), lock: document.querySelector('.conv .ghlock')?.textContent ?? '' }));
@@ -618,8 +627,8 @@ try {
     for (const selector of ['[data-gh="reply:thread-3"] textarea', '.ghend textarea']) { const field = document.querySelector(selector); field.value = ''; field.dispatchEvent(new Event('input', { bubbles: true })); }
     document.querySelector('#status [data-review]').click();
   });
-  check('at 520 and 1400 px no field or button of writing to GitHub is cut off or overlaps another thing; nothing was written by the page without a send: one write for each send, ten in all',
-    fits.every((fit) => fit.boxes >= 3 && fit.parts >= 8 && !fit.over.length && !fit.overlaps.length && !fit.sideways) && (await writes()).length === 10, JSON.stringify({ fits, writes: (await writes()).length }));
+  check('at 520 and 1400 px no field or button of writing to GitHub is cut off or overlaps another thing; nothing was written by the page without a send: one write for each send, eleven in all',
+    fits.every((fit) => fit.boxes >= 3 && fit.parts >= 8 && !fit.over.length && !fit.overlaps.length && !fit.sideways) && (await writes()).length === 11, JSON.stringify({ fits, writes: (await writes()).length }));
 
   // A failure says why in one line and offers "Try again", which reads again.
   await conv.evaluate(() => { App.read['https://example.com/made-up/pull/12'] = { problem: 'GitHub cannot be reached. Check the network.' }; return App.render(); });
@@ -627,6 +636,116 @@ try {
   await conversationAfter(() => conv.click('[data-retry]'));
   const retried = await conv.evaluate(() => !!document.querySelector('.conv .ptitle') && !document.querySelector('.conv-problem'));
   check('a failure is one plain line with "Try again", and "Try again" reads the pull request again', problem === 'GitHub cannot be reached. Check the network.Try again' && retried, `${problem}; ${retried}`);
+
+  // ----- the state card (build 76): the state, three meters and the actions, under the facts line and above the description -----
+  /** What the card and the strip show, and every filled button of the page in the colour of "Merge" (the brief: "Merge" is the only one, and only while it can merge). */
+  const cardOf = () => conv.evaluate(() => {
+    const card = document.getElementById('pcard');
+    const probe = document.body.appendChild(Object.assign(document.createElement('i'), { style: 'background:var(--button)' }));
+    const teal = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    const target = (el) => el.dataset.cardGo ?? el.dataset.cardAct ?? (el.dataset.stackPull ? `pull ${el.dataset.number}` : el.dataset.link ? 'github' : '');
+    return card && { kind: card.dataset.kind, headline: card.querySelector('.pct')?.textContent, say: card.querySelector('.pcs')?.textContent ?? '',
+      blockers: [...card.querySelectorAll('.pcs .pcgo')].map((el) => `${el.textContent} → ${target(el)}`), meters: [...card.querySelectorAll('.pcmeter')].map((el) => `${el.querySelector('.pcml').textContent}: ${el.querySelector('.pcmv').textContent}`),
+      links: [...card.querySelectorAll('.pcl a')].map((el) => el.textContent), error: card.querySelector('.gherr')?.textContent ?? '', after: card.previousElementSibling?.className, before: card.nextElementSibling?.className,
+      filled: [...document.querySelectorAll('button, a')].filter((el) => el.getClientRects().length && getComputedStyle(el).backgroundColor === teal).map((el) => el.textContent.trim()),
+      strip: document.querySelector('#status .status')?.textContent, stripIcon: document.querySelector('#status .pri')?.className, press: !!document.querySelector('#status [data-merge-go]'), review: !!document.querySelector('#status [data-review]') };
+  });
+  // The made-up #12 is blocked: each blocker names what blocks and leads to its fix. One of its four open threads was resolved above, so three are open.
+  await conv.evaluate(() => scrollTo(0, 0));
+  const blocked = await cardOf();
+  await conv.evaluate(() => document.getElementById('pcard').scrollIntoView({ block: 'center' }));
+  await takePicture(conv.locator('#pcard'), '76b-card-blocked.png');
+  await conv.click('#pcard .pcgo[data-card-go="checks"]');
+  const checksGo = await conv.evaluate(() => !!document.querySelector('#status .checks-panel'));
+  await conv.click('#status [data-checks]');
+  await conv.click('#pcard .pcgo[data-card-go="review"]');
+  const reviewGo = await conv.evaluate(() => !!document.querySelector('#status .review-panel') && document.activeElement === document.querySelector('#status .review-panel textarea'));
+  await conv.click('#status [data-review]');
+  await conv.click('#pcard .pcgo[data-card-go="comments"]');
+  const threadGo = await conv.evaluate(() => { const thread = document.querySelector('.conv [data-thread="thread-2"]'); const box = thread?.getBoundingClientRect(); return !!box && thread.offsetHeight > 0 && box.top >= 0 && box.top < innerHeight; });
+  check('a blocked pull request: the card under the facts line and above the description says "Blocked" and names what blocks it, each a link to its fix (the pull request below, the list of checks, the review panel, the first open thread, which folds open); its meters count the checks, the threads and the approvals; no filled button and no "Merge" in the strip',
+    blocked?.kind === 'blocked' && blocked.headline === 'Blocked' && /^facts/.test(blocked.after) && /^about/.test(blocked.before)
+    && same(blocked.blockers, ['Waits for #9 below it in the stack → pull 9', '2 checks failed → checks', 'An approving review is needed → review', '1 check is still running → checks', '3 threads are not resolved → comments'])
+    && same(blocked.meters, ['Checks: 2 failed · 1 running · 1 skipped · 8 passed', 'Comments: 3 of 5 unresolved', 'Approvals: 1 of 3 approved']) && same(blocked.links, ['Update branch', 'Convert to draft', 'Close pull request'])
+    && blocked.filled.length === 0 && !blocked.press && checksGo && reviewGo && threadGo, JSON.stringify({ blocked, checksGo, reviewGo, threadGo }));
+
+  // A pull request that can merge, as the read gives it: "Merge" is the one filled button; the press "Merge" of the strip opens the merge step in "Conversation";
+  // "Confirm merge" sends the method, the title, the message and the head, the card says "Merging…", then the merged state in place.
+  const asRead = (pull) => conv.evaluate(({ link, ready }) => {
+    window.keptRead = window.keptRead ?? App.read[link];
+    const read = ready ? { ...App.read[link], pull: structuredClone(APOSTIL_EXAMPLE.readyPull) } : window.keptRead;
+    App.read[link] = read;
+    APOSTIL_EXAMPLE.answers[`pull:${link}`] = read; // a read again after the merge gives the same pull request, as GitHub would
+    return App.render();
+  }, { link: LINK12, ready: pull });
+  await conversationAfter(() => asRead(true));
+  await conv.mouse.move(1, 1); // no hover from the clicks above in the pictures
+  await conv.evaluate(() => scrollTo(0, 0));
+  const ready = await cardOf();
+  await takePicture(conv.locator('#status'), '76f-strip-with-merge.png');
+  await conv.evaluate(() => document.getElementById('pcard').scrollIntoView({ block: 'center' }));
+  await takePicture(conv.locator('#pcard'), '76a-card-ready.png');
+  await conv.click('.switch a[data-view="diffs"]');
+  await settle(conv);
+  const pressElsewhere = await conv.evaluate(() => !!document.querySelector('#status [data-merge-go]'));
+  await conversationAfter(() => conv.click('#status [data-merge-go]'));
+  const stepOf = () => conv.evaluate(() => {
+    const card = document.getElementById('pcard');
+    const box = card.getBoundingClientRect();
+    return { view: App.state.view, methods: [...card.querySelectorAll('.pcway input')].map((one) => `${one.value}${one.checked ? ' (chosen)' : ''}`), title: card.querySelector('[data-merge-field="title"]')?.value,
+      body: card.querySelector('[data-merge-field="body"]')?.value, inView: box.top >= 0 && box.bottom <= innerHeight, focus: document.activeElement?.dataset.mergeField ?? '', merge: !!card.querySelector('[data-card-act="merge"]') };
+  });
+  const mergeStep = await stepOf();
+  await takePicture(conv.locator('#pcard'), '76c-merge-step.png');
+  await conv.click('#pcard .pcway input[value="MERGE"]');
+  const mergeCommit = await stepOf();
+  await conv.click('#pcard .pcway input[value="SQUASH"]');
+  await conv.click('#pcard [data-merge-field="title"]');
+  await conv.keyboard.press('End');
+  await conv.keyboard.type(' and the shelf');
+  const filledInStep = (await cardOf()).filled;
+  await conv.evaluate(() => { window.apostilExampleHold = true; });
+  await conv.click('#pcard [data-card-act="confirm"]');
+  const merging = await cardOf();
+  await release();
+  await conv.waitForFunction(() => document.getElementById('pcard')?.dataset.kind === 'merged', null, { timeout: 3000 }).catch(() => {});
+  const mergedCard = await cardOf();
+  await conv.evaluate(() => document.getElementById('pcard').scrollIntoView({ block: 'center' }));
+  await takePicture(conv.locator('#pcard'), '76d-card-merged.png');
+  check('a pull request that can merge: "Ready to merge" with one sentence, and "Merge" is the only filled button of the page; the strip, also in "Diffs", has the press "Merge", which opens "Conversation" at the card with its merge step: the methods of the repo with GitHub\'s method for him chosen, and the commit title and message that GitHub fills (a merge commit has its own); "Confirm merge" sends the method, his title, the message and the head once, the card says "Merging…", then "Merged" by him as its commit with "Delete branch", and the strip says it',
+    ready?.kind === 'ready' && ready.headline === 'Ready to merge' && ready.say === 'Approved by jonas-b and lena-s, and all 11 checks passed (1 skipped).' && same(ready.filled, ['Merge']) && ready.press && pressElsewhere
+    && mergeStep.view === 'conversation' && same(mergeStep.methods, ['MERGE', 'SQUASH (chosen)', 'REBASE']) && mergeStep.title === 'Holds for books that are out (#12)' && /^\* Add the hold tables/.test(mergeStep.body) && mergeStep.inView && mergeStep.focus === 'title' && !mergeStep.merge
+    && mergeCommit.title === 'Merge pull request #12 from made-up/holds' && mergeCommit.body === 'Holds for books that are out' && same(filledInStep, ['Confirm merge'])
+    && merging?.kind === 'merging' && merging.headline === 'Merging…' && merging.say === 'Squash into made-up/hold-store' && merging.filled.length === 0 && merging.links.length === 0
+    && same((await writes()).at(-1), { kind: 'merge', pullId: 'made-up-pull-12', method: 'SQUASH', title: 'Holds for books that are out (#12) and the shelf', body: mergeStep.body, headOid: '7c41b9e' })
+    && mergedCard?.headline === 'Merged' && mergedCard.say === 'By you just now, as 9c4e2a1' && same(mergedCard.links, ['Delete branch']) && mergedCard.filled.length === 0
+    && /git-merge purple/.test(mergedCard.stripIcon) && /Merged by you with a squash/.test(mergedCard.strip) && !mergedCard.press && !mergedCard.review,
+    JSON.stringify({ ready, pressElsewhere, mergeStep, mergeCommit, filledInStep, merging, mergedCard, write: (await writes()).at(-1) }));
+  await conversationAfter(() => asRead(false));
+
+  // Close: it shows at once, sends its write once, and GitHub answers in the background; a close that fails puts the pull request back and says why in the card.
+  await conv.evaluate(() => scrollTo(0, 0));
+  const keptFacts = await conv.evaluate((link) => JSON.stringify(App.read[link].pull), LINK12);
+  const putBack = () => conv.evaluate(({ link, facts }) => { const pull = App.read[link].pull; const before = JSON.parse(facts); for (const key of Object.keys(pull)) if (!(key in before)) delete pull[key]; Object.assign(pull, before); return App.render(); }, { link: LINK12, facts: keptFacts });
+  const writesBeforeClose = (await writes()).length;
+  await conv.evaluate(() => { window.apostilExampleHold = true; });
+  await conv.click('#pcard [data-card-act="close"]');
+  const closing = await cardOf();
+  await release();
+  await conv.waitForFunction(() => !document.querySelector('#pcard .t.ex'), null, { timeout: 3000 }).catch(() => {});
+  const closed = { ...await cardOf(), write: (await writes()).at(-1) };
+  await conversationAfter(putBack);
+  await conv.evaluate(() => { window.apostilExampleFailure = 'GitHub says: Resource not accessible by integration (HTTP 403)'; });
+  await conv.click('#pcard [data-card-act="close"]');
+  await conv.waitForFunction(() => document.querySelector('#pcard .gherr'), null, { timeout: 3000 }).catch(() => {});
+  const failedClose = await cardOf();
+  check('"Close pull request" shows the closed state at once in the card and the strip, marked "sending", with no "Review", and sends its write once; a close that fails puts the pull request back and says GitHub\'s reason in one line of the card',
+    closing?.kind === 'closed' && /^Closed\s*sending$/.test(closing.headline) && closing.say === 'By you just now, not merged' && /git-pull-request-closed red/.test(closing.stripIcon) && !closing.review
+    && closed.kind === 'closed' && closed.headline === 'Closed' && same(closed.write, { kind: 'close', pullId: 'made-up-pull-12' })
+    && failedClose?.kind === 'blocked' && failedClose.error === 'GitHub says: Resource not accessible by integration (HTTP 403)' && failedClose.links.includes('Close pull request') && failedClose.review
+    && (await writes()).length === writesBeforeClose + 2, JSON.stringify({ closing, closed, failedClose }));
+  await conversationAfter(putBack);
 
   // Widths, in both looks, narrow (under 640 px) and wide: nothing cut off, no sideways scroll of the page; code lines of a thread wrap; the rows of the stack, open, stay inside.
   // "Classic" has a third layout between 640 and 1000 px, with its side facts under the title.
