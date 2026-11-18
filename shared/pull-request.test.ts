@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import { rmSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { cleanHtml } from './clean-html';
-import { LIMITS, nextQuery, parsePullRef, pullRequestFrom, readPullRequest, type GhResult, type PullItem, type RawList } from './read-pull-request';
+import { LIMITS, nextQuery, parsePullRef, pullRequestFrom, readPullRequest, suggestionsOf, type GhResult, type PullItem, type RawList } from './read-pull-request';
 import { Store } from './store';
 import { tempFolder } from './test-repo';
 
@@ -99,6 +99,27 @@ test('a review holds its threads, with who resolved one and the code lines of an
     const thread = old.items.find((item) => item.kind === 'thread');
     assert.ok(thread?.kind === 'thread' && !thread.thread.canReply && !thread.thread.canResolve && !thread.thread.canUnresolve);
   }
+});
+
+test('a suggested change is read from the markdown of a review comment with its co-author, GitHub\'s box of it becomes one empty mark, and what applying it needs is read: who he is, his right, the branch, the merge queue, the side, a review not sent yet and his own words', () => {
+  assert.deepEqual(suggestionsOf('Better:\n```suggestion\nconst a = 1;\n  const b = 2;\n```\nand\n````suggestion\n```js\n````\n~~~suggestion\n~~~'), [['const a = 1;', '  const b = 2;'], ['```js'], []]);
+  assert.deepEqual(suggestionsOf('```js\nnot a suggestion\n```'), []);
+  const box = '<div class="my-2 border rounded-2 js-suggested-changes-blob diff-view" id=""><div class="f6"><div>Suggested change</div></div><div><table><tr><td class="blob-code-deletion">old</td></tr></table></div><div class="js-apply-changes"></div></div>';
+  assert.equal(cleanHtml(`<p>Better:</p>${box}<p>after</p>`), '<p>Better:</p><div data-suggestion></div><p>after</p>');
+  const threads = [{ id: 't1', isResolved: false, isOutdated: false, path: 'a.ts', line: 4, startLine: 3, diffSide: 'RIGHT', comments: list([
+    { ...comment(1), author: { ...who('bo-made-up'), databaseId: 77 }, bodyHTML: `<p>Better:</p>${box}`, body: 'Better:\r\n```suggestion\r\nx\r\n```', pullRequestReview: { id: 'r1', state: 'COMMENTED' } },
+    { ...comment(2), viewerDidAuthor: true, body: '```suggestion\ny\n```', pullRequestReview: { id: 'r2', state: 'PENDING' } },
+  ]) }];
+  const pull = pullRequestFrom({ pr: rawPull({ viewerCanApplySuggestion: true, headRepository: { nameWithOwner: 'fork-made-up/repo' }, mergeQueueEntry: { position: 1 }, viewer: who('ada-made-up'), reviewThreads: list(threads) }) });
+  assert.deepEqual([pull.viewer?.login, pull.canApply, pull.headRepo, pull.queued], ['ada-made-up', true, 'fork-made-up/repo', true]);
+  const thread = pull.items.flatMap((item) => (item.kind === 'thread' ? [item.thread] : []))[0];
+  assert.equal(thread.side, 'RIGHT');
+  assert.equal(thread.comments[0].html, '<p>Better:</p><div data-suggestion></div>');
+  assert.deepEqual(thread.comments[0].suggestions, [{ lines: ['x'], coAuthor: 'Co-authored-by: bo-made-up <77+bo-made-up@users.noreply.github.com>', pending: false }]);
+  assert.deepEqual([thread.comments[0].mine, thread.comments[1].mine, thread.comments[1].suggestions?.[0].pending], [undefined, true, true]);
+  // With none of these fields: no right, the branch in the repo itself, not in a queue.
+  const old = pullRequestFrom({ pr: rawPull() });
+  assert.deepEqual([old.viewer, old.canApply, old.headRepo, old.queued], [undefined, false, 'made-up/repo', false]);
 });
 
 test('the kinds of event that real projects use are quiet rows; a bot, a hidden comment, an edited one and reactions; an unknown kind of event is left out and counted', () => {

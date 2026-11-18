@@ -318,7 +318,9 @@ try {
     && /^merged ?Merged by jonas-b on .+ with a squash(1 more pull request)?$/.test(merged.strip) && !/review|checks/.test(merged.strip) && !merged.events.some((one) => /closed it/.test(one)), JSON.stringify({ choice, merged }));
   await conversationAfter(() => conv.evaluate(() => { App.state.pull = 12; App.render(); }));
 
-  // ----- writing to GitHub from the conversation. As a file in a browser a send goes to the example, which shows it at once: nothing reaches GitHub. -----
+  // ----- writing to GitHub from the conversation. As a file in a browser a send goes to the example, which answers as GitHub does: nothing reaches GitHub. -----
+  // A write shows its result at once and the answer comes in the background: the page is never drawn anew for it. `window.apostilExampleHold` holds the
+  // answer of the example until `window.apostilExampleRelease()`, so that a check sees the page while it waits.
   const LINK12 = 'https://example.com/made-up/pull/12';
   const writes = () => conv.evaluate(() => window.apostilSent.filter((message) => message.type === 'write').map((message) => message.write));
   const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -330,34 +332,132 @@ try {
     return box && { placeholder: field?.placeholder, height: field?.offsetHeight, button: box.querySelector('.gha')?.offsetHeight ?? 0, buttonText: box.querySelector('[data-gh-send]')?.textContent,
       flip: box.querySelector('[data-gh-resolve]')?.textContent, value: field?.value, focus: !!field && document.activeElement === field, error: box.querySelector('.gherr')?.textContent ?? '' };
   }, selector);
+  /** What the conversation shows around a write: the place, the draws, the other threads, the end of the feed and the line of new messages. */
+  const around = () => conv.evaluate(() => ({
+    scrollY: Math.round(scrollY), draws: window.apostilConversations, folds: [...document.querySelectorAll('.conv [data-thread]')].map((one) => `${one.dataset.thread}:${one.classList.contains('open') ? 'open' : one.classList.contains('folded') ? 'folded' : 'shown'}`).join(),
+    earlier: !document.querySelector('.conv [data-earlier]'), messages: document.querySelectorAll('.conv .feed .msg').length, last: [...document.querySelectorAll('.conv .feed > .msg')].at(-1)?.textContent ?? '',
+    line: document.querySelector('.conv #new-line')?.textContent ?? '',
+  }));
+  const release = () => conv.evaluate(() => { window.apostilExampleHold = false; window.apostilExampleRelease?.(); });
+  const noSending = (selector) => conv.waitForFunction((sel) => !document.querySelector(sel)?.querySelector('.t.ex, .lab')?.textContent.includes('sending'), selector, { timeout: 3000 });
+
+  // He opened the earlier messages and the resolved thread there: an answer elsewhere keeps both open.
+  await conv.click('.conv [data-earlier]');
+  await conv.click('.conv [data-thread="thread-1"] .resolved');
   await conv.evaluate((sel) => document.querySelector(sel).scrollIntoView({ block: 'center' }), reply);
   const quiet = await fieldState(reply);
   await conv.click(`${reply} textarea`);
   const openField = await fieldState(reply);
   await conv.keyboard.type('Moved it, and a test covers it.');
   const placeBefore = await conv.evaluate((sel) => Math.round(document.querySelector(sel).getBoundingClientRect().top), reply);
-  await conversationAfter(() => conv.keyboard.press('Meta+Enter'));
-  const answered = await fieldState(reply);
-  const answeredText = await conv.evaluate((sel) => [...document.querySelector(sel).closest('.thread').querySelectorAll('.sc')].at(-1)?.textContent, reply);
-  const placeAfter = await conv.evaluate((sel) => Math.round(document.querySelector(sel).getBoundingClientRect().top), reply);
-  await convShot('68-an-answer-in-a-thread');
-  check('an answer in a thread: a quiet field "Answer…" with "Resolve" beside it opens on a click; Cmd+Enter sends it once; it shows in its thread marked as an example, the field is empty, keeps the focus, and stands where it stood on the screen',
-    nothingYet && quiet.placeholder === 'Answer…' && quiet.button === 0 && quiet.flip === 'Resolve' && openField.height > quiet.height && openField.button > 0 && openField.buttonText === 'Answer'
-    && same(await writes(), [{ kind: 'reply', threadId: 'thread-3', body: 'Moved it, and a test covers it.' }])
-    && /you.*example.*Moved it, and a test covers it\./.test(answeredText) && answered.value === '' && answered.focus && Math.abs(placeAfter - placeBefore) <= 2,
-    JSON.stringify({ nothingYet, quiet, openField, answered, answeredText, placeBefore, placeAfter }));
-  await conversationAfter(() => conv.click(`${reply} [data-gh-resolve]`));
-  const resolvedNow = await conv.evaluate((sel) => {
-    const box = document.querySelector(sel);
-    const thread = box.closest('.thread');
-    return { folded: thread.classList.contains('folded'), open: thread.classList.contains('open'), by: thread.querySelector('.resolved .by')?.textContent, flip: box.querySelector('[data-gh-resolve]')?.textContent, focus: document.activeElement === box.querySelector('[data-gh-resolve]') };
+  const aroundBefore = await around();
+  await conv.evaluate(() => { window.apostilExampleHold = true; });
+  await conv.keyboard.press('Meta+Enter');
+  await conv.waitForFunction(() => /Moved it/.test([...document.querySelectorAll('[data-thread="thread-3"] .sc')].at(-1)?.textContent ?? ''), null, { timeout: 3000 });
+  const whileSending = await conv.evaluate(() => [...document.querySelectorAll('[data-thread="thread-3"] .sc')].at(-1).textContent);
+  const answeredNow = await fieldState(reply);
+  // The field stands where it stood, lower by the new message above it, in the view.
+  const placeNow = await conv.evaluate((sel) => {
+    const box = document.querySelector(sel).getBoundingClientRect();
+    return { top: Math.round(box.top), added: Math.round([...document.querySelectorAll('[data-thread="thread-3"] .sc')].at(-1).getBoundingClientRect().height), inView: box.bottom <= innerHeight };
   }, reply);
-  await conversationAfter(() => conv.keyboard.press('Enter')); // Unresolve, from the keyboard
-  const unresolved = await fieldState(reply);
-  check('"Resolve" sends once: the thread is resolved and stays open with "Unresolve" and the focus on it; Enter on it unresolves it',
+  const aroundNow = await around();
+  await convShot('68-an-answer-in-a-thread-sending');
+  await release();
+  await noSending('[data-thread="thread-3"]');
+  const answeredText = await conv.evaluate(() => [...document.querySelectorAll('[data-thread="thread-3"] .sc')].at(-1)?.textContent);
+  const aroundAfter = await around();
+  await convShot('68a-an-answer-in-a-thread');
+  // GitHub's next read lists his answer as a later answer too: drawn anew, it stands in its thread only, and is not new to him.
+  await conversationAfter(() => conv.evaluate(() => App.render()));
+  const drawnAgain = await around();
+  const inThread = await conv.evaluate(() => [...document.querySelectorAll('[data-thread="thread-3"] .sc')].filter((one) => /Moved it/.test(one.textContent)).length);
+  check('an answer in a thread stands at once as the last message of that thread, marked "sending" until GitHub answers; it is no new message at the end and not "new since you last looked", also when drawn anew; the field is empty, keeps the focus and stands under the new message, in view; the scroll place, the opened earlier messages and the other threads stay, and the conversation is not drawn anew',
+    nothingYet && quiet.placeholder === 'Answer…' && quiet.button === 0 && quiet.flip === 'Resolve' && openField.height > quiet.height && openField.buttonText === 'Answer'
+    && same(await writes(), [{ kind: 'reply', threadId: 'thread-3', body: 'Moved it, and a test covers it.' }])
+    && /you.*sending.*Moved it, and a test covers it\./.test(whileSending) && /you.*example.*Moved it, and a test covers it\./.test(answeredText)
+    && answeredNow.value === '' && answeredNow.focus && Math.abs(placeNow.top - placeNow.added - placeBefore) <= 2 && placeNow.inView
+    && [aroundNow, aroundAfter].every((one) => one.draws === aroundBefore.draws && one.scrollY === aroundBefore.scrollY && one.folds === aroundBefore.folds && one.earlier
+      && one.messages === aroundBefore.messages && one.last === aroundBefore.last && one.line === aroundBefore.line)
+    && /thread-1:open/.test(aroundBefore.folds) && !/Moved it/.test(drawnAgain.last) && drawnAgain.line === aroundBefore.line && inThread === 1,
+    JSON.stringify({ nothingYet, quiet, openField, whileSending, answeredText, answeredNow, placeBefore, placeNow, aroundBefore, aroundNow, aroundAfter, drawnAgain, inThread }));
+
+  // Resolve folds only that thread, at once; Unresolve opens it again.
+  await conv.click('.conv [data-earlier]');
+  await conv.click('.conv [data-thread="thread-1"] .resolved');
+  await conv.evaluate((sel) => document.querySelector(sel).scrollIntoView({ block: 'center' }), reply);
+  const resolveBefore = await around();
+  await conv.evaluate(() => { window.apostilExampleHold = true; });
+  await conv.click(`${reply} [data-gh-resolve]`);
+  const folding = await conv.evaluate(() => {
+    const thread = document.querySelector('[data-thread="thread-3"]');
+    return { folded: thread.classList.contains('folded'), open: thread.classList.contains('open'), row: thread.querySelector('.resolved')?.textContent, shown: thread.querySelector('.resolved')?.getBoundingClientRect().top >= 0 };
+  });
+  const resolveNow = await around();
+  await conv.evaluate(() => scrollBy(0, -320)); // the picture shows the open threads above it too
+  await convShot('69-a-resolved-thread-among-open-ones');
+  await release();
+  await noSending('[data-thread="thread-3"] .resolved');
+  const resolvedRow = await conv.evaluate(() => document.querySelector('[data-thread="thread-3"] .resolved')?.textContent);
+  await conv.click('.conv [data-thread="thread-3"] .resolved');
+  await conv.focus(`${reply} [data-gh-resolve]`);
+  await conv.keyboard.press('Enter'); // Unresolve, from the keyboard
+  await conv.waitForFunction((sel) => document.querySelector(sel)?.querySelector('[data-gh-resolve]')?.textContent === 'Resolve', reply, { timeout: 3000 }).catch(() => {}); // the check says what it saw
+  const unresolved = await conv.evaluate(() => { const thread = document.querySelector('[data-thread="thread-3"]'); return { folded: thread.classList.contains('folded'), field: !!thread.querySelector('textarea')?.offsetParent }; });
+  const others = (folds) => folds.split(',').filter((one) => !one.startsWith('thread-3')).join();
+  check('"Resolve" folds that thread at once into one row "resolved by you", marked "sending" until GitHub answers; the other threads keep their state and the scroll place stays; Enter on "Unresolve" opens it again with its field',
     same((await writes()).slice(1), [{ kind: 'resolve', threadId: 'thread-3' }, { kind: 'unresolve', threadId: 'thread-3' }])
-    && resolvedNow.folded && resolvedNow.open && resolvedNow.by === 'resolved by you' && resolvedNow.flip === 'Unresolve' && resolvedNow.focus && unresolved.flip === 'Resolve',
-    JSON.stringify({ resolvedNow, unresolved }));
+    && folding.folded && !folding.open && /resolved by you.*sending/.test(folding.row) && folding.shown && /resolved by you/.test(resolvedRow) && !/sending/.test(resolvedRow)
+    && others(resolveNow.folds) === others(resolveBefore.folds) && /thread-1:open/.test(resolveNow.folds) && resolveNow.scrollY === resolveBefore.scrollY && resolveNow.draws === resolveBefore.draws
+    && !unresolved.folded && unresolved.field,
+    JSON.stringify({ folding, resolvedRow, resolveBefore, resolveNow, unresolved }));
+
+  // A write that fails puts the thing back as it was, says why in the thread, and keeps his words.
+  await conv.evaluate(() => { window.apostilExampleFailure = 'GitHub says: Resource not accessible by integration (HTTP 403)'; });
+  await conv.click(`${reply} textarea`);
+  await conv.keyboard.type('This answer fails.');
+  await conv.keyboard.press('Meta+Enter');
+  await conv.waitForFunction((sel) => document.querySelector(`${sel} .gherr`)?.textContent, reply, { timeout: 3000 });
+  const failedAnswer = { ...await fieldState(reply), shown: await conv.evaluate(() => [...document.querySelectorAll('[data-thread="thread-3"] .sc')].filter((one) => /fails/.test(one.textContent)).length) };
+  await conv.evaluate(() => { window.apostilExampleFailure = 'GitHub says: Could not resolve to a node with the global id.'; });
+  await conv.click(`${reply} [data-gh-resolve]`);
+  await conv.waitForFunction((sel) => /global id/.test(document.querySelector(`${sel} .gherr`)?.textContent ?? ''), reply, { timeout: 3000 });
+  const failedResolve = await conv.evaluate(() => { const thread = document.querySelector('[data-thread="thread-3"]'); return { folded: thread.classList.contains('folded'), flip: thread.querySelector('[data-gh-resolve]')?.textContent, value: thread.querySelector('textarea')?.value }; });
+  await convShot('69a-a-failed-answer-and-resolve');
+  check('a write that fails puts the thing back as it was and says why in one line of that thread: a failed answer leaves the thread and its words are back in the field; a failed resolve opens the thread again with "Resolve"; nothing is sent again by itself',
+    failedAnswer.value === 'This answer fails.' && failedAnswer.error === 'GitHub says: Resource not accessible by integration (HTTP 403)' && failedAnswer.shown === 0
+    && !failedResolve.folded && failedResolve.flip === 'Resolve' && failedResolve.value === 'This answer fails.' && (await writes()).length === 5,
+    JSON.stringify({ failedAnswer, failedResolve, writes: (await writes()).length }));
+  await conv.evaluate(() => { const field = document.querySelector('[data-gh="reply:thread-3"] textarea'); field.value = ''; field.dispatchEvent(new Event('input', { bubbles: true })); document.activeElement?.blur(); });
+
+  // A suggested change: the change of its lines with "Commit suggestion", which commits it to the branch with GitHub's message and resolves the thread.
+  const suggestion = '[data-thread="thread-5"]';
+  await conv.evaluate((sel) => document.querySelector(sel).scrollIntoView({ block: 'center' }), suggestion);
+  const suggestionBox = () => conv.evaluate((sel) => {
+    const box = document.querySelector(`${sel} .sugg`);
+    return box && { head: box.querySelector('.sgh')?.textContent, rows: [...box.querySelectorAll('.l')].map((row) => `${row.className.trim()}|${row.querySelector('.x').textContent}`), buttons: [...box.querySelectorAll('[data-suggest]')].map((one) => one.textContent) };
+  }, suggestion);
+  const offered = await suggestionBox();
+  await convShot('70-a-suggestion-with-its-button');
+  await conv.click(`${suggestion} [data-suggest="batch"]`);
+  const inBatch = await suggestionBox();
+  await conv.click(`${suggestion} [data-suggest="unbatch"]`);
+  await conv.evaluate(() => { window.apostilExampleHold = true; });
+  await conv.click(`${suggestion} [data-suggest="commit"]`);
+  const committing = await conv.evaluate((sel) => { const thread = document.querySelector(sel); return { folded: thread.classList.contains('folded') && !thread.classList.contains('open'), row: thread.querySelector('.resolved')?.textContent }; }, suggestion);
+  await release();
+  await noSending(`${suggestion} .resolved`);
+  await conv.click(`${suggestion} .resolved`);
+  const committed = { ...await suggestionBox(), head12: await conv.evaluate((link) => App.read[link].pull.headOid, LINK12) };
+  check('a comment with a suggested change shows it as a change of its line, with "Commit suggestion" and "Add suggestion to batch" (in the batch: "Commit suggestions (1)" and "Remove from batch"); "Commit suggestion" sends one commit of that line to the branch with GitHub\'s message and its author as co-author, and the thread folds at once as applied; then it says the commit',
+    same(offered?.rows, ['l del|        log.info("offered %s copies", counts.offered)', 'l add|        log.info("offered %d copies", counts.offered)']) && same(offered.buttons, ['Commit suggestion', 'Add suggestion to batch'])
+    && same(inBatch?.buttons, ['Commit suggestions (1)', 'Remove from batch'])
+    && same((await writes()).at(-1), { kind: 'suggestions', repo: 'made-up/example', branch: 'made-up/holds', headOid: '7c41b9e', threadIds: ['thread-5'],
+      changes: [{ path: 'src/library/lending/hold_service.py', start: 242, end: 242, old: ['        log.info("offered %s copies", counts.offered)'], lines: ['        log.info("offered %d copies", counts.offered)'] }],
+      message: { headline: 'Update hold_service.py', body: 'Co-authored-by: jonas-b <4242+jonas-b@users.noreply.github.com>' } })
+    && committing.folded && /suggestion applied by you.*sending/.test(committing.row) && committed.head === 'Suggested changeCommitted as 5e6f7a8. Pull to have it here.' && committed.buttons.length === 0
+    && /^5e6f7a8/.test(committed.head12) && (await writes()).length === 6,
+    JSON.stringify({ offered, inBatch, committing, committed, last: (await writes()).at(-1) }));
 
   // The comment at the end; the comment key puts the cursor at the end of its field.
   const end = '.ghend [data-gh]';
@@ -367,12 +467,13 @@ try {
   const keyed = await conv.evaluate(() => { const field = document.activeElement; return { inField: field?.tagName === 'TEXTAREA' && !!field.closest('.ghend'), at: field?.selectionStart, length: field?.value.length, link: !!document.querySelector('.conv .answer') }; });
   await conv.keyboard.type(' for the fix.');
   const endOpen = await fieldState(end);
-  await conversationAfter(() => conv.click(`${end} [data-gh-send]`));
+  await conv.click(`${end} [data-gh-send]`);
+  await conv.waitForFunction(() => /Thanks for the fix\./.test([...document.querySelectorAll('.conv .feed .msg')].at(-1)?.textContent ?? '') && !/sending/.test([...document.querySelectorAll('.conv .feed .msg')].at(-1)?.textContent), null, { timeout: 3000 });
   const commented = await fieldState(end);
   const lastItem = await conv.evaluate(() => [...document.querySelectorAll('.conv .feed .msg')].at(-1)?.textContent);
-  check('the end of the conversation is a field "Write a comment…" with "Comment" in place of the link; the comment key puts the cursor at its end; the button sends it once and it stands last, marked as an example',
+  check('the end of the conversation is a field "Write a comment…" with "Comment" in place of the link; the comment key puts the cursor at its end; the button sends it once and it stands last at once, marked as an example when the example answers',
     !keyed.link && keyed.inField && keyed.at === 6 && keyed.length === 6 && endOpen.placeholder === 'Write a comment…' && endOpen.buttonText === 'Comment'
-    && same((await writes()).at(-1), { kind: 'comment', pullId: 'made-up-pull-12', body: 'Thanks for the fix.' }) && (await writes()).length === 4
+    && same((await writes()).at(-1), { kind: 'comment', pullId: 'made-up-pull-12', body: 'Thanks for the fix.' }) && (await writes()).length === 7
     && /you.*example.*Thanks for the fix\./.test(lastItem) && commented.value === '' && commented.focus, JSON.stringify({ keyed, endOpen, commented, lastItem }));
 
   // A send that fails keeps its text and shows GitHub's sentence; nothing is sent again by itself. The text survives a redraw and a change of the view; he sends it again himself.
@@ -380,7 +481,7 @@ try {
   await conv.keyboard.type('This one fails.');
   await conv.keyboard.press('Meta+Enter');
   await conv.waitForFunction((sel) => document.querySelector(`${sel} .gherr`)?.textContent, end, { timeout: 3000 });
-  const failedSend = await fieldState(end);
+  const failedSend = { ...await fieldState(end), last: await conv.evaluate(() => [...document.querySelectorAll('.conv .feed .msg')].at(-1)?.textContent) };
   await conv.click('.switch a[data-view="diffs"]');
   await settle(conv);
   await conversationAfter(() => conv.click('.switch a[data-view="conversation"]'));
@@ -388,11 +489,12 @@ try {
   const survived = await fieldState(end);
   const failedCount = (await writes()).length; // after the change of the view and the redraw: still the one failed send
   await conv.click(`${end} textarea`);
-  await conversationAfter(() => conv.keyboard.press('Meta+Enter'));
+  await conv.keyboard.press('Meta+Enter');
+  await conv.waitForFunction(() => /This one fails\./.test([...document.querySelectorAll('.conv .feed .msg')].at(-1)?.textContent ?? ''), null, { timeout: 3000 });
   const resent = await fieldState(end);
-  check('a failed send keeps its text and shows GitHub\'s own sentence under the field; nothing is sent again by itself; the text survives a change of the view and a redraw; he sends it again himself with Cmd+Enter, and it goes once',
-    failedSend.value === 'This one fails.' && failedSend.error === 'GitHub says: Resource not accessible by integration (HTTP 403)' && failedCount === 5
-    && survived.value === 'This one fails.' && resent.value === '' && resent.error === '' && (await writes()).length === 6, JSON.stringify({ failedSend, failedCount, survived, resent }));
+  check('a failed send keeps its text and shows GitHub\'s own sentence under the field, and the comment that showed goes; nothing is sent again by itself; the text survives a change of the view and a redraw; he sends it again himself with Cmd+Enter, and it goes once',
+    failedSend.value === 'This one fails.' && failedSend.error === 'GitHub says: Resource not accessible by integration (HTTP 403)' && !/This one fails/.test(failedSend.last) && failedCount === 8
+    && survived.value === 'This one fails.' && resent.value === '' && resent.error === '' && (await writes()).length === 9, JSON.stringify({ failedSend, failedCount, survived, resent }));
 
   // The review: a quiet button in the strip opens a panel with the text, three verdicts and "Send review".
   await conv.evaluate(() => scrollTo(0, 0));
@@ -420,13 +522,14 @@ try {
   await conv.click('#status .review-panel .ghv:has(input[value="APPROVE"])');
   await conv.click('#status .review-panel textarea');
   await conv.keyboard.type('Good to go.');
-  await conversationAfter(() => conv.keyboard.press('Meta+Enter'));
+  await conv.keyboard.press('Meta+Enter');
+  await conv.waitForFunction(() => /Good to go\./.test([...document.querySelectorAll('.conv .feed .card.review')].at(-1)?.textContent ?? '') && !/sending/.test([...document.querySelectorAll('.conv .feed > .msg')].at(-1)?.textContent), null, { timeout: 3000 });
   const reviewed = await conv.evaluate(() => ({ panel: !!document.querySelector('#status .review-panel'), strip: document.querySelector('#status .status').textContent, focus: document.activeElement?.matches('[data-review]'),
     last: [...document.querySelectorAll('.conv .feed .card.review')].at(-1)?.textContent }));
   check('his review that is not sent yet: the answer field of a thread says that the answer goes into it (with none it says nothing); the strip says "Your review is not sent: 2 comments"; Cmd+Enter sends that review with the verdict once, the panel closes and the review shows',
     hintBefore === '' && hintWithReview === 'This goes into your review that is not sent yet.'
     && /Your review is not sent: 2 comments/.test(pendingPanel?.strip) && same((await writes()).at(-1), { kind: 'review', pullId: 'made-up-pull-12', verdict: 'APPROVE', body: 'Good to go.', pendingId: 'made-up-review-1' })
-    && (await writes()).length === 7 && !reviewed.panel && !/not sent/.test(reviewed.strip) && reviewed.focus && /approved.*Good to go\./.test(reviewed.last), JSON.stringify({ hintBefore, hintWithReview, pendingPanel, reviewed }));
+    && (await writes()).length === 10 && !reviewed.panel && !/not sent/.test(reviewed.strip) && reviewed.focus && /approved.*Good to go\./.test(reviewed.last), JSON.stringify({ hintBefore, hintWithReview, pendingPanel, reviewed }));
 
   // A merged pull request has no "Review"; a locked conversation has no field and one line; an answer stored before these fields draws with no field.
   const fieldsNow = () => conv.evaluate(() => ({ fields: document.querySelectorAll('.conv textarea').length, review: !!document.querySelector('#status [data-review]'), lock: document.querySelector('.conv .ghlock')?.textContent ?? '' }));
@@ -478,8 +581,8 @@ try {
     for (const selector of ['[data-gh="reply:thread-3"] textarea', '.ghend textarea']) { const field = document.querySelector(selector); field.value = ''; field.dispatchEvent(new Event('input', { bubbles: true })); }
     document.querySelector('#status [data-review]').click();
   });
-  check('at 520 and 1400 px no field or button of writing to GitHub is cut off or overlaps another thing; nothing was written by the page without a send: one write for each send, seven in all',
-    fits.every((fit) => fit.boxes >= 3 && fit.parts >= 8 && !fit.over.length && !fit.overlaps.length && !fit.sideways) && (await writes()).length === 7, JSON.stringify({ fits, writes: (await writes()).length }));
+  check('at 520 and 1400 px no field or button of writing to GitHub is cut off or overlaps another thing; nothing was written by the page without a send: one write for each send, ten in all',
+    fits.every((fit) => fit.boxes >= 3 && fit.parts >= 8 && !fit.over.length && !fit.overlaps.length && !fit.sideways) && (await writes()).length === 10, JSON.stringify({ fits, writes: (await writes()).length }));
 
   // A failure says why in one line and offers "Try again", which reads again.
   await conv.evaluate(() => { App.read['https://example.com/made-up/pull/12'] = { problem: 'GitHub cannot be reached. Check the network.' }; return App.render(); });

@@ -449,8 +449,8 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
   }
 
   /**
-   * One write to GitHub that the owner sent from a page: its answer goes back to that page. Nothing here sends it again.
-   * After it went through, the page of the change reads the pull request again and shows the new item.
+   * One write to GitHub that the owner sent from a page: its answer, with what GitHub made, goes back to that page, which shows it in place.
+   * Nothing here sends it again. After it went through, the page of the change reads the pull request again in the background and changes only what differs.
    */
   private async write(id: number, write: Write, from: View): Promise<void> {
     const result = await writePullRequest(write);
