@@ -18,6 +18,7 @@ type Message =
   | { type: 'ready' }
   | { type: 'walk'; from: Step; to: Step; open: boolean }
   | { type: 'back'; to: Step }
+  | { type: 'move'; way: -1 | 1; from?: Step } // Cmd+Left and Cmd+Right: one step back or forward
   | { type: 'writeMap'; app: string }
   | NewRemark
   | { type: 'remarkAction'; id: number; action: 'resolve' | 'reopen' | 'start' }
@@ -299,6 +300,9 @@ export class HomePages {
         break;
       case 'back':
         this.trail.back(message.to);
+        break;
+      case 'move':
+        this.trail.move(message.way, message.from);
         break;
       case 'writeMap':
         this.writeMap(message.app);

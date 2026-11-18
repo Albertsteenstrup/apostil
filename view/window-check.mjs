@@ -85,6 +85,8 @@ writeFileSync(path.join(temp, 'pulls.json'), JSON.stringify([
   pr(11, 'MERGED', '', false, { author: JONAS, labels: [{ name: 'bug', color: 'd73a4a' }] }),
   pr(14, 'OPEN', '', true, { author: MIRA }),
 ]));
+// The open pull requests of the repo (gh pr list --state open): one with no stored change, whose branch has no row.
+writeFileSync(path.join(temp, 'open-pulls.json'), JSON.stringify([pr(35, 'OPEN', 'REVIEW_REQUIRED', false, { author: JONAS, headRefName: 'made-up/reminders' })]));
 writeFileSync(path.join(temp, 'conversation.json'), JSON.stringify({ data: { repository: { pullRequest: examplePullRequest().raw.pr } } }));
 writeFileSync(path.join(bin, 'write.mjs'), [
   "import { appendFileSync, readFileSync } from 'node:fs';",
@@ -96,6 +98,7 @@ writeFileSync(path.join(bin, 'write.mjs'), [
 writeFileSync(path.join(bin, 'gh'), [
   '#!/bin/sh', `echo "$@" >> '${ghCalls}'`,
   `if [ "$1" = api ] && [ "$3" = --input ]; then exec '${process.execPath}' '${path.join(bin, 'write.mjs')}'; fi`,
+  `if [ "$1" = pr ] && [ "$3" = --state ]; then cat '${path.join(temp, 'open-pulls.json')}'; exit 0; fi`,
   `if [ "$4" = '${SECOND}' ]; then echo '[]'; exit 0; fi`,
   `if [ "$1" = api ]; then cat '${path.join(temp, 'conversation.json')}'; else cat '${path.join(temp, 'pulls.json')}'; fi`, '',
 ].join('\n'));
@@ -433,14 +436,14 @@ try {
     const read = { icon: el.querySelector('img.icon')?.naturalWidth > 0, text: el.textContent, oneLine: el.getBoundingClientRect().height < 2.4 * parseFloat(getComputedStyle(el).fontSize) };
     return read.oneLine && read; // the side bar can be narrow in the first moment after it opens
   }).catch(() => false), 4000) : {};
-  const pullLines = list ? await list.locator('.pr').first().waitFor({ timeout: 8000 }).then(() => list.locator('.pr').allTextContents(), () => []) : [];
+  const pullLines = list ? await list.locator('.row:not(.prow) .pr').first().waitFor({ timeout: 8000 }).then(() => list.locator('.row:not(.prow) .pr').allTextContents(), () => []) : [];
   const fold = list ? await list.locator('.more').textContent().catch(() => '') : '';
   check('the list in the side bar: the head of a session with its icon and name on one line, then the pull requests from the stand-in gh, two lines and a fold',
     !!head?.icon && head.text === SESSION_NAME && pullLines.join() === '#14checks failing · 1 of 1 checks failed,#12review needed' && fold === '1 more pull request', `${JSON.stringify(head)}; ${pullLines.join(', ')}; ${fold}`);
   await shot('2-list-in-the-side-bar');
 
   // A click on a pull request opens the page of its change at "Conversation"; one comment sent there reaches the stand-in gh once, on standard input.
-  await list?.locator('.pr', { hasText: '#12' }).click();
+  await list?.locator('.row:not(.prow) .pr', { hasText: '#12' }).click();
   const conv = await frameWith('.conv .ptitle');
   const conversation = conv ? await conv.evaluate(() => ({
     title: document.querySelector('.conv .ptitle').textContent, on: document.querySelector('.switch a.on')?.textContent,
@@ -690,6 +693,28 @@ try {
   check('a second click on a changed file shows its tab and opens no second one and no diff editor; J in the file tab opens the next changed file in the same tab, and the list of the control opens night_jobs.py in it',
     changedRows.removed > 0 && oneTab && !!nextTab && !!pickedTab && (await tabOf('ready_shelf.py').count()) === 0, `${JSON.stringify(changedRows)}; one tab ${oneTab}; next ${!!nextTab}; picked ${!!pickedTab}`);
 
+  // Cmd+B (build 64): with the views of Apostil in the side bar and a page of Apostil in front that has the keyboard, the key hides the side bar, it stays
+  // hidden for a second, and the key shows it again. Shown and hidden at once (one press that ran twice did this), it stays hidden too: the tree "Files"
+  // marks the file in front only when it still shows.
+  const sideBarShows = () => page.evaluate(() => { const part = document.querySelector('.part.sidebar'); return !!part && part.getBoundingClientRect().width > 0 && getComputedStyle(part).display !== 'none'; });
+  const apostilShows = () => filesPane.first().isVisible().catch(() => false);
+  if (!(await apostilShows())) await command('View: Show Apostil');
+  await pickedTab?.locator('.cv .code').click({ position: { x: 200, y: 100 } }); // the keyboard is in the page
+  const sideBefore = { shows: await sideBarShows(), apostil: await apostilShows(), front: await activeTab(), focus: await page.evaluate(() => document.activeElement?.tagName) };
+  await page.keyboard.press('Meta+B');
+  const sideHidden = await until(async () => !(await sideBarShows()), 3000);
+  await sleep(1000); // calm: the side bar must not come back by itself
+  const sideStays = !(await sideBarShows());
+  await page.keyboard.press('Meta+B');
+  await page.keyboard.press('Meta+B');
+  await sleep(700); // a mark of the tree that was asked for as it showed would have opened it by now
+  const sideTwice = !(await sideBarShows());
+  await page.keyboard.press('Meta+B');
+  const sideAgain = await until(() => sideBarShows(), 3000);
+  check('Cmd+B with the views of Apostil in the side bar and a page of Apostil in front hides the side bar, and it stays hidden for a second; shown and hidden at once it stays hidden; Cmd+B again shows it',
+    sideBefore.shows && sideBefore.apostil && /night_jobs\.py/.test(sideBefore.front ?? '') && sideBefore.focus === 'IFRAME' && sideHidden && sideStays && sideTwice && sideAgain,
+    JSON.stringify({ sideBefore, sideHidden, sideStays, sideTwice, sideAgain }));
+
   // "Diagram" in a wide tab: Alt+Down and Alt+Up as real keys step through the diffs of night_jobs.py and open its diff, and the graph at the left follows.
   // The side bar closes first, so that the page has the width of the two halves.
   await command('View: Close Primary Side Bar');
@@ -789,6 +814,12 @@ try {
   if (await fieldFocused()) {
     await page.keyboard.type('Log the opening hours that the run used. @cl', { delay: 2 });
     option = await stage.locator('.mentions .opt.lit .nm').textContent({ timeout: 3000 }).catch(() => '');
+    if (!option) { // where the keys went, when the list of mentions did not come
+      const typed = await stage.locator(boxField).innerText().catch(() => 'no field');
+      const inPage = await stage.evaluate(() => `${document.activeElement?.tagName}.${document.activeElement?.className}`.slice(0, 80)).catch(() => 'no page');
+      const inWindow = await page.evaluate(() => { const el = document.activeElement; return `${el?.tagName}.${String(el?.className).slice(0, 60)} in ${el?.closest('.part, .editor-group-container, .quick-input-widget')?.className?.slice(0, 60) ?? 'no part'}`; });
+      console.log(`NOTE  "@cl" gave no list of mentions: the field holds "${typed}"; the keyboard is in ${inPage} of the page and in ${inWindow} of the window`);
+    }
     does = await stage.locator('.mentions .opt.lit .does').textContent().catch(() => '');
     await page.keyboard.press('Tab');
     await page.keyboard.press('Enter');
@@ -888,7 +919,7 @@ try {
   await changeTab.click();
   const listFrame = await frameWith('.cl .find .q');
   const rowsOf = () => listFrame.evaluate(() => ({ field: document.querySelector('.cl .find .q').value, line: document.querySelector('.cl .eyebrow')?.textContent ?? '', rows: document.querySelectorAll('.cl .row').length }));
-  await listFrame.locator('.cl .pr').first().waitFor({ timeout: 8000 }); // the pull requests come after the rows
+  await listFrame.locator('.cl .row:not(.prow) .pr').first().waitFor({ timeout: 8000 }); // the pull requests come after the rows
   await listFrame.locator('.find .sf').click();
   await quickInput.waitFor({ state: 'visible', timeout: 8000 });
   await page.locator('.quick-input-list .monaco-list-row', { hasText: 'mira-k' }).first().waitFor({ timeout: 8000 });
@@ -916,7 +947,7 @@ try {
   const closed = await rowsOf();
   check('the icon of the search opens the quick pick "Sort and filter" with its groups, the sort that is on checked and icons for people, labels, states and agents; Space turns the order of "Modified" and back; a pick of an author leaves fewer rows at once with the quick pick open; Escape closes it and the search stays',
     open.title === 'Sort and filter' && open.heads.join() === 'Sort,Author,Reviewer,Label,State,Agent' && open.checks.join() === 'Modified' && ['mira-k', 'bug', 'merged', 'Claude Code'].every((name) => open.icons.includes(name))
-      && !!turned && picked?.field === 'author:mira-k' && picked.line === '1 of 2 changes' && still.checks.join() === 'Modified,mira-k' && closed.field === 'author:mira-k' && closed.rows === 1,
+      && !!turned && picked?.field === 'author:mira-k' && picked.line === '1 of 3 changes' && still.checks.join() === 'Modified,mira-k' && closed.field === 'author:mira-k' && closed.rows === 1,
     JSON.stringify({ open, turned: turned?.modified, picked, still: still.checks, closed }));
   await shot('5-sort-and-filter');
   await listFrame.locator('.find .clear').click();
@@ -1050,7 +1081,14 @@ try {
   await closeTab('README.md');
   await menuAt(46);
   await shot('7d-the-right-click-menu-of-a-marked-line');
-  await page.locator('.monaco-menu .action-label', { hasText: OTHER_PLACES }).click({ timeout: 3000 }).catch(() => {});
+  // Under load the menu of VS Code can be gone before the click: the right click is made once more. Without the entry no quick pick opens, and the run would wait on a hidden field.
+  const entry = page.locator('.monaco-menu .action-label', { hasText: OTHER_PLACES });
+  if (!(await entry.click({ timeout: 3000 }).then(() => true, () => false))) {
+    console.log('NOTE  the menu entry was not there for the click; the right click once more');
+    await page.keyboard.press('Escape');
+    await menuAt(46);
+    await entry.click({ timeout: 3000 }).catch(() => {});
+  }
   const placeCount = await until(async () => { const count = await quickCount(); return count >= 20 && count; }, 4000) || await quickCount();
   await page.locator('.quick-input-widget .quick-input-box input').fill('435'); // a line number that one place only has: two files have a mark at their line 139
   await until(async () => (await searchRows()).join() === 'src/library/night_jobs.py | line 435', 3000);
@@ -1123,6 +1161,17 @@ try {
   await setSetting('apostil.notesBesideCode', 'tab');
   await setSetting('window.menuStyle', undefined);
   await command('View: Close All Editors');
+
+  // ---- An open pull request with no stored change (the stand-in gh lists #35, whose branch has no row): the list shows its row under "Pull requests", and a click opens its page ----
+  await command('View: Show Apostil');
+  const bareList = await frameWith('.cl .prow');
+  const bareRow = await bareList?.locator('.prow').first().textContent();
+  await bareList?.locator('.prow .nm').first().click();
+  const barePage = await frameWhere(() => /no description of Apostil yet/.test(document.getElementById('summary')?.textContent ?? ''));
+  const bareLine = await barePage?.evaluate(() => document.getElementById('summary').textContent);
+  check('the open pull request of the stand-in gh with no stored change stands in the list under "Pull requests" with its title, number and state, and a click opens its page, which says that it has no description of Apostil yet and gives the words to give an agent',
+    /^Made-up pull request 35#35review needed$/.test(bareRow ?? '') && /Describe pull request #35 for Apostil/.test(bareLine ?? ''), JSON.stringify({ bareRow, bareLine }));
+  await shot('2b-an-open-pull-request-with-no-change');
 
   // ---- 7. A notebook ----
   // A notebook of another repo opens the normal way in the notebook editor, with the note of its change in its cell; the key hides it; no cell runs.

@@ -60,6 +60,19 @@ try {
   check('a drawing of 30 steps with a shared box is in 3 columns (each from top to bottom, left to right) with one arrow between them, its titles read at 11 px or more at 1400 by 900, and the shared box stands once with one arrow and its count',
     drawn.steps === 30 && drawn.ordered && drawn.links === 2 && drawn.font >= 11 && drawn.shared === 1 && drawn.words.join() === 'filter current rows · 8 steps' && drawn.dots === 7, JSON.stringify(drawn));
 
+  // A focus on a node (build prompt 64) counts the calls that have no arrow of Mermaid: a dot, and the arrow of the page from one column to the next.
+  const tiedNow = () => home.evaluate(() => ({ boxes: document.querySelectorAll('#view g.node.tied').length, links: [...document.querySelectorAll('#view path.colink')].map((path) => path.classList.contains('tied')).join() }));
+  await home.click('#view g.node:has-text("Filter the current rows")', { modifiers: ['Alt'] });
+  const onShared = await tiedNow();
+  const end = opened.columns.columns[0].filter((id) => opened.nodes[id].kind === 'step' && !opened.nodes[id].quiet).at(-1);
+  await home.evaluate((id) => [...document.querySelectorAll('#view g.node')].find((g) => nodeKey(g) === id).dispatchEvent(new MouseEvent('click', { altKey: true, bubbles: true })), end); // it stands under the card
+  const onEnd = await tiedNow();
+  await home.mouse.move(2, 2);
+  await home.waitForSelector('.win', { state: 'detached', timeout: 3000 }).catch(() => {});
+  await home.keyboard.press('Escape');
+  check('a focus on a node of a drawn process counts the calls with no arrow: on the shared box its 8 callers stay lit, and on the last step of a column the first step of the next with the arrow of the page between them',
+    onShared.boxes === 9 && onShared.links === 'false,false' && onEnd.boxes === 3 && onEnd.links === 'true,false' && (await tiedNow()).boxes === 0, JSON.stringify({ onShared, onEnd }));
+
   // The pointer on the shared box lights its eight callers; a dot says which box it calls; "One column" draws the drawing of before.
   await home.hover('#view g.node:has-text("Filter the current rows")');
   const lit = await home.evaluate(() => document.querySelectorAll('#view g.node.lit').length);

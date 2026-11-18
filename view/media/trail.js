@@ -40,12 +40,37 @@ const Trail = (() => {
   /** The step before the view in the line of that view, or none on the top map. */
   const before = (steps, own) => upTo(steps, own).at(-2) ?? null;
 
-  const pure = { HOME, key, start, upTo, walk, before };
+  // ----- back and forward, as in a browser: the steps that a way back left stay `ahead` of the path, until he takes a new step -----
+
+  /**
+   * The path that ends at a step of the path or of the steps ahead, with that step as it is now, and the steps that are ahead of it then.
+   * A step that is in neither starts a new path.
+   */
+  function goTo(steps, ahead, step) {
+    const whole = [...steps, ...ahead];
+    const at = whole.findIndex((one) => same(one, step));
+    return at < 0 ? { steps: start(step), ahead: [] } : { steps: [...whole.slice(0, at), step], ahead: whole.slice(at + 1) };
+  }
+
+  /**
+   * The step one back (`way` -1) or one forward (1) from a view, or null. A page with no view of its own (a file tab, `own` null) stands after the
+   * last step of the path. A view that is not on the path has Home before it, as its line says, and nothing ahead.
+   */
+  function next(steps, ahead, own, way) {
+    const whole = [...steps, ...ahead];
+    if (!own) return whole[steps.length - (way < 0 ? 1 : 0)] ?? null;
+    const at = whole.findIndex((one) => same(one, own));
+    if (at < 0) return way < 0 ? before(steps, own) : null;
+    return whole[at + way] ?? null;
+  }
+
+  const pure = { HOME, key, start, upTo, walk, before, goTo, next };
   if (typeof window !== 'object') return pure;
 
   // ----- in a page: its copy of the path, and the line at the top -----
 
   let steps = [HOME]; // the path of the window, as this page got it last
+  let ahead = []; // as a file in a browser: the steps that a way back left (inside VS Code the extension keeps them)
   let own = null; // the view that this page shows, as a step
   let line = null; // { el, attrs, extra, look }: where the line is drawn, the mark of its last step, a bold name after it, and the look of the repo
   let openHere = null; // opens a step in this page when it can: the page gives it
@@ -54,9 +79,9 @@ const Trail = (() => {
   // A page that is opened without it starts a new path, as a page opened from outside does in VS Code.
   const KEPT = 'apostil-trail';
   if (!vscodeApi) {
-    try { if (new URLSearchParams(location.search).has('walk')) steps = JSON.parse(sessionStorage.getItem(KEPT)) ?? steps; } catch { /* no storage here */ }
+    try { if (new URLSearchParams(location.search).has('walk')) ({ steps, ahead } = JSON.parse(sessionStorage.getItem(KEPT)) ?? { steps, ahead }); } catch { /* no storage here */ }
   }
-  const keepInBrowser = () => { try { sessionStorage.setItem(KEPT, JSON.stringify(steps)); } catch { /* no storage here */ } };
+  const keepInBrowser = () => { try { sessionStorage.setItem(KEPT, JSON.stringify({ steps, ahead })); } catch { /* no storage here */ } };
 
   /**
    * The address of the page that shows a step, as a file in a browser. A pull request with no stored change is the data file pull-data-<number>.js;
@@ -108,18 +133,26 @@ const Trail = (() => {
     if (!own) return false;
     tell({ type: 'walk', from: own, to, open: elsewhere });
     steps = walk(steps, own, to);
+    ahead = []; // a new step drops the steps ahead
     if (vscodeApi || !elsewhere) return true;
     keepInBrowser();
     location.href = addressOf(to);
     return true;
   }
 
-  /** Back to a step of the line: the path ends there again, and that view shows in its tab with what was lit there. */
+  /** To a step of the line, or back or forward to one: the path ends there, and that view shows in its tab with what was lit there. */
   function open(step) {
-    steps = upTo(steps, step);
+    ({ steps, ahead } = goTo(steps, ahead, step));
     if (vscodeApi) return tell({ type: 'back', to: step });
     keepInBrowser();
     if (!openHere?.(step)) location.href = addressOf(step);
+  }
+
+  /** One step back (-1) or forward (1) from the view of this page. Inside VS Code the extension finds the step: it keeps the path with the steps ahead. */
+  function move(way) {
+    if (vscodeApi) return tell({ type: 'move', way, from: own ?? undefined });
+    const to = next(steps, ahead, own, way);
+    if (to) open(to);
   }
 
   /** The line: Home, the steps, the last one bold (or a bold name after it). `fold` steps after Home are one "…". */
@@ -154,16 +187,18 @@ const Trail = (() => {
   let width = 0;
   new ResizeObserver(() => { if (line && document.body.clientWidth !== width) { width = document.body.clientWidth; draw(); } }).observe(document.body);
 
-  // **default**, not asked for by the owner: Alt+Left goes one step back along the path. Take out this listener to remove it.
+  // Back and forward along the path, as in a browser: Cmd+Left and Cmd+Right on a Mac, Ctrl+Left and Ctrl+Right elsewhere (VS Code uses those
+  // only where he types), and Alt+Left and Alt+Right everywhere. Not in a text field, where these keys move the caret.
   document.addEventListener('keydown', (event) => {
-    if (!event.altKey || event.key !== 'ArrowLeft' || event.metaKey || event.ctrlKey || event.target.closest?.('[data-field], textarea') || !own) return;
-    const back = before(steps, own);
-    if (!back) return;
+    const way = { ArrowLeft: -1, ArrowRight: 1 }[event.key];
+    const { altKey: alt, metaKey: meta, ctrlKey: ctrl } = event;
+    const held = alt ? !meta && !ctrl : MAC ? meta && !ctrl : ctrl && !meta;
+    if (!way || !held || event.shiftKey || event.target.closest?.('[data-field], textarea, input, [contenteditable]')) return;
     event.preventDefault();
-    open(back);
+    move(way);
   });
 
-  return { ...pure, set, show, take, open, here: (opener) => { openHere = opener; } };
+  return { ...pure, set, show, take, open, here: (opener) => { openHere = opener; }, ownKey: () => (own ? key(own) : null) };
 })();
 
 if (typeof module === 'object') module.exports = Trail; // for the tests and the extension in Node

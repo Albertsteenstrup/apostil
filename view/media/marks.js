@@ -142,7 +142,18 @@ const Marks = (() => {
     return things;
   }
 
-  /** The arrows of a diagram for the look: each with its two ends, the marks at its own line (a drawn process), and its slots. */
+  /**
+   * The marks that an arrow shows: those at its own line, less each one that an end of the arrow shows already (the end holds the same mark, and a
+   * corner of the end shows its set). So one service has one icon between an arrow and the call box or the step at its end; the window of that end
+   * lists the use at the line of the arrow.
+   */
+  const arrowMarks = (marks, ends) => marks.filter((mark) => !ends.some((end) => end.marks.includes(mark)
+    && Object.entries(end.slots).some(([slot, fill]) => slot.startsWith('corners.') && fill?.set === mark.set)));
+
+  /**
+   * The arrows of a diagram for the look: each with its two ends, the marks that it shows (arrowMarks, of those at its own line in a drawn process),
+   * and its slots. A rule still picks an arrow by every mark at its line.
+   */
   function edgesOf(diagram, look, things) {
     const tokens = diagram.id?.startsWith('process:') ? flowArrows(diagram.mermaid ?? '') : [];
     return diagram.graph.edges.map((edge, at) => {
@@ -154,7 +165,7 @@ const Marks = (() => {
       const order = diagram.order?.[`${edge.from}>${edge.to}`];
       const words = order ? (edge.label ?? '').replace(new RegExp(`^${order}(?: |$)`), '') : edge.label ?? '';
       const thing = { kind: 'arrow', diagram: diagram.id, ends: [things[edge.from], things[edge.to]].filter(Boolean), marks, fields: { words, of: edge.from, is } };
-      return { ...edge, marks, order, fields: thing.fields, slots: resolve(look.rules, thing, look.one) };
+      return { ...edge, marks: arrowMarks(marks, thing.ends), order, fields: thing.fields, slots: resolve(look.rules, thing, look.one) };
     });
   }
 
@@ -692,7 +703,7 @@ const Marks = (() => {
   const shownInOrder = (rows, look) => (look ? orderRows(rows.filter((row) => slotsIn(look, row)['show.shown'] !== false), listOrder(rows, look))[0].rows : rows);
 
   const pure = {
-    covers, keyOf, holds, marksIn, picks, rankOf, resolve, fieldsOf, fillText, fillWords, orderRows, thingsOf, edgesOf, flowWithout, shownFlow, targetWords, inputWords, windowOf, setPages,
+    covers, keyOf, holds, marksIn, picks, rankOf, resolve, fieldsOf, fillText, fillWords, orderRows, thingsOf, arrowMarks, edgesOf, flowWithout, shownFlow, targetWords, inputWords, windowOf, setPages,
     spreadOf, stackOf, namedThings, boxColors, lineColors, contrast, parse, SHOWN, READS,
     flowArrows, groupsOf, boxesOf, drawingOf, openSteps, headOf, wordsHtml,
     DATA_FILE, slotsIn, threadsOf, threadThing, pointThing, stepThings, diagramThing, changeThings, lineThing, marginThings, fileThings, listOrder, shownInOrder,
@@ -1108,6 +1119,7 @@ const Marks = (() => {
       const at = labelPoint(edge);
       if (!at) continue;
       const holder = holderAt(edge.path.parentElement, at.x - 9, at.y, false);
+      edge.path.chips = holder.parentElement; // the focus on a node keeps them with their arrow
       if (icon) { buttonAt(holder, look, icon); continue; }
       const stack = [...new Set(edge.marks.map((mark) => mark.set))].flatMap((set) => stackOf(edge.marks, set, spread));
       stackAt(holder, look, stack, 'At the line of this arrow', Object.assign((one) => (one.marks.length === 1 ? (ctx.open(one.marks[0].file, one.marks[0].at), true) : false), { open: ctx.open }));

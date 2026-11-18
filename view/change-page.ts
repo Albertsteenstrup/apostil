@@ -96,11 +96,13 @@ type Message =
   | { type: 'connect' }
   | { type: 'walk'; from: Step; to: Step; open: boolean }
   | { type: 'back'; to: Step }
+  | { type: 'move'; way: -1 | 1; from?: Step } // Cmd+Left and Cmd+Right: one step back or forward
   | { type: 'state'; view: 'diagram' | 'code'; part?: string; file?: string; lines?: [number, number] }
   | { type: 'rendered'; view: string; nodes: number; notes: number; lines?: [number, number]; map?: boolean }
   | { type: 'pointer'; on: boolean }
   | { type: 'edit'; line?: number }
   | { type: 'looked'; repo: string; number: number }
+  | { type: 'copy'; text: string }
   | { type: 'write'; id: number; write: Write };
 
 /**
@@ -499,6 +501,9 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
         else if (message.question.startsWith('blocks:')) this.post(view, { type: 'answer', id: message.id, value: blocksAnswer(this.store, page?.folder ?? this.openFolder(), message.question.slice('blocks:'.length), (file) => view.panel.webview.asWebviewUri(vscode.Uri.file(file)).toString()) });
         else this.post(view, { type: 'answer', id: message.id, value: this.page ? answer(this.page, message.question, (path, lines) => notesBeside(this.store, this.page!, path, lines), (path) => marksBeside(this.store, this.page!, path)) : undefined });
         break;
+      case 'copy':
+        void vscode.env.clipboard.writeText(message.text);
+        break;
       case 'looked':
         this.store.setLooked(message.repo, message.number);
         break;
@@ -540,6 +545,9 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
         break;
       case 'back':
         this.trail?.back(message.to);
+        break;
+      case 'move':
+        this.trail?.move(message.way, message.from);
         break;
       case 'state':
         this.setState({ changeId: this.changeId, view: message.view, part: message.part, file: message.file, lines: message.lines });

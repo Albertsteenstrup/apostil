@@ -14,6 +14,9 @@
     "url": "https://github.com/Albertsteenstrup/apostil/issues"
   },
   "icon": "view/media/apostil-icon.png",
+  "extensionKind": [
+    "workspace"
+  ],
   "engines": {
     "vscode": "^1.100.0",
     "node": ">=24"

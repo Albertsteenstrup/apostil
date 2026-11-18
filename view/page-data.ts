@@ -16,6 +16,7 @@ import { notesInRepo } from '../shared/notes-beside-code';
 import { baseBranchOf, changedFiles, commitExists, fileBytes, fileDiff, fileModes, fileText, linkTarget, notebookChange, rawFileText, repoId, tryGit, type ChangedFile } from '../shared/git';
 import { cellHead, cellsAt, inCellText, isNotebookPath, placeInCell, readNotebook, type NotebookCells } from '../shared/notebook';
 import { githubRepoOf, type PullRequestView } from '../shared/read-pull-request';
+import { changeWhere, savedWords, type SavedAt } from '../shared/change-rows';
 import type { CheckResult, OpenPoint, Remark, Store } from '../shared/store';
 import { broadMermaid, broadTotal, changeMermaid, drillUpStyle, partMermaid, type BroadTotal } from './change-diagram';
 import { lookData, standingMarks, type LookData, type MarkHere } from './look-data';
@@ -116,7 +117,8 @@ export interface PageData {
   listening: boolean; // the session of the change has a live waiter, so a sent remark reaches it
   apps: string[]; // the agent apps whose program is on the path: "@" offers a new session of each
   onHome: string[]; // ids of the diagrams of this change that the map of the repo holds too: their large view links to Home
-  head?: string; // the commit that the diffs end at: a pull request that is not checked out
+  head?: string; // the commit that the diffs end at: a pull request, or a change, that is not checked out
+  savedWords?: string; // one quiet line: the change is shown as saved at a commit, or that this clone has no such commit
   pullOnly?: PullOnly; // a pull request with no stored change: the page has "Conversation" and "Diffs"
   plain?: true; // a file tab with no change: the code as it is, with no diff, and the notes beside it
   look?: LookData; // the look of the repo for the page and its file tabs; the marks of a file come with its code
@@ -141,12 +143,12 @@ export function mapDiagramIds(store: Store, folder: string): string[] {
 export function pageData(store: Store, changeId: number, openFolder: string, apps: string[] = []): PageData | undefined {
   const change = store.getChange(changeId);
   if (!change) return undefined;
-  const folder = existsSync(change.folder) ? change.folder : openFolder;
+  const { folder, saved } = changeWhere(change, openFolder);
   const head = tryGit(folder, 'rev-parse', change.branch);
-  const outOfDate = head !== undefined && head !== change.head;
+  const outOfDate = !saved && head !== undefined && head !== change.head;
   const checks = outOfDate ? checkChangeFile(folder, change.base, change.file) : change.checks;
   return buildPage({
-    changeId, folder, branch: change.branch, base: change.base, file: change.file, checks, outOfDate,
+    changeId, folder, branch: change.branch, base: change.base, file: change.file, checks, outOfDate, saved,
     openPoints: store.openPoints(changeId), remarks: store.remarks(changeId),
     agent: change.agent, listening: isListening(store, change.agent), apps, mapIds: mapDiagramIds(store, folder), checked: change.checked ?? [],
   });
@@ -170,6 +172,7 @@ interface PageInput {
   agent?: AgentSession;
   listening: boolean;
   apps: string[];
+  saved?: SavedAt; // the folder is not on the branch: files and diffs come from the saved commit
   mapIds: string[];
   checked: string[]; // the diagrams that a second agent read for this save, and "links:<part id>" for the links that leave a part
 }
@@ -205,11 +208,12 @@ export function partDiagram(diagram: Diagram, facts: PartFacts): PageDiagram {
 }
 
 function buildPage(input: PageInput): PageData {
-  const { folder } = input;
-  const files = describeFiles(folder, input.base, changedFiles(folder, input.base));
+  const { folder, saved } = input;
+  const head = saved?.missing ? undefined : saved?.commit; // read at the saved commit, not in the working tree
+  const files = saved?.missing ? [] : describeFiles(folder, input.base, changedFiles(folder, input.base, head), head);
   const named = underNewNames(input.file, input.checks, files);
   const { checks } = named;
-  const cells = cellsIn(folder, input.base, files);
+  const cells = cellsIn(folder, input.base, files, head);
   const file = inCellText(named.file, cells).file; // a place in a cell of a notebook as lines of the text of its cells
   // An open point in a cell of a notebook goes the same way, so that it finds its note and its rows.
   const openPoints = input.openPoints.map((point) => {
@@ -219,13 +223,13 @@ function buildPage(input: PageInput): PageData {
   });
   const fileChanges = new Map<string, FileChange>();
   const changeOfFile = (path: string): FileChange => {
-    if (!fileChanges.has(path)) fileChanges.set(path, fileChange(folder, input.base, path, files));
+    if (!fileChanges.has(path)) fileChanges.set(path, fileChange(folder, input.base, path, files, head));
     return fileChanges.get(path)!;
   };
   const diagrams = (file.diagrams ?? []).map((diagram): PageDiagram => {
     if (!diagram.broad) {
       return partDiagram(diagram, {
-        fileChange: changeOfFile, text: (path) => (fileText(folder, path) ?? '').split('\n'),
+        fileChange: changeOfFile, text: (path) => (fileText(folder, path, head) ?? '').split('\n'),
         fileIsNew: !!diagram.file && files.find((one) => one.path === diagram.file)?.status === 'added', checked: input.checked.includes(diagram.id),
       });
     }
@@ -273,6 +277,7 @@ function buildPage(input: PageInput): PageData {
     notes, functionTests, openPoints, remarks: input.remarks,
     agent: input.agent && agentOf(input.agent), listening: input.listening, apps: input.apps,
     onHome: diagrams.filter((diagram) => input.mapIds.includes(diagram.id)).map((diagram) => diagram.id),
+    ...(saved ? { savedWords: savedWords(saved), ...(head ? { head } : {}) } : {}),
   };
 }
 

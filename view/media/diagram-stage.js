@@ -140,14 +140,22 @@ const ON_A_THING = 'g.node, g.image-shape, .f, .go, a';
 /** The smallest scale that a wide map opens at: under it the words are smaller than 11 px. */
 const READABLE = 0.85;
 
+// The zoom and the place that he left each diagram at, by the key of the diagram, while the page shows one view (a step of the path, by its key).
+// A diagram that draws again with new data opens there; another view of the page forgets them, so that a new diagram fits.
+const leftAt = { page: null, views: new Map() };
+
 /**
  * Makes a drawn diagram a surface that he moves: a drag, the wheel and a scroll with two fingers move it, a pinch and Cmd+scroll zoom at the pointer,
  * and a double click on an empty place fits it whole to its card. The card takes the height that is left in the tab.
  * With `readable` (a map, a wider diagram), a diagram so wide that fitting it would make the words small opens at a size where they read, at the start of its flow.
  * With `stack` (one of several diagrams one under the other in a half that scrolls), the card takes the height of the diagram fit to its width, or at the size
  * where its words read, and at most most of the half; a scroll that the drawing cannot take (all of it shows that way) scrolls the half.
+ * With `key` (the name of the diagram in its view), the same diagram drawn again keeps the zoom and the place that he left it at (leftAt); a fit forgets them.
  */
-function makeSurface(stage, readable = false, stack = false) {
+function makeSurface(stage, readable = false, stack = false, key = undefined) {
+  const page = typeof Trail === 'object' ? Trail.ownKey() : null;
+  if (page !== leftAt.page) Object.assign(leftAt, { page, views: new Map() });
+  const left = leftAt.views.get(key);
   const svg = stage.querySelector('svg');
   if (stack && svg) fitToContent(svg); // with the counts of its arrows, which come after Mermaid: the card shows all of it
   const frame = svg?.getAttribute('viewBox')?.split(' ').map(Number);
@@ -165,8 +173,12 @@ function makeSurface(stage, readable = false, stack = false) {
   let view = { x: x0, y: y0, scale: 1 };
   let moved = false; // he moved or zoomed it, so a new size of the card keeps his view
   const apply = () => {
+    if (!svg.isConnected) return; // an earlier drawing of this card: its keys and its sizes are those of the new one now
     const [w, h] = [stage.clientWidth, stage.clientHeight];
     if (w && h) svg.setAttribute('viewBox', `${view.x} ${view.y} ${w / view.scale} ${h / view.scale}`);
+    if (key === undefined) return;
+    if (moved) leftAt.views.set(key, view);
+    else leftAt.views.delete(key);
   };
   // In a half of the page a diagram too large for it, wide or tall, opens readable at its start too.
   const half = !!stage.closest('.split');
@@ -262,8 +274,11 @@ function makeSurface(stage, readable = false, stack = false) {
     if (stack) stackHeight();
     fit();
   };
-  stage.surface = { fit, show, reframe };
-  fit();
+  stage.surface = { fit, show, reframe, kept: !!left }; // kept: the view is the one that he left, so the page moves it to nothing by itself
+  if (!left) return fit();
+  view = left;
+  moved = true;
+  apply();
 }
 
 /** The node id of the Mermaid text of a drawn node or state. */
@@ -276,6 +291,45 @@ function lightNodes(into, keys, all = false) {
     : [...into.querySelectorAll('g.node, g.image-shape, rect.actor[name]')].filter((el) => keys.includes(el.tagName === 'rect' ? el.getAttribute('name') : nodeKey(el)));
   for (const el of lit) el.classList.add('lit');
   return lit.length;
+}
+
+/** The name of a node of a graph in plain words: no tags, and without the count of the steps that a step holds. */
+const plainName = (graph, node) => (graph.nodes[node] ?? node).replace(/<[^>]+>/g, ' ').replace(/\s+\d+ steps?$/, '').trim();
+
+/** The node of a drawing that a click is on. A panel of the graphs page takes no pointer itself, so there the place of the click finds the node. */
+function nodeAt(stage, event) {
+  const inside = (g) => { const box = g.getBoundingClientRect(); return event.clientX >= box.left && event.clientX <= box.right && event.clientY >= box.top && event.clientY <= box.bottom; };
+  return event.target.closest('g.node, g.image-shape') ?? [...stage.querySelectorAll('g.node, g.image-shape')].find(inside) ?? null;
+}
+
+/**
+ * Focus on a node (build 64): the node, its arrows and the nodes at their other ends stay as they are, and the rest of the drawing grows faint
+ * (look.css), as the rest around lit nodes does. `graph` is the graph of the drawing. With no node, the focus ends. Returns the name of the node,
+ * or null when the drawing has no such node. A drawn process also joins two boxes without an arrow of Mermaid: a dot at the box that calls
+ * (`graph.dots`) and the arrow of the page from one column to the next (path.colink); both count as arrows of the node.
+ */
+function focusNode(stage, graph, node) {
+  for (const el of stage.querySelectorAll('.tied, .focused')) el.classList.remove('tied', 'focused');
+  const nodes = [...stage.querySelectorAll('g.node, g.image-shape')];
+  const own = node ? nodes.find((g) => nodeKey(g) === node) : null;
+  stage.classList.toggle('focus', !!own);
+  if (!own) return null;
+  const tied = new Set([node]); // the node and the nodes at the other ends of its arrows
+  edgeElements(stage.querySelector('svg'), graph.edges).forEach(({ path, label }, at) => {
+    const { from, to } = graph.edges[at];
+    if (!path || (from !== node && to !== node)) return;
+    tied.add(from).add(to);
+    // The arrow with its words, the wide line that the pointer finds, its counts and its marks.
+    for (const el of [path, label, path.nextElementSibling?.classList.contains('hit') && path.nextElementSibling, path.countsText, path.chips]) if (el) el.classList.add('tied');
+  });
+  for (const [from, list] of Object.entries(graph.dots ?? {})) for (const to of list) if (from === node || to === node) tied.add(from).add(to);
+  for (const path of stage.querySelectorAll('path.colink')) {
+    const { from, to } = path.dataset;
+    if (from === node || to === node) { tied.add(from).add(to); path.classList.add('tied'); }
+  }
+  for (const g of nodes) g.classList.toggle('tied', tied.has(nodeKey(g)));
+  own.classList.add('focused');
+  return plainName(graph, node);
 }
 
 // ----- the things of a drawing that a comment can be stuck on -----
@@ -791,7 +845,7 @@ async function drawPart(into, diagram, join, stack = false) {
   markDiagram(into, diagram);
   paintChange(into, diagram);
   wireCode(into, diagram, join);
-  makeSurface(into, false, stack);
+  makeSurface(into, false, stack, `part:${diagram.id}`);
 }
 
 /**
@@ -821,7 +875,7 @@ async function drawSections(into, fromPart, tie) {
   Marks.paintBox(into.firstChild, slots);
   const body = into.querySelector('.sb');
   await drawChange(body, fromPart, tie);
-  makeSurface(body);
+  makeSurface(body, false, false, `change:${fromPart ?? ''}`);
 }
 
 /** "+2 parts −1 part" for the difference of a wider diagram, as HTML. */
@@ -833,7 +887,7 @@ const partsHtml = (difference) => (difference
 async function drawBroad(into, diagram) {
   await drawMermaid(into, diagram.draw, undefined, diagram.schema, diagram.id);
   markDiagram(into, diagram);
-  makeSurface(into, true);
+  makeSurface(into, true, false, `broad:${diagram.id}`);
   for (const g of into.querySelectorAll('g.node.lit')) {
     g.classList.add('go');
     g.addEventListener('click', () => App.go({ level: 'change' }));
