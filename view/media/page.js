@@ -17,6 +17,7 @@ const App = {
   awaitingPulls: false, // a change that just opened waits a moment for the pull requests of its branch, to open at the right view
   read: {}, // each pull request as read in full from GitHub, by its link: { pull, lastLooked } or { problem }
   looked: new Set(), // the pull requests whose conversation he opened on this page: their time is set once
+  since: new Map(), // by link: when he last looked before this page opened it (undefined: never), so the page opens at the same first unseen message each time
   unknownTries: {}, // how often a pull request was read again because GitHub did not know yet if it can merge
   tabPull: null, // a file tab in VS Code: the link of the pull request that the page read, for a comment on code
   diffs: null, // the steps of "Diffs" (diffsPage) or of the list of "Diagram" (changeWithDiffs) while they show: the keys and the control use them
@@ -324,7 +325,9 @@ function drawConversation(view) {
   const show = (read) => {
     if (App.state.view !== 'conversation' || App.pullLink() !== link) return; // he went on meanwhile
     if (!read.pull) { view.innerHTML = Conversation.problemHtml(read.problem); return; }
-    Conversation.draw(view, read.pull, read.lastLooked);
+    // The time he last looked before this page opened, kept for the page: a later read (after a write) knows the look of now, and the line would go.
+    if (!App.since.has(link)) App.since.set(link, read.lastLooked);
+    Conversation.draw(view, read.pull, App.since.get(link));
     if (!App.looked.has(link)) { // the time of this look is kept; the line stays where it was on this page
       App.looked.add(link);
       tell({ type: 'looked', repo: read.pull.repo, number: read.pull.number });

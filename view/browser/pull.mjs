@@ -273,6 +273,12 @@ try {
   // Classic and back; the choice is kept for the window.
   await conv.click('[data-mode="classic"]');
   await frames(conv, 8);
+  // "Classic" opens at the first row that he has not seen, as "Messages" does, with an empty mark in place of the line (GitHub's look has none).
+  // In the example that is an answer of others in an earlier review thread, which stands above the newer rows, as on GitHub.
+  const classicOpen = await conv.evaluate(() => {
+    const at = document.querySelector('.conv [data-first-unseen]');
+    return { at: at?.dataset.said ? 'answer' : at?.id === 'new-line' ? 'mark' : at ? at.className : null, line: !!document.querySelector('.conv .new'), top: Math.round(at?.getBoundingClientRect().top ?? -1), scrolled: Math.round(scrollY) };
+  });
   await conv.evaluate(() => scrollTo(0, 0));
   await convShot('62-conversation-classic');
   const classic = await conv.evaluate(() => ({ boxes: document.querySelectorAll('.conv .gbox').length, events: document.querySelectorAll('.conv .ev').length, gfold: document.querySelectorAll('.conv .thread.gfold').length,
@@ -298,13 +304,44 @@ try {
     !!factsLine && Math.abs(factsLine.indent) <= 1 && factsLine.padding === '0px'
     && /backend.*4 reviewers.*mira-k.*Version 0\.5, due .*closes #24.*1 of 2 tasks/.test(facts.text) && facts.labels.every((one) => one.fits && one.lines <= 1)
     && facts.sections.join() === 'Reviewers,Assignees,Labels,Milestone,Closes,Tasks' && facts.team && classic.side && narrowSide.under && narrowSide.title, JSON.stringify({ factsLine, facts, side: classic.side, narrowSide }));
+
+  // The page opens as a chat app opens a conversation (the owner: "it should show the oldest comment/message I havn't seen in viewpoint first when entering a pr.
+  // same way gmail chat does it", "and if not entered before then the top of pr"): at the same first unseen message also after a later read knows the look of now
+  // (a write reads the pull request again), and at the top when he never opened it. The tasks in "Details" go to their list in the description ("I should be able to click tasks in details").
+  const placeOf = () => conv.evaluate(async () => {
+    await App.render();
+    await new Promise((done) => setTimeout(done, 400)); // the place is set again for a few frames until it holds
+    const line = document.getElementById('new-line');
+    return { scrolled: Math.round(scrollY), line: line ? Math.round(line.getBoundingClientRect().top) : null };
+  });
+  const pullLink = await conv.evaluate(() => App.pullLink());
+  const keptLook = await conv.evaluate((link) => ({ since: App.since.get(link), read: App.read[link].lastLooked }), pullLink);
+  await conv.evaluate((link) => { App.read[link] = { ...App.read[link], lastLooked: new Date().toISOString() }; }, pullLink);
+  const afterRead = await placeOf();
+  await conv.evaluate((link) => App.since.set(link, undefined), pullLink);
+  const neverOpened = await placeOf();
+  await conv.evaluate(({ link, kept }) => { App.since.set(link, kept.since); App.read[link] = { ...App.read[link], lastLooked: kept.read }; }, { link: pullLink, kept: keptLook });
+  await placeOf();
+  await conv.evaluate(() => scrollTo(0, 0));
+  await conv.click('.conv .facts .fmore');
+  const tasksLink = await conv.evaluate(() => document.querySelector('.conv .fsec [data-tasks]')?.textContent ?? '');
+  await conv.click('.conv .fsec [data-tasks]', { timeout: 3000 }).catch(() => {});
+  await frames(conv, 4);
+  const tasksShown = await conv.evaluate(() => {
+    const task = document.querySelector('.conv .about input[type="checkbox"]')?.closest('li')?.getBoundingClientRect();
+    return { open: !!document.querySelector('.conv .about.open'), inView: !!task && task.top >= 0 && task.bottom <= innerHeight };
+  });
+  check('the conversation opens at the first message that he has not seen also when a later read knows the look of now, at the top of the pull request when he never opened it; "Tasks" in "Details" is a link that opens the description at its tasks',
+    afterRead.line !== null && afterRead.line > 30 && afterRead.line < 120 && afterRead.scrolled > 0 && neverOpened.line === null && neverOpened.scrolled === 0
+      && tasksLink === '1 of 2 tasks' && tasksShown.open && tasksShown.inView,
+    JSON.stringify({ afterRead, neverOpened, tasksLink, tasksShown }));
   check('the time has one place in each look: in "Messages" every time of the feed ends at the same right edge, and in a thread card at the right edge of its row; in "Classic" every time follows its words',
     messageTimes.count > 10 && messageTimes.feedRights.length === 1 && messageTimes.boxed.every((gap) => Math.abs(gap) <= 1)
     && classicTimes.count > 10 && classicTimes.followed.every((gap) => gap > 20), JSON.stringify({ messageTimes, classicTimes }));
-  check('"Classic" shows every comment in a box in the order of GitHub, folds only resolved, outdated and hidden; the choice stays for the window; "Messages" comes back',
-    classic.boxes >= 10 && classic.events >= 15 && classic.gfold === 3 && classic.hidden === 1 && !classic.newLine && classic.on === 'Classic' && keptMode === 'Classic' && backMode.on === 'Messages' && backMode.line
+  check('"Classic" shows every comment in a box in the order of GitHub, folds only resolved, outdated and hidden, and opens at the first row that he has not seen with no line; the choice stays for the window; "Messages" comes back',
+    classic.boxes >= 10 && classic.events >= 15 && classic.gfold === 3 && classic.hidden === 1 && classicOpen.at === 'answer' && !classicOpen.line && classicOpen.top > 30 && classicOpen.top < 300 && classicOpen.scrolled > 0 && classic.on === 'Classic' && keptMode === 'Classic' && backMode.on === 'Messages' && backMode.line
     && classic.days === 0 && classic.products === 0 && classic.reports === 2 && classic.runs === 0 && classic.shownResolved === 'Show resolved' && /Waits for #9 below it in the stack · 2 checks failed · An approving review is needed/.test(classic.merge)
-    && classic.verified === 1 && classic.marks.includes('Author') && classic.marks.includes('bot'), JSON.stringify({ classic, keptMode, backMode }));
+    && classic.verified === 1 && classic.marks.includes('Author') && classic.marks.includes('bot'), JSON.stringify({ classicOpen }) + JSON.stringify({ classic, keptMode, backMode }));
 
   // The other pull request of the branch, from the small choice in the strip. A merged one: the strip says who merged it; "closed" right after "merged" is left out.
   await conv.click('#status [data-pulls]');

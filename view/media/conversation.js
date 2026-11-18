@@ -248,6 +248,8 @@ const Conversation = (() => {
   const reviewerRow = (one) => { const [i, look, words] = REVIEWER_LOOK[one.state] ?? REVIEWER_LOOK.reviewed; return `<div class="pp">${avatar(one.person, 's')}<span class="pn">${esc(one.person.login)}${one.person.team ? ' <i class="quiet">team</i>' : ''}</span><span class="ps ${look}" title="${esc(words)}">${ico(i, look)}<span class="pw">${esc(words)}</span></span></div>`; };
   const tasksWords = (tasks) => `${tasks.done} of ${tasks.total} tasks`;
   const milestoneWords = (milestone) => `${milestone.title}${milestone.due ? `, due ${dateWords(milestone.due)}` : ''}`;
+  /** A label that opens the pull requests of the repo with that label on GitHub, as a label there does; in the facts line and in its details. */
+  const labelLink = (pull, label) => `<a class="flink" data-link="${esc(`https://github.com/${pull.repo}/pulls?q=${encodeURIComponent(`is:pr label:"${label.name}"`)}`)}">${labelPill(label)}</a>`;
 
   /** The side facts as sections: the side column of "Classic", and the fold of "Messages". A rule of the look leaves sections out and puts some first. */
   function factsSections(pull) {
@@ -256,10 +258,11 @@ const Conversation = (() => {
     const sections = {
       reviewers: section('Reviewers', pull.reviewers.length ? pull.reviewers.map(reviewerRow).join('') : none('No reviewers')),
       assignees: section('Assignees', pull.assignees.length ? pull.assignees.map((one) => `<div class="pp">${avatar(one, 's')}<span class="pn">${esc(one.login)}</span></div>`).join('') : none('No one')),
-      labels: section('Labels', pull.labels.length ? `<div class="lbls">${shownLabels(pull).map(labelPill).join('')}</div>` : none('None yet')),
+      labels: section('Labels', pull.labels.length ? `<div class="lbls">${shownLabels(pull).map((label) => labelLink(pull, label)).join('')}</div>` : none('None yet')),
       milestone: section('Milestone', pull.milestone ? `<a class="mlink" data-link="${esc(pull.milestone.url)}">${ico('milestone')}${esc(milestoneWords(pull.milestone))}</a>` : none('No milestone')),
       closes: section('Closes', pull.closes.length ? pull.closes.map((issue) => `<a class="mlink" data-link="${esc(issue.url)}">${ico(issue.open ? 'issue-opened' : 'issue-closed', issue.open ? 'ok' : 'done')}#${issue.number} ${esc(issue.title)}</a>`).join('') : none('No issue')),
-      tasks: pull.tasks.total ? section('Tasks', `<p>${ico('tasklist')}${esc(tasksWords(pull.tasks))}</p>`) : '',
+      // The tasks go to their list in the description, as in the facts line.
+      tasks: pull.tasks.total ? section('Tasks', `<a class="mlink" data-tasks>${ico('tasklist')}${esc(tasksWords(pull.tasks))}</a>`) : '',
     };
     return PartLook.sideSections(pageLook(), Object.keys(sections)).map((id) => sections[id]).join('');
   }
@@ -268,11 +271,9 @@ const Conversation = (() => {
   function factsLine(pull) {
     const labels = shownLabels(pull);
     // Each fact opens its own page on GitHub, as there; the tasks go to their list in the description.
-    const repoPage = (path) => `https://github.com/${pull.repo}/${path}`;
-    const labelLink = (label) => `<a class="flink" data-link="${esc(repoPage(`pulls?q=${encodeURIComponent(`is:pr label:"${label.name}"`)}`))}">${labelPill(label)}</a>`;
     const personLink = (one) => (/^[\w-]+$/.test(one.login) ? `<a class="flink" data-link="https://github.com/${esc(one.login)}">${esc(one.login)}</a>` : esc(one.login));
     const all = {
-      labels: labels.length ? `<span class="lbls">${labels.map(labelLink).join('')}</span>` : '',
+      labels: labels.length ? `<span class="lbls">${labels.map((label) => labelLink(pull, label)).join('')}</span>` : '',
       reviewers: pull.reviewers.length ? `<span>${ico('eye')}${plural(pull.reviewers.length, 'reviewer')}</span>` : '',
       assignees: pull.assignees.length ? `<span>${ico('person')}${pull.assignees.map(personLink).join(', ')}</span>` : '',
       milestone: pull.milestone ? `<span><a class="flink" data-link="${esc(pull.milestone.url)}">${ico('milestone')}${esc(milestoneWords(pull.milestone))}</a></span>` : '',
@@ -654,19 +655,32 @@ const Conversation = (() => {
     return `<div class="item merge">${ico(pull.look.icon, `mic ${pull.look.colour}`)}<div class="gbox">${sections.filter(Boolean).join('')}</div></div>`;
   }
 
-  /** The form "Classic": GitHub's order and form. Nothing is folded apart from what GitHub folds: resolved, outdated, hidden, and the middle of a long conversation. */
-  function classicHtml(pull) {
+  /**
+   * The form "Classic": GitHub's order and form. Nothing is folded apart from what GitHub folds: resolved, outdated, hidden, and the middle of a long
+   * conversation. `since` is when he last looked: the page opens at the first row that he has not seen.
+   */
+  function classicHtml(pull, since) {
     const about = own('description');
     const box = gbox(pull.author, `commented ${when(pull.openedAt)}`, `<div class="gb">${pull.html ? `<div class="md">${pull.html}</div>` : '<span class="quiet">No description provided.</span>'}</div>`, '', marks(pull.author, pull), 'description');
     const description = about['show.shown'] === false ? '' : about['window.width'] ? `<div style="max-width:${Number(about['window.width'])}px">${box}</div>` : box;
     const rows = pull.items.filter((item) => item.kind !== 'reply' && eventShown(item));
-    const hidden = rows.length > CLASSIC_LONG && folds('earlier') ? rows.slice(CLASSIC_HEAD, rows.length - CLASSIC_TAIL) : [];
-    const shown = (list) => list.map((item) => classicRow(item, pull)).join('');
+    // The first row that he has not seen, from the top: new itself, or a thread with a new answer of others (GitHub shows an answer in its thread).
+    const fresh = (at) => since && at > since;
+    const newAnswer = (item) => (item.kind === 'thread' ? [item.thread] : item.kind === 'review' ? item.threads : []).flatMap((thread) => thread.comments).find((comment) => fresh(comment.at) && !comment.mine);
+    const newItself = (item) => fresh(item.at) && !mineEntry({ kind: 'message', item });
+    const firstNew = since ? rows.findIndex((item) => newItself(item) || newAnswer(item)) : -1;
+    classicNew = firstNew >= 0 && !newItself(rows[firstNew]) ? newAnswer(rows[firstNew]).id : null;
+    // The middle of a long conversation folds, as on GitHub, but never a row that he has not seen.
+    const end = rows.length - CLASSIC_TAIL;
+    const hidden = rows.length > CLASSIC_LONG && folds('earlier') ? rows.slice(CLASSIC_HEAD, firstNew >= 0 ? Math.max(CLASSIC_HEAD, Math.min(end, firstNew)) : end) : [];
+    // An empty mark before the first unseen row, where the page opens; Classic keeps GitHub's look, so it draws no line.
+    const shown = (from, to) => rows.slice(from, to).map((item, at) => (from + at === firstNew && !classicNew ? '<div class="new-at" id="new-line"></div>' : '') + classicRow(item, pull)).join('');
     const middle = hidden.length ? `<div class="ev more-row"><a class="gbtn" data-classic-more>Show ${number(hidden.length)} more</a></div>` : '';
     classicHidden = { rows: hidden, pull };
-    return `<div class="tl">${stackBox(pull)}${description}${hidden.length ? shown(rows.slice(0, CLASSIC_HEAD)) + middle + shown(rows.slice(-CLASSIC_TAIL)) : shown(rows)}${mergeBox(pull)}</div>`;
+    return `<div class="tl">${stackBox(pull)}${description}${hidden.length ? shown(0, CLASSIC_HEAD) + middle + shown(CLASSIC_HEAD + hidden.length) : shown(0)}${mergeBox(pull)}</div>`;
   }
   let classicHidden = null;
+  let classicNew = null; // the id of the first unseen answer in a thread, when the first unseen thing of Classic is one: the page opens there
 
   // ----- writing to GitHub -----
 
@@ -1392,7 +1406,8 @@ const Conversation = (() => {
 
   /**
    * Draws the conversation into a box. `since` is when he last looked, or undefined. `progress` ({ read, total }) while a large pull request is read.
-   * In "Messages" the page opens at the line "New since you last looked", else at the end.
+   * The page opens as a chat app opens a conversation: at the oldest message that he has not seen (in "Messages" the line "New since you last looked",
+   * in "Classic" the first row that he has not seen); at the top when he never opened this pull request; at the end when he has seen it all.
    */
   function draw(into, pull, since, progress) {
     earlyRows.clear();
@@ -1400,7 +1415,7 @@ const Conversation = (() => {
     mode = chosen === 'classic' || chosen === 'messages' ? chosen : own('conversation-look')['order.first']?.[0] === 'classic' ? 'classic' : 'messages';
     const messages = mode === 'messages' ? messagesHtml(pull, since) : null;
     const reading = progress ? `<p class="reading">Reading the conversation: ${number(progress.read)} of about ${number(progress.total)} items</p>` : '';
-    const main = `${cutLines(pull)}${reading}<div class="feed">${messages ? messages.html : classicHtml(pull)}</div>`;
+    const main = `${cutLines(pull)}${reading}<div class="feed">${messages ? messages.html : classicHtml(pull, since)}</div>`;
     into.innerHTML = `<div class="conv ${mode}">${shortHtml(pull)}${topHtml(pull)}`
       + `<div class="head"><b>Conversation</b><span>${esc(spanWords(pull))}</span><span class="sp"></span>`
       + `<span class="toggle"><a data-mode="messages" class="${mode === 'messages' ? 'on' : ''}">Messages</a><span class="sep">·</span><a data-mode="classic" class="${mode === 'classic' ? 'on' : ''}">Classic</a></span></div>`
@@ -1437,11 +1452,16 @@ const Conversation = (() => {
     newest.addEventListener('click', () => scrollTo({ top: document.documentElement.scrollHeight }));
     addEventListener('scroll', onScroll, { passive: true });
     // The rows near the view are laid out only once they are near it, so the place is set again for a few frames until it holds.
-    const line = conv.querySelector('#new-line');
+    // The first unseen thing: the line or mark, or in Classic a new answer in its thread (its thread when that is folded).
+    const said = mode === 'classic' && classicNew ? conv.querySelector(`[data-said="${CSS.escape(classicNew)}"]`) : null;
+    const line = conv.querySelector('#new-line') ?? (said?.offsetParent ? said : said?.closest('.item'));
+    if (line) line.dataset.firstUnseen = ''; // where the page opens
     const place = (frames) => {
       if (!conv.isConnected) return;
-      const target = line ? line.getBoundingClientRect().top + scrollY - 48 : document.documentElement.scrollHeight;
-      if (Math.abs(target - scrollY) > 1 && (line || scrollY + innerHeight < document.documentElement.scrollHeight - 1)) scrollTo(0, target);
+      const end = Math.max(0, document.documentElement.scrollHeight - innerHeight);
+      const target = line ? line.getBoundingClientRect().top + scrollY - 48 : since ? end : 0;
+      const want = Math.min(Math.max(0, target), end);
+      if (Math.abs(want - scrollY) > 1) scrollTo(0, want);
       onScroll();
       if (frames > 0) requestAnimationFrame(() => place(frames - 1));
     };
