@@ -678,7 +678,7 @@ try {
   await conv.click('.cbox.card .pick');
   keyed.choices = await conv.$$eval('.cbox.card .pmenu .pi', (rows) => rows.map((row) => row.querySelector('span').firstChild.textContent));
   await convShot('71-the-picker-on-a-message');
-  await conv.click('.cbox.card .pi[data-choice="github"]');
+  await conv.click('.cbox.card .pi[data-choice="github"]', { timeout: 3000 }).catch(() => {}); // a missing choice fails the check below, not the run
   await conv.keyboard.type('Looks right to me.');
   await conv.keyboard.press('Enter');
   await conv.waitForSelector('.cbox.card', { state: 'detached', timeout: 3000 }).catch(() => {});

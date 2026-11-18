@@ -184,7 +184,7 @@ try {
   await page.click(`${theCard} .pick`);
   const menu = await page.$$eval(`${theCard} .pmenu > *`, (rows) => rows.map((row) => row.innerText.replace(/\s+/g, ' ').replace(/used \d+ min ago/, 'used n min ago').trim()).filter(Boolean)); // the example data is written a few minutes before
   await shot('11-picker-of-a-new-comment');
-  await page.click(`${theCard} .pi[data-choice="claude-code:session:made-up-session-0002"]`);
+  await page.click(`${theCard} .pi[data-choice="claude-code:session:made-up-session-0002"]`, { timeout: 3000 }).catch(() => {}); // a missing choice fails the check below, not the run
   const pickedWords = await page.textContent(`${theCard} .pick`);
   await page.keyboard.type('Why is the pickup day set before the mail is sent?');
   await page.keyboard.press('Enter');
@@ -298,7 +298,7 @@ try {
   await closeCard();
   await openMark(partTitle('night-job'));
   const five = { before: await page.$eval(`${theCard} .changed`, (block) => [...block.children].filter((el) => !el.hidden).map((el) => el.textContent).join(' | ')) };
-  await page.click(`${theCard} .changed [data-more-files]`);
+  await page.click(`${theCard} .changed [data-more-files]`, { timeout: 3000 }).catch(() => {});
   five.after = await page.$$eval(`${theCard} .changed .cf`, (all) => all.filter((el) => el.offsetParent).length);
   await drawn(() => page.click(`${theCard} .changed .cf[data-changed-file="tests/test_holds.py"]`));
   five.shown = await page.evaluate(() => ({ view: App.state.view, file: App.state.file, card: !!document.querySelector('.cbox.card') }));
