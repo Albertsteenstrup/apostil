@@ -628,7 +628,8 @@ const Marks = (() => {
         kind: 'diff-file', id: file.path, paths: [file.path],
         fields: { path: file.path, part: page.parts.find((part) => part.files.includes(file.path))?.id ?? '', type: generated.has(file.path) ? 'generated' : DATA_FILE.test(file.path) ? 'data' : 'code', added: file.added, removed: file.removed },
       })),
-      'change-view': () => ['diagram', 'diffs', 'conversation'].map((id) => ({ kind: 'change-view', id, fields: { id } })),
+      // A pull request with no stored change opens at its conversation and has no diagram: "Conversation" stands first there, then "Diffs".
+      'change-view': () => (page.pullOnly ? ['conversation', 'diffs', 'diagram'] : ['diagram', 'diffs', 'conversation']).map((id) => ({ kind: 'change-view', id, fields: { id } })),
       'part-diagram': () => page.diagrams.filter((one) => !one.broad && one.part).map((diagram) => diagramThing(diagram, page)),
       'part-step': () => page.diagrams.filter((one) => !one.broad && one.part).flatMap((diagram) => Object.values(stepThings(diagram))),
       'comments-window': () => [{ kind: 'comments-window', fields: {} }],

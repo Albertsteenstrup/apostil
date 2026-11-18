@@ -586,7 +586,7 @@ try {
     return { conversation, shown, files: [...document.querySelectorAll('.pfiles .pf')].map((row) => row.textContent), line: document.querySelector('.pline')?.textContent, crumb: document.getElementById('crumb').textContent };
   });
   check('a pull request of another repo has only "Conversation" and "Files", the list of its changed files with their counts, and is a step of the path',
-    other.conversation && other.shown === 'Files · Conversation' && other.files.length === 3 && /pickup_days\.py\+640 −32/.test(other.files[1]) && /another repo/.test(other.line) && /Pull request #12$/.test(other.crumb), JSON.stringify(other));
+    other.conversation && other.shown === 'Conversation · Files' && other.files.length === 3 && /pickup_days\.py\+640 −32/.test(other.files[1]) && /another repo/.test(other.line) && /Pull request #12$/.test(other.crumb), JSON.stringify(other));
   // A Mermaid block may bring its own CSS in its config ("themeCSS"). The drawing stays in its box: it cannot cover the title or the rest of the page.
   const covered = await pullOnly.evaluate(async () => {
     const read = structuredClone(APOSTIL_EXAMPLE.answers['pull:https://example.com/made-up/pull/12']);
@@ -610,11 +610,12 @@ try {
     const line = document.getElementById('summary');
     const text = line.textContent;
     line.querySelector('[data-copy]').click();
-    return { text, copied: window.apostilSent.filter((message) => message.type === 'copy').map((message) => message.text), button: line.querySelector('[data-copy]').textContent };
+    const views = [...document.querySelectorAll('.bar .switch a:not([hidden])')].map((a) => a.textContent);
+    return { text, views, copied: window.apostilSent.filter((message) => message.type === 'copy').map((message) => message.text), button: line.querySelector('[data-copy]').textContent };
   });
-  check('the page of a pull request with no stored change says in one quiet line that it has no description of Apostil yet and gives the words "Describe pull request #35 for Apostil", and its button copies them',
+  check('the page of a pull request with no stored change says in one quiet line that it has no description of Apostil yet and gives the words "Describe pull request #35 for Apostil", its button copies them, and its switch has "Conversation" first and "Diffs" second',
     /^This pull request has no description of Apostil yet\. Give an agent these words: Describe pull request #35 for Apostil Copy$/.test(noDescription.text)
-    && noDescription.copied.join() === 'Describe pull request #35 for Apostil' && noDescription.button === 'Copied', JSON.stringify(noDescription));
+    && noDescription.copied.join() === 'Describe pull request #35 for Apostil' && noDescription.button === 'Copied' && noDescription.views.join() === 'Conversation,Diffs', JSON.stringify(noDescription));
   await pullOnly.close();
 
   // ----- "@github" in the comment box on code: in the open diffs of the list of "Diagram" (since build prompt 42 "Diffs" opens no diff), on an added line,

@@ -238,7 +238,7 @@ const App = {
   },
 };
 
-/** The switch of views: "Conversation" when there is a pull request; a pull request with no stored change has no diagram. */
+/** The switch of views: "Conversation" when there is a pull request; a pull request with no stored change has no diagram, and "Conversation" stands first there. */
 function drawSwitch() {
   const { page, state } = App;
   const link = (view) => document.querySelector(`.switch a[data-view="${view}"]`);
