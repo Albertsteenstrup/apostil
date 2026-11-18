@@ -105,34 +105,39 @@ const ASK_FOR_MAP = 'Ask your agent: <b>"Map this repo for Apostil."</b> It draw
 /** What the press does, so that nobody fears the click: a new agent session reads the repo and saves the map and the notes; no file of the repo changes. */
 const MAP_RUN_WORDS = 'A new agent session reads the repo, draws its map and writes notes beside your code. It takes a few minutes and changes no file of the repo.';
 
+/** The quiet link under the press that picks another app (VS Code's quick pick); only with two or more installed apps. */
+const anotherAppHtml = (apps) => (apps.length > 1 ? '<a data-other-app>Another app</a>' : '');
+
 /**
  * The quiet line of a map run (`run`, a MapRunLine of shared/map-run.ts): which session writes the map and what is saved so far, or that the run stopped.
  * After the words, the link that opens the session in its app; for a session with no link, the command that resumes it, as text to copy (a click selects it).
- * `apps`: after a run that stopped, one press for each app that starts the map again. Nothing in the line moves.
+ * `again`: after a run that stopped, on the map, the press "Start again" (it starts `again.app`, the pointer says which) and "Another app". Nothing in the line moves.
  */
-function mapRunHtml(run, apps = []) {
+function mapRunHtml(run, again = null) {
   const words = `<span${run.tip ? ` title="${esc(run.tip)}"` : ''}>${esc(run.words)}</span>`;
   const reach = run.link ? `<a data-link="${esc(run.link)}">Open the session</a>`
     : run.command ? `<code title="The command that resumes this session in a terminal">${esc(run.command)}</code>` : '';
-  const again = apps.map((app) => `<a data-write="${esc(app)}">Start again with ${esc(AGENT_NAMES[app] ?? app)}</a>`);
-  return `<span class="state maprun" data-run="${esc(run.state)}">${[words, reach, ...again].filter(Boolean).join(' · ')}</span>`;
+  const press = again?.app ? `<a data-write="${esc(again.app)}" title="Starts a new ${esc(AGENT_NAMES[again.app] ?? again.app)} session">Start again</a>` : '';
+  return `<span class="state maprun" data-run="${esc(run.state)}">${[words, reach, press, again?.app ? anotherAppHtml(again.apps) : ''].filter(Boolean).join(' · ')}</span>`;
 }
 
 /**
- * The press that maps a repo, on Home of a repo with no map: one link for each agent app that Apostil can start (`apps`, in their order),
- * and what the press does. A click starts a new session of that app; nobody has to type the words into a chat. With no such app, the words to say to an agent.
- * While a map run writes (`run`), its line stands in place of the links; after a run that stopped, its line stands above them.
+ * The press that maps a repo, on Home of a repo with no map: one link, "Map this repo", that starts a new session of `app` (the app that Apostil started
+ * last, see appToStart in shared/map-app.ts); nobody has to type the words into a chat. Under it one quiet line that says which app, with "Another app" when
+ * two or more are installed (`apps`), and what the press does. With no app (none is installed), the words to say to an agent.
+ * While a map run writes (`run`), its line stands in place of the press; after a run that stopped, its line stands above it.
  */
-function mapPressHtml(apps = [], run = null) {
+function mapPressHtml(apps = [], run = null, app = undefined) {
   const line = run ? `<p>${mapRunHtml(run)}</p>` : '';
   if (run?.state === 'writing') return line;
-  if (!apps.length) return `${line}<p>${ASK_FOR_MAP}</p>`;
-  return `${line}<p class="acts">${apps.map((app) => `<a data-write="${esc(app)}">Map this repo with ${esc(AGENT_NAMES[app] ?? app)}</a>`).join('')}</p><p class="quiet">${MAP_RUN_WORDS}</p>`;
+  if (!app) return `${line}<p>${ASK_FOR_MAP}</p>`;
+  return `${line}<p class="acts"><a data-write="${esc(app)}">Map this repo</a></p><p class="quiet">Starts a new ${esc(AGENT_NAMES[app] ?? app)} session. ${anotherAppHtml(apps)}</p><p class="quiet">${MAP_RUN_WORDS}</p>`;
 }
 // A click on the press: VS Code starts the session, and Home shows that it works.
 document.addEventListener('click', (event) => {
   const write = event.target.closest?.('[data-write]');
   if (write) tell({ type: 'writeMap', app: write.dataset.write });
+  if (event.target.closest?.('[data-other-app]')) tell({ type: 'anotherApp' }); // VS Code asks which app, and starts the map with it
 });
 
 /** What else to do next, on Home of a repo with no map: the set-up step when no agent app has the skills. */

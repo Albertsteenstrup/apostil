@@ -6,6 +6,7 @@ import type { Diagram } from '../shared/change-file';
 import { checkChangeFile } from '../shared/checks';
 import { headCommit, repoId } from '../shared/git';
 import type { RepoMap } from '../shared/repo-map';
+import { homeRun } from '../shared/map-run';
 import { Store } from '../shared/store';
 import { makeTestRepo, tempFolder, testChangeFile } from '../shared/test-repo';
 import { diagramPaths, graphsData, homeData, inDiagrams, whereLine, writtenLine } from './home-data';
@@ -109,5 +110,24 @@ test('the Files tree marks a row that a diagram stands for and a folder above it
   map.diagrams.push({ ...testChangeFile().diagrams![0], parent: 'top', nodePaths: { done: ['src/app.py'] } });
   store.saveMap(repoId(repo.folder), headCommit(repo.folder), map);
   assert.deepEqual(pageData(store, changeId, repo.folder)!.onHome, ['stop-flow']);
+});
+
+test('Home: the press starts the app that Apostil started last in this repo, from the map runs and the runs for a comment (the order itself: shared/map-app.test.ts)', () => {
+  const own = new Store(tempFolder());
+  try {
+    const apps = ['claude-code', 'codex', 'opencode'];
+    const id = repoId(repo.folder);
+    const mapApp = (list = apps): string | undefined => homeData(own, repo.folder, list, undefined, undefined, ['codex']).mapApp;
+    assert.equal(mapApp(), 'codex'); // nothing started yet: the first connected app
+    own.changeMapRun(id, () => homeRun('opencode', '2026-11-10T10:00:00Z'));
+    assert.equal(mapApp(), 'opencode');
+    const remark = own.addRepoRemark(id, { kind: 'diagram', diagram: 'top' }, 'Check this');
+    own.sendRemark(remark, { app: 'claude-code', kind: 'new' });
+    own.startRemarkRun(remark, { startedAt: '2026-11-12T10:00:00Z' });
+    assert.equal(mapApp(), 'claude-code'); // the newer run is a run for a comment
+    assert.equal(mapApp([]), undefined); // no installed app
+  } finally {
+    own.close();
+  }
 });
 
