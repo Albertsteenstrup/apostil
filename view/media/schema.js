@@ -29,7 +29,7 @@ function drawSchema(into, schema, key = '') {
   into.innerHTML = '';
   const svg = svgEl('svg', { class: 'schema', id, xmlns: SVG_NS });
   svg.innerHTML = `<defs><marker id="${id}-to" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">`
-    + '<path class="tip" d="M0 0L10 5L0 10z"/></marker></defs><g class="edgePaths"></g><g class="tables"></g>';
+    + '<path class="arrowhead" d="M0 0L10 5L0 10z"/></marker></defs><g class="edgePaths"></g><g class="tables"></g>';
   into.append(svg);
 
   // Sizes from the font of the drawing: a probe row in the mono font of the page.

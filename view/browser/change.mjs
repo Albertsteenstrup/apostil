@@ -97,7 +97,7 @@ try {
       body: getComputedStyle(document.body).backgroundColor, font: getComputedStyle(document.body).fontSize, largest: Math.max(...sizes),
       code: getComputedStyle(document.querySelector('.nodeLabel .f')).fontSize,
       cards: [...document.querySelectorAll('.sec')].map((section) => section.dataset.section).join(), total: document.querySelector('.sec .sh .total').textContent,
-      alters: document.querySelector('.sec .alters')?.textContent, scrolls: document.documentElement.scrollHeight > innerHeight,
+      alters: document.querySelector('.sec .alters')?.textContent,
       parts: document.querySelectorAll('.sec[data-section="change"] b[data-part]').length, noPart: document.querySelector('.sec[data-section="change"] b[data-nopart]')?.textContent ?? '',
       summary: document.getElementById('summary').textContent,
     };
@@ -111,9 +111,9 @@ try {
     await App.render();
     return text;
   });
-  check('the change page fills the tab with no frame, no text over 13 px and code at 12 px; one card with "48 files +1,991 −333", the line "alters: The areas of the member page +2 parts" ("wider: …" when the change alters none), the six parts and "In no part · 24 files", no summary line, and no scroll',
+  check('the change page fills the tab with no frame, no text over 13 px and code at 12 px; one card with "48 files +1,991 −333", the line "alters: The areas of the member page +2 parts" ("wider: …" when the change alters none), the six parts and "In no part · 24 files", and no summary line',
     first.left === 0 && first.top === 0 && first.border === '0px' && first.radius === '0px' && first.body === 'rgb(255, 254, 252)' && first.font === '13px' && first.largest <= 13 && first.code === '12px'
-      && first.cards === 'change' && first.total === '48 files +1,991 −333' && first.alters === 'alters: The areas of the member page +2 parts' && !first.scrolls
+      && first.cards === 'change' && first.total === '48 files +1,991 −333' && first.alters === 'alters: The areas of the member page +2 parts'
       && first.parts === 6 && /In no part · 24 files/.test(first.noPart) && first.summary === '' && first.wider === 'wider: The areas of the member page', JSON.stringify(first));
   await shot('1-change-with-one-card');
   await drawn(() => page.click('.sec .alters a'));
@@ -214,7 +214,8 @@ try {
   await page.evaluate(() => window.scrollTo(0, 120));
   await page.hover('#view b[data-part="hold-service"]');
   const scrolled = await page.evaluate(() => window.scrollY);
-  await drawn(() => page.click('#view b[data-part="hold-service"]'));
+  // A click in place: under the cards of the overview the page scrolls, and a click of Playwright scrolls it to reach a part under its hover window.
+  await drawn(() => page.$eval('#view b[data-part="hold-service"]', (title) => title.closest('g.node').dispatchEvent(new MouseEvent('click', { bubbles: true }))));
   const down = await page.evaluate(() => ({ crumb: document.getElementById('crumb').textContent, tabs: [...document.querySelectorAll('#tabs > :not(.dchg, .dfact, .drepo, .codeswitch)')].map((el) => el.textContent).join(' · ') }));
   await drawn(() => page.click('#tabs [data-diagram="offer-sequence"]'));
   const sequence = await page.$eval('#view svg', (svg) => ({
@@ -314,7 +315,9 @@ try {
   await away();
 
   // ----- the diagram of the change as a surface -----
+  // In full screen (build 83), the diagram alone, as it was before the overview; the overview comes back after these checks.
   await page.setViewportSize({ width: 1400, height: 1000 });
+  await page.evaluate(() => localStorage.setItem('apostil.diagramFull', '1'));
   await page.reload(); // the plain page of the change, as it first opens
   await loaded(page);
   const cards = {};
@@ -323,7 +326,7 @@ try {
     await settle();
     cards[width] = await diagramCard();
   }
-  check('at 370 and 1400 px the diagram of the change fills the height that is left in the tab, and fits in its card with every box inside',
+  check('in full screen at 370 and 1400 px the diagram of the change fills the height that is left in the tab, and fits in its card with every box inside',
     Object.values(cards).every((card) => card.bottom >= 860 && card.bottom <= 900 && card.inside === card.nodes && card.nodes >= 7), JSON.stringify(cards));
 
   // A drag moves the diagram, the wheel zooms at the pointer with no hover window over it, and a double click on an empty place fits it again.
@@ -358,6 +361,7 @@ try {
       && Math.abs(onPart.x - (zoomed.x + (onPart.x - under.x) * larger)) < 1 && Math.abs(onPart.y - (zoomed.y + (onPart.y - under.y) * larger)) < 1
       && windowsWhileZoom === 0 && refitted.every((value, index) => Math.abs(value - fitted[index]) < 0.5),
     JSON.stringify({ start, dragged, under, zoomed, windowsWhileZoom, fitted, refitted }));
+  await page.evaluate(() => { localStorage.removeItem('apostil.diagramFull'); return App.render(); }); // the overview again
 
   // ----- a file on the page -----
   // A plain click on a file name shows its diff on the page and opens no editor of VS Code; the line at the top goes back at the same scroll place.

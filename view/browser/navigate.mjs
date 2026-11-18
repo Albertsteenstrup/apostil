@@ -154,9 +154,11 @@ try {
   const fitted = await frame();
   /** A pinch at the pointer (a wheel with Ctrl) zooms in. */
   const pinch = async (x, y) => { await home.mouse.move(x, y); await home.keyboard.down('Control'); await home.mouse.wheel(0, -60); await home.keyboard.up('Control'); };
-  await pinch(900, 500);
+  // At the middle of the frame: in the overview it is the upper part of the tab, with the cards under it (build 83).
+  const middle = await home.$eval('#view', (el) => { const box = el.getBoundingClientRect(); return { x: Math.round(box.left + box.width / 2), y: Math.round(box.top + box.height / 2) }; });
+  await pinch(middle.x, middle.y);
   await home.mouse.down();
-  await home.mouse.move(820, 440, { steps: 4 }); // and a drag moves it
+  await home.mouse.move(middle.x - 80, middle.y - 60, { steps: 4 }); // and a drag moves it
   await home.mouse.up();
   const left = await frame();
   const chipsBefore = await chips();

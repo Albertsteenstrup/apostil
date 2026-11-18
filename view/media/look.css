@@ -598,6 +598,32 @@ div.nomap .runpick{margin:0 0 8px}
 /* wide tabs: two panels in a row, so the diagrams are larger */
 /* two large panels in a row from the width that a tab has beside the side bar of VS Code (about 1060 px in a window of 1440) */
 @media (min-width:860px){.panels{grid-template-columns:repeat(2,1fr)}.pnl .pd{height:300px}}
+
+/* the overview of a diagram (build 83): under the diagram of a level, one card for each node that leads somewhere, in a quiet well of its own a little
+   apart from the frame: the frame is where this level stands, the cards are what it holds */
+.ovcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;margin-top:20px;padding:14px;background:var(--region);border-radius:10px}
+.ovcards[hidden]{display:none}
+.ovc{display:flex;flex-direction:column;height:212px;min-width:0;border:1px solid var(--line);border-radius:8px;background:var(--paper);overflow:hidden}
+.ovc.go{cursor:pointer}
+.ovc.go:hover{border-color:var(--line2)}
+.ovh{flex:none;padding:8px 12px 0;font-size:var(--small);font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ovb{flex:1;min-height:0;padding:6px 12px 10px}
+.ovb.stage{display:block;overflow:hidden;pointer-events:none} /* drawn small and read only: a click is the click of the card */
+.ovb.stage svg{width:100%;height:100%;margin:0}
+.ovf{height:100%;overflow-y:auto;font-size:var(--small)}
+.ovf a{display:flex;align-items:baseline;padding:2px 0;color:var(--soft)}
+.ovf a:hover{color:var(--ink)}
+.ovf a:hover .nm{text-decoration:underline;text-underline-offset:3px}
+.ovf .dir{flex:0 1 auto;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;direction:rtl;text-align:left;color:var(--muted)}
+.ovf .nm{flex:none;max-width:75%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.ovf .c{flex:none;margin-left:auto;padding-left:10px;color:var(--muted);font-style:normal;white-space:nowrap}
+/* the quiet icon at the top right of the frame: the diagram alone, or the overview again */
+.sb.surface{position:relative}
+.ovt{position:absolute;top:8px;right:8px;z-index:2;width:24px;height:24px;border-radius:6px;background:color-mix(in srgb,var(--paper) 85%,transparent);color:var(--muted);cursor:pointer}
+.ovt::before{content:"";position:absolute;inset:0;background:currentColor;-webkit-mask:var(--ovt) center/14px no-repeat;mask:var(--ovt) center/14px no-repeat}
+.ovt:hover{color:var(--ink);background:var(--seg)}
+.ovt.grow{--ovt:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10'/%3E%3C/svg%3E")}
+.ovt.shrink{--ovt:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 2.5V6H2.5M10 2.5V6h3.5M13.5 10H10v3.5M2.5 10H6v3.5'/%3E%3C/svg%3E")}
 .tabs .home-link{margin-left:12px;color:var(--soft);text-decoration:underline;text-decoration-color:var(--line2);text-underline-offset:3px}
 .tabs .home-link:hover{color:var(--ink)}
 
@@ -1116,7 +1142,7 @@ a.srow:hover{background:var(--seg)}
 .stage svg.schema .quiet text.th{font-weight:400;fill:var(--soft)}
 .stage svg.schema .row.c-removed text.cn{text-decoration:line-through;fill:var(--muted)}
 .stage svg.schema .relation{fill:none;stroke:var(--d-edge);stroke-width:1.3px}
-.stage svg.schema .tip{fill:var(--d-edge)}
+.stage svg.schema .arrowhead{fill:var(--d-edge)}
 .stage svg.schema g.node tspan.sg.p,.stage svg.schema g.node tspan.p{fill:var(--add)!important}
 .stage svg.schema g.node tspan.sg.m,.stage svg.schema g.node tspan.m{fill:var(--del)!important}
 .win .tb .sub .dchg{margin-left:6px}

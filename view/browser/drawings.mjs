@@ -78,7 +78,9 @@ try {
   const lit = await home.evaluate(() => document.querySelectorAll('#view g.node.lit').length);
   await home.mouse.move(2, 2);
   const unlit = await home.evaluate(() => document.querySelectorAll('#view g.node.lit').length);
-  await home.hover('#view circle.calldot');
+  // A dot inside the frame: in the overview the frame is the upper part of the tab, and the drawing opens at its top (build 83).
+  const inFrame = await home.evaluate(() => { const frame = document.getElementById('view').getBoundingClientRect(); return [...document.querySelectorAll('#view circle.calldot')].findIndex((dot) => { const box = dot.getBoundingClientRect(); return box.top >= frame.top && box.bottom <= frame.bottom && box.left >= frame.left && box.right <= frame.right; }); });
+  await home.hover(`#view circle.calldot >> nth=${Math.max(0, inFrame)}`);
   await home.waitForSelector('.tip', { timeout: 3000 });
   const tip = await home.textContent('.tip');
   await home.mouse.move(2, 2);
