@@ -21,7 +21,7 @@ type Message =
   | { type: 'walk'; from: Step; to: Step; open: boolean }
   | { type: 'back'; to: Step }
   | { type: 'move'; way: -1 | 1; from?: Step } // Cmd+Left and Cmd+Right: one step back or forward
-  | { type: 'writeMap'; app: string; team?: unknown } // the press "Map this repo", with the lead and the writers of its control
+  | { type: 'writeMap'; app: string; team?: unknown } // the press "Map this repo", with the lead and the effort of its control
   | { type: 'anotherApp' } // the link under the press: pick one of the other installed apps
   | NewRemark
   | { type: 'remarkAction'; id: number; action: 'resolve' | 'reopen' | 'start' }
@@ -185,7 +185,7 @@ export class HomePages {
   /**
    * Starts a new session of an app that writes the map, and with `describe` then the change; Home shows that it works, and the map when it is saved.
    * The record of the map run starts at once, takes the session that the run reports, and ends with the run: as a stop when it failed or saved no map.
-   * `chosen`: the lead and the writers that the control after the press sent; else, as for the question of a new repo, the default of teamOf().
+   * `chosen`: the lead and the effort that the control after the press sent; else, as for the question of a new repo, the default of teamOf().
    */
   writeMap(app: string, describe = false, chosen?: unknown): void {
     const folder = this.openFolder();

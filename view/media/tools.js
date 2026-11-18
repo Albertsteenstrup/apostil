@@ -128,12 +128,12 @@ function mapRunHtml(run, again = null) {
 }
 
 /**
- * The quiet control of the model and the effort of a run, the same everywhere a run starts or continues: "Haiku 5.5 · High", or for a map and a
- * description "Sonnet 5.5 leads · Haiku 5.5 writes · Max". A click opens its small menu in the look of the picker: the models, the one in use ticked, then
- * the efforts that the chosen model takes. One click on a model or an effort sets it; the menu stays open until Escape, a click outside or a click on the
- * box. A press reads the choice (`RunPick.value(key)`), so one click on the press starts the run with what the control shows.
- * `spec`: { app, list, run } for one run (`run`: { model, name, effort }), or { app, list, team } for a lead and its writers (a Team of shared/models.ts);
- * `reset`: the choice starts again when it changes (another place of the card); `onOpen`: called when the menu opens.
+ * The quiet control of the model and the effort of a run, the same everywhere a run starts or continues: "Haiku 5.5 · High"; for a map and a
+ * description the lead, "Sonnet 5.5 · Max" (its writers are fixed and do not show). A click opens its small menu in the look of the picker: the models,
+ * the one in use ticked, then the efforts that the chosen model takes. One click on a model or an effort sets it; the menu stays open until Escape, a click
+ * outside or a click on the box. A press reads the choice (`RunPick.value(key)`), so one click on the press starts the run with what the control shows.
+ * `spec`: { app, list, run } (`run`: { model, name, effort }); `reset`: the choice starts again when it changes (another place of the card); `onOpen`:
+ * called when the menu opens.
  */
 const RunPick = (() => {
   const picks = {}; // by key: { spec, value, first, open }
@@ -144,30 +144,25 @@ const RunPick = (() => {
   /** The control as HTML; with its menu when it is open. */
   function html(key, spec) {
     let pick = picks[key];
-    if (!pick || pick.reset !== spec.reset) pick = picks[key] = { reset: spec.reset, value: { ...(spec.team ?? spec.run) }, first: { ...(spec.team ?? spec.run) }, open: false };
+    if (!pick || pick.reset !== spec.reset) pick = picks[key] = { reset: spec.reset, value: { ...spec.run }, first: { ...spec.run }, open: false };
     pick.spec = spec;
     const { app, list = [] } = spec;
-    const words = spec.team ? States.teamWords({ ...pick.value, app, list }) : States.runWords(app, pick.value, list);
+    const words = States.runWords(app, pick.value, list);
     if (!list.length) return `<span class="rpick" data-rpick="${esc(key)}"><span class="rp">${esc(words)}</span></span>`; // no choice: OpenCode keeps its own
     return `<span class="rpick" data-rpick="${esc(key)}"><a class="rp${pick.open ? ' on' : ''}" data-rp-open tabindex="0">${esc(words)}${DOWN}</a>${pick.open ? menuHtml(pick) : ''}</span>`;
   }
 
   /**
-   * The menu: the models, the one in use ticked (for a map two columns, the lead and the writers), then the efforts that the chosen model takes, in one
-   * row of small chips, the one in use filled. It stays short, so it fits under the control also in a narrow tab.
+   * The menu: the models, the one in use ticked, then the efforts that the chosen model takes, in one row of small chips, the one in use filled. It stays
+   * short, so it fits under the control also in a narrow tab.
    */
   function menuHtml(pick) {
     const { app, list } = pick.spec;
-    const row = (attr, id, name, on) => `<a class="pi${on ? ' on' : ''}" ${attr}="${esc(id)}"><span>${esc(name)}</span>${on ? CHECK : ''}</a>`;
-    const models = (attr, head, now) => `<div><div class="ph">${esc(head)}</div>${list.map((model) => row(attr, model.id, model.name, model.id === now)).join('')}</div>`;
-    const lead = pick.spec.team ? pick.value.lead : pick.value.model;
-    const efforts = effortsOf(list, lead);
-    const groups = pick.spec.team
-      ? `<div class="cols">${models('data-rp-lead', States.WORDS.lead, pick.value.lead)}${models('data-rp-writer', States.WORDS.writers, pick.value.writer)}</div>`
-      : models('data-rp-model', States.WORDS.model, pick.value.model);
+    const row = (model) => `<a class="pi${model.id === pick.value.model ? ' on' : ''}" data-rp-model="${esc(model.id)}"><span>${esc(model.name)}</span>${model.id === pick.value.model ? CHECK : ''}</a>`;
+    const efforts = effortsOf(list, pick.value.model);
     const chips = efforts.map((effort) => `<a class="chip${effort === pick.value.effort ? ' on' : ''}" data-rp-effort="${esc(effort)}">${esc(States.effortWord(app, effort))}</a>`).join('');
     const effortRow = efforts.length ? `<div class="psep"></div><div class="ph">${esc(States.WORDS.effort)}</div><div class="chips">${chips}</div>` : '';
-    return `<div class="pmenu rmenu${pick.spec.team ? ' team' : ''}">${groups}${effortRow}</div>`;
+    return `<div class="pmenu rmenu"><div><div class="ph">${esc(States.WORDS.model)}</div>${list.map(row).join('')}</div>${effortRow}</div>`;
   }
 
   /** Draws the control of a key again in place, and places its menu under it, or above it when it does not fit below, inside the page. */
@@ -207,12 +202,11 @@ const RunPick = (() => {
     if (event.target.closest('[data-rp-open]')) {
       pick.open = !pick.open;
       if (pick.open) { openKeys().filter((other) => other !== key).forEach(close); pick.spec.onOpen?.(); }
-    } else if (take('data-rp-model') || take('data-rp-lead')) {
-      value[pick.spec.team ? 'lead' : 'model'] = take('data-rp-model') ?? take('data-rp-lead');
+    } else if (take('data-rp-model')) {
+      value.model = take('data-rp-model');
       delete value.name;
-      value.effort = States.nearestEffort(effortsOf(list, value.model ?? value.lead), value.effort);
-    } else if (take('data-rp-writer')) value.writer = take('data-rp-writer');
-    else if (take('data-rp-effort')) value.effort = take('data-rp-effort');
+      value.effort = States.nearestEffort(effortsOf(list, value.model), value.effort);
+    } else if (take('data-rp-effort')) value.effort = take('data-rp-effort');
     else return;
     event.preventDefault();
     redraw(key);
@@ -229,28 +223,38 @@ const RunPick = (() => {
   }, true);
 
   /**
-   * The choice of a key: { model, effort, changed } for one run, `changed` true when the model is another than the one it started with (a session that a
-   * run continues keeps its own model unless he chose one); { lead, writer, effort } for a map. Undefined before the control was drawn.
+   * The choice of a key: { app, model, effort, changed }, `changed` true when the model is another than the one it started with (a session that a run
+   * continues keeps its own model unless he chose one). Undefined before the control was drawn.
    */
   function value(key) {
     const pick = picks[key];
     if (!pick) return undefined;
-    if (pick.spec.team) return { app: pick.spec.app, lead: pick.value.lead, writer: pick.value.writer, effort: pick.value.effort };
-    return { model: pick.value.model, effort: pick.value.effort, changed: pick.value.model !== pick.first.model };
+    return { app: pick.spec.app, model: pick.value.model, effort: pick.value.effort, changed: pick.value.model !== pick.first.model };
   }
   const isOpen = (key) => !!picks[key]?.open;
   return { html, value, placeIn, isOpen, close };
 })();
 
 /**
+ * The control of a map run or a description run (`team`, a Team of shared/models.ts): the lead and its effort, as RunPick draws every run. The writers
+ * are always the smallest model at its most effort, so they do not show and nothing here changes them. OpenCode keeps its own models.
+ */
+const teamPickHtml = (key, team) => RunPick.html(key, { app: team.app, list: team.list, run: team.lead ? { model: team.lead, effort: team.effort } : {}, reset: team.app });
+/** The choice of that control as VS Code takes it (teamFrom in shared/models.ts): the app, the lead and its effort. Undefined before it was drawn. */
+function teamChoice(key) {
+  const run = RunPick.value(key);
+  return run && { app: run.app, lead: run.model, effort: run.effort };
+}
+
+/**
  * One direct link that starts the work in the session that it names (`ask`, an AskView of shared/ask.ts). The page never shows the words that go to the
  * agent and never asks the person to give them: they ride in `data-ask` for VS Code alone. Before the press: `intro` and the press, with the control of
- * the models of the run after it (a lead and its writers, `ask.team`); with no app that can be started, `intro` and the links that install one. After it:
- * the session that does the work, its state ("working", "done", "stopped") and "Open the session"; after a run that stopped, the press once more.
+ * the model of the run after it (`ask.team`); with no app that can be started, `intro` and the links that install one. After it: the session that does
+ * the work, its state ("working", "done", "stopped") and "Open the session"; after a run that stopped, the press once more.
  * A press that started no run: why, in one sentence, and the press again. Nothing in the line moves.
  */
 function askHtml(ask, intro) {
-  const control = ask.press && ask.team ? ` · ${RunPick.html('ask', { app: ask.team.app, list: ask.team.list, team: ask.team, reset: ask.team.app })}` : '';
+  const control = ask.press && ask.team ? ` · ${teamPickHtml('ask', ask.team)}` : '';
   const press = ask.press ? `<a data-ask="${esc(ask.words)}" title="${esc(ask.press.tip)}">${esc(ask.press.label)}</a>${control}` : '';
   if (ask.problem && press) return `${esc(ask.problem)} ${press}`;
   const { line } = ask;
@@ -263,7 +267,7 @@ function askHtml(ask, intro) {
 document.addEventListener('click', (event) => {
   if (event.target.closest?.('[data-open-run]')) tell({ type: 'openMapSession' });
   const ask = event.target.closest?.('[data-ask]');
-  const team = RunPick.value('ask');
+  const team = teamChoice('ask');
   if (ask) tell({ type: 'askAgent', words: ask.dataset.ask, ...(team ? { team } : {}) });
   const open = event.target.closest?.('[data-ask-open]');
   if (open) tell({ type: 'openAskSession', words: open.dataset.askOpen });
@@ -274,19 +278,19 @@ document.addEventListener('click', (event) => {
  * last, see appToStart in shared/map-app.ts); nobody has to type the words into a chat. Under it one quiet line that says which app, with "Another app" when
  * two or more are installed (`apps`), and what the press does. With no app (none is installed), the links that install one.
  * While a map run writes (`run`), its line stands in place of the press; after a run that stopped, its line stands above it.
- * Right after the press, the control of the models of the run (`team`, a Team of shared/models.ts): who leads, who writes, and the effort.
+ * Right after the press, the control of the model of the run (`team`, a Team of shared/models.ts): the lead and its effort.
  */
 function mapPressHtml(apps = [], run = null, app = undefined, team = undefined) {
   const line = run ? `<p>${mapRunHtml(run)}</p>` : '';
   if (run?.state === 'writing') return line;
   if (!app) return `${line}<p>${NO_APP_FOR_MAP}</p>`;
-  const control = team?.app === app ? `<p class="runpick">${RunPick.html('map', { app, list: team.list, team, reset: app })}</p>` : '';
+  const control = team?.app === app ? `<p class="runpick">${teamPickHtml('map', team)}</p>` : '';
   return `${line}<p class="acts"><a data-write="${esc(app)}">Map this repo</a></p>${control}<p class="quiet">Starts a new ${esc(AGENT_NAMES[app] ?? app)} session. ${anotherAppHtml(apps)}</p><p class="quiet">${MAP_RUN_WORDS}</p>`;
 }
 // A click on the press: VS Code starts the session with what the control shows, and Home shows that it works.
 document.addEventListener('click', (event) => {
   const write = event.target.closest?.('[data-write]');
-  const team = RunPick.value('map');
+  const team = teamChoice('map');
   if (write) tell({ type: 'writeMap', app: write.dataset.write, ...(team?.app === write.dataset.write ? { team } : {}) });
   if (event.target.closest?.('[data-other-app]')) tell({ type: 'anotherApp' }); // VS Code asks which app, and starts the map with it
 });

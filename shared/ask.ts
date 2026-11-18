@@ -82,7 +82,7 @@ export function askLine(run: AskRun, alive: boolean, name?: string): AskLine {
 export interface AskView {
   words: string;
   press?: { label: string; tip: string };
-  team?: Team; // with the press: the lead and the writers of the run, which the control after the press shows and changes
+  team?: Team; // with the press: the team of the run; the control after the press shows and changes its lead and effort, never its writers
   line?: AskLine;
   problem?: string; // why the last press started no run, in one sentence (the branch of the pull request could not be checked out)
 }

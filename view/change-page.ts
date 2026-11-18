@@ -115,7 +115,7 @@ type Message =
   | { type: 'pointer'; on: boolean }
   | { type: 'edit'; line?: number }
   | { type: 'looked'; repo: string; number: number }
-  | { type: 'askAgent'; words: string; team?: unknown } // the press of words for an agent: they go to the session that it names, with the lead and writers of its control
+  | { type: 'askAgent'; words: string; team?: unknown } // the press of words for an agent: they go to the session that it names, with the lead and the effort of its control
   | { type: 'openAskSession'; words: string } // "Open the session" on the line of their run
   | { type: 'write'; id: number; write: Write };
 

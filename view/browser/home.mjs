@@ -361,23 +361,25 @@ try {
       && nextSent === 'setUp' && narrowMark.width < 370 && narrowMark.centred && narrowMark.wide,
     JSON.stringify({ nothing, noMap, other, oneApp, marked, narrowMark, nextSent }));
 
-  // Right after the press, the control of the models of the map run: who leads and who writes, at Max; its menu has both and the efforts, and a choice goes with the press.
+  // Right after the press, the control of the map run: the model of the lead at Max, as everywhere else; its menu has one model list and the efforts. A
+  // choice goes with the press, and no writer: the writers are always the smallest model at Max (teamFrom and teamRun in shared/models.ts).
   await homeAt('?nomap=1');
   const team = { words: await home.textContent('.nomap .runpick .rp').catch(() => '') };
+  await home.mouse.move(5, 5);
+  await takePicture(home, '82-the-control-of-the-map-at-its-default.png');
   await home.click('.nomap [data-rp-open]', { timeout: 3000 }).catch(() => {});
   team.heads = await home.$$eval('.nomap .rmenu .ph', (heads) => heads.map((head) => head.textContent));
-  await home.click('.nomap [data-rp-writer="sonnet"]', { timeout: 3000 }).catch(() => {});
+  await home.click('.nomap [data-rp-model="opus"]', { timeout: 3000 }).catch(() => {});
+  await home.click('.nomap [data-rp-effort="xhigh"]', { timeout: 3000 }).catch(() => {});
   team.open = await home.$$eval('.nomap .rmenu', (all) => all.length);
-  await home.mouse.move(5, 5);
-  await takePicture(home, '81-the-control-of-the-map-with-its-menu-open.png');
   await home.mouse.click(5, 5); // a click outside closes the menu
   team.closed = await home.$$eval('.nomap .rmenu', (all) => all.length) === 0;
   team.chosen = (await home.textContent('.nomap .runpick .rp').catch(() => '')).trim();
   await home.click('[data-write="claude-code"]');
   team.sent = await home.evaluate(() => window.apostilSent.filter((message) => message.type === 'writeMap').pop());
-  check('right after the press "Map this repo" one quiet control says who leads and who writes the map, "Sonnet 5.5 leads · Haiku 5.5 writes · Max"; its menu has the lead, the writers and the effort, a choice stays while the menu is open, a click outside closes it, and the press sends the choice',
-    team.words.trim() === 'Sonnet 5.5 leads · Haiku 5.5 writes · Max' && team.heads.join() === 'Leads,Writers,Effort' && team.open === 1 && team.closed
-      && team.chosen === 'Sonnet 5.5 leads · Sonnet 5.5 writes · Max' && JSON.stringify(team.sent) === JSON.stringify({ type: 'writeMap', app: 'claude-code', team: { app: 'claude-code', lead: 'sonnet', writer: 'sonnet', effort: 'max' } }),
+  check('right after the press "Map this repo" one quiet control says the model of the run and its effort, "Sonnet 5.5 · Max"; its menu has one model list and the efforts, as on a comment card, a choice stays while the menu is open, a click outside closes it, and the press sends the model and the effort and no writer',
+    team.words.trim() === 'Sonnet 5.5 · Max' && team.heads.join() === 'Model,Effort' && team.open === 1 && team.closed
+      && team.chosen === 'Opus 5.5 · Extra' && JSON.stringify(team.sent) === JSON.stringify({ type: 'writeMap', app: 'claude-code', team: { app: 'claude-code', lead: 'opus', effort: 'xhigh' } }),
     JSON.stringify(team));
 
   // The line of a map run (build prompt 65), from the made-up records of example-data.ts. While a run writes: which session, and what is saved so far.
