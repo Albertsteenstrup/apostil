@@ -43,26 +43,24 @@ const Split = {
   halved: (half) => !App.page.pullOnly || (half === 'files' && !!App.page.pullOnly.local),
 
   /**
-   * The quiet control that shows a hidden half again, "Show code" at the left of the line above the diagram ("Show files" at its right, on "Diffs").
+   * The quiet control that shows a hidden half again, "Show code" (or "Show files" on "Diffs") at the left of the line above the diagram or the file.
    * While the code shows, its controls stand over the code (controls); nothing on a narrow tab or on a page with no such half.
    */
   controlHtml(half = 'code') {
     if (!this.wide(half) || !this.halved(half)) return '';
-    const hidden = this.hidden(half);
-    if (half === 'code') return hidden ? '<a class="codeswitch at-left" data-half="code" data-to="show">Show code</a>' : '';
-    return `<a class="codeswitch" data-half="${half}" data-to="${hidden ? 'show' : 'hide'}">${hidden ? 'Show' : 'Hide'} ${half}</a>`;
+    return this.hidden(half) ? `<a class="codeswitch at-left" data-half="${half}" data-to="show">Show ${half}</a>` : '';
   },
 
   /**
-   * The controls of the code over it, at the right end of the line of its first group header: "Hide code", and with `all` "Open all" (or "Close all").
-   * They lie over the right end of the left half and stay there while its list scrolls.
+   * The controls of the code or of the list of files over it, at the right end of the line of its first group header: "Hide code" (or "Hide files" on
+   * "Diffs"), and with `all` "Open all" (or "Close all"). They lie over the right end of the left half and stay there while its list scrolls.
    */
-  controls(view, all = false) {
+  controls(view, all = false, half = 'code') {
     view.querySelector('.half.right').classList.add('ctl');
-    view.insertAdjacentHTML('beforeend', `<div class="dctl">${all ? this.allHtml(false) : ''}${this.hideHtml}</div>`);
+    view.insertAdjacentHTML('beforeend', `<div class="dctl">${all ? this.allHtml(false) : ''}${this.hideHtml(half)}</div>`);
   },
 
-  hideHtml: '<a class="codeswitch" data-half="code" data-to="hide">Hide code</a>',
+  hideHtml: (half = 'code') => `<a class="codeswitch" data-half="${half}" data-to="hide">Hide ${half}</a>`,
 
   /**
    * Makes the view two halves and returns them: [the diagram or the file, the code or the list]. look.css puts the second in the left column.

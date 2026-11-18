@@ -217,7 +217,9 @@ const App = {
     } else if (state.view === 'diffs') {
       // "Diffs": one file with its notes, with a counter over every changed file; on a wide tab the list of the files stands at its left, as closed rows.
       tabs.innerHTML = `${Split.controlHtml('files')}<span class="nav"></span>`;
-      this.diffs = Split.wanted('files') ? diffsPage(...Split.halves(view, `${LIST_WIDTH}px minmax(0,1fr)`)) : diffsPage(Split.alone(view), null);
+      const listed = Split.wanted('files');
+      this.diffs = listed ? diffsPage(...Split.halves(view, `${LIST_WIDTH}px minmax(0,1fr)`)) : diffsPage(Split.alone(view), null);
+      if (listed) Split.controls(view, false, 'files'); // "Hide files" over the list, as "Hide code" over the code
       await this.diffs.ready;
     } else if (state.level === 'part') {
       await drawPartView(tabs, view, page.parts.find((candidate) => candidate.id === state.part));
