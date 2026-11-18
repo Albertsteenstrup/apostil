@@ -38,6 +38,8 @@ const startMermaid = () => {
   mermaidColors = colors;
   mermaid.initialize({
     startOnLoad: false, securityLevel: 'antiscript', theme: 'base',
+    // The text of a diagram (an agent's, or a block of GitHub) may set no CSS, theme, font or colours of its own: only the look of the page draws it.
+    secure: ['secure', 'securityLevel', 'startOnLoad', 'maxTextSize', 'suppressErrorRendering', 'maxEdges', 'theme', 'themeCSS', 'themeVariables', 'fontFamily', 'altFontFamily', 'darkMode', 'htmlLabels'],
     themeVariables: { fontFamily: pageFont.fontFamily, fontSize: pageFont.fontSize, ...colors },
     flowchart: { htmlLabels: true, nodeSpacing: 34, rankSpacing: 42, padding: 13, useMaxWidth: false },
     sequence: { useMaxWidth: false, mirrorActors: false, messageMargin: 34, actorMargin: 70, width: 130, height: 46, boxMargin: 8 },

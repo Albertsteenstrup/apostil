@@ -80,7 +80,7 @@ const map: RepoMap | undefined = mapFile ? JSON.parse(readFileSync(mapFile, 'utf
 const storeFolder = tempFolder('apostil-example-');
 const store = new Store(storeFolder);
 const changeId = store.saveChange({ repoId: repoId(folder), folder, branch: currentBranch(folder), base, head: headCommit(folder), file, checks: checkChangeFile(folder, base, file), agent });
-const homeNoMap = { ...homeData(store, folder, apps), needsSetup: true }; // made up: no agent app has the skills yet
+const homeNoMap = { ...homeData(store, folder, apps, undefined, undefined, []), needsSetup: true }; // made up: no agent app has the skills yet
 if (map) {
   const saved = saveMapDraft(store, folder, map); // by the same save as a map of an agent, so that its notes keep the text of their lines
   if (!saved.saved) throw new Error(`The save refused the example map: ${saved.problems.join(' ')}`);
@@ -95,7 +95,7 @@ const drafts: { set: string }[] = example ? JSON.parse(readFileSync(join(EXAMPLE
 const put = example && map ? putLookFiles(folder) : undefined;
 const must = (result: { saved: boolean; problems: string[] }, what: string): void => { if (!result.saved) throw new Error(`The save refused the example ${what}: ${result.problems.join(' ')}`); };
 if (put) for (const draft of drafts.filter((one) => one.set === 'services')) must(addMarksToMap(store, folder, draft), 'marks');
-const home = homeData(store, folder, apps, address);
+const home = homeData(store, folder, apps, address, undefined, []);
 // The graphs of the file of the browser check, and of every path that a node of the map opens: in the default look, as Home.
 const graphPaths = new Set(['src/library/lending/hold_service.py']);
 for (const diagram of home.map?.diagrams ?? []) for (const node of Object.values(diagram.nodes)) [node.graphs, ...node.paths.map((entry) => entry.path)].forEach((path) => graphPaths.add(path));
@@ -120,7 +120,7 @@ for (const name of put ? readdirSync(EXAMPLE_LOOK).filter((one) => /^look(-[a-z-
   must(setLook(store, folder, JSON.parse(readFileSync(join(EXAMPLE_LOOK, name), 'utf8'))), name);
   if (key === '1') for (const draft of drafts.filter((one) => one.set !== 'services')) must(addMarksToMap(store, folder, draft), 'marks');
   files.clean();
-  homeLooks[key] = homeData(store, folder, apps, address);
+  homeLooks[key] = homeData(store, folder, apps, address, undefined, []);
   pageLooks[key] = lookOfPage(store, page, address);
   const ids = (JSON.parse(readFileSync(join(EXAMPLE_LOOK, name), 'utf8')).pages ?? []).map((one: { id: string }) => one.id) as string[];
   lookPages[key] = Object.fromEntries(ids.map((id) => [id, pageData(store, folder, id, address)]));

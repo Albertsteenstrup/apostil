@@ -10,10 +10,12 @@ import { diagramGraph, type DiagramGraph } from '../shared/diagram-graph';
 import { schemaDrawing, type SchemaDrawing } from '../shared/schema';
 import { sessionName } from '../shared/agents';
 import { changedFiles, commitExists, tryGit } from '../shared/git';
+import { appToStart } from '../shared/map-app';
 import { homeRun, mapRunLine, type MapRunLine } from '../shared/map-run';
 import { diagramsOf, touches, type DiagramOfPath } from '../shared/repo-map';
 import { allProcessDrawings, placeDiagramId, placeDrawing, processDiagramId, processesStartingIn, type LineOf, type ProcessDiagram, type ProcessNode, type Span } from '../shared/process-diagrams';
 import { lookData, type LookData } from './look-data';
+import { connectedApps } from './new-repo-steps';
 import type { Remark, StoredChange, Store } from '../shared/store';
 import { changeMermaid, nodeId, partMermaid } from './change-diagram';
 import { repoName } from './page-data';
@@ -67,6 +69,7 @@ export interface HomeData {
   map?: { top: string; diagrams: HomeDiagram[]; written?: string; files?: number }; // written: "written 12 commits ago" when the folder has moved on; files: of the repo
   look?: LookData; // the look of the repo and its marks: the default look when none is saved
   apps: string[]; // the agent apps whose program is on the path: each can write the map, and "@" offers a new session of each
+  mapApp?: string; // the app that the press "Map this repo" starts (appToStart); missing with no installed app
   writing?: string; // the app that writes the map now
   mapRun?: MapRunLine; // while a map run writes, or after one stopped: which session, and what is saved so far
   needsSetup?: boolean; // with no map: no agent app has the skills, so Home shows "Set up for agents"
@@ -162,13 +165,14 @@ export const homeRowState = (store: Store, id: string | undefined): string | und
 
 /**
  * What Home shows for the repo of a folder: its map with every node and its look, or no map and the apps that can write one; and the line of its map run.
- * `address` turns a kept file of the look into an address that the page may load. `writing`: see mapRunOf.
+ * `address` turns a kept file of the look into an address that the page may load. `writing`: see mapRunOf. `connected`: the apps with the skills of Apostil, which only the last choice of the press reads.
  */
-export function homeData(store: Store, folder: string, apps: string[] = [], address: (file: string) => string = (file) => file, writing?: string): HomeData {
+export function homeData(store: Store, folder: string, apps: string[] = [], address: (file: string) => string = (file) => file, writing?: string, connected: string[] = connectedApps(apps, folder)): HomeData {
   const id = idOf(folder);
   const stored = id ? store.getMap(id) : undefined;
   const mapRun = mapRunOf(store, id, writing);
-  const base: HomeData = { kind: 'home', repo: repoName(folder), folder, apps, remarks: id ? store.repoRemarks(id) : [], ...(mapRun ? { mapRun } : {}) };
+  const mapApp = appToStart(store.startedRuns(), id, apps, connected);
+  const base: HomeData = { kind: 'home', repo: repoName(folder), folder, apps, ...(mapApp ? { mapApp } : {}), remarks: id ? store.repoRemarks(id) : [], ...(mapRun ? { mapRun } : {}) };
   if (!id || !stored) return base;
   const files = repoFiles(folder);
   const changes = store.listChanges(id).map((change) => ({ ref: { id: change.id, branch: change.branch, title: change.file.title }, files: filesOfChange(change) }));
