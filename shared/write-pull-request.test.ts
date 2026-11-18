@@ -6,8 +6,8 @@ import { test } from 'node:test';
 import { diffRanges } from '../view/page-data';
 import type { GhResult } from './read-pull-request';
 import {
-  addCodeComment, addComment, addPullRequestReviewThreadReply, COMMENT, LINES_ALONE, LINES_IN_REVIEW, REPLY, RESOLVE, resolveReviewThread, REVIEW, SEND_PENDING,
-  sendReview, UNRESOLVE, unresolveReviewThread, writePullRequest,
+  addCodeComment, addComment, addPullRequestReviewThreadReply, COMMENT, COMMIT, FILE_AT, LINES_ALONE, LINES_IN_REVIEW, REPLY, RESOLVE, resolveReviewThread, REVIEW, SEND_PENDING,
+  sendReview, UNRESOLVE, unresolveReviewThread, writePullRequest, type Write,
 } from './write-pull-request';
 
 /** A stand-in for gh that keeps every call with what came on its standard input, and answers as GitHub does. */
@@ -110,6 +110,61 @@ test('the text arrives unchanged, an error of GitHub comes back as one plain sen
   assert.match(await problem({ out: '', err: '', missing: true }), /^The gh program is not installed\./);
   assert.match(await problem({ out: '', err: 'To get started with GitHub CLI, please run:  gh auth login' }), /not signed in/);
   for (const text of [await problem({ out: JSON.stringify({ errors: [{ message: 'line one\nline two' }] }), err: '' })]) assert.ok(!text.includes('\n'));
+});
+
+test('a write answers with what GitHub made, so that the page takes it in place: the answer, the comment and the review as the page draws them, and the thread after a resolve', async () => {
+  const said = { id: 'PRRC_1', url: 'https://github.com/made-up/repo/pull/1', author: { login: 'ada-made-up', avatarUrl: '', __typename: 'User' }, createdAt: '2026-11-01T09:00:00Z',
+    lastEditedAt: null, bodyHTML: '<p>Done.</p><script>x</script>', isMinimized: false, minimizedReason: null, viewerDidAuthor: true, reactionGroups: [] };
+  const answer = (data: object) => standIn({ out: JSON.stringify({ data }), err: '' }).run;
+  const reply = await addPullRequestReviewThreadReply('t', 'Done.', answer({ addPullRequestReviewThreadReply: { comment: said } }));
+  assert.ok('ok' in reply && reply.comment);
+  assert.deepEqual([reply.comment.id, reply.comment.html, reply.comment.mine, reply.comment.author.login], ['PRRC_1', '<p>Done.</p>', true, 'ada-made-up'], 'cleaned, and his own');
+  const comment = await addComment('p', 'Done.', answer({ addComment: { commentEdge: { node: { ...said, id: 'IC_1' } } } }));
+  assert.equal('ok' in comment && comment.comment?.id, 'IC_1');
+  const review = await sendReview('p', 'APPROVE', '', undefined, answer({ addPullRequestReview: { pullRequestReview: { ...said, id: 'PRR_1', state: 'APPROVED', submittedAt: '2026-11-01T09:01:00Z' } } }));
+  assert.deepEqual('ok' in review && [review.review?.id, review.review?.state, review.review?.at], ['PRR_1', 'approved', '2026-11-01T09:01:00Z']);
+  const thread = { id: 't', isResolved: true, resolvedBy: { login: 'ada-made-up', avatarUrl: '', __typename: 'User' }, viewerCanReply: true, viewerCanResolve: false, viewerCanUnresolve: true };
+  assert.deepEqual(await resolveReviewThread('t', answer({ resolveReviewThread: { thread } })),
+    { ok: true, thread: { resolved: true, resolvedBy: { login: 'ada-made-up', avatar: '', bot: false }, canReply: true, canResolve: false, canUnresolve: true } });
+  // An answer that does not hold the whole comment is still ok: the page keeps what it showed.
+  assert.deepEqual(await addComment('p', 'x', answer({ addComment: { commentEdge: { node: { id: 'IC_2' } } } })), { ok: true });
+});
+
+test('"Commit suggestion" reads each file at the head, puts the suggested lines in, commits all in one commit only while the branch is at that head, then resolves each thread; lines that changed since are refused and nothing is written', async () => {
+  const calls: { query: string; variables: Record<string, any> }[] = []; // eslint-disable-line @typescript-eslint/no-explicit-any
+  let refuse = false;
+  const run = async (_args: string[], input?: string): Promise<GhResult> => {
+    const body = JSON.parse(input ?? '{}');
+    calls.push(body);
+    if (body.query === FILE_AT) return { out: JSON.stringify({ data: { repository: { object: { text: body.variables.at.endsWith('b.ts') ? 'x\r\ny\r\n' : 'one\ntwo\nthree\nfour\n', isBinary: false, isTruncated: false } } } }), err: '' };
+    if (body.query === COMMIT && refuse) return { out: JSON.stringify({ data: null, errors: [{ message: 'Expected branch to point to "h1" but it did not. Pull and try again.' }] }), err: '' };
+    if (body.query === COMMIT) return { out: JSON.stringify({ data: { createCommitOnBranch: { commit: { oid: `c0ffee0${'0'.repeat(33)}`, abbreviatedOid: 'c0ffee0' } } } }), err: '' };
+    return { out: JSON.stringify({ data: { resolveReviewThread: { thread: { id: body.variables.thread, isResolved: true } } } }), err: '' };
+  };
+  const write: Extract<Write, { kind: 'suggestions' }> = {
+    kind: 'suggestions', repo: 'fork-made-up/repo', branch: 'feature', headOid: 'h1', threadIds: ['t1', 't2', 't3'],
+    changes: [{ path: 'a.ts', start: 2, end: 2, old: ['two'], lines: ['2'] }, { path: 'a.ts', start: 4, end: 4, old: ['four'], lines: [] }, { path: 'b.ts', start: 1, end: 2, old: ['x', 'y'], lines: ['z'] }],
+    message: { headline: 'Apply suggestions from code review', body: 'Co-authored-by: bo-made-up <77+bo-made-up@users.noreply.github.com>' },
+  };
+  const steps = () => calls.map((call) => (call.query === FILE_AT ? `read ${call.variables.at}` : call.query === COMMIT ? 'commit' : call.query === RESOLVE ? `resolve ${call.variables.thread}` : '?'));
+  assert.deepEqual(await writePullRequest(write, run), { ok: true, commit: { oid: `c0ffee0${'0'.repeat(33)}`, short: 'c0ffee0' } });
+  assert.deepEqual(steps(), ['read h1:a.ts', 'read h1:b.ts', 'commit', 'resolve t1', 'resolve t2', 'resolve t3']);
+  const { fileChanges, ...rest } = calls[2].variables.input;
+  assert.deepEqual(rest, { branch: { repositoryNameWithOwner: 'fork-made-up/repo', branchName: 'feature' }, expectedHeadOid: 'h1', message: write.message });
+  const files = Object.fromEntries(fileChanges.additions.map((one: { path: string; contents: string }) => [one.path, Buffer.from(one.contents, 'base64').toString('utf8')]));
+  assert.deepEqual(files, { 'a.ts': 'one\n2\nthree\n', 'b.ts': 'z\r\n' }, 'the lowest change first, the line ends of the file kept');
+
+  // Lines that changed since the suggestion: refused before any write.
+  calls.length = 0;
+  const changed = await writePullRequest({ ...write, changes: [{ path: 'a.ts', start: 2, end: 2, old: ['TWO'], lines: ['2'] }] }, run);
+  assert.ok('problem' in changed && /^Lines 2 to 2 of a\.ts changed since the suggestion was made\./.test(changed.problem));
+  assert.deepEqual(steps(), ['read h1:a.ts'], 'no commit and no resolve');
+  // A branch that moved on since the page read it: GitHub refuses the commit, in one sentence, and no thread is resolved.
+  calls.length = 0;
+  refuse = true;
+  const moved = await writePullRequest(write, run);
+  assert.ok('problem' in moved && /Expected branch to point to "h1"/.test(moved.problem));
+  assert.deepEqual(steps(), ['read h1:a.ts', 'read h1:b.ts', 'commit']);
 });
 
 test('the lines of a diff where GitHub takes a comment: each hunk on each side, a removed file on the old side, and "---" inside a hunk is code', () => {

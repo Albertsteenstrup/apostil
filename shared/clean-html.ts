@@ -87,6 +87,18 @@ function openTag(name: string, attributeText: string): string {
 
 const TAG = /^<(\/?)([a-zA-Z][a-zA-Z0-9-]*)((?:\s+[^\s"'>/=]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+))?)*)\s*\/?>/;
 
+/** Where a <div> that opened just before `from` ends, after its own </div>: the divs inside it are counted. */
+function endOfDiv(input: string, from: number): number {
+  const tags = /<(\/?)div\b[^>]*>/gi;
+  tags.lastIndex = from;
+  let depth = 1;
+  for (let tag = tags.exec(input); tag; tag = tags.exec(input)) {
+    depth += tag[1] ? -1 : 1;
+    if (depth === 0) return tags.lastIndex;
+  }
+  return input.length;
+}
+
 /** Cleans HTML from GitHub: what is not on the allow-list goes, and every text is escaped. */
 export function cleanHtml(input: string): string {
   let out = '';
@@ -110,6 +122,13 @@ export function cleanHtml(input: string): string {
     const [whole, closing, rawName, attributeText] = tag;
     const name = rawName.toLowerCase();
     at = next + whole.length;
+    // GitHub's box of a suggested change goes with all it holds, and an empty <div data-suggestion> takes its place: the page draws the
+    // change there from the markdown of the comment, with "Commit suggestion".
+    if (!closing && name === 'div' && /(^|\s)js-suggested-changes-blob(\s|$)/.test(attributesOf(attributeText).get('class') ?? '')) {
+      at = endOfDiv(input, at);
+      out += '<div data-suggestion></div>';
+      continue;
+    }
     // Text for screen readers only ("Loading", "Footnotes") goes with its tag: the page shows no stray word.
     const hidden = !closing && /(^|\s)sr-only(\s|$)/.test(attributesOf(attributeText).get('class') ?? '');
     if (DROP_WITH_CONTENT.has(name) || hidden) {

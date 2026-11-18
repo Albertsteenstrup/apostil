@@ -47,7 +47,17 @@ const HUNK = [
   '         return counts',
 ].join('\n');
 
-const REPORT = `<h3>Test report</h3><p>The checks of <code>9e2d4b7</code> ran. One failed.</p><table><thead><tr><th>Check</th><th>Result</th><th>Time</th></tr></thead><tbody>${
+// The code of a comment on the line that logs the count: the hunk up to that line, as GitHub gives it.
+const LOG_HUNK = HUNK.split('\n').slice(0, -1).join('\n');
+const LOG_LINE = '        log.info("offered %s copies", counts.offered)';
+const SUGGESTED = '        log.info("offered %d copies", counts.offered)';
+/** GitHub's own box of a suggested change in the HTML of a comment, made up in its form: the page draws its own in its place. */
+const suggestionBox = (old: string, now: string) => '<div class="my-2 border rounded-2 js-suggested-changes-blob diff-view js-check-hidden-unicode" id="">'
+  + '<div class="f6 p-2 lh-condensed border-bottom d-flex"><div class="flex-auto flex-items-center color-fg-muted">Suggested change</div></div>'
+  + `<div itemprop="text" class="blob-wrapper data file"><table class="d-table tab-size mb-0 width-full"><tbody><tr class="border-0"><td class="blob-num blob-num-deletion" data-line-number="242"></td><td class="blob-code-inner blob-code-deletion">${old.replace(/"/g, '&quot;')}</td></tr>`
+  + `<tr class="border-0"><td class="blob-num blob-num-addition" data-line-number="242"></td><td class="blob-code-inner blob-code-addition">${now.replace(/"/g, '&quot;')}</td></tr></tbody></table></div><div class="js-apply-changes"></div></div>`;
+
+const REPORT =`<h3>Test report</h3><p>The checks of <code>9e2d4b7</code> ran. One failed.</p><table><thead><tr><th>Check</th><th>Result</th><th>Time</th></tr></thead><tbody>${
   ['lint', 'types', 'unit / core', 'unit / lending', 'unit / desk', 'integration / core', 'integration / lending', 'build', 'docs']
     .map((name) => `<tr><td>${name}</td><td>${name === 'integration / lending' ? 'failed' : 'passed'}</td><td>${(name.length * 7) % 60 + 20} s</td></tr>`).join('')
 }</tbody></table><p>The failed test:</p><pre><code>${Array.from({ length: 16 }, (_, index) => `tests/lending/test_offers.py:${120 + index}: ${index === 15 ? 'AssertionError: the copy was offered twice' : 'in test_a_copy_is_offered_once'}`).join('\n')}</code></pre><p>Run it again with <code>make test-lending</code>.</p>`;
@@ -58,6 +68,7 @@ export function examplePullRequest(when = Date.now()): { raw: RawPullRequest; la
   ids = 0;
   const copilotReview = said(COPILOT, 70, '<p>Copilot reviewed 4 of 12 changed files and left 2 comments.</p>', { __typename: 'PullRequestReview', state: 'COMMENTED', submittedAt: at(70) });
   const changesReview = said(JONAS, 30, '<p>The copy is marked ready before the mail goes out. A member whose mail fails loses days of the pickup time.</p>', { __typename: 'PullRequestReview', state: 'CHANGES_REQUESTED', submittedAt: at(30) });
+  const approval = said(JONAS, 2, '<p>Looks good now.</p>', { __typename: 'PullRequestReview', state: 'APPROVED', submittedAt: at(2), reactionGroups: [{ content: 'HOORAY', reactors: { totalCount: 1 } }] });
   // What the owner may do with each thread: answer every one, resolve the open ones, unresolve the resolved one.
   const may = (resolved: boolean) => ({ viewerCanReply: true, viewerCanResolve: !resolved, viewerCanUnresolve: resolved });
   const threads = [
@@ -82,6 +93,12 @@ export function examplePullRequest(when = Date.now()): { raw: RawPullRequest; la
         said(JONAS, 30, '<p>Send the mail before <code>_mark_ready</code>, so that a failed mail does not shorten the pickup time.</p>', { diffHunk: HUNK, pullRequestReview: { id: changesReview.id } }),
         said(MIRA, 18.5, '<p>Moved, and a test covers it.</p>', { pullRequestReview: { id: 'made-up-answer-review' } }),
       ] },
+    },
+    { // open, with a suggested change of one line, in the approving review
+      id: 'thread-5', isResolved: false, isOutdated: false, path: SERVICE, line: 242, startLine: null, diffSide: 'RIGHT', resolvedBy: null, ...may(false),
+      comments: { totalCount: 1, nodes: [said({ ...JONAS, databaseId: 4242 }, 2, `<p>A count reads better with <code>%d</code>.</p>${suggestionBox(LOG_LINE, SUGGESTED)}`, {
+        body: `A count reads better with \`%d\`.\n\n\`\`\`suggestion\n${SUGGESTED}\n\`\`\``, diffHunk: LOG_HUNK, pullRequestReview: { id: approval.id, state: 'APPROVED' },
+      })] },
     },
   ];
   const hidden = said(JONAS, 10, '<p>Lunch at 12?</p>', { __typename: 'IssueComment', isMinimized: true, minimizedReason: 'OFF_TOPIC' });
@@ -117,7 +134,7 @@ export function examplePullRequest(when = Date.now()): { raw: RawPullRequest; la
     said(LENA, 11, '<p>Please rebase on main.</p>', { __typename: 'IssueComment' }),
     said(LENA, 10.5, '<p>Please rebase on main.</p>', { __typename: 'IssueComment' }),
     hidden,
-    said(JONAS, 2, '<p>Looks good now.</p>', { __typename: 'PullRequestReview', state: 'APPROVED', submittedAt: at(2), reactionGroups: [{ content: 'HOORAY', reactors: { totalCount: 1 } }] }),
+    approval,
   ];
   const run = (name: string, conclusion: string | null, more: object = {}) => ({
     __typename: 'CheckRun', name, status: conclusion ? 'COMPLETED' : 'IN_PROGRESS', conclusion, startedAt: at(16), completedAt: conclusion ? at(15.99) : null,
@@ -143,7 +160,7 @@ export function examplePullRequest(when = Date.now()): { raw: RawPullRequest; la
   const raw: RawPullRequest = {
     pr: {
       id: 'made-up-pull-12', number: 12, title: 'Holds for books that are out', url: 'https://example.com/made-up/pull/12', state: 'OPEN', isDraft: false, createdAt: at(72),
-      locked: false, viewerDidAuthor: false, pending: { nodes: [] },
+      locked: false, viewerDidAuthor: false, viewerCanApplySuggestion: true, pending: { nodes: [] }, viewer: who('you'), // he may push to the branch
       headRefName: 'made-up/holds', baseRefName: 'made-up/hold-store', headRefOid: '7c41b9e', baseRefOid: '0000000', author: MIRA, commits: { totalCount: 5 },
       changedFiles: 12, additions: 1840, deletions: 212, reviewDecision: 'REVIEW_REQUIRED', mergeable: 'MERGEABLE', mergeStateStatus: 'BLOCKED', bodyHTML: description,
       repository: { nameWithOwner: 'made-up/example', isPrivate: false }, headRepository: { nameWithOwner: 'made-up/example' },

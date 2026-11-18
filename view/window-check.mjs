@@ -94,8 +94,12 @@ writeFileSync(path.join(bin, 'write.mjs'), [
   "import { appendFileSync, readFileSync } from 'node:fs';",
   "const input = readFileSync(0, 'utf8');",
   `appendFileSync(${JSON.stringify(ghWrites)}, input.replace(/\\n/g, ' ') + '\\n');`,
-  'const name = /\\{\\s*(\\w+)\\(/.exec(JSON.parse(input).query)?.[1];',
-  "process.stdout.write(JSON.stringify({ data: { [name]: { commentEdge: { node: { id: 'stand-in-comment' } } } } }));", '',
+  'const { query, variables } = JSON.parse(input);',
+  'const name = /\\{\\s*(\\w+)\\(/.exec(query)?.[1];',
+  // The comment that GitHub made, as it answers: the page takes it in place of the words that it showed at once.
+  "const html = `<p>${String(variables.body ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>`;",
+  "const node = { id: 'stand-in-comment', url: 'https://github.com/made-up/example/pull/12#issuecomment-1', author: { login: 'reader', avatarUrl: '', __typename: 'User' }, createdAt: new Date().toISOString(), lastEditedAt: null, bodyHTML: html, isMinimized: false, minimizedReason: null, viewerDidAuthor: true, reactionGroups: [] };",
+  'process.stdout.write(JSON.stringify({ data: { [name]: { commentEdge: { node } } } }));', '',
 ].join('\n'));
 writeFileSync(path.join(bin, 'gh'), [
   '#!/bin/sh', `echo "$@" >> '${ghCalls}'`,
@@ -471,16 +475,23 @@ try {
   const writesBefore = writesNow().length;
   const readsBefore = readsNow();
   const commentText = 'A comment from the window check: "quoted", $(not run) and -f not an option 🚀';
+  const drawsBefore = conv ? await conv.evaluate(() => window.apostilConversations ?? 0).catch(() => -1) : -1;
   await conv?.locator('.ghend textarea').click();
   await page.keyboard.type(commentText, { delay: 2 });
   await page.keyboard.press('Meta+Enter');
   const writes = await until(() => writesNow().length > 0 && writesNow());
-  await until(() => readsNow() > readsBefore); // the page reads the pull request again
-  const fieldAfter = await until(() => conv.evaluate(() => document.querySelector('.ghend textarea')?.value === '' && { error: document.querySelector('.ghend .gherr')?.textContent ?? '' }));
-  check('a click on a pull request opens its change at "Conversation" with the icon of its state, and the time he looked is kept; one comment reaches the stand-in gh once, as addComment with the text unchanged on standard input, and the page reads the pull request again',
+  await until(() => readsNow() > readsBefore); // the page reads the pull request again, in the background
+  // GitHub's comment stands last in place of the words that showed at once, with no mark "sending"; the conversation was not drawn anew.
+  const after = await until(() => conv.evaluate(() => {
+    const last = [...document.querySelectorAll('.conv .feed > .msg')].at(-1)?.textContent ?? '';
+    return document.querySelector('.ghend textarea')?.value === '' && /window check/.test(last) && !/sending/.test(last)
+      && { error: document.querySelector('.ghend .gherr')?.textContent ?? '', last, draws: window.apostilConversations ?? 0 };
+  }));
+  check('a click on a pull request opens its change at "Conversation" with the icon of its state, and the time he looked is kept; one comment reaches the stand-in gh once, as addComment with the text unchanged on standard input; GitHub\'s comment stands last in place, the page reads the pull request again in the background and the conversation is not drawn anew',
     conversation.title === 'Holds for books that are out #12' && conversation.on === 'Conversation' && conversation.icon && !!looked && writesBefore === 0 && writes?.length === 1 && /addComment/.test(writes[0].query)
-      && writes[0].variables?.subject === examplePullRequest().raw.pr.id && writes[0].variables?.body === commentText && readsNow() > readsBefore && fieldAfter && !fieldAfter.error,
-    JSON.stringify({ conversation, looked: !!looked, writes, fieldAfter }));
+      && writes[0].variables?.subject === examplePullRequest().raw.pr.id && writes[0].variables?.body === commentText && readsNow() > readsBefore && after && !after.error
+      && after.last.includes('reader') && after.last.includes(commentText) && after.draws === drawsBefore,
+    JSON.stringify({ conversation, looked: !!looked, writes, after, drawsBefore }));
   await shot('2a-a-comment-sent-to-the-stand-in-gh');
   await conv?.locator('.switch a[data-view="diagram"]').first().click();
 

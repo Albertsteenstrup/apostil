@@ -55,8 +55,8 @@ const Conversation = (() => {
   const clock = (iso) => `<span class="t time" title="${esc(exact(iso))}">${esc(new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }))}</span>`;
   const timeOf = (iso) => (mode === 'messages' ? clock(iso) : when(iso));
   const edited = (flag) => (flag ? '<span class="t">edited</span>' : '');
-  /** "edited", and "example" on an item that a send in the example page added. */
-  const marksOf = (said) => `${edited(said.edited)}${said.example ? `<span class="t ex">${esc(WRITE.example)}</span>` : ''}`;
+  /** "edited"; "sending" on his words while GitHub has not answered yet; "example" on an item that a send in the example page added. */
+  const marksOf = (said) => `${edited(said.edited)}${said.sending ? `<span class="t ex">${esc(WRITE.sendingMark)}</span>` : said.example ? `<span class="t ex">${esc(WRITE.example)}</span>` : ''}`;
   /** "Today", "Yesterday" or "3 November": the line between the days of "Messages". */
   function dayWord(iso) {
     const start = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
@@ -236,7 +236,6 @@ const Conversation = (() => {
   let lastStrip = null;
   /** A click on the checks of the strip opens or closes their list under it. */
   function bindStrip(el) {
-    if (focusReview && el.querySelector('[data-review]')) { focusReview = false; el.querySelector('[data-review]').focus(); }
     el.querySelector('[data-checks]')?.addEventListener('click', () => {
       checksOpen = !checksOpen;
       el.innerHTML = stripHtml(...lastStrip);
@@ -340,9 +339,9 @@ const Conversation = (() => {
       + `<div class="early"></div>${codeRows(late)}</div>`;
   }
 
-  /** A comment inside a thread, or a hidden one as one quiet row that a click opens. */
-  function smallComment(comment) {
-    const body = `<div class="sc"><div class="top">${avatar(comment.author, 's')}${name(comment.author)}${mode === 'messages' ? `${marksOf(comment)}${clock(comment.at)}` : `${when(comment.at)}${marksOf(comment)}`}</div>${textHtml(comment.html)}${chips(comment.reactions)}</div>`;
+  /** A comment inside a thread, or a hidden one as one quiet row that a click opens. Its suggested changes stand in its text, with their buttons. */
+  function smallComment(comment, thread, pull) {
+    const body = `<div class="sc" data-said="${esc(comment.id)}"><div class="top">${avatar(comment.author, 's')}${name(comment.author)}${mode === 'messages' ? `${marksOf(comment)}${clock(comment.at)}` : `${when(comment.at)}${marksOf(comment)}`}</div>${textHtml(commentText(comment, thread, pull, true))}${chips(comment.reactions)}</div>`;
     return comment.hidden ? hiddenBox(comment, body) : body;
   }
 
@@ -362,16 +361,19 @@ const Conversation = (() => {
   function threadHtml(thread, pull, classic = false) {
     const head = `<div class="fh">${fileLink(thread)}<span>${esc(linesWord(thread))}</span>${thread.outdated ? '<span class="lab">Outdated</span>' : ''}</div>`;
     const cut = thread.cutComments ? `<a class="cut" data-link="${esc(thread.comments[0]?.url ?? pull.url)}">${plural(thread.cutComments, 'more comment')} on GitHub</a>` : '';
-    const inner = `<div class="excerpt">${head}${codeHtml(thread)}</div>${thread.comments.map(smallComment).join('')}${cut}${threadField(thread, pull)}`;
+    const inner = `<div class="excerpt">${head}${codeHtml(thread)}</div>${thread.comments.map((comment) => smallComment(comment, thread, pull)).join('')}${cut}${threadField(thread, pull)}`;
+    const id = `data-thread="${esc(thread.id)}"`; // a write draws this one thread again in its place
+    const sending = thread.sending ? `<span class="t ex">${esc(WRITE.sendingMark)}</span>` : '';
     if (classic && (thread.resolved || thread.outdated)) {
       const why = thread.resolved ? 'resolved' : 'outdated';
-      return `<div class="thread gfold" data-box><a class="ghead" data-toggle><span class="fp">${esc(thread.path)}</span>${thread.outdated ? '<span class="lab">Outdated</span>' : ''}`
+      return `<div class="thread gfold" data-box ${id}><a class="ghead" data-toggle><span class="fp">${esc(thread.path)}</span>${thread.outdated ? '<span class="lab">Outdated</span>' : ''}${sending}`
         + `<span class="gbtn"><span class="show">Show ${why}</span><span class="hide">Hide ${why}</span></span></a><div class="inner">${inner}</div></div>`;
     }
-    if (!thread.resolved) return `<div class="thread${thread.outdated ? ' outdated' : ''}">${inner}</div>`;
+    if (!thread.resolved) return `<div class="thread${thread.outdated ? ' outdated' : ''}" ${id}>${inner}</div>`;
     const first = thread.comments[0];
-    const who = thread.resolvedBy ? `${avatar(thread.resolvedBy, 's')}<span class="by">resolved by ${esc(thread.resolvedBy.login)}</span>` : '<span class="by">resolved</span>';
-    return `<div class="thread folded${thread.outdated ? ' outdated' : ''}" data-box><a class="resolved" data-toggle><span class="ok">✓</span>${who}`
+    const how = applied[thread.id] !== undefined ? 'suggestion applied by' : 'resolved by';
+    const who = thread.resolvedBy ? `${avatar(thread.resolvedBy, 's')}<span class="by">${how} ${esc(thread.resolvedBy.login)}</span>${sending}` : `<span class="by">resolved</span>${sending}`;
+    return `<div class="thread folded${thread.outdated ? ' outdated' : ''}" data-box ${id}><a class="resolved" data-toggle><span class="ok">✓</span>${who}`
       + `<span class="at">${esc(baseName(thread.path))} ${esc(linesWord(thread))}</span><span class="first">${esc(first ? plainText(first.html) : '')}</span>`
       + `<span class="n">${plural(thread.comments.length, 'message')}</span><span class="go">›</span></a><div class="inner">${inner}</div></div>`;
   }
@@ -404,7 +406,7 @@ const Conversation = (() => {
       const { comment, thread } = item;
       const { box, shows } = messageLook(item, comment.author);
       const body = `<div class="msg${box.cls}"${box.style}>${shows('avatar') ? avatar(comment.author) : gap}<div class="body"><div class="top">${shows('name') ? name(comment.author) : ''}${edited(comment.edited)}`
-        + `<span class="t">answered on ${esc(baseName(thread.path))} ${esc(linesWord(thread))}</span>${shows('time') ? clock(comment.at) : ''}</div>${shows('text') ? textHtml(comment.html) : ''}${shows('reactions') ? chips(comment.reactions) : ''}</div></div>`;
+        + `<span class="t">answered on ${esc(baseName(thread.path))} ${esc(linesWord(thread))}</span>${shows('time') ? clock(comment.at) : ''}</div>${shows('text') ? textHtml(commentText(comment, thread, pull, false)) : ''}${shows('reactions') ? chips(comment.reactions) : ''}</div></div>`;
       return comment.hidden ? hiddenBox(comment, body) : body;
     }
     const heading = headingOf(item.html);
@@ -496,16 +498,20 @@ const Conversation = (() => {
       + `<div class="inner">${runs.map(runHtml).join('')}</div></div>`;
   }
 
+  /** True when he wrote the message of an entry himself: his own words are never new to him. */
+  const mineEntry = (entry) => entry.kind === 'message' && !!(entry.item.mine || entry.item.comment?.mine || entry.item.thread?.comments[0]?.mine);
+
   /**
    * The entries of "Messages": commits in a row as one entry, events in a row as one entry, product comments in a row as one entry.
-   * A later answer in a thread stands at its own time only when it is new. Equal messages of one author are one, with a count.
+   * A later answer in a thread stands at its own time only when it is new; his own answer stands only in its thread, as on GitHub.
+   * Equal messages of one author are one, with a count.
    */
   function entriesOf(pull, since) {
     const entries = [];
     const seen = new Map();
     let run = null;
     for (const raw of pull.items) {
-      if (raw.kind === 'reply' && !(since && raw.at > since)) continue;
+      if (raw.kind === 'reply' && !(since && raw.at > since && !raw.comment.mine)) continue;
       if (!eventShown(raw)) continue; // an event or a commit that a rule of the look leaves out; the lines that count commits still count it
       let item = raw;
       if (item.kind === 'comment' && plainText(item.html).length > 0) {
@@ -565,10 +571,10 @@ const Conversation = (() => {
       + `<span class="t">${esc(ago(entries[0].at))} – ${esc(ago(entries[entries.length - 1].at))}</span></a>`;
   }
 
-  /** The form "Messages": earlier messages folded, the line "New since you last looked", the rest open, a day line between days. */
+  /** The form "Messages": earlier messages folded, the line "New since you last looked" before the first new words of others, the rest open, a day line between days. */
   function messagesHtml(pull, since) {
     const entries = entriesOf(pull, since);
-    const firstNew = since ? entries.findIndex((entry) => entry.at > since) : -1;
+    const firstNew = since ? entries.findIndex((entry) => entry.at > since && !mineEntry(entry)) : -1;
     const before = firstNew < 0 ? (since ? entries : []) : entries.slice(0, firstNew);
     const after = firstNew < 0 ? (since ? [] : entries) : entries.slice(firstNew);
     let foldTo = 0;
@@ -580,7 +586,7 @@ const Conversation = (() => {
     }
     const earlier = before.slice(0, foldTo);
     const open = before.slice(foldTo);
-    const newCount = after.filter((entry) => entry.message).length;
+    const newCount = after.filter((entry) => entry.message && !mineEntry(entry)).length;
     const lastDay = open.length ? dayKey(open[open.length - 1].at) : '';
     return {
       earlier,
@@ -619,7 +625,7 @@ const Conversation = (() => {
       const first = item.thread.comments[0] ?? { author: { login: '?' } };
       return gbox(first.author, `commented on code ${when(item.at)}`, `<div class="gb">${threadHtml(item.thread, pull, true)}</div>`, '', marks(first.author, pull, first.role));
     }
-    const edited = `${item.edited ? '<span class="lab">edited</span>' : ''}${item.example ? `<span class="lab">${esc(WRITE.example)}</span>` : ''}`;
+    const edited = `${item.edited ? '<span class="lab">edited</span>' : ''}${item.sending ? `<span class="lab">${esc(WRITE.sendingMark)}</span>` : item.example ? `<span class="lab">${esc(WRITE.example)}</span>` : ''}`;
     const body = item.html ? `<div class="gb"><div class="md">${item.html}</div></div>` : '';
     const reactions = item.reactions.length ? `<div class="gr">${chips(item.reactions)}</div>` : '';
     let html;
@@ -667,7 +673,7 @@ const Conversation = (() => {
   // The words of writing to GitHub. Change them here.
   const WRITE = {
     answer: 'Answer…', answerButton: 'Answer', resolve: 'Resolve', unresolve: 'Unresolve',
-    comment: 'Write a comment…', commentButton: 'Comment', sending: 'Sending…', keys: '⌘ Enter',
+    comment: 'Write a comment…', commentButton: 'Comment', sending: 'Sending…', sendingMark: 'sending', keys: '⌘ Enter',
     review: 'Review', reviewText: 'Write what the review says…', sendReview: 'Send review', needsText: 'Write what the review says first.',
     verdicts: { COMMENT: 'Comment', APPROVE: 'Approve', REQUEST_CHANGES: 'Request changes' },
     own: 'This is your own pull request.',
@@ -683,41 +689,44 @@ const Conversation = (() => {
     notInDiff: (number, one) => `GitHub takes a comment only on lines of its diff. ${one ? 'This line is' : 'These lines are'} not in the diff of pull request #${number}.`,
     lockedPull: (number) => `The conversation of pull request #${number} is locked.`,
     onlyGitHub: 'On this page a comment goes only to GitHub: type @github.',
+    // A suggested change, with GitHub's own words.
+    suggested: 'Suggested change', commitSuggestion: 'Commit suggestion', commitBatch: (count) => `Commit suggestions (${count})`,
+    batch: 'Add suggestion to batch', unbatch: 'Remove from batch',
+    applied: (short) => (short ? `Committed as ${short}. Pull to have it here.` : 'Committed.'),
+    one: 'Update', many: 'Apply suggestions from code review', // the commit message that GitHub writes for one suggestion (with the file name) and for a batch
   };
 
   // What the fields hold, by key ("reply:<thread id>", "comment:<pull id>", "review:<pull id>"): kept when the page draws again or changes its view.
   const drafts = { ...(kept.githubDrafts ?? {}) };
   const verdicts = {}; // the chosen verdict of each review panel, by pull id
-  const failed = {}; // GitHub's sentence under a field whose send failed, by key
-  const sending = new Set(); // the keys whose send runs now
+  const failed = {}; // GitHub's sentence in the thread or under the field whose write failed, by key
+  const flipping = new Set(); // the threads whose resolve or unresolve runs now: one click, one send
   let reviewOpen = false; // the review panel under the strip
-  let stay = null; // after a send: { key, top, flip }, so the next drawing keeps the field where it stood on the screen, and the focus
-  let focusReview = false; // after a review was sent: the next drawing of the strip puts the focus on "Review"
 
   const keepDrafts = () => keep({ githubDrafts: drafts });
   const canWrite = (pull) => !!pull.id && !pull.locked;
 
   /**
    * A field that writes to GitHub: quiet on one line until a click or Tab opens it; its button sends, and so does Cmd+Enter.
-   * `beside` stands at the right of the field (Resolve). GitHub's sentence of a failed send stands under it, and the text stays.
+   * `beside` stands at the right of the field (Resolve). GitHub's sentence of a failed write stands under it, and the text stays.
+   * A send empties it at once: it is ready for the next words while GitHub answers.
    */
   function fieldHtml(key, placeholder, button, beside = '', hint = '') {
-    const busy = sending.has(key);
-    return `<div class="ghw${drafts[key] || busy || failed[key] ? ' on' : ''}" data-gh="${esc(key)}"><div class="ghl">`
-      + `<textarea class="ghf" rows="1" placeholder="${esc(placeholder)}" aria-label="${esc(placeholder)}"${busy ? ' readonly' : ''}>${esc(drafts[key] ?? '')}</textarea>${beside}</div>`
-      + `<div class="gha"><button class="ghs" data-gh-send${busy ? ' disabled' : ''}>${esc(busy ? WRITE.sending : button)}</button><span class="ghk">${esc(WRITE.keys)}</span>${hint ? `<span class="ghh">${esc(hint)}</span>` : ''}</div>`
+    return `<div class="ghw${drafts[key] || failed[key] ? ' on' : ''}" data-gh="${esc(key)}"><div class="ghl">`
+      + `<textarea class="ghf" rows="1" placeholder="${esc(placeholder)}" aria-label="${esc(placeholder)}">${esc(drafts[key] ?? '')}</textarea>${beside}</div>`
+      + `<div class="gha"><button class="ghs" data-gh-send>${esc(button)}</button><span class="ghk">${esc(WRITE.keys)}</span>${hint ? `<span class="ghh">${esc(hint)}</span>` : ''}</div>`
       + `${errorHtml(key)}</div>`;
   }
   const errorHtml = (key) => (failed[key] ? `<p class="gherr">${esc(failed[key])}</p>` : '');
 
-  /** The end of a review thread: "Answer…", and "Resolve" or "Unresolve" beside it when he may. */
+  /** The end of a review thread: "Answer…", and "Resolve" or "Unresolve" beside it when he may ("Sending…" while it runs). */
   function threadField(thread, pull) {
     if (!canWrite(pull)) return '';
     const key = `reply:${thread.id}`;
     const flip = thread.resolved ? thread.canUnresolve && 'unresolve' : thread.canResolve && 'resolve';
-    const beside = flip ? `<a class="ghr" data-gh-resolve="${flip}" tabindex="0">${esc(WRITE[flip])}</a>` : '';
+    const beside = flip ? `<a class="ghr" data-gh-resolve="${flip}" tabindex="0">${esc(flipping.has(thread.id) ? WRITE.sending : WRITE[flip])}</a>` : '';
     if (thread.canReply) return fieldHtml(key, WRITE.answer, WRITE.answerButton, beside, pull.pending ? WRITE.intoReview : ''); // GitHub puts an answer into a review that is not sent yet
-    return beside ? `<div class="ghw" data-gh="${esc(key)}"><div class="ghl solo">${beside}</div>${errorHtml(key)}</div>` : '';
+    return beside || failed[key] ? `<div class="ghw" data-gh="${esc(key)}"><div class="ghl solo">${beside}</div>${errorHtml(key)}</div>` : '';
   }
 
   /** The end of the conversation: "Write a comment…", or one line when it is locked. */
@@ -741,26 +750,26 @@ const Conversation = (() => {
       return `<label class="ghv${off ? ' off' : ''}"${off ? ` title="${esc(WRITE.own)}"` : ''}><input type="radio" name="verdict-${esc(pull.id)}" value="${verdict}"`
         + `${verdict === chosen ? ' checked' : ''}${off ? ' disabled' : ''}>${esc(WRITE.verdicts[verdict])}</label>`;
     };
-    const busy = sending.has(key);
     return `<section class="review-panel"><div class="ghw on" data-gh="${esc(key)}">`
-      + `<textarea class="ghf" rows="3" placeholder="${esc(WRITE.reviewText)}" aria-label="${esc(WRITE.reviewText)}"${busy ? ' readonly' : ''}>${esc(drafts[key] ?? '')}</textarea>`
+      + `<textarea class="ghf" rows="3" placeholder="${esc(WRITE.reviewText)}" aria-label="${esc(WRITE.reviewText)}">${esc(drafts[key] ?? '')}</textarea>`
       + `<div class="gha"><span class="ghvs">${Object.keys(WRITE.verdicts).map(choice).join('')}</span>`
-      + `<button class="ghs" data-gh-send${busy ? ' disabled' : ''}>${esc(busy ? WRITE.sending : WRITE.sendReview)}</button><span class="ghk">${esc(WRITE.keys)}</span></div>`
+      + `<button class="ghs" data-gh-send>${esc(WRITE.sendReview)}</button><span class="ghk">${esc(WRITE.keys)}</span></div>`
       + `${errorHtml(key)}</div></section>`;
   }
 
   /** The pull request that the page shows now, as read: { pull, lines }, or undefined. */
   const shownRead = () => { const link = App.pullLink(); return link ? App.read[link] : undefined; };
 
-  /** A thread of the pull request by its id: in a review, or alone. */
-  const threadById = (pull, id) => pull.items.flatMap((item) => (item.kind === 'review' ? item.threads : item.kind === 'thread' ? [item.thread] : [])).find((thread) => thread.id === id);
+  /** Every review thread of a pull request: in a review, or alone. */
+  const allThreads = (pull) => pull.items.flatMap((item) => (item.kind === 'review' ? item.threads : item.kind === 'thread' ? [item.thread] : []));
+  const threadById = (pull, id) => allThreads(pull).find((thread) => thread.id === id);
 
   /** The write that a field asks for, from its key and its text; or { problem } when it cannot go. */
   function writeOf(key, body) {
     const pull = shownRead()?.pull;
     const [kind, id] = [key.slice(0, key.indexOf(':')), key.slice(key.indexOf(':') + 1)];
     if (!pull) return { problem: 'The pull request is not read yet.' };
-    if (kind === 'reply') return { kind: 'reply', threadId: id, body };
+    if (kind === 'reply') return threadById(pull, id) ? { kind: 'reply', threadId: id, body } : { problem: 'This thread is not in the pull request as read.' };
     if (kind === 'comment') return { kind: 'comment', pullId: id, body };
     const verdict = verdicts[id] ?? 'COMMENT';
     if (!body && verdict !== 'APPROVE' && !pull.pending) return { problem: WRITE.needsText };
@@ -768,52 +777,215 @@ const Conversation = (() => {
   }
 
   /**
-   * Sends one write: through VS Code, which answers { ok } or { problem }; as a file in a browser the example takes it at once.
-   * It is sent once. The answer comes back to the caller, who shows it; nothing here sends it again.
+   * Sends one write: through VS Code, which answers { ok, … } with what GitHub made, or { problem }; as a file in a browser the example answers
+   * as GitHub does (exampleWrite). It is sent once. The answer comes back to the caller, who shows it; nothing here sends it again.
    */
   let writeCount = 0;
-  const writing = new Map();
+  const answerOf = new Map();
   function toGitHub(write) {
     window.apostilSent.push({ type: 'write', write });
+    if (!vscodeApi && window.apostilExampleHold) return new Promise((resolve) => { window.apostilExampleRelease = () => resolve(exampleWrite(write)); }); // a browser check holds the answer, to see the page before it
     if (!vscodeApi) return Promise.resolve(exampleWrite(write));
     return new Promise((resolve) => {
       const id = ++writeCount;
-      writing.set(id, resolve);
+      answerOf.set(id, resolve);
       vscodeApi.postMessage({ type: 'write', id, write });
     });
   }
   window.addEventListener('message', (event) => {
     if (event.data?.type !== 'written') return;
-    writing.get(event.data.id)?.(event.data.result);
-    writing.delete(event.data.id);
+    answerOf.get(event.data.id)?.(event.data.result);
+    answerOf.delete(event.data.id);
   });
 
-  /** The send of a field: locked while it runs, its text kept and GitHub's sentence under it when it fails, emptied when it went through. */
-  async function sendField(box) {
+  // ----- a write shows its result at once; the call to GitHub runs in the background -----
+
+  let running = 0; // writes whose answer has not come yet
+  let started = 0; // writes started on this page
+  /** True while a write runs. App.reread() takes a read of the pull request only when no write ran while it read: such a read may not hold that write. */
+  const writing = () => running > 0;
+  const writesStarted = () => started;
+
+  /** Sends a write in the background: `done(answer)` takes GitHub's answer in place, `undo(problem)` puts the page back as it was and says why. */
+  async function inBackground(write, done, undo) {
+    running++;
+    started++;
+    const result = await toGitHub(write);
+    running--;
+    if (result.problem) undo(result.problem);
+    else done(result);
+    if (!result.problem && !vscodeApi) App.reread(); // in VS Code the extension asks for it after each write that went through
+  }
+
+  /** He himself, as gh is signed in; "you" when the read did not say. */
+  const me = (pull) => pull.viewer ?? { login: 'you', avatar: '', bot: false };
+  let localCount = 0;
+  /** His words as a comment that shows at once, marked "sending" until GitHub answers with the comment that it made. */
+  const sendingComment = (pull, body) => ({
+    id: `sending-${++localCount}`, author: me(pull), at: new Date().toISOString(), edited: false,
+    html: `<p>${esc(body).replace(/\n/g, '<br>')}</p>`, reactions: [], url: pull.url, mine: true, sending: true,
+  });
+  /** The comment that GitHub answered, or the one that showed, now without its mark. */
+  const answered = (shown, made) => { if (made) return made; const { sending, ...rest } = shown; return rest; };
+  /** A failed send gives his words back to their field, before what he typed there since. */
+  const giveBack = (key, body) => { drafts[key] = drafts[key] ? `${body}\n\n${drafts[key]}` : body; keepDrafts(); };
+
+  const nodesOf = (html) => { const box = document.createElement('template'); box.innerHTML = html; return [...box.content.children]; };
+  /** The nodes of `html` in place of `old`; the new nodes. */
+  const swapNodes = (old, html) => { const fresh = nodesOf(html); if (old[0]?.isConnected) old[0].before(...fresh); old.forEach((node) => node.remove()); return fresh; };
+  /** The y below the slim bar at the top, where a thing that comes into view stands. */
+  const viewTop = () => { const short = document.getElementById('short'); return short?.classList.contains('on') ? short.getBoundingClientRect().bottom : 0; };
+
+  /** Opens a box again after it was drawn anew: the folded code lines of a thread are drawn when it opens. */
+  function openBox(box) {
+    box.classList.add('open');
+    const early = box.querySelector(':scope > [data-early]');
+    const rows = box.querySelector(':scope > .early');
+    if (early && rows && !rows.childElementCount && earlyRows.has(early.dataset.early)) rows.innerHTML = codeRows(earlyRows.get(early.dataset.early));
+  }
+
+  /** Runs `draw`, which draws a part again, and puts the keyboard focus back where it was: in a field (with its caret), on Resolve, or on Review. */
+  function keepFocus(draw) {
+    const active = document.activeElement;
+    const key = active?.closest?.('[data-gh]')?.dataset.gh;
+    const caret = active?.tagName === 'TEXTAREA' ? [active.selectionStart, active.selectionEnd] : null;
+    const flip = !!active?.closest?.('[data-gh-resolve]');
+    const review = !!active?.closest?.('[data-review]');
+    draw();
+    if (!active || active.isConnected) return;
+    if (review) return document.querySelector('#status [data-review]')?.focus({ preventScroll: true });
+    const box = key && document.querySelector(`[data-gh="${CSS.escape(key)}"]`);
+    const target = flip ? box?.querySelector('[data-gh-resolve]') : box?.querySelector('textarea');
+    if (!target || !target.offsetParent) return; // folded away with its thread
+    target.focus({ preventScroll: true });
+    if (caret && target.tagName === 'TEXTAREA') target.setSelectionRange(Math.min(caret[0], target.value.length), Math.min(caret[1], target.value.length));
+    if (target.getBoundingClientRect().bottom > innerHeight) target.scrollIntoView({ block: 'nearest' }); // a new message above it pushed it out of the view
+  }
+
+  /**
+   * Draws one thread again in its place, from the pull request as it is now. The rest of the page stays: its place on the screen, every fold
+   * inside the thread and elsewhere, and the focus. `open`: true opens it, false folds it, undefined keeps it as it was.
+   * A thread that folds while its top is above the view comes to the top of the view, so that he sees what he folded.
+   */
+  function redrawThread(thread, open) {
+    const pull = shownRead()?.pull;
+    if (!pull) return;
+    keepFocus(() => {
+      for (const el of document.querySelectorAll(`.conv [data-thread="${CSS.escape(thread.id)}"]`)) {
+        const opened = [...el.querySelectorAll('[data-box]')].map((box) => box.classList.contains('open'));
+        const [fresh] = nodesOf(threadHtml(thread, pull, mode === 'classic'));
+        el.replaceWith(fresh);
+        const boxes = [...fresh.querySelectorAll('[data-box]')];
+        opened.forEach((on, index) => { if (on && boxes[index]) openBox(boxes[index]); });
+        if (fresh.matches('[data-box]')) fresh.classList.toggle('open', open ?? el.classList.contains('open'));
+        const place = fresh.getBoundingClientRect();
+        if (place.bottom < viewTop()) scrollBy(0, place.top - viewTop());
+      }
+    });
+  }
+
+  /** The send of a field: his words show at once where they belong, the field is empty and ready again, and GitHub answers in the background. */
+  function sendField(box) {
     const key = box.dataset.gh;
     const field = box.querySelector('textarea');
     const body = field.value.trim();
-    if (sending.has(key) || (!body && !key.startsWith('review:'))) return;
+    if (!body && !key.startsWith('review:')) return;
     const write = writeOf(key, body);
     if (write.problem) return showFailure(box, key, write.problem);
-    sending.add(key);
     delete failed[key];
-    redrawField(box, key);
-    const result = await toGitHub(write);
-    sending.delete(key);
-    const now = document.querySelector(`[data-gh="${CSS.escape(key)}"]`) ?? box; // the page may have drawn again meanwhile
-    if (result.problem) return showFailure(now, key, result.problem);
     delete drafts[key];
     keepDrafts();
-    if (key.startsWith('review:')) {
-      reviewOpen = false;
-      redrawStrip(true);
-      focusReview = true;
-    } else {
-      stay = { key, top: now.getBoundingClientRect().top };
-      redrawField(now, key, true);
+    if (write.kind === 'reply') return sendReply(write, key);
+    redrawField(box, key, document.activeElement && box.contains(document.activeElement));
+    if (write.kind === 'comment') return sendComment(write, key);
+    return sendReview(write, key);
+  }
+
+  /** An answer stands as the last message of its thread, in place, marked "sending"; GitHub's answer takes its place, a failure takes it back. */
+  function sendReply(write, key) {
+    const pull = shownRead().pull;
+    const thread = threadById(pull, write.threadId);
+    const shown = sendingComment(pull, write.body);
+    thread.comments.push(shown);
+    redrawThread(thread);
+    void inBackground(write, (result) => {
+      thread.comments.splice(thread.comments.indexOf(shown), 1, answered(shown, result.comment));
+      redrawThread(thread);
+      if (pull.pending) { pull.pending.comments++; keepFocus(() => redrawStrip()); } // GitHub put it into his review that is not sent yet
+    }, (problem) => {
+      thread.comments.splice(thread.comments.indexOf(shown), 1);
+      giveBack(key, write.body);
+      failed[key] = problem;
+      redrawThread(thread);
+    });
+  }
+
+  /**
+   * A new item of his at the end of the conversation, at once: a comment or a review, with a day line when the day before it is another.
+   * Answers { line, nodes }: what it drew. As file in a browser and in VS Code alike.
+   */
+  function appendItem(item, pull, before) {
+    const feed = document.querySelector('.conv .feed');
+    if (!feed) return { line: [], nodes: [] };
+    if (mode === 'classic') {
+      const nodes = nodesOf(classicRow(item, pull));
+      const merge = feed.querySelector('.tl > .merge');
+      if (merge) merge.before(...nodes); else feed.querySelector('.tl')?.append(...nodes);
+      return { line: [], nodes };
     }
-    if (!vscodeApi) App.reread(); // VS Code tells the page to read it again
+    const line = !before || dayKey(before) !== dayKey(item.at) ? nodesOf(dayLine(item.at)) : [];
+    const nodes = nodesOf(messageHtml(item, pull, false));
+    feed.append(...line, ...nodes);
+    return { line, nodes };
+  }
+
+  /** A comment at the end: it stands last at once, marked "sending"; GitHub's comment takes its place, a failure takes it back. */
+  function sendComment(write, key) {
+    const pull = shownRead().pull;
+    const before = pull.items.at(-1)?.at;
+    const item = { kind: 'comment', ...sendingComment(pull, write.body) };
+    pull.items.push(item);
+    const shown = appendItem(item, pull, before);
+    void inBackground(write, (result) => {
+      const made = { kind: 'comment', ...answered(item, result.comment) };
+      pull.items.splice(pull.items.indexOf(item), 1, made);
+      shown.nodes = swapNodes(shown.nodes, mode === 'classic' ? classicRow(made, pull) : messageHtml(made, pull, false));
+    }, (problem) => {
+      pull.items.splice(pull.items.indexOf(item), 1);
+      [...shown.line, ...shown.nodes].forEach((node) => node.remove());
+      giveBack(key, write.body);
+      failed[key] = problem;
+      const box = document.querySelector(`[data-gh="${CSS.escape(key)}"]`);
+      if (box) redrawField(box, key, document.activeElement && box.contains(document.activeElement));
+    });
+  }
+
+  /** A review: the panel closes and the review stands last at once, marked "sending"; a failure opens the panel again with the text and the reason. */
+  function sendReview(write, key) {
+    const pull = shownRead().pull;
+    const before = pull.items.at(-1)?.at;
+    const said = sendingComment(pull, write.body);
+    const item = { kind: 'review', ...said, html: write.body ? said.html : '', state: { APPROVE: 'approved', REQUEST_CHANGES: 'changes requested', COMMENT: 'reviewed' }[write.verdict], threads: [] };
+    const pending = pull.pending;
+    pull.items.push(item);
+    delete pull.pending;
+    reviewOpen = false;
+    redrawStrip(true);
+    const shown = appendItem(item, pull, before);
+    const drawn = (one) => (mode === 'classic' ? classicRow(one, pull) : messageHtml(one, pull, false));
+    void inBackground(write, (result) => {
+      const made = result.review ? { kind: 'review', ...result.review, threads: [] } : answered(item);
+      pull.items.splice(pull.items.indexOf(item), 1, made);
+      shown.nodes = swapNodes(shown.nodes, drawn(made));
+    }, (problem) => {
+      pull.items.splice(pull.items.indexOf(item), 1);
+      if (pending) pull.pending = pending;
+      [...shown.line, ...shown.nodes].forEach((node) => node.remove());
+      giveBack(key, write.body);
+      failed[key] = problem;
+      reviewOpen = true;
+      redrawStrip(true);
+    });
   }
 
   function showFailure(box, key, text) {
@@ -825,40 +997,43 @@ const Conversation = (() => {
   function redrawField(box, key, focus = false) {
     if (!box.isConnected) return;
     const field = box.querySelector('textarea');
-    if (field) {
-      field.readOnly = sending.has(key);
-      if (!drafts[key] && !sending.has(key)) field.value = '';
-    }
-    const button = box.querySelector('[data-gh-send]');
-    if (button) {
-      button.disabled = sending.has(key);
-      button.textContent = sending.has(key) ? WRITE.sending : key.startsWith('review:') ? WRITE.sendReview : key.startsWith('reply:') ? WRITE.answerButton : WRITE.commentButton;
-    }
+    if (field) field.value = drafts[key] ?? '';
     box.querySelector('.gherr')?.remove();
     box.insertAdjacentHTML('beforeend', errorHtml(key));
-    box.classList.toggle('on', !!(drafts[key] || sending.has(key) || failed[key]) || key.startsWith('review:'));
+    box.classList.toggle('on', !!(drafts[key] || failed[key]) || key.startsWith('review:'));
     if (focus) field?.focus();
   }
 
-  /** Resolve or Unresolve: one click, one send. */
-  async function flipThread(link) {
-    const box = link.closest('[data-gh]');
-    const key = box.dataset.gh;
-    if (sending.has(key)) return;
-    const write = { kind: link.dataset.ghResolve, threadId: key.slice('reply:'.length) };
-    sending.add(key);
-    link.textContent = WRITE.sending;
-    const result = await toGitHub(write);
-    sending.delete(key);
-    const now = document.querySelector(`[data-gh="${CSS.escape(key)}"]`) ?? box;
-    if (result.problem) {
-      const flip = now.querySelector('[data-gh-resolve]');
-      if (flip) flip.textContent = WRITE[write.kind];
-      return showFailure(now, key, result.problem);
-    }
+  /** The state of a thread that a resolve changes, to put back when it fails. */
+  const flipState = (thread) => ({ resolved: thread.resolved, resolvedBy: thread.resolvedBy, canResolve: thread.canResolve, canUnresolve: thread.canUnresolve });
+
+  /** Resolve or Unresolve: one click, one send. A resolved thread folds at once, as on GitHub; an unresolved one opens. A failure puts it back, open, with the reason. */
+  function flipThread(link) {
+    const key = link.closest('[data-gh]').dataset.gh;
+    const threadId = key.slice('reply:'.length);
+    const pull = shownRead()?.pull;
+    const thread = pull && threadById(pull, threadId);
+    if (!thread || flipping.has(threadId)) return;
+    const kind = link.dataset.ghResolve;
+    const before = flipState(thread);
     delete failed[key];
-    stay = { key, top: now.getBoundingClientRect().top, flip: true };
-    if (!vscodeApi) App.reread();
+    flipping.add(threadId);
+    Object.assign(thread, kind === 'resolve'
+      ? { resolved: true, resolvedBy: me(pull), canResolve: false, canUnresolve: true }
+      : { resolved: false, resolvedBy: undefined, canResolve: true, canUnresolve: false }, { sending: true });
+    redrawThread(thread, kind === 'unresolve');
+    void inBackground({ kind, threadId }, (result) => {
+      flipping.delete(threadId);
+      delete thread.sending;
+      if (result.thread) Object.assign(thread, { resolvedBy: undefined }, result.thread);
+      redrawThread(thread);
+    }, (problem) => {
+      flipping.delete(threadId);
+      delete thread.sending;
+      Object.assign(thread, before);
+      failed[key] = problem;
+      redrawThread(thread, true);
+    });
   }
 
   /** The strip again, with the review panel open or closed; `focus` puts the cursor in its field, or on "Review" when it closed. */
@@ -870,7 +1045,162 @@ const Conversation = (() => {
     if (focus) (el.querySelector('.review-panel textarea') ?? el.querySelector('[data-review]'))?.focus();
   }
 
-  // ----- the example: a send in the page as a file in a browser shows the new item at once, marked as an example -----
+  /** What of a thread shows: after a read in the background a thread is drawn again only when this differs. */
+  const threadKey = (thread) => JSON.stringify([thread.resolved, thread.outdated, thread.resolvedBy?.login, thread.canReply, thread.canResolve, thread.canUnresolve,
+    thread.comments.map((one) => [one.id, one.html, one.edited, one.hidden, one.reactions])]);
+
+  /**
+   * After a read of the pull request in the background (App.reread): only what differs from what shows changes, in place: the strip, each thread
+   * whose comments or state changed, the merge box of "Classic". Nothing is drawn anew, so the place, the folds and the focus stay.
+   * New items of others show at the next drawing of the conversation.
+   */
+  function refresh(before, after, shown) {
+    keepFocus(() => {
+      drawStrip();
+      if (!shown || !document.querySelector('.conv')) return;
+      const was = new Map(allThreads(before).map((thread) => [thread.id, threadKey(thread)]));
+      for (const thread of allThreads(after)) if (was.has(thread.id) && was.get(thread.id) !== threadKey(thread)) redrawThread(thread);
+      const merge = document.querySelector('.conv .tl > .merge');
+      if (merge) merge.replaceWith(...nodesOf(mergeBox(after)));
+    });
+  }
+
+  // ----- a suggested change: "Commit suggestion" and "Add suggestion to batch", as on GitHub -----
+
+  const applied = {}; // the short commit of each thread whose suggestion he committed on this page, by thread id
+  const batch = new Map(); // the suggestions in the batch: comment id → thread id
+
+  /** The lines of a thread in the file at the head of the pull request, from the code of the thread; null when its code does not hold them all. */
+  function oldLines(thread) {
+    if (!thread.lines) return null;
+    const [start, end] = thread.lines;
+    const rows = thread.code.filter((row) => row.sign !== '-' && row.line >= start && row.line <= end);
+    return rows.length === end - start + 1 ? rows.map((row) => row.text) : null;
+  }
+
+  /** True when a suggestion of another comment in the batch is on a line of this thread: GitHub applies one suggestion per line in a batch. */
+  const overlapsBatch = (thread, comment, pull) => [...batch].some(([commentId, threadId]) => {
+    const other = commentId !== comment.id && threadById(pull, threadId);
+    return other && other.path === thread.path && other.lines[0] <= thread.lines[1] && thread.lines[0] <= other.lines[1];
+  });
+
+  /**
+   * Why GitHub would not apply this suggestion now, in GitHub's own words; '' when it can. null: no button and no words, when he may not push
+   * to the branch, the comment has more than one suggestion, or the lines that it replaces are not known.
+   */
+  function whyNot(thread, comment, pull) {
+    if (applied[thread.id] !== undefined) return WRITE.applied(applied[thread.id]);
+    if (!pull.canApply || !canWrite(pull) || comment.suggestions.length !== 1 || comment.sending) return null;
+    if (!pull.open) return 'Suggestions cannot be applied while the pull request is closed.';
+    if (pull.queued) return 'Suggestions cannot be applied while the pull request is queued to merge.';
+    if (thread.outdated) return 'Outdated suggestions cannot be applied.';
+    if (thread.resolved) return 'This suggestion has been applied or marked resolved.';
+    if (thread.side === 'LEFT') return 'Applying suggestions on deleted lines is not supported.';
+    if (comment.suggestions[0].pending) return 'Suggestions cannot be applied from pending reviews.';
+    const old = oldLines(thread);
+    if (!old) return null;
+    if (old.join('\n') === comment.suggestions[0].lines.join('\n')) return 'This suggestion is invalid because no changes were made to the code.';
+    if (overlapsBatch(thread, comment, pull)) return 'Only one suggestion per line can be applied in a batch.';
+    return '';
+  }
+
+  /** The buttons of a suggestion: "Commit suggestion" and "Add suggestion to batch"; in a batch "Commit suggestions (2)" and "Remove from batch". */
+  function suggestionActions(thread, comment, pull) {
+    const why = whyNot(thread, comment, pull);
+    if (why === null) return '';
+    if (why) return `<span class="ghh">${esc(why)}</span>`;
+    const inBatch = batch.has(comment.id);
+    const commit = inBatch ? WRITE.commitBatch(batch.size) : batch.size ? '' : WRITE.commitSuggestion; // while a batch is open, only its own suggestions commit
+    return `<span class="sga">${commit ? `<button class="ghs" data-suggest="commit">${esc(commit)}</button>` : ''}`
+      + `<a class="ghr" data-suggest="${inBatch ? 'unbatch' : 'batch'}" tabindex="0">${esc(inBatch ? WRITE.unbatch : WRITE.batch)}</a></span>`;
+  }
+
+  /** A suggested change as a change of the lines of its thread: the lines as they are, removed, and the suggested lines, added; with its buttons. */
+  function suggestionHtml(thread, comment, index, pull, actions) {
+    const start = thread.lines?.[0] ?? 0;
+    const rows = [...(oldLines(thread) ?? []).map((text, at) => ({ sign: '-', text, line: start + at })),
+      ...comment.suggestions[index].lines.map((text, at) => ({ sign: '+', text, line: start + at }))];
+    const head = actions && index === 0 && pull ? suggestionActions(thread, comment, pull) : '';
+    return `<div class="sugg" data-sugg="${esc(thread.id)}"><div class="sgh"><span>${esc(WRITE.suggested)}</span>${head}</div><div class="tcode">${codeRows(rows)}</div></div>`;
+  }
+
+  /** The text of a comment on code: its suggested changes where GitHub had them, or after the text when GitHub's HTML had no place for them. */
+  function commentText(comment, thread, pull, actions) {
+    if (!comment.suggestions?.length) return comment.html;
+    let index = 0;
+    const html = comment.html.replace(/<div data-suggestion><\/div>/g, () => (index < comment.suggestions.length ? suggestionHtml(thread, comment, index++, pull, actions) : ''));
+    return html + comment.suggestions.slice(index).map((_, at) => suggestionHtml(thread, comment, index + at, pull, actions)).join('');
+  }
+
+  /** The heads of the suggestions that show, after the batch changed. */
+  function redrawSuggestions(pull) {
+    for (const head of document.querySelectorAll('.conv .sc[data-said] .sugg .sgh')) {
+      const thread = threadById(pull, head.closest('[data-sugg]').dataset.sugg);
+      const comment = thread?.comments.find((one) => one.id === head.closest('[data-said]').dataset.said);
+      if (comment) head.innerHTML = `<span>${esc(WRITE.suggested)}</span>${suggestionActions(thread, comment, pull)}`;
+    }
+  }
+
+  /** A click on a button of a suggestion: into the batch, out of it, or commit. */
+  function suggestAction(el) {
+    const pull = shownRead()?.pull;
+    const thread = pull && threadById(pull, el.closest('[data-sugg]').dataset.sugg);
+    const comment = thread?.comments.find((one) => one.id === el.closest('[data-said]')?.dataset.said);
+    if (!comment) return;
+    const what = el.dataset.suggest;
+    if (what === 'batch') batch.set(comment.id, thread.id);
+    if (what === 'unbatch') batch.delete(comment.id);
+    if (what !== 'commit') return redrawSuggestions(pull);
+    const chosen = batch.size ? [...batch].map(([commentId, threadId]) => {
+      const one = threadById(pull, threadId);
+      return { thread: one, comment: one?.comments.find((said) => said.id === commentId) };
+    }).filter((one) => one.comment) : [{ thread, comment }];
+    commitSuggestions(chosen, pull);
+  }
+
+  /**
+   * "Commit suggestion" (or the batch): one commit on the branch of the pull request with GitHub's message and the authors of the suggestions
+   * as co-authors, then each thread resolved, as GitHub does. Each thread folds at once as applied, marked "sending"; a failure opens them again with the reason.
+   */
+  function commitSuggestions(chosen, pull) {
+    const threads = [...new Set(chosen.map((one) => one.thread))];
+    const coAuthors = [...new Set(chosen.filter((one) => !one.comment.mine).map((one) => one.comment.suggestions[0].coAuthor))];
+    const write = {
+      kind: 'suggestions', repo: pull.headRepo, branch: pull.head, headOid: pull.headOid, threadIds: threads.map((thread) => thread.id),
+      changes: chosen.map(({ thread, comment }) => ({ path: thread.path, start: thread.lines[0], end: thread.lines[1], old: oldLines(thread), lines: comment.suggestions[0].lines })),
+      message: { headline: chosen.length === 1 ? `${WRITE.one} ${baseName(threads[0].path)}` : WRITE.many, body: coAuthors.join('\n') },
+    };
+    const before = threads.map((thread) => [thread, flipState(thread)]);
+    const kept = new Map(batch);
+    batch.clear();
+    for (const thread of threads) {
+      delete failed[`reply:${thread.id}`];
+      Object.assign(thread, { resolved: true, resolvedBy: me(pull), canResolve: false, canUnresolve: true, sending: true });
+      applied[thread.id] = '';
+      redrawThread(thread, false);
+    }
+    redrawSuggestions(pull);
+    void inBackground(write, (result) => {
+      if (result.commit) pull.headOid = result.commit.oid; // the branch has moved on: the next commit or comment on code starts from it
+      for (const thread of threads) {
+        delete thread.sending;
+        applied[thread.id] = result.commit?.short ?? '';
+        redrawThread(thread);
+      }
+    }, (problem) => {
+      for (const [thread, state] of before) {
+        delete thread.sending;
+        delete applied[thread.id];
+        Object.assign(thread, state);
+        failed[`reply:${thread.id}`] = problem;
+        redrawThread(thread, true);
+      }
+      kept.forEach((threadId, commentId) => batch.set(commentId, threadId));
+      redrawSuggestions(pull);
+    });
+  }
+
+  // ----- the example: a send in the page as a file in a browser goes nowhere; the example answers as GitHub does, and the page shows it as in VS Code -----
 
   let exampleCount = 0;
   function exampleWrite(write) {
@@ -879,16 +1209,25 @@ const Conversation = (() => {
     const pull = shownRead()?.pull;
     if (!pull) return { problem: 'The example has no pull request here.' };
     const said = (body) => ({
-      id: `example-${++exampleCount}`, author: { login: 'you', avatar: '', bot: false }, at: new Date().toISOString(), edited: false,
-      html: `<p>${esc(body).replace(/\n/g, '<br>')}</p>`, reactions: [], url: pull.url, example: true,
+      id: `example-${++exampleCount}`, author: me(pull), at: new Date().toISOString(), edited: false,
+      html: `<p>${esc(body).replace(/\n/g, '<br>')}</p>`, reactions: [], url: pull.url, example: true, mine: true,
     });
-    const thread = write.threadId && threadById(pull, write.threadId);
-    if (write.kind === 'reply') thread.comments.push(said(write.body));
-    if (write.kind === 'resolve' || write.kind === 'unresolve') {
-      Object.assign(thread, { resolved: write.kind === 'resolve', canResolve: write.kind !== 'resolve', canUnresolve: write.kind === 'resolve' });
-      thread.resolvedBy = write.kind === 'resolve' ? said('').author : undefined;
+    if (write.kind === 'comment') return { ok: true, comment: said(write.body) };
+    if (write.kind === 'reply') { // GitHub's next read lists an answer also as a later answer of the pull request, as the reader gives it
+      const comment = said(write.body);
+      pull.items.push({ kind: 'reply', at: comment.at, thread: threadById(pull, write.threadId), comment });
+      return { ok: true, comment };
     }
-    if (write.kind === 'comment') pull.items.push({ kind: 'comment', ...said(write.body) });
+    if (write.kind === 'resolve' || write.kind === 'unresolve') {
+      const resolved = write.kind === 'resolve';
+      return { ok: true, thread: { resolved, ...(resolved ? { resolvedBy: me(pull) } : {}), canReply: true, canResolve: !resolved, canUnresolve: resolved } };
+    }
+    if (write.kind === 'review') {
+      const state = { APPROVE: 'approved', REQUEST_CHANGES: 'changes requested', COMMENT: 'reviewed' }[write.verdict];
+      return { ok: true, review: { ...said(write.body), html: write.body ? said(write.body).html : '', state } };
+    }
+    if (write.kind === 'suggestions') return { ok: true, commit: { oid: `5e6f7a8${'0'.repeat(33)}`, short: '5e6f7a8' } };
+    // A comment on code comes from another view: the example keeps it as GitHub would, and the conversation shows it when it is drawn.
     if (write.kind === 'lines' && pull.pending) pull.pending.comments++;
     if (write.kind === 'lines' && !pull.pending) {
       const { path, line, startLine } = write.lines;
@@ -897,11 +1236,6 @@ const Conversation = (() => {
         id: `example-thread-${exampleCount}`, path, lines: [startLine ?? line, line], resolved: false, outdated: false, comments: [comment], cutComments: 0, code: [],
         wholeFile: false, fileRemoved: false, canReply: true, canResolve: true, canUnresolve: false,
       } });
-    }
-    if (write.kind === 'review') {
-      const state = { APPROVE: 'approved', REQUEST_CHANGES: 'changes requested', COMMENT: 'reviewed' }[write.verdict];
-      pull.items.push({ kind: 'review', ...said(write.body), html: write.body ? said(write.body).html : '', state, threads: [] });
-      delete pull.pending;
     }
     return { ok: true };
   }
@@ -975,13 +1309,15 @@ const Conversation = (() => {
   document.addEventListener('keydown', (event) => {
     const box = event.target.closest?.('[data-gh]');
     if (box && event.target.tagName === 'TEXTAREA' && event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); sendField(box); }
-    if (event.key === 'Enter' && event.target.closest?.('[data-gh-resolve], [data-review]')) { event.preventDefault(); event.target.click(); }
+    if (event.key === 'Enter' && event.target.closest?.('[data-gh-resolve], [data-review], a[data-suggest]')) { event.preventDefault(); event.target.click(); }
   });
   document.addEventListener('click', (event) => {
     const send = event.target.closest('[data-gh-send]');
     if (send) return sendField(send.closest('[data-gh]'));
     const flip = event.target.closest('[data-gh-resolve]');
     if (flip) return flipThread(flip);
+    const suggest = event.target.closest('[data-suggest]');
+    if (suggest) return suggestAction(suggest);
     if (event.target.closest('[data-review]')) {
       reviewOpen = !reviewOpen;
       redrawStrip(true);
@@ -1110,27 +1446,7 @@ const Conversation = (() => {
       if (frames > 0) requestAnimationFrame(() => place(frames - 1));
     };
     if (progress) onScroll(); // while it is read, the page stays where it is
-    else if (stay) keepPlace(conv);
     else place(6);
-  }
-
-  /**
-   * After a send: the field stands where it stood on the screen, and the keyboard focus goes back to it, or to Resolve.
-   * The rows near the view are laid out only once they are near it, so the place is set again for a few frames until it holds.
-   */
-  function keepPlace(conv) {
-    const { key, top, flip } = stay;
-    stay = null;
-    const box = conv.querySelector(`[data-gh="${CSS.escape(key)}"]`);
-    if (!box) return;
-    box.closest('[data-box]')?.classList.add('open'); // a thread that he just resolved stays open, with "Unresolve"
-    (flip ? box.querySelector('[data-gh-resolve]') : box.querySelector('textarea'))?.focus({ preventScroll: true });
-    const hold = (frames) => {
-      if (!box.isConnected) return;
-      scrollBy(0, box.getBoundingClientRect().top - top);
-      if (frames > 0) requestAnimationFrame(() => hold(frames - 1));
-    };
-    hold(6);
   }
 
   /** A failure in one plain line, and "Try again". */
@@ -1181,5 +1497,5 @@ const Conversation = (() => {
     picture.outerHTML = `<a class="nopic" data-link="${esc(picture.src)}">Picture: ${esc(picture.alt || 'a picture')}</a>`;
   }, true);
 
-  return { draw, stripHtml, bindStrip, icon, problemHtml, ago, entriesOf, checksLine, codeLine, githubChoice, sendCode, focusComment, WRITE };
+  return { draw, refresh, writing, writesStarted, stripHtml, bindStrip, icon, problemHtml, ago, entriesOf, checksLine, codeLine, githubChoice, sendCode, focusComment, WRITE };
 })();

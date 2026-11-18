@@ -42,29 +42,52 @@ const App = {
     return this.page?.pullOnly?.link ?? this.pull()?.url ?? this.tabPull;
   },
 
-  /** After a write to GitHub: reads the pull request again, and draws the conversation with the new item, or the strip. A file tab hears it from VS Code. */
+  /**
+   * After a write to GitHub, and while GitHub works out if it can merge: reads the pull request again in the background. The page is not drawn
+   * anew: only what differs changes (Conversation.refresh). A read that fails changes nothing; so does a read while a write ran, which may not hold
+   * that write: the end of that write reads again. A file tab hears it from VS Code.
+   */
   reread() {
     if (this.tab) return Promise.resolve();
-    return this.loadPull(true).then(() => (this.state.view === 'conversation' ? this.render() : drawStrip()));
+    const link = this.pullLink();
+    const before = link && this.read[link]?.pull;
+    if (!before) return this.loadPull(true).then(() => (this.state.view === 'conversation' ? this.render() : drawStrip()));
+    if (Conversation.writing()) return Promise.resolve();
+    const writes = Conversation.writesStarted();
+    return this.loadPull(true, true).then((read) => {
+      if (!read?.pull || this.pullLink() !== link || Conversation.writing() || Conversation.writesStarted() !== writes) return;
+      if (read.page && this.page?.pullOnly?.link === link) this.page = read.page;
+      this.read[link] = read;
+      Conversation.refresh(before, read.pull, this.state.view === 'conversation');
+      this.askAgainLater(link, read);
+    });
   },
 
-  /** Reads the pull request of the page in full, once; "Try again" reads it again. A page with no stored change gets its files with it. */
-  loadPull(again = false) {
+  /** Reads the pull request of the page in full, once; "Try again" reads it again. A page with no stored change gets its files with it. `quiet`: only answers it, for reread(). */
+  loadPull(again = false, quiet = false) {
     const link = this.pullLink();
     if (!link) return Promise.resolve(null);
     const question = `pull:${link}`;
-    if (again) { answers.delete(question); delete this.read[link]; }
+    if (again) answers.delete(question);
     return ask(question).then((answer) => {
       const read = answer ?? { problem: 'GitHub gave no answer.' };
+      if (quiet) return read;
       if (read.page && this.page?.pullOnly?.link === link) this.page = read.page;
       this.read[link] = read;
-      // GitHub is still working out if it can merge: ask again after a moment, a few times.
-      const tries = (this.unknownTries[link] = (this.unknownTries[link] ?? 0) + 1);
-      if (read.pull && !read.pull.merge.known && tries <= 3) {
-        setTimeout(() => { if (this.pullLink() === link) this.loadPull(true).then(() => (this.state.view === 'conversation' || this.page.pullOnly ? this.render() : drawStrip())); }, 6000);
-      }
+      this.askAgainLater(link, read);
       return read;
     });
+  },
+
+  /** GitHub is still working out if it can merge: ask again after a moment, three times at most. A page of a pull request alone in another view draws again. */
+  askAgainLater(link, read) {
+    const tries = (this.unknownTries[link] = (this.unknownTries[link] ?? 0) + 1);
+    if (!read.pull || read.pull.merge.known || tries > 3) return;
+    setTimeout(() => {
+      if (this.pullLink() !== link) return;
+      if (this.page.pullOnly && this.state.view !== 'conversation') this.loadPull(true).then(() => this.render());
+      else this.reread();
+    }, 6000);
   },
 
   /** Goes to a view of the change. It is a step of the path, unless `quiet`: VS Code asked for it, and the path has it already. */
@@ -551,9 +574,10 @@ window.addEventListener('message', (event) => {
   // The pull requests of the branch, in short: they come after the page. The strip and the switch show them.
   if (message?.type === 'pulls' && App.page) {
     const first = App.awaitingPulls; // still waiting: the first view is chosen now; later, the page stays where it is
+    const shown = App.pullLink();
     Object.assign(App, { pulls: message.pulls, pullsKnown: true });
     if (first) { App.awaitingPulls = false; App.state.view = firstView(); App.render(); }
-    else if (App.state.view === 'conversation') App.render();
+    else if (App.state.view === 'conversation' && App.pullLink() !== shown) App.render(); // another pull request: its conversation; the same one stays as it is
     else { drawSwitch(); drawStrip(); }
   }
   // A place to show: from a step back along the path (the path has it), or from a file tab (a step), with a thing to light there.

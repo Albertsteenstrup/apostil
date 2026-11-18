@@ -790,6 +790,12 @@ div.nomap a:hover{text-decoration:underline;text-underline-offset:3px}
 .conv .tcode .add .g{color:var(--diff-add-sign)}.conv .tcode .del .g{color:var(--diff-del-sign)}
 .conv .tcode:not(.open) > .early{display:none}
 .conv .tcode .rest{margin:3px 10px}
+/* a suggested change in a comment on code: a head with GitHub's buttons, then the lines as they are and as they become */
+.conv .sugg{margin:6px 0;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--card)}
+.conv .sugg .sgh{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;padding:4px 10px;background:var(--cardhead);font-size:var(--small);color:var(--muted)}
+.conv .sugg .sga{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;margin-left:auto}
+.conv .sugg .sga .ghr{margin-top:0}
+.conv .sugg .ghh{margin-left:auto}
 .conv .fp{font-family:var(--mono);overflow-wrap:anywhere}
 /* pictures: at most about 360 pixels high and never wider than the text; a click shows one large */
 .conv .md img{max-width:100%;max-height:360px;height:auto;width:auto;cursor:zoom-in;border-radius:4px}

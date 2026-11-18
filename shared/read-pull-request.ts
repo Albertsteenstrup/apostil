@@ -41,6 +41,15 @@ export interface PullComment {
   reactions: Reaction[];
   url: string;
   role?: string; // GitHub's mark of the author in this repo: "Owner", "Member", "Collaborator", "Contributor"
+  mine?: boolean; // the owner wrote it: his own words are never new to him
+  suggestions?: Suggestion[]; // the suggested changes of a comment on code ("```suggestion"), in their order
+}
+
+/** A suggested change of a comment on code: the lines that take the place of the lines of its thread, and who suggested it. */
+export interface Suggestion {
+  lines: string[]; // none: the lines go
+  coAuthor: string; // the "Co-authored-by" line of its author, as GitHub writes it in the commit
+  pending: boolean; // its review is not sent yet: GitHub applies no suggestion of such a review
 }
 
 export interface PullThread {
@@ -59,6 +68,7 @@ export interface PullThread {
   canReply: boolean; // what the owner may do with it; an answer stored before these were read has none, which means no
   canResolve: boolean;
   canUnresolve: boolean;
+  side?: 'LEFT' | 'RIGHT'; // the side of the diff: LEFT is the file as it was, where GitHub applies no suggestion
 }
 
 
@@ -133,6 +143,10 @@ export interface PullRequestView {
   locked: boolean; // the conversation is locked
   mine: boolean; // the owner opened it: GitHub refuses his "Approve" and "Request changes"
   pending?: { id: string; comments: number }; // his review that is not sent yet
+  viewer?: Person; // the owner, as gh is signed in: a write shows his words at once, with his name
+  canApply: boolean; // he may commit a suggested change to the branch of the pull request
+  headRepo: string; // "owner/name" of the branch of the pull request; a fork has its own
+  queued: boolean; // in the merge queue, where GitHub applies no suggestion
   author: Person;
   openedAt: string;
   head: string;
@@ -168,7 +182,7 @@ export interface PullRequestView {
 
 const WHO = 'login avatarUrl(size: 80) __typename';
 const REACTIONS = 'reactionGroups { content reactors { totalCount } }';
-const SAID = `id url author { ${WHO} } authorAssociation createdAt lastEditedAt bodyHTML isMinimized minimizedReason ${REACTIONS}`;
+export const SAID = `id url author { ${WHO} } authorAssociation createdAt lastEditedAt bodyHTML isMinimized minimizedReason viewerDidAuthor ${REACTIONS}`;
 const DEPLOYMENT = 'environment state createdAt latestStatus { state environmentUrl description createdAt }';
 const ASSIGNEE = `__typename ... on User { ${WHO} } ... on Bot { ${WHO} } ... on Mannequin { ${WHO} }`;
 const SOURCE = '__typename ... on PullRequest { number title url } ... on Issue { number title url }';
@@ -224,8 +238,8 @@ const TIMELINE_NODES = `nodes {
 }`;
 
 const THREAD_NODES = `nodes {
-  id isResolved isOutdated path line startLine originalLine originalStartLine subjectType resolvedBy { ${WHO} } viewerCanReply viewerCanResolve viewerCanUnresolve
-  comments(first: ${LIMITS.threadComments}) { totalCount nodes { ${SAID} diffHunk pullRequestReview { id } } }
+  id isResolved isOutdated path line startLine originalLine originalStartLine subjectType diffSide resolvedBy { ${WHO} } viewerCanReply viewerCanResolve viewerCanUnresolve
+  comments(first: ${LIMITS.threadComments}) { totalCount nodes { ${SAID} body author { ... on User { databaseId } ... on Bot { databaseId } } diffHunk pullRequestReview { id state } } }
 }`;
 
 const FILE_NODES = 'nodes { path additions deletions changeType }';
@@ -266,12 +280,12 @@ const nextCursor = (list: ListName, raw: RawList): string | undefined => (list =
   ? (raw.pageInfo?.hasPreviousPage ? raw.pageInfo.startCursor ?? undefined : undefined)
   : (raw.pageInfo?.hasNextPage ? raw.pageInfo.endCursor ?? undefined : undefined));
 
-const wrap = (body: string, after = false): string =>
-  `query($owner: String!, $name: String!, $number: Int!${after ? ', $after: String' : ''}) { repository(owner: $owner, name: $name) { pullRequest(number: $number) { ${body} } } }`;
+const wrap = (body: string, after = false, top = ''): string =>
+  `query($owner: String!, $name: String!, $number: Int!${after ? ', $after: String' : ''}) { ${top}repository(owner: $owner, name: $name) { pullRequest(number: $number) { ${body} } } }`;
 
 /** The first query: everything about the pull request, and the first page of each list. */
 export const firstQuery = (size = PAGE): string => wrap(`
-  id number title url state isDraft locked viewerDidAuthor createdAt headRefName baseRefName headRefOid baseRefOid
+  id number title url state isDraft locked viewerDidAuthor viewerCanApplySuggestion createdAt headRefName baseRefName headRefOid baseRefOid
   author { ${WHO} } commits { totalCount } changedFiles additions deletions reviewDecision mergeable mergeStateStatus bodyHTML
   repository { nameWithOwner isPrivate } headRepository { nameWithOwner }
   mergedAt closedAt mergedBy { ${WHO} } mergeCommit { parents { totalCount } }
@@ -288,7 +302,7 @@ export const firstQuery = (size = PAGE): string => wrap(`
     statusCheckRollup { contexts(first: ${size}) { totalCount pageInfo { hasNextPage endCursor } ${CHECK_NODES} } } } } }
   ${page('timelineItems', size, false)}
   ${page('reviewThreads', size, false)}
-  ${page('files', size, false)}`);
+  ${page('files', size, false)}`, false, `viewer { ${WHO} } `);
 
 export const FIRST_QUERY = firstQuery();
 
@@ -329,7 +343,34 @@ const named = (raw: Raw): string => raw?.login ?? raw?.name ?? 'someone';
 
 const words = (reason: string): string => reason.toLowerCase().replace(/_/g, ' ');
 
-function comment(raw: Raw): PullComment {
+/**
+ * The suggested changes in the markdown of a comment: the lines of each block "```suggestion", in their order. A fence of more backticks
+ * (or of tildes) holds a block that has "```" in it; the block ends at a fence of the same sign that is at least as long.
+ */
+export function suggestionsOf(body: string): string[][] {
+  const found: string[][] = [];
+  let open: { fence: string; lines: string[] } | undefined;
+  for (const line of body.split(/\r?\n/)) {
+    if (!open) {
+      const start = /^ {0,3}(`{3,}|~{3,})\s*suggestion\s*$/.exec(line);
+      if (start) open = { fence: start[1], lines: [] };
+    } else if (new RegExp(`^ {0,3}${open.fence[0] === '`' ? '`' : '~'}{${open.fence.length},}\\s*$`).test(line)) {
+      found.push(open.lines);
+      open = undefined;
+    } else open.lines.push(line);
+  }
+  return found;
+}
+
+/** The "Co-authored-by" line that GitHub writes for the author of a suggestion it applies: the login and its address at GitHub that hides the mail. */
+const coAuthorOf = (author: Raw): string => {
+  const login = String(author?.login ?? 'ghost');
+  return `Co-authored-by: ${login} <${author?.databaseId ? `${author.databaseId}+` : ''}${login}@users.noreply.github.com>`;
+};
+
+/** A comment, a review or a review comment as the page draws it. A review comment comes with its markdown (`body`), which holds its suggested changes. */
+export function commentFrom(raw: Raw): PullComment {
+  const suggestions = typeof raw.body === 'string' ? suggestionsOf(raw.body) : [];
   return {
     id: String(raw.id ?? ''),
     author: person(raw.author),
@@ -342,6 +383,8 @@ function comment(raw: Raw): PullComment {
       .map((group: Raw) => ({ emoji: REACTION_EMOJI[group.content], count: group.reactors.totalCount })),
     url: raw.url ?? '',
     ...(ROLES[raw.authorAssociation] ? { role: ROLES[raw.authorAssociation] } : {}),
+    ...(raw.viewerDidAuthor ? { mine: true } : {}),
+    ...(suggestions.length ? { suggestions: suggestions.map((lines) => ({ lines, coAuthor: coAuthorOf(raw.author), pending: raw.pullRequestReview?.state === 'PENDING' })) } : {}),
   };
 }
 
@@ -357,7 +400,7 @@ function thread(raw: Raw, removed: Set<string>): PullThread {
     resolved: !!raw.isResolved,
     resolvedBy: raw.resolvedBy ? person(raw.resolvedBy) : undefined,
     outdated: !!raw.isOutdated,
-    comments: (raw.comments?.nodes ?? []).map(comment),
+    comments: (raw.comments?.nodes ?? []).map(commentFrom),
     cutComments: Math.max(0, (raw.comments?.totalCount ?? 0) - (raw.comments?.nodes?.length ?? 0)),
     code: first?.diffHunk && !wholeFile ? diffLines(first.diffHunk) : [],
     review: first?.pullRequestReview?.id,
@@ -366,6 +409,7 @@ function thread(raw: Raw, removed: Set<string>): PullThread {
     canReply: !!raw.viewerCanReply,
     canResolve: !!raw.viewerCanResolve,
     canUnresolve: !!raw.viewerCanUnresolve,
+    ...(raw.diffSide === 'LEFT' || raw.diffSide === 'RIGHT' ? { side: raw.diffSide } : {}),
   };
 }
 
@@ -496,10 +540,10 @@ export function pullRequestFrom(raw: RawPullRequest, readAt = new Date().toISOSt
   const items: PullItem[] = [];
   for (const node of timeline.nodes) {
     const kind = node?.__typename;
-    if (kind === 'IssueComment') items.push({ kind: 'comment', ...comment(node) });
+    if (kind === 'IssueComment') items.push({ kind: 'comment', ...commentFrom(node) });
     else if (kind === 'PullRequestReview') {
       items.push({
-        kind: 'review', ...comment(node), at: node.submittedAt ?? node.createdAt ?? '', state: reviewState(node.state),
+        kind: 'review', ...commentFrom(node), at: node.submittedAt ?? node.createdAt ?? '', state: reviewState(node.state),
         threads: threads.filter((one) => one.review === node.id),
       });
     } else if (kind === 'PullRequestCommit') {
@@ -556,6 +600,10 @@ export function pullRequestFrom(raw: RawPullRequest, readAt = new Date().toISOSt
     locked: !!pr.locked,
     mine: !!pr.viewerDidAuthor,
     ...(pending ? { pending: { id: String(pending.id), comments: pending.comments?.totalCount ?? 0 } } : {}),
+    ...(pr.viewer?.login ? { viewer: person(pr.viewer) } : {}),
+    canApply: !!pr.viewerCanApplySuggestion,
+    headRepo: pr.headRepository?.nameWithOwner ?? pr.repository?.nameWithOwner ?? '',
+    queued: !!pr.mergeQueueEntry,
     author: person(pr.author),
     openedAt: pr.createdAt ?? '',
     head: pr.headRefName ?? '',
@@ -704,6 +752,7 @@ async function query(run: RunGh, text: string, ref: PullRef, after?: string): Pr
   if (json?.errors?.length) return failureOf({ ...result, err: json.errors.map((error: Raw) => error.message).join('\n') }, run);
   const pr = json?.data?.repository?.pullRequest;
   if (!pr) return failureOf(result.err ? result : { ...result, err: 'Could not resolve to a PullRequest' }, run);
+  if (json.data.viewer) pr.viewer = json.data.viewer; // the first query asks who gh is signed in as
   return pr;
 }
 
