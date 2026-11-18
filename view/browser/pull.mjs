@@ -212,7 +212,7 @@ try {
     const unfolded = inner.offsetHeight > 0 && /lock ends with the transaction/.test(inner.textContent);
     resolved.querySelector('[data-toggle]').click();
     const commits = [...document.querySelectorAll('.commits')].at(-1);
-    const commitText = commits.querySelector('.row').textContent;
+    const commitText = commits.querySelector('.lrow').textContent;
     commits.querySelector('[data-toggle]').click();
     const commitRows = [...commits.querySelectorAll('.inner .row code')].map((code) => code.textContent);
     const same = document.querySelectorAll('.feed .msg.same').length;
@@ -233,8 +233,8 @@ try {
     const text = (selector) => [...document.querySelectorAll(selector)].map((el) => el.textContent.replace(/\s+/g, ' ').trim());
     const commits = [...document.querySelectorAll('.commits')].at(-1);
     return {
-      days: text('.conv .dayline'), products: text('.conv .prods > .prow'), productInner: document.querySelector('.conv .prods .inner')?.offsetHeight ?? -1,
-      repeat: text('.conv .rep'), runs: text('.conv .evrun > .row'), title: text('.conv .mtitle'), deploy: text('.conv .row.ev').filter((row) => /deployed/.test(row)),
+      days: text('.conv .dayline'), products: text('.conv .prods > .lrow'), productInner: document.querySelector('.conv .prods .inner')?.offsetHeight ?? -1,
+      repeat: text('.conv .rep'), runs: text('.conv .evrun > .lrow'), title: text('.conv .mtitle'), deploy: text('.conv .row.ev').filter((row) => /deployed/.test(row)),
       whole: text('.conv .thread .fh').filter((head) => /old_reservations/.test(head)), verified: commits.querySelectorAll('.vf').length,
       people: [...commits.querySelectorAll('.inner .row .t')].map((el) => el.textContent), chips: document.querySelectorAll('.conv .react .chip').length,
       verdict: text('.conv .verdict'),
@@ -245,17 +245,73 @@ try {
     const first = document.querySelector('.conv .meta .fact');
     return title && first ? { indent: Math.round(first.getBoundingClientRect().left - title.left), padding: getComputedStyle(first).paddingLeft } : null;
   });
-  // The time has one place in each look: "Messages" at the right edge of the first line of a message (an event is a centred line, its time after its words);
-  // "Classic" right after the words.
+  // "Messages" is a timeline (the owner chose it on 18 November): commits, events and the comments of a product are rows on a line down the avatar
+  // column, each its icon on the line and a short faint word, with no time and no box; a click opens its details in place.
+  /** The line of "Messages" and what stands on it: how it lies, where it starts and ends against the first and the last row, the avatars and icons on it. */
+  const lineOf = () => conv.evaluate(() => {
+    const feed = document.querySelector('.conv.messages .feed');
+    if (!feed) return null;
+    const box = feed.getBoundingClientRect();
+    const line = getComputedStyle(feed, '::before');
+    const x = box.left + parseFloat(line.left) + parseFloat(line.width) / 2;
+    const off = (el) => { const at = el.getBoundingClientRect(); return Math.round((at.left + at.width / 2 - x) * 10) / 10; };
+    const rows = [...feed.children].filter((el) => el.offsetHeight > 0);
+    const probe = feed.appendChild(document.createElement('i'));
+    probe.style.color = 'var(--line)';
+    const lineColor = getComputedStyle(probe).color;
+    probe.remove();
+    const paper = getComputedStyle(document.getElementById('cwin')).backgroundColor;
+    const avatars = [...feed.querySelectorAll(':scope > .msg > .av:not(.gap)')].filter((el) => el.offsetHeight > 0);
+    return { width: line.width, colour: line.backgroundColor === lineColor, under: getComputedStyle(feed).zIndex === '0' && line.zIndex === '-1',
+      top: Math.round(box.top + parseFloat(line.top) - rows[0].getBoundingClientRect().top), bottom: Math.round(box.bottom - parseFloat(line.bottom) - rows.at(-1).getBoundingClientRect().bottom),
+      avatars: avatars.map(off), ringed: avatars.every((el) => getComputedStyle(el).boxShadow.startsWith(paper)), icons: [...feed.querySelectorAll(':scope > .online > .lrow > .lic')].map(off) };
+  });
+  const lineWide = await lineOf();
+  const onLine = await conv.evaluate(() => {
+    const probe = document.querySelector('.conv .feed').appendChild(document.createElement('i'));
+    probe.style.color = 'var(--faint)';
+    const faint = getComputedStyle(probe).color;
+    probe.remove();
+    return [...document.querySelectorAll('.conv .feed > .online')].filter((one) => one.offsetHeight > 0).map((one) => {
+      const row = one.querySelector(':scope > .lrow');
+      const style = getComputedStyle(row);
+      const words = row.querySelector('.what');
+      return { words: words?.textContent, only: row.textContent === words?.textContent, icon: !!row.querySelector(':scope > .lic > :is(.ico, .av, img)'), faint: getComputedStyle(words).color === faint,
+        times: row.querySelectorAll('.time').length, box: ['Top', 'Right', 'Bottom', 'Left'].some((side) => style[`border${side}Width`] !== '0px') || style.backgroundColor !== 'rgba(0, 0, 0, 0)',
+        open: one.querySelector(':scope > .inner').offsetHeight > 0 };
+    });
+  });
+  await conv.locator('.conv .feed > .evrun > .lrow', { hasText: '3 force pushes' }).click();
+  await conv.locator('.conv .feed > .prods > .lrow').click();
+  const openedOnLine = await conv.evaluate(() => {
+    const pushes = [...document.querySelectorAll('.conv .feed > .evrun')].find((one) => one.querySelector('.lrow').textContent === '3 force pushes');
+    const bot = document.querySelector('.conv .feed > .prods > .inner');
+    return { pushes: [...pushes.querySelectorAll(':scope > .inner > .row')].filter((row) => row.offsetHeight > 0).map((row) => row.textContent),
+      bot: bot.offsetHeight > 0 && [...bot.querySelectorAll('.mtitle')].map((title) => title.textContent).join() };
+  });
+  const wordsOnLine = onLine.map((one) => one.words);
+  check('"Messages" is a timeline: commits, events and the comments of a product are rows on the line, each its icon on the line and a short faint word ("4 commits", "3 force pushes", "GitHub Actions · 2 comments", "review asked from Copilot"), with no time and no box; a click opens its details in place',
+    ['4 commits', '3 force pushes', 'GitHub Actions · 2 comments', '2 deployments', 'review asked from Copilot', 'milestone Version 0.5', 'assigned mira-k'].every((one) => wordsOnLine.includes(one))
+    && wordsOnLine.some((one) => one.startsWith('labels backend, ')) && onLine.every((one) => one.icon && one.only && one.faint && !one.times && !one.box)
+    && onLine.every((one) => !one.open || one.words === '4 commits') // the check of "Messages" above opened the 4 commits
+    && lineWide?.icons.length === onLine.length && lineWide.icons.every((off) => Math.abs(off) <= 1)
+    && openedOnLine.pushes.length === 3 && openedOnLine.pushes.every((row) => /^mira-k force-pushed from \w+ to \w+$/.test(row)) && openedOnLine.bot === 'Test report,Test report', JSON.stringify({ onLine, icons: lineWide?.icons, openedOnLine }));
+
+  // The time has one place in each look. "Messages": one relative time for a group of messages, in the name line of its first message after a middle dot,
+  // with the exact time as its tooltip; a later message of the group has none, its exact time is its tooltip; no clock anywhere. "Classic": right after the words.
   const timesIn = () => conv.evaluate(() => {
-    const visible = [...document.querySelectorAll('.conv .feed .time')].filter((el) => el.offsetHeight > 0);
-    const inBox = (el) => el.closest('.thread, .card, .prow');
-    const feedRights = visible.filter((el) => !inBox(el) && el.matches('.msg > .body > .top > .time')).map((el) => Math.round(el.getBoundingClientRect().right));
-    // inside a thread card: at the right edge of its own row, within its padding
-    const boxed = visible.filter(inBox).map((el) => { const row = el.closest('.sc, .prow, .top'); const style = getComputedStyle(row); return Math.round(row.getBoundingClientRect().right - parseFloat(style.paddingRight) - el.getBoundingClientRect().right); });
-    // "Classic": no time at the right edge; each follows the words before it
-    const followed = visible.map((el) => { const row = el.closest('.ev, .gh, .top'); return row ? Math.round(row.getBoundingClientRect().right - el.getBoundingClientRect().right) : 999; });
-    return { count: visible.length, feedRights: [...new Set(feedRights)], boxed: [...new Set(boxed)], followed };
+    const shown = (el) => el.offsetHeight > 0;
+    const exactly = /^\d{1,2} \w{3,4} \d{4}, \d{2}:\d{2}$/; // "18 Nov 2026, 17:41"
+    const visible = [...document.querySelectorAll('.conv .feed .time')].filter(shown);
+    const clocks = [...document.querySelectorAll('.conv .feed *')].filter((el) => shown(el) && !el.children.length && /^\d{1,2}:\d{2}$/.test(el.textContent.trim())).length;
+    // no time at the right edge of its row (his own messages stand at the right, their time with them)
+    const rights = visible.filter((el) => !el.closest('.mine')).map((el) => { const row = el.closest('.top, .ev, .gh'); return row ? Math.round(row.getBoundingClientRect().right - el.getBoundingClientRect().right) : 999; });
+    const firsts = [...document.querySelectorAll('.conv .feed > .msg:not(.same)')].filter(shown).map((msg) => {
+      const times = [...msg.querySelectorAll(':scope > .body > .top > .time')];
+      return { count: times.length, words: times[0]?.textContent, tip: exactly.test(times[0]?.title ?? ''), dot: msg.matches('.mine') || getComputedStyle(times[0] ?? msg, '::before').content === '"· "' };
+    });
+    const laters = [...document.querySelectorAll('.conv .feed > .msg.same, .conv .feed .sc.same')].filter(shown).map((said) => ({ times: said.querySelectorAll('.time').length, tip: exactly.test(said.title) }));
+    return { count: visible.length, clocks, rights, firsts, laters };
   });
   await conv.evaluate(() => document.querySelectorAll('.conv .evrun, .conv .commits, .conv .thread.folded').forEach((box) => box.classList.add('open')));
   const messageTimes = await timesIn();
@@ -310,14 +366,13 @@ try {
     && /Hidden by GitHub as off topic/.test(feed.hiddenText) && !feed.hiddenShown && feed.hiddenOpen && feed.outdated === 'Outdated'
     && extras.early.length >= 2 && extras.early.every((count) => count === 0) && extras.drawn > 0
     && fileTold?.path === 'src/library/lending/hold_service.py' && fileTold.lines?.join() === '245,247', JSON.stringify({ feed, early: extras.early, drawn: extras.drawn, fileTold }));
-  // Messages of one author that share an avatar, the count of earlier commits and events, and a run of force pushes that repeated its day were corrected faults.
-  check('"Messages": earlier messages are one row, drawn when he opens it; messages of one author within minutes share one avatar; commits in a row are one row "4 commits" that unfolds to the short hashes; a long message shows its first lines and "Show all"; day lines, review cards with their verdict, chips for reactions, a heading as the title line; comments of one product are one compact row with a count; equal messages are one row with a count; a run of force pushes is one row, with no day when the day line says it',
+  // Messages of one author that share an avatar and the count of earlier commits and events were corrected faults.
+  check('"Messages": earlier messages are one row, drawn when he opens it; messages of one author within minutes share one avatar; commits in a row are one row "4 commits" that unfolds to the short hashes; a long message shows its first lines and "Show all"; day lines, review cards with their verdict, chips for reactions, a heading as the title line; comments of one product are one row with a count; equal messages are one row with a count; a run of force pushes is one row',
     /^2 earlier messages · 2 commits · 1 event/.test(feed.earlier) && feed.messagesAfter === feed.messagesBefore + 2 && feed.same >= 1
-    && /4 commits/.test(feed.commitText) && feed.commitRows.join() === '9e2d4b7,5d0a3e1,8a1d2e3,2c3d4e5' && feed.longAfter > feed.longBefore + 50
+    && feed.commitText === '4 commits' && feed.commitRows.join() === '9e2d4b7,5d0a3e1,8a1d2e3,2c3d4e5' && feed.longAfter > feed.longBefore + 50
     && modern.days.length >= 2 && modern.days.includes('Yesterday') && modern.verdict.includes('asked for changes') && modern.verdict.includes('approved') && modern.chips >= 2 && modern.title.includes('Pre-merge review')
-    && modern.products.length === 1 && /GitHub Actions2 comments · Test report/.test(modern.products[0]) && modern.productInner === 0 && modern.repeat.some((one) => /^posted 2 times/.test(one))
-    // On one day the day line above says the day, so the row does not repeat it. The example's times count back from now: at some hours the run lies on both sides of midnight and names its two days.
-    && modern.runs.some((one) => /^3 force pushes(›| on [^›,]+, [^›]+›)/.test(one)), JSON.stringify({ feed, modern }));
+    && modern.products.length === 1 && modern.products[0] === 'GitHub Actions · 2 comments' && modern.productInner === 0 && modern.repeat.some((one) => /^posted 2 times/.test(one))
+    && modern.runs.includes('3 force pushes'), JSON.stringify({ feed, modern }));
   // Only events of an unknown kind are counted: a corrected fault of the survey of public pull requests.
   check('a deployment is a quiet row with its state and "View deployment"; a comment on a removed file says "file removed"; commits say "Verified", a bot and an author with no account; a bot has a quiet mark; only events of an unknown kind are counted',
     modern.deploy.some((row) => /deployed to preview ready View deployment/.test(row)) && modern.deploy.some((row) => /deployed to staging failed/.test(row))
@@ -399,17 +454,19 @@ try {
       && allSeen.line === null && allSeen.top > 0 && allSeen.toEnd <= 2 && allSeen.page === 0 && neverOpened.line === null && neverOpened.top === 0 && neverOpened.toEnd > 0 && neverOpened.page === 0
       && tasksLink === '1 of 2 tasks' && tasksShown.open && tasksShown.inView,
     JSON.stringify({ afterRead, allSeen, neverOpened, tasksLink, tasksShown }));
-  check('the time has one place in each look: in "Messages" the time of every message ends at the right edge of its first line, and in a thread card at the right edge of its row; in "Classic" every time follows its words',
-    messageTimes.count > 10 && messageTimes.feedRights.length === 1 && messageTimes.boxed.every((gap) => Math.abs(gap) <= 1)
-    && classicTimes.count > 10 && classicTimes.followed.every((gap) => gap > 20), JSON.stringify({ messageTimes, classicTimes }));
+  check('the time has one place in each look: in "Messages" no clock and no time at the right of a row; the first message of a group has one relative time in its name line after a middle dot, with the exact time in its tooltip, and a later message of the group has none, its exact time in its tooltip; in "Classic" every time follows its words',
+    messageTimes.count > 5 && messageTimes.clocks === 0 && messageTimes.rights.every((gap) => gap > 20)
+    && messageTimes.firsts.length > 5 && messageTimes.firsts.every((one) => one.count === 1 && one.tip && one.dot && /^(\d+ (min|h) ago|yesterday|just now|\d+ days ago)$/.test(one.words))
+    && messageTimes.laters.length >= 1 && messageTimes.laters.every((one) => one.times === 0 && one.tip)
+    && classicTimes.count > 10 && classicTimes.rights.every((gap) => gap > 20), JSON.stringify({ messageTimes, classicTimes }));
   check('"Classic" shows every comment in a box in the order of GitHub, folds only resolved, outdated and hidden, and its window opens at the first row that he has not seen with no line; its state is the card at the top, with no merge box at the end; the choice stays for the window; "Messages" comes back',
     classic.boxes >= 10 && classic.events >= 15 && classic.gfold === 3 && classic.hidden === 1 && classicOpen.at === 'answer' && !classicOpen.line && classicOpen.inWindow && classicOpen.edge >= 0 && classicOpen.edge <= 12 && classicOpen.shows > 0 && classic.on === 'Classic' && keptMode === 'Classic' && backMode.on === 'Messages' && backMode.line
     && classic.days === 0 && classic.products === 0 && classic.reports === 2 && classic.runs === 0 && classic.shownResolved === 'Show resolved' && /^Blocked.*Waits for #9 below it in the stack · 2 checks failed · An approving review is needed/.test(classic.card) && !classic.box
     && classic.verified === 1 && classic.marks.includes('Author') && classic.marks.includes('bot'), JSON.stringify({ classicOpen }) + JSON.stringify({ classic, keptMode, backMode }));
 
   // "Messages" more like a chat (the owner: "make it feel even more like chat"): three messages of one person a minute apart are one group, with one avatar
-  // and one name, and a later one has its time only while the pointer is on it; his own message stands at the right in a tinted bubble, with no avatar;
-  // an event is a small centred line. Made-up messages are added at the end of the example for this.
+  // and one name; his own message stands at the right in a tinted bubble, with no avatar. Made-up messages are added at the end of the example for this.
+  // (Build 79: the time of a group and the rows on the line have checks of their own above.)
   await conversationAfter(() => conv.evaluate(() => {
     const link = App.pullLink();
     window.keptPull = App.read[link];
@@ -431,30 +488,22 @@ try {
     const feed = room.querySelector('.feed').getBoundingClientRect();
     const bubble = own?.querySelector('.bub');
     const box = bubble?.getBoundingClientRect();
-    const later = group[1]?.querySelector('.hov');
-    const event = [...room.querySelectorAll('.feed > .row, .feed > :is(.evrun, .commits) > .row')].find((row) => row.offsetHeight > 0);
-    const words = event && [...event.children].map((el) => el.getBoundingClientRect());
-    const eventBox = event?.getBoundingClientRect();
     return {
       texts: rows.map((row) => row.querySelector('.tx')?.textContent),
       avatars: group.map((row) => row.querySelectorAll('.av:not(.gap)').length), names: group.map((row) => [...row.querySelectorAll('.top b:not(.sr)')].map((b) => b.textContent).join()),
-      same: group.map((row) => row.classList.contains('same')), laterTime: later && getComputedStyle(later).opacity,
+      same: group.map((row) => row.classList.contains('same')),
       own: own && box && { avatar: own.querySelectorAll('.av').length, right: Math.round(feed.right - box.right), left: Math.round(box.left - feed.left), width: Math.round(feed.width),
         tint: getComputedStyle(bubble).backgroundColor !== getComputedStyle(document.getElementById('cwin')).backgroundColor, name: own.querySelector('.sr')?.textContent },
-      event: event && { centred: Math.abs((Math.min(...words.map((one) => one.left)) + Math.max(...words.map((one) => one.right))) / 2 - (eventBox.left + eventBox.right) / 2) <= 4 },
     };
   });
-  await conv.hover('.feed > .msg.same >> nth=-1', { timeout: 3000 }).catch(() => {}); // the check says what it saw
-  const hoverTime = await conv.evaluate(() => { const time = [...document.querySelectorAll('.feed > .msg.same')].at(-1)?.querySelector('.hov'); return time && getComputedStyle(time).opacity; });
-  await conv.mouse.move(1, 1);
   await conv.evaluate(() => document.getElementById('cwin').scrollIntoView({ block: 'end' }));
   await frames(conv);
   await takePicture(conv.locator('#cwin'), '78-a-group-and-his-own-message.png');
   await conversationAfter(() => conv.evaluate(() => { App.read[App.pullLink()] = window.keptPull; App.render(); }));
-  check('"Messages" reads like a chat: three messages of one person a minute apart are one group with one avatar and one name, a later one has its time only under the pointer; his own message stands at the right in a tinted bubble with no avatar (his name only for a screen reader); an event is a small centred line',
+  check('"Messages" reads like a chat: three messages of one person a minute apart are one group with one avatar and one name; his own message stands at the right in a tinted bubble with no avatar (his name only for a screen reader)',
     chat.texts.join('|') === 'I ran the night job on a copy of the data.|Two holds were offered twice.|Both had a pause that ended on that day.|Thanks, I will look at the pauses.'
-    && chat.avatars.join() === '1,0,0' && chat.names.join('|') === 'ada-made-up||' && chat.same.join() === 'false,true,true' && chat.laterTime === '0' && hoverTime === '1'
-    && chat.own?.avatar === 0 && chat.own.right <= 2 && chat.own.left > chat.own.width / 3 && chat.own.tint && chat.own.name === 'you' && chat.event?.centred, JSON.stringify({ chat, hoverTime }));
+    && chat.avatars.join() === '1,0,0' && chat.names.join('|') === 'ada-made-up||' && chat.same.join() === 'false,true,true'
+    && chat.own?.avatar === 0 && chat.own.right <= 2 && chat.own.left > chat.own.width / 3 && chat.own.tint && chat.own.name === 'you', JSON.stringify({ chat }));
 
   // The other pull request of the branch, from the small choice in the strip. A merged one: the strip says who merged it; "closed" right after "merged" is left out.
   await conv.click('#status [data-pulls]');
@@ -866,12 +915,14 @@ try {
   // Widths, in both looks, narrow (under 640 px) and wide: nothing cut off, no sideways scroll of the page; code lines of a thread wrap; the rows of the stack, open, stay inside.
   // "Classic" has a third layout between 640 and 1000 px, with its side facts under the title.
   const widthFits = [];
+  let lineNarrow = null;
   for (const look of ['messages', 'classic']) {
     await conv.evaluate((name) => document.querySelector(`[data-mode="${name}"]`)?.click(), look);
     await frames(conv, 8);
     for (const width of look === 'classic' ? [370, 760, 1400] : [370, 1400]) {
       await resize(conv, width);
       if (look === 'messages' && width === 370) { // as he sees it, before the check opens every fold
+        lineNarrow = await lineOf();
         await conv.evaluate(() => scrollTo(0, 0));
         await convShot('65-messages-at-370');
         await conv.evaluate(() => document.getElementById('cwin').scrollIntoView({ block: 'end' }));
@@ -899,6 +950,9 @@ try {
   }
   check('both looks at 370 and 1400 px, and "Classic" at 760 px: no sideways scroll, nothing past the right edge, no code line of a thread cut off (at 760 px and less a long one wraps), and the open rows of the stack stay inside',
     widthFits.every((fit) => !fit.sideways && !fit.over.length && !fit.cut && fit.stackInside && (fit.width > 760 || fit.wraps === true)), JSON.stringify(widthFits));
+  check('the line of "Messages" is a hairline in the colour of the lines, under everything: it runs behind the avatars, through their middle, from the first to the last row of the feed, at 1400 and at 370 px',
+    [lineWide, lineNarrow].every((line) => line && line.width === '1px' && line.colour && line.under && line.top <= 0 && line.bottom >= 0
+      && line.avatars.length >= 6 && line.avatars.every((off) => Math.abs(off) <= 1) && line.ringed), JSON.stringify({ lineWide, lineNarrow }));
   // The dark theme of VS Code: every text of "Classic" is readable on its background. The group "looks" checks "Messages" in the dark theme.
   await conv.evaluate(() => { document.body.classList.add('vscode-dark'); document.documentElement.style.setProperty('--vscode-editor-background', '#1e1e1e'); });
   const readable = await conv.evaluate(() => {

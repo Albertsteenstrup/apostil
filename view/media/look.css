@@ -689,8 +689,6 @@ div.nomap a:hover{text-decoration:underline;text-underline-offset:3px}
 .conv .row .what{min-width:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--soft)}
 .conv .row .what b{font-weight:600}
 .conv .row .t{flex:none}
-.conv .commits:not(.open) > .inner{display:none}
-.conv .commits > .inner{padding-left:16px}
 .conv .fold{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:6px 0;padding:8px 12px;border:1px dashed var(--line2);border-radius:8px;font-size:var(--small);color:var(--muted)}
 .conv .fold:hover{color:var(--ink);border-color:var(--teal)}
 .conv .fold .chev{color:var(--faint)}
@@ -837,48 +835,46 @@ div.nomap a:hover{text-decoration:underline;text-underline-offset:3px}
 .conv .row .what b{color:var(--soft)}
 .conv .row .ico{margin:0;color:var(--faint)}
 .conv .vf{flex:none;padding:0 6px;border:1px solid var(--pr-green);border-radius:9px;color:var(--pr-green);font-size:calc(var(--size) - 3px);line-height:15px}
-.conv .evrun:not(.open) > .inner,.conv .prod:not(.open) > .inner,.conv .prods:not(.open) > .inner{display:none}
-.conv .evrun > .inner{padding-left:18px}
 .conv .go{flex:none;color:var(--faint)}
 .conv .open > a > .go{transform:rotate(90deg)}
-.conv .prod,.conv .prods{margin:4px 0}
-.conv .prow{display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--region);font-size:var(--small);color:var(--muted);min-width:0}
-.conv .prow:hover{border-color:var(--line2)}
-.conv .prow b{flex:none;color:var(--soft)}
-.conv .prow .ptl{min-width:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.conv .prod > .inner{padding:6px 10px 2px 38px}
-.conv .prods > .inner{padding-left:18px}
+/* "Messages" is a timeline: a hairline runs down the avatar column of the feed, under the avatars and everything else. Commits, events and the
+   comments of a product are rows on it: a small icon on the line and a short faint word, with no time and no box; a click opens the details under the row. */
+.conv.messages .feed{position:relative;z-index:0}
+.conv.messages .feed::before{content:"";position:absolute;z-index:-1;left:13.5px;top:0;bottom:0;width:1px;background:var(--line)}
+.conv.messages .feed .msg > .av:not(.gap){box-shadow:0 0 0 3px var(--paper)} /* the line stops short of an avatar */
+.conv.messages .feed > .fold{background:var(--paper)}
+.conv .lrow{display:flex;align-items:center;gap:12px;padding:3px 0;min-width:0;font-size:var(--small);color:var(--faint);cursor:pointer}
+.conv .lrow .lic{flex:none;display:grid;place-items:center;width:20px;height:20px;margin:0 4px;border-radius:50%;background:var(--paper)}
+.conv .lrow .lic .ico{width:14px;height:14px;margin:0;color:var(--faint);-webkit-mask-size:14px 14px;mask-size:14px 14px}
+.conv .lrow .what{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.conv .lrow:hover .what{color:var(--muted)}
+.conv .online:not(.open) > .inner{display:none}
+.conv .online > .inner{padding:0 0 4px 40px}
+.conv .online > .inner > .row{margin:0;padding:3px 0}
+.conv .online .said + .said{margin-top:10px}
 :is(.conv,.status,.cl) .av.prodav{background:var(--region);color:var(--soft);border:1px solid var(--line)}
 :is(.conv,.status,.cl) .av.prodav .ico{margin:0;color:var(--soft)}
 /* "↓ Newest" belongs to the window: in the middle of its lower edge, over the end of what it shows, just above the box to write.
    At the right it lay over "Resolve", the switch of looks and the ends of rows. */
 .newest{display:none;position:absolute;z-index:2;left:50%;transform:translateX(-50%);bottom:calc(100% + 10px);padding:4px 12px;border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--tealink);font-size:var(--small);font-weight:600;box-shadow:var(--shadow);cursor:pointer;white-space:nowrap}
 .newest.on{display:block}
-/* "Messages" more like a chat. A group: messages of one person in a row, close together, one avatar and one name; a later one has its time
-   beside it while the pointer is on it. His own messages stand at the right in a tinted bubble with no avatar. Events are small centred lines. */
+/* "Messages" more like a chat. A group: messages of one person in a row, close together, one avatar, one name and one time.
+   His own messages stand at the right in a tinted bubble with no avatar. */
 .conv.messages .msg.same{padding-top:2px}
 .conv.messages .msg:has(+ .msg.same){padding-bottom:2px}
-.conv .gut{flex:none;width:28px;display:flex;justify-content:flex-end;padding-top:2px;white-space:nowrap}
-.conv .hov{opacity:0;font-size:calc(var(--size) - 3px)}
-.conv :is(.msg,.sc):hover > .hov,.conv .msg:hover > .gut > .hov,.conv .sc:hover > .top > .hov{opacity:1}
+.conv .gut{flex:none;width:28px} /* the avatar column of a later message of a group: the line passes, the text keeps its place */
 .conv .msg.mine{justify-content:flex-end;align-items:center;gap:8px}
 .conv .msg.mine > .body{flex:0 1 auto;max-width:min(80%,640px)}
 .conv .msg.mine > .body:has(> .card){flex:1;max-width:none}
 .conv .msg.mine .top{justify-content:flex-end}
-.conv .msg.mine .top .time,.conv .sc.mine .top .time{margin-left:0}
 .conv .bub{margin-top:2px;padding:6px 12px;border-radius:14px 14px 4px 14px;background:var(--tealsoft);color:var(--ink)}
 .conv .bub > .tx,.conv .bub > .long > .tx{margin-top:0}
 .conv .msg.mine .react{text-align:right}
 .conv.messages .sc + .sc{border-top:0;padding-top:2px}
 .conv .sc.same{padding-top:0}
-.conv .sc.same > .hov{float:right;margin-left:10px}
 .conv .sc.mine{display:flex;flex-direction:column;align-items:flex-end}
 .conv .sc.mine > .top{align-self:stretch;justify-content:flex-end}
 .conv .sc.mine > .bub{max-width:85%}
-.conv.messages .feed .row{justify-content:center;gap:6px;padding:3px 0}
-.conv.messages .feed .row .what{flex:0 1 auto}
-.conv.messages .feed .row .time{margin-left:0;padding-left:2px}
-.conv.messages .feed :is(.commits,.evrun) > .inner{padding-left:0}
 /* writing to GitHub: a quiet field on one line that opens to a few lines with its button; Resolve beside it; GitHub's sentence under it */
 .ghw{display:block;min-width:0}
 .conv .thread .ghw{padding:6px 12px 8px;border-top:1px solid var(--line)}
@@ -984,12 +980,11 @@ div.nomap a:hover{text-decoration:underline;text-underline-offset:3px}
 .conv.classic .more-row{justify-content:center}
 .conv.classic .more-row .gbtn{margin:0}
 
-/* the time has one place: "Messages" at the right edge of its row, on the first line; "Classic" right after the words */
-.conv.messages .time{margin-left:auto;flex:none;padding-left:10px;white-space:nowrap}
-.conv.messages .msg .top,.conv.messages .sc .top{flex-wrap:nowrap;min-width:0}
+/* the time has one place: "Messages" in the name line of the first message of a group, after a middle dot ("mira-k · 19 h ago"); "Classic" right after the words */
+.conv.messages .time{flex:none;white-space:nowrap}
+.conv.messages .top > :not(.sr) ~ .ago::before{content:"· "}
 .conv.messages .msg .top > b,.conv.messages .sc .top > b{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.conv.messages .time.tr{float:right;margin-top:2px}
-.conv.messages .row .what{flex:1}
+.conv.messages .row .what{flex:0 1 auto}
 .conv.messages .row .who{flex:none}
 .conv.classic .time{margin-left:0}
 
@@ -1331,7 +1326,8 @@ body:where(.vscode-dark,.vscode-high-contrast) .bk-press{background:transparent}
 .lk-box.lk-line{border-color:var(--lk-line)!important}
 .cl .row.lk-box{border-radius:6px;box-shadow:inset 3px 0 0 var(--lk-line)}
 .conv .msg.lk-box{border-radius:7px;padding-left:8px;padding-right:8px}
-.conv .prow.lk-box.lk-ink b{color:var(--lk-ink)}
+.conv .lrow.lk-box{border-radius:7px;padding-right:8px}
+.conv .lrow.lk-box.lk-ink .what{color:var(--lk-ink)}
 .lkw{color:var(--lk-words)}.lkw :is(.pri,.ico,.pn,.pw,.prw,.what){color:var(--lk-words)!important}
 .lk-ic{display:inline-block;flex:none;width:16px;height:16px;object-fit:contain;vertical-align:-3px;margin-right:4px}
 .lbl .lk-ic{width:12px;height:12px;vertical-align:-1px;margin-right:3px}

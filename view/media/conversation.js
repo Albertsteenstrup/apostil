@@ -32,15 +32,15 @@ const Conversation = (() => {
 
   const MINUTE = 60_000;
   const DAY = 24 * 60 * MINUTE;
-  /** "5 minutes ago", "yesterday", "3 days ago", or the date. */
-  function ago(iso) {
+  /** "5 minutes ago", "yesterday", "3 days ago", or the date. `short`: "5 min ago", "19 h ago". */
+  function ago(iso, short = false) {
     const ms = Date.now() - new Date(iso).getTime();
     if (!Number.isFinite(ms)) return '';
     const minutes = Math.round(ms / MINUTE);
     if (minutes < 1) return 'just now';
-    if (minutes < 60) return `${plural(minutes, 'minute')} ago`;
+    if (minutes < 60) return short ? `${minutes} min ago` : `${plural(minutes, 'minute')} ago`;
     const hours = Math.round(minutes / 60);
-    if (hours < 24) return `${plural(hours, 'hour')} ago`;
+    if (hours < 24) return short ? `${hours} h ago` : `${plural(hours, 'hour')} ago`;
     const days = Math.round(hours / 24);
     if (days === 1) return 'yesterday';
     if (days < 31) return `${days} days ago`;
@@ -50,13 +50,12 @@ const Conversation = (() => {
     new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', ...(year ? { year: 'numeric' } : {}) });
   const exact = (iso) => new Date(iso).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
   // The time has one place in each look. "Classic": it follows the words ("commented 3 days ago"), as on GitHub.
-  // "Messages": the clock time at the right edge of its row, on the first line; the date stands in the day line and in the tooltip.
+  // "Messages": one time for a group of messages, in the name line of its first message ("mira-k · 19 h ago", the dot drawn by look.css);
+  // the exact date and time is its tooltip, and the tooltip of a later message of the group. Rows on the line have no time.
   const when = (iso) => `<span class="t time" title="${esc(exact(iso))}">${esc(ago(iso))}</span>`;
-  const hhmm = (iso) => new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-  const clock = (iso) => `<span class="t time" title="${esc(exact(iso))}">${esc(hhmm(iso))}</span>`;
-  /** The time of a later message of a group: it shows only while the pointer is on the message, beside it. */
-  const hoverTime = (iso) => `<span class="t time hov" title="${esc(exact(iso))}">${esc(hhmm(iso))}</span>`;
-  const timeOf = (iso) => (mode === 'messages' ? clock(iso) : when(iso));
+  const timeAgo = (iso) => `<span class="t time ago" title="${esc(exact(iso))}">${esc(ago(iso, true))}</span>`;
+  /** The exact time as the tooltip of a thing that shows no time. */
+  const exactTip = (iso) => ` title="${esc(exact(iso))}"`;
   const edited = (flag) => (flag ? '<span class="t">edited</span>' : '');
   /** "edited"; "sending" on his words while GitHub has not answered yet; "example" on an item that a send in the example page added. */
   const marksOf = (said) => `${edited(said.edited)}${said.sending ? `<span class="t ex">${esc(WRITE.sendingMark)}</span>` : said.example ? `<span class="t ex">${esc(WRITE.example)}</span>` : ''}`;
@@ -348,7 +347,8 @@ const Conversation = (() => {
   /**
    * A comment inside a thread, or a hidden one as one quiet row that a click opens. Its suggested changes stand in its text, with their buttons.
    * In "Messages" the answers read as a small chat: his own at the right in a tinted bubble, and a comment right after one of the same person
-   * (`before`, within minutes) with no avatar and no name, its time on hover.
+   * (`before`, within minutes) with no avatar, no name and no time. The first comment has no time either: the message around the thread says it.
+   * A comment with no time has its exact time as its tooltip.
    */
   function smallComment(comment, thread, pull, before) {
     const text = textHtml(commentText(comment, thread, pull, true));
@@ -358,9 +358,9 @@ const Conversation = (() => {
       const mine = !!comment.mine;
       const same = !!before && !before.hidden && before.author.login === comment.author.login && new Date(comment.at) - new Date(before.at) < SAME_MINUTES * MINUTE;
       const marks = marksOf(comment);
-      const top = same && !marks ? hoverTime(comment.at)
-        : `<div class="top">${mine ? ownName(comment.author) : same ? '' : `${avatar(comment.author, 's')}${name(comment.author)}`}${marks}${same ? hoverTime(comment.at) : clock(comment.at)}</div>`;
-      body = `<div class="sc${mine ? ' mine' : ''}${same ? ' same' : ''}" data-said="${esc(comment.id)}">${top}${mine ? `<div class="bub">${text}</div>` : text}${chips(comment.reactions)}</div>`;
+      const top = same ? (marks ? `<div class="top">${marks}</div>` : '')
+        : `<div class="top">${mine ? ownName(comment.author) : `${avatar(comment.author, 's')}${name(comment.author)}`}${marks}${before ? timeAgo(comment.at) : ''}</div>`;
+      body = `<div class="sc${mine ? ' mine' : ''}${same ? ' same' : ''}" data-said="${esc(comment.id)}"${same || !before ? exactTip(comment.at) : ''}>${top}${mine ? `<div class="bub">${text}</div>` : text}${chips(comment.reactions)}</div>`;
     }
     return comment.hidden ? hiddenBox(comment, body) : body;
   }
@@ -415,23 +415,23 @@ const Conversation = (() => {
   }
   const gap = '<span class="av gap"></span>';
 
-  /** A message row: avatar, name and a short time on one line, then the title line (a heading at its start), the text, chips, threads. */
+  /** A message row: avatar, then the name and one relative time on one line, then the title line (a heading at its start), the text, chips, threads. */
   function messageHtml(item, pull, same) {
     if (item.kind === 'thread') {
       const first = item.thread.comments[0];
       const { box, shows } = messageLook(item, first?.author);
-      return `<div class="msg${box.cls}"${box.style}>${shows('avatar') ? avatar(first?.author ?? { login: '?' }) : gap}<div class="body"><div class="top">${first && shows('name') ? name(first.author) : ''}<span class="t">on code</span>${shows('time') ? clock(item.at) : ''}</div>${threadHtml(item.thread, pull)}</div></div>`;
+      return `<div class="msg${box.cls}"${box.style}>${shows('avatar') ? avatar(first?.author ?? { login: '?' }) : gap}<div class="body"><div class="top">${first && shows('name') ? name(first.author) : ''}<span class="t">on code</span>${shows('time') ? timeAgo(item.at) : ''}</div>${threadHtml(item.thread, pull)}</div></div>`;
     }
     if (item.kind === 'reply') {
       const { comment, thread } = item;
       const { box, shows } = messageLook(item, comment.author);
       const body = `<div class="msg${box.cls}"${box.style}>${shows('avatar') ? avatar(comment.author) : gap}<div class="body"><div class="top">${shows('name') ? name(comment.author) : ''}${edited(comment.edited)}`
-        + `<span class="t">answered on ${esc(baseName(thread.path))} ${esc(linesWord(thread))}</span>${shows('time') ? clock(comment.at) : ''}</div>${shows('text') ? textHtml(commentText(comment, thread, pull, false)) : ''}${shows('reactions') ? chips(comment.reactions) : ''}</div></div>`;
+        + `<span class="t">answered on ${esc(baseName(thread.path))} ${esc(linesWord(thread))}</span>${shows('time') ? timeAgo(comment.at) : ''}</div>${shows('text') ? textHtml(commentText(comment, thread, pull, false)) : ''}${shows('reactions') ? chips(comment.reactions) : ''}</div></div>`;
       return comment.hidden ? hiddenBox(comment, body) : body;
     }
     const heading = headingOf(item.html);
     const text = heading ? heading.rest : item.html;
-    const times = item.repeat ? `<span class="t rep" title="${esc(item.repeat.map(exact).join(', '))}">posted ${item.repeat.length + 1} times, last ${esc(ago(item.repeat.at(-1)))}</span>` : '';
+    const times = item.repeat ? `<span class="t rep" title="${esc([item.at, ...item.repeat].map(exact).join(', '))}">posted ${item.repeat.length + 1} times</span>` : '';
     const { box, shows } = messageLook(item, item.author);
     const words = shows('text') ? `${heading ? `<div class="mtitle">${esc(heading.title)}</div>` : ''}${textHtml(text)}` : '';
     const reactions = shows('reactions') ? chips(item.reactions) : '';
@@ -441,37 +441,39 @@ const Conversation = (() => {
     const bubble = (inner) => (mine && inner ? `<div class="bub">${inner}</div>` : inner);
     if (item.kind === 'review') {
       const [i, look, verdict] = VERDICTS[item.state] ?? VERDICTS.reviewed;
-      const body = `<div class="msg${mine ? ' mine' : ''}${box.cls}"${box.style}>${mine ? '' : shows('avatar') ? avatar(item.author) : gap}<div class="body"><div class="top">${who}${marksOf(item)}${shows('time') ? clock(item.at) : ''}</div>`
+      const body = `<div class="msg${mine ? ' mine' : ''}${box.cls}"${box.style}>${mine ? '' : shows('avatar') ? avatar(item.author) : gap}<div class="body"><div class="top">${who}${marksOf(item)}${shows('time') ? timeAgo(item.at) : ''}</div>`
         + `<div class="card review ${look}"><div class="verdict ${look}">${ico(i, look)}${esc(verdict)}</div>${words}${reactions}${item.threads.map((thread) => threadHtml(thread, pull)).join('')}</div></div></div>`;
       return item.hidden ? hiddenBox(item, body) : body;
     }
-    // A group: messages of one person in a row, a few minutes apart. The first has the avatar, the name and the time; a later one only its text,
-    // close under the one before, with its time beside it while the pointer is on it (and its marks, when it has some).
+    // A group: messages of one person in a row, a few minutes apart. The first has the avatar, the name and the time; a later one only its text
+    // (and its marks, when it has some), close under the one before, with its exact time as its tooltip.
     const marks = `${marksOf(item)}${times}`;
-    const head = same ? (marks ? `<div class="top">${marks}</div>` : '') : `<div class="top">${who}${marks}${shows('time') ? clock(item.at) : ''}</div>`;
-    const side = same && shows('time') ? hoverTime(item.at) : '';
-    const left = mine ? side : same ? `<span class="gut">${side}</span>` : shows('avatar') ? avatar(item.author) : gap;
-    const body = `<div class="msg${same ? ' same' : ''}${mine ? ' mine' : ''}${box.cls}"${box.style}>${left}<div class="body">${head}`
+    const head = same ? (marks ? `<div class="top">${marks}</div>` : '') : `<div class="top">${who}${marks}${shows('time') ? timeAgo(item.at) : ''}</div>`;
+    const left = mine ? '' : same ? '<span class="gut"></span>' : shows('avatar') ? avatar(item.author) : gap;
+    const body = `<div class="msg${same ? ' same' : ''}${mine ? ' mine' : ''}${box.cls}"${box.style}${same ? exactTip(item.at) : ''}>${left}<div class="body">${head}`
       + `${bubble(words)}${reactions}</div></div>`;
     return item.hidden ? hiddenBox(item, body) : body;
   }
 
-  /** A comment from a product: a compact row with the product, the title of the comment and a fold with the rest. The look of a message gives it its colour and parts. */
-  function productRow(item) {
-    const heading = headingOf(item.html);
-    const title = heading?.title ?? plainText(item.html).slice(0, 140);
-    const { box, shows } = messageLook(item, item.author);
-    return `<div class="prod" data-box><a class="prow${box.cls}"${box.style} data-toggle>${shows('avatar') ? avatar(item.author, 's') : ''}${shows('name') ? `<b>${esc(item.author.login)}</b>` : ''}<span class="ptl">${esc(title)}</span><span class="go">›</span>${shows('time') ? clock(item.at) : ''}</a>`
-      + `<div class="inner">${shows('text') ? textHtml(heading ? heading.rest : item.html) : ''}${shows('reactions') ? chips(item.reactions) : ''}</div></div>`;
-  }
+  // ----- rows on the line: commits, events and the comments of a product -----
 
-  /** Several comments of one product in a row: one row with a count, that opens to their compact rows. */
+  /**
+   * A row on the line of "Messages": its icon on the line and a short faint word beside it, no time and no box; a click opens its details
+   * under it, in place. `open`: a rule of the look opens this fold at the start. `look`: the class and style that the look gives the row.
+   */
+  const lineRow = (cls, icon, words, details, open = false, look = PartLook.NONE) => `<div class="${cls} online${open ? ' open' : ''}" data-box>`
+    + `<a class="lrow${look.cls}"${look.style} data-toggle><span class="lic">${icon}</span><span class="what">${words}</span></a><div class="inner">${details}</div></div>`;
+
+  /** The comments of a product in a row ("GitHub Actions · 2 comments"): a click opens them in place, each with its title line and its text. */
   function productsHtml(group) {
-    if (group.length === 1) return productRow(group[0]);
     const last = group[group.length - 1];
     const { box, shows } = messageLook(last, last.author);
-    return `<div class="prods" data-box><a class="prow${box.cls}"${box.style} data-toggle>${shows('avatar') ? avatar(last.author, 's') : ''}${shows('name') ? `<b>${esc(last.author.login)}</b>` : ''}<span class="ptl">${plural(group.length, 'comment')} · ${esc(headingOf(last.html)?.title ?? plainText(last.html).slice(0, 100))}</span><span class="go">›</span>${shows('time') ? clock(last.at) : ''}</a>`
-      + `<div class="inner">${group.map(productRow).join('')}</div></div>`;
+    const comments = group.map((item) => {
+      const heading = headingOf(item.html);
+      return `<div class="said"${exactTip(item.at)}>${heading ? `<div class="mtitle">${esc(heading.title)}</div>` : ''}${shows('text') ? textHtml(heading ? heading.rest : item.html) : ''}${shows('reactions') ? chips(item.reactions) : ''}</div>`;
+    }).join('');
+    const words = `${shows('name') ? `${esc(last.author.login)} · ` : ''}${plural(group.length, 'comment')}`;
+    return lineRow('prods', shows('avatar') ? avatar(last.author, 's') : ico('comment'), words, comments, false, box);
   }
 
   /** What the look gives an event or a commit: an icon in place of its own, and a colour of its words (the class and style of its row). */
@@ -482,14 +484,14 @@ const Conversation = (() => {
   /** True when no rule of the look leaves the event or the commit out. Other items always show. */
   const eventShown = (item) => (item.kind !== 'commit' && item.kind !== 'event') || own('event', { of: PartLook.eventOf(item) })['show.shown'] !== false;
 
-  const commitRow = (item) => { const { icon, color } = eventLook(item); return `<div class="row${color.cls}"${color.style}>${icon || ico('git-commit')}<code>${esc(item.hash)}</code><span class="what">${esc(item.subject)}</span>`
-    + `${item.verified ? '<span class="vf">Verified</span>' : ''}<span class="t who">${esc(item.author.login)}${item.author.bot ? ' (bot)' : ''}</span>${clock(item.at)}</div>`; };
+  // The details of a row on the line: one row for each commit or event, its exact time as its tooltip.
+  const commitRow = (item) => { const { icon, color } = eventLook(item); return `<div class="row${color.cls}"${color.style}${exactTip(item.at)}>${icon || ico('git-commit')}<code>${esc(item.hash)}</code><span class="what">${esc(item.subject)}</span>`
+    + `${item.verified ? '<span class="vf">Verified</span>' : ''}<span class="t who">${esc(item.author.login)}${item.author.bot ? ' (bot)' : ''}</span></div>`; };
 
+  /** Commits in a row: "4 commits" on the line; a click opens their short hashes and subjects. */
   function commitsHtml(group) {
-    if (group.length === 1 || !folds('commits')) return group.map(commitRow).join('');
-    const last = group[group.length - 1];
-    return `<div class="commits" data-box><a class="row" data-toggle>${ico('git-commit')}<span class="what"><b>${plural(group.length, 'commit')}</b> ${esc(group[0].subject)} … ${esc(last.subject)}</span>`
-      + `${clock(last.at)}</a><div class="inner">${group.map(commitRow).join('')}</div></div>`;
+    const { icon, color } = eventLook(group[0]);
+    return lineRow('commits', icon || ico('git-commit'), esc(plural(group.length, 'commit')), group.map(commitRow).join(''), !folds('commits'), color);
   }
 
   const DEPLOY_WORDS = { ready: 'ready', failed: 'failed', running: 'running', waiting: 'waiting', inactive: 'no longer active' };
@@ -498,32 +500,46 @@ const Conversation = (() => {
     + `${item.label ? ` ${labelPill(item.label)}` : ''}${item.link ? ` <a data-link="${esc(item.link.url)}">${esc(item.link.text)}</a>` : ''}`
     + `${item.deployment ? ` <span class="dep ${DEPLOY_LOOK[item.deployment.state]}">${esc(DEPLOY_WORDS[item.deployment.state])}</span>${item.deployment.link ? ` <a data-link="${esc(item.deployment.link)}">View deployment</a>` : ''}` : ''}`;
 
-  const eventHtml = (item) => { const { icon, color } = eventLook(item); return `<div class="row ev${color.cls}"${color.style}>${icon || ico(item.icon)}<span class="what">${eventWords(item)}</span>${clock(item.at)}</div>`; };
+  const eventHtml = (item) => { const { icon, color } = eventLook(item); return `<div class="row ev${color.cls}"${color.style}${exactTip(item.at)}>${icon || ico(item.icon)}<span class="what">${eventWords(item)}</span></div>`; };
 
-  // A run of one kind of event, in words: "8 force pushes".
-  const RUN_WORDS = { 'force-pushed the base branch': 'force pushes of the base branch', 'force-pushed': 'force pushes', 'added the label': 'labels added', 'deployed to': 'deployments', 'mentioned it in': 'mentions', 'changed the base': 'changes of the base', assigned: 'assignments' };
-  const runKey = (item) => `${item.icon}|${Object.keys(RUN_WORDS).find((start) => item.text.startsWith(start)) ?? item.text}`;
-  const runWords = (items) => { const start = Object.keys(RUN_WORDS).find((one) => items[0].text.startsWith(one)); return `${number(items.length)} ${start ? RUN_WORDS[start] : `× ${items[0].text}`}`; };
+  // The kinds of event that one row on the line holds, by their words (shared/read-pull-request.ts makes them), with the short words of the row:
+  // "3 force pushes", "label backend", "review asked from lena-s", "merged". `of` gives the name that the words of an event hold.
+  const listed = (run, of) => [...new Set(run.map(of))].join(', ');
+  const LINE_WORDS = [
+    [/^force-pushed the base branch/, (run) => (run.length === 1 ? 'force push of the base' : `${number(run.length)} force pushes of the base`)],
+    [/^force-pushed/, (run) => (run.length === 1 ? '1 force push' : `${number(run.length)} force pushes`)],
+    [/^deployed to/, (run) => plural(run.length, 'deployment')],
+    [/^added the label/, (run) => `${run.length === 1 ? 'label' : 'labels'} ${listed(run, (item) => item.label?.name ?? '')}`],
+    [/^took away the label/, (run) => `${run.length === 1 ? 'label' : 'labels'} ${listed(run, (item) => item.label?.name ?? '')} taken away`],
+    [/^asked (.+) for a review$/, (run, of) => `review asked from ${listed(run, of)}`],
+    [/^no longer asks (.+) for a review$/, (run, of) => `review no longer asked from ${listed(run, of)}`],
+    [/^assigned (.+)$/, (run, of) => `assigned ${listed(run, of)}`],
+    [/^added it to the milestone (.+)$/, (run, of) => `milestone ${listed(run, of)}`],
+    [/^mentioned it in/, (run) => plural(run.length, 'mention')],
+    [/^merged /, () => 'merged'],
+    [/^closed it$/, () => 'closed'],
+    [/^opened it again$/, () => 'reopened'],
+  ];
+  const lineKind = (item) => { const at = LINE_WORDS.findIndex(([words]) => words.test(item.text)); return at < 0 ? `${item.icon}|${item.text}` : `#${at}`; };
+  /** The short words of a row of events of one kind: from LINE_WORDS, else the words of the event ("deleted the branch"), with a count when it repeats. */
+  function lineWords(run) {
+    const [words, say] = LINE_WORDS.find(([one]) => one.test(run[0].text)) ?? [];
+    if (say) return say(run, (item) => words.exec(item.text)?.[1] ?? '');
+    const first = `${run[0].text}${run[0].link ? ` ${run[0].link.text}` : ''}`;
+    return run.length === 1 ? first : `${number(run.length)} × ${run[0].text}`;
+  }
 
   /**
-   * Events in a row: a run of one kind is one row with a count, and with the days when it spans more than the day of its day line; three or more other events
-   * in a row fold into one row. A rule of the look that opens the fold of events shows each event as its own row.
+   * Events in a row: one row on the line for each kind, in the order of their first event ("3 force pushes", "2 deployments", "label backend");
+   * a click opens its events with their whole words. A rule of the look that opens the fold of events opens every row at the start.
    */
   function eventsHtml(items) {
-    if (!folds('events')) return items.map(eventHtml).join('');
-    const runs = [];
-    for (const item of items) {
-      const last = runs[runs.length - 1];
-      if (last && runKey(last[0]) === runKey(item)) last.push(item);
-      else runs.push([item]);
-    }
-    const days = (list) => [...new Set(list.map((item) => dateWords(item.at)))].join(', ');
-    const runHtml = (run) => (run.length === 1 ? eventHtml(run[0])
-      : `<div class="evrun" data-box><a class="row ev" data-toggle>${ico(run[0].icon)}<span class="what"><b>${esc(runWords(run))}</b>${new Set(run.map((item) => dateWords(item.at))).size > 1 ? ` on ${esc(days(run))}` : ''}</span><span class="go">›</span>${clock(run[run.length - 1].at)}</a><div class="inner">${run.map(eventHtml).join('')}</div></div>`);
-    if (runs.length < 3) return runs.map(runHtml).join('');
-    const summary = runs.map((one) => (one.length > 1 ? runWords(one) : `${one[0].text}${one[0].label ? ` ${one[0].label.name}` : ''}`)).join(', ');
-    return `<div class="evrun" data-box><a class="row ev" data-toggle>${ico('dot-fill')}<span class="what"><b>${plural(items.length, 'event')}</b> · ${esc(summary)}</span><span class="go">›</span>${clock(items[items.length - 1].at)}</a>`
-      + `<div class="inner">${runs.map(runHtml).join('')}</div></div>`;
+    const kinds = new Map();
+    for (const item of items) kinds.set(lineKind(item), [...(kinds.get(lineKind(item)) ?? []), item]);
+    return [...kinds.values()].map((run) => {
+      const { icon, color } = eventLook(run[0]);
+      return lineRow('evrun', icon || ico(run[0].icon), esc(lineWords(run)), run.map(eventHtml).join(''), !folds('events'), color);
+    }).join('');
   }
 
   /** True when he wrote the message of an entry himself: his own words are never new to him. */
