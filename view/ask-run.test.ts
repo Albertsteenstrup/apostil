@@ -7,11 +7,12 @@ import { test } from 'node:test';
 import { describeWords } from '../shared/ask';
 import { git, repoId } from '../shared/git';
 import { Store } from '../shared/store';
-import { makePullRepo, makeTestRepo, tempFolder, testChangeFile } from '../shared/test-repo';
+import { madeUpAgentHome, makePullRepo, makeTestRepo, tempFolder, testChangeFile } from '../shared/test-repo';
+import { WRITER_AGENT } from '../shared/agents';
 import { askView, ON_BRANCH, startAsk } from './ask-run';
 import { pageData } from './page-data';
 
-test('the press starts a new session with the words, its id known at once and the small model; a run that was not allowed a command stopped, and the press is there again', async () => {
+test('the press starts a new session with the words, its id known at once, led by the second smallest model with the smallest as its writers, at the most effort; a run that was not allowed a command stopped, and the press is there again', async () => {
   const repo = makeTestRepo();
   const home = tempFolder('apostil-home-');
   const bin = tempFolder('apostil-bin-');
@@ -19,12 +20,13 @@ test('the press starts a new session with the words, its id known at once and th
   // A stand-in claude that keeps its arguments and says that it ended well, with a command that it was not allowed to run.
   writeFileSync(join(bin, 'claude'), `#!/bin/sh\nprintf '%s\\n' "$@" > '${got}'\necho '{"type":"result","is_error":false,"result":"Done","permission_denials":[{"tool_name":"Bash","tool_input":{"command":"gh pr checkout 35"}}]}'\n`);
   chmodSync(join(bin, 'claude'), 0o755);
-  const kept = { PATH: process.env.PATH, APOSTIL_HOME: process.env.APOSTIL_HOME };
-  Object.assign(process.env, { PATH: `${bin}:${kept.PATH}`, APOSTIL_HOME: home });
+  const kept = { PATH: process.env.PATH, APOSTIL_HOME: process.env.APOSTIL_HOME, APOSTIL_AGENT_HOME: process.env.APOSTIL_AGENT_HOME };
+  Object.assign(process.env, { PATH: `${bin}:${kept.PATH}`, APOSTIL_HOME: home, APOSTIL_AGENT_HOME: madeUpAgentHome() }); // made-up catalogs, never the real ones
   const store = new Store(home);
   const words = describeWords(35);
   try {
-    assert.equal(askView(store, repo.folder, words, ['claude-code']).press?.label, 'Describe it with a new Claude Code session');
+    const before = askView(store, repo.folder, words, ['claude-code']);
+    assert.deepEqual([before.press?.label, before.team?.lead, before.team?.writer, before.team?.effort], ['Describe it with a new Claude Code session', 'sonnet', 'haiku', 'max']);
     let done: (end: { problem?: string; denied?: string[] }) => void = () => {};
     const ending = new Promise<{ problem?: string; denied?: string[] }>((resolve) => { done = resolve; });
     assert.equal(await startAsk(store, repo.folder, words, ['claude-code'], { claude: 'haiku' }, () => {}, (problem, facts) => done({ problem, denied: facts?.denied })), true);
@@ -32,10 +34,11 @@ test('the press starts a new session with the words, its id known at once and th
     const ended = await ending;
     const args = readFileSync(got, 'utf8').split('\n');
     const view = askView(store, repo.folder, words, ['claude-code']);
-    assert.deepEqual(args.slice(0, 2), ['-p', words]);
+    assert.deepEqual(args.slice(0, 2), ['-p', `${words}. You lead on Sonnet 5.5 at max effort: you start, check and correct the writers, and you write no part yourself. Start every writer and checker subagent on Haiku 5.5 at max effort: start each one as the agent ${WRITER_AGENT}, which runs on that model at that effort, and give it no model of your own.`]);
     assert.equal(args[args.indexOf('--session-id') + 1], view.line?.tip?.replace('Session ', '')); // the link of the session is there before the run ends
-    assert.equal(args[args.indexOf('--model') + 1], 'haiku');
+    assert.equal(args[args.indexOf('--model') + 1], 'sonnet'); // the lead, though the setting says haiku
     assert.equal(args[args.indexOf('--effort') + 1], 'max'); // a description draws diagrams: the most effort
+    assert.deepEqual(JSON.parse(args[args.indexOf('--agents') + 1])[WRITER_AGENT].model, 'haiku');
     assert.deepEqual(ended, { problem: 'It ended before it was done.', denied: ['Bash(gh pr *)'] });
     assert.equal(view.line?.state, 'stopped');
     assert.equal(view.press?.label, 'Describe it with a new Claude Code session'); // the session of a run that stopped is not asked again
@@ -43,6 +46,7 @@ test('the press starts a new session with the words, its id known at once and th
     store.close();
     Object.assign(process.env, kept);
     if (kept.APOSTIL_HOME === undefined) delete process.env.APOSTIL_HOME;
+    if (kept.APOSTIL_AGENT_HOME === undefined) delete process.env.APOSTIL_AGENT_HOME;
     repo.remove();
   }
 });
@@ -73,7 +77,7 @@ test('the press of a pull request whose branch is not checked out names a new se
     assert.equal(await ending, undefined);
     const [folder, branch, prompt] = readFileSync(got, 'utf8').split('\n');
     assert.equal(branch, repo.branch); // the run works on the head branch of the pull request
-    assert.equal(prompt, `${words}. ${ON_BRANCH}`);
+    assert.ok(prompt.startsWith(`${words}. ${ON_BRANCH} You lead on `), prompt); // then the models of the lead and the writers
     assert.equal(folder, run?.folder);
     assert.notEqual(folder, repo.folder);
     assert.equal(existsSync(folder), false); // the worktree that Apostil made is gone after the run

@@ -3,7 +3,8 @@
 import { spawn } from 'node:child_process';
 import { readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { newRunCommand, resumeCommand, runOptions, type RunModels } from '../shared/agents';
+import { newRunCommand, resumeCommand, runOptions, WRITER_AGENT, type RunModels } from '../shared/agents';
+import { pickFrom, teamOf, teamRun, teamSentence, type RunPick, type Team } from '../shared/models';
 import { changedBetween, workingFiles } from '../shared/git';
 import { storeFolder, type Store } from '../shared/store';
 import { inboxText } from '../store/inbox';
@@ -91,12 +92,14 @@ export interface RunFacts {
  * and `ended` gets the reason: what the program said, or that it gave no answer. `models` are the models that the owner set in Apostil for the runs;
  * `commentRuns` is his setting `apostil.commentRuns`: "read and edit" (the default) or "read only". The files that the run changed are kept on the remark, from Git before and after.
  */
-export function startRun(store: Store, remarkId: number, ended: (problem?: string) => void, newApp?: string, folder?: string, models: RunModels = {}, commentRuns = 'read and edit'): void {
+export function startRun(store: Store, remarkId: number, ended: (problem?: string) => void, newApp?: string, folder?: string, models: RunModels = {}, commentRuns = 'read and edit', pick?: RunPick): void {
   const remark = store.getRemark(remarkId);
   const change = remark?.changeId === undefined ? undefined : store.getChange(remark.changeId);
   const prompt = remark && inboxText([remark], store, commentRuns === 'read only');
   const where = change?.folder ?? folder;
-  const options = { ...runOptions(where ?? '', storeFolder(), models), commentRuns }; // the modes that the person set as default for the app go with the run
+  // The model and the effort that the picker sent with the comment, or that "Start a run" chose: with no model, a session that a run continues keeps its own.
+  const chosen = { ...pickFrom(remark?.to), ...pickFrom(pick) };
+  const options = { ...runOptions(where ?? '', storeFolder(), models), commentRuns, ...chosen }; // the modes that the person set as default for the app go with the run
   // The session that the run continues: another session that Apostil knows in the repo when the comment went there, else the session of the change.
   const agent = remark?.to?.kind === 'session' && remark.to.session ? { app: remark.to.app, session: remark.to.session } : change?.agent;
   const command = prompt && (newApp ? newRunCommand(newApp, prompt, options) : agent && resumeCommand(agent, prompt, options));
@@ -121,13 +124,15 @@ export const DESCRIBE_AFTER_MAP = 'Then describe the change of this branch for A
 /**
  * What a new session gets when Home asks it to write the map: the skill with its files, so that it works where the skills are not installed.
  * The session is the main agent of the skill: it starts the overview writer, then one writer for each large area, then one notes writer and one process writer for each group of files.
- * With `describe`, the same session describes the change of the branch after the map, and gets that skill too.
+ * With `describe`, the same session describes the change of the branch after the map, and gets that skill too. `team` names the models of the run in
+ * plain words: the lead, and the model and effort of every writer (teamSentence in shared/models.ts).
  */
-export function mapPrompt(describe = false): string {
+export function mapPrompt(describe = false, team?: Team): string {
   const files = ['SKILL.md', 'overview-writer-prompt.md', 'area-writer-prompt.md', 'notes-writer-prompt.md', 'process-writer-prompt.md', 'service-writer-prompt.md', 'mark-writer-prompt.md', 'look-writer-prompt.md', 'example-map.json', 'example-area-diagram.json'].map((name) => `apostil-map-repo/${name}`)
     .concat('apostil-describe-change/text-rules.md', ...(describe ? ['SKILL.md', 'writer-prompt.md', 'fresh-check-prompt.md'].map((name) => `apostil-describe-change/${name}`) : []));
+  const models = team ? teamSentence(team, WRITER_AGENT) : '';
   return [
-    `Write the map of this repo for Apostil Home, with the notes of its code files and its processes, as the skill apostil-map-repo says.${describe ? ` ${DESCRIBE_AFTER_MAP}` : ''} The files of the skills follow. `
+    `Write the map of this repo for Apostil Home, with the notes of its code files and its processes, as the skill apostil-map-repo says.${describe ? ` ${DESCRIBE_AFTER_MAP}` : ''}${models ? ` ${models}` : ''} The files of the skills follow. `
       + `The overview writer writes the map file as ${MAP_DRAFT} in the repo folder. An area writer writes its diagram file, a notes writer its notes file, a process writer its processes file, and a service or mark writer its marks file and its icon files, in the repo folder, as its prompt says.`,
     ...files.map((path) => `----- ${path} -----\n${readFileSync(join(SKILLS, path), 'utf8')}`),
   ].join('\n\n');
@@ -136,9 +141,11 @@ export function mapPrompt(describe = false): string {
 /**
  * Starts a new session of an app in a folder that writes the map of the repo, and with `describe` then the description of the change. Returns false when
  * the app cannot be started from here. `found` gets the session that the run reports on its output: Codex at its start, Claude Code with its result.
+ * `team`: the lead and the writers of the run (teamOf in shared/models.ts: the second smallest model leads, the smallest writes, both at the most effort).
  */
-export function startMapRun(app: string, folder: string, ended: (problem?: string, facts?: RunFacts) => void, models: RunModels = {}, describe = false, found: (session: string) => void = () => {}): boolean {
-  const command = newRunCommand(app, mapPrompt(describe), { ...runOptions(folder, storeFolder(), models), diagrams: true }); // it draws diagrams: the most effort, and it reads the repo
+export function startMapRun(app: string, folder: string, ended: (problem?: string, facts?: RunFacts) => void, models: RunModels = {}, describe = false, found: (session: string) => void = () => {}, team: Team = teamOf(app)): boolean {
+  // It draws diagrams and reads the repo; its lead and writers take the models and effort of the team.
+  const command = newRunCommand(app, mapPrompt(describe, team), { ...runOptions(folder, storeFolder(), models), diagrams: true, ...teamRun(team) });
   if (!command) return false;
   spawnRun(command, folder, found, (problem, facts) => {
     rmSync(join(folder, MAP_DRAFT), { force: true });

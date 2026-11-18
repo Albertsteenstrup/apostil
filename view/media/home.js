@@ -105,7 +105,7 @@ const App = {
 
 /** The map as the comments read it: every diagram is one of the map; there are no parts, files or notes. */
 const mapPage = (data) => (data.kind === 'home' && data.map
-  ? { map: true, title: data.repo, diagrams: data.map.diagrams, remarks: data.remarks, apps: data.apps, parts: [], files: [], notes: [], links: [], openPoints: [], checks: { filesInNoPart: [] }, look: data.look }
+  ? { map: true, title: data.repo, diagrams: data.map.diagrams, remarks: data.remarks, apps: data.apps, sendTo: data.sendTo, parts: [], files: [], notes: [], links: [], openPoints: [], checks: { filesInNoPart: [] }, look: data.look }
   : null);
 
 // ----- Home -----
@@ -230,11 +230,11 @@ function pickMark(thing, one) {
  * While a map run writes, the line of the run stands in place of the press (mapRunHtml in tools.js).
  */
 function noMapHtml() {
-  const { apps, mapApp, mapRun, needsSetup } = Home.data;
+  const { apps, mapApp, mapRun, needsSetup, team } = Home.data;
   const mark = '<img class="wordmark" src="apostil-wordmark.svg" alt="Apostil">';
-  if (mapRun?.state === 'writing') return `<div class="nomap">${mark}${mapPressHtml(apps, mapRun, mapApp)}</div>`;
+  if (mapRun?.state === 'writing') return `<div class="nomap">${mark}${mapPressHtml(apps, mapRun, mapApp, team)}</div>`;
   // After a map run that stopped, its line says so in place of the first line, above the press that starts again.
-  return `<div class="nomap">${mark}${mapRun ? '' : '<p>This repo has no map and no notes yet.</p>'}${mapPressHtml(apps, mapRun, mapApp)}<div class="next">${nextStepsHtml(needsSetup)}</div></div>`;
+  return `<div class="nomap">${mark}${mapRun ? '' : '<p>This repo has no map and no notes yet.</p>'}${mapPressHtml(apps, mapRun, mapApp, team)}<div class="next">${nextStepsHtml(needsSetup)}</div></div>`;
 }
 
 async function drawHome() {

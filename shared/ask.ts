@@ -3,6 +3,7 @@
 
 import { APP_NAMES, resumeCommand, sessionOpens, type AgentSession } from './agents';
 import { sessionCalled } from './map-run';
+import type { Team } from './models';
 
 /** The words that ask an agent to describe a pull request that has no description of Apostil. */
 export const describeWords = (number: number): string => `Describe pull request #${number} for Apostil`;
@@ -81,6 +82,7 @@ export function askLine(run: AskRun, alive: boolean, name?: string): AskLine {
 export interface AskView {
   words: string;
   press?: { label: string; tip: string };
+  team?: Team; // with the press: the lead and the writers of the run, which the control after the press shows and changes
   line?: AskLine;
   problem?: string; // why the last press started no run, in one sentence (the branch of the pull request could not be checked out)
 }

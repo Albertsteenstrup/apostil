@@ -13,7 +13,8 @@ import type { RepoMap } from '../shared/repo-map';
 import { Store } from '../shared/store';
 import { STATE_LOOKS, type PullRequest } from '../shared/pull-requests';
 import type { OpenPoint, Remark } from '../shared/store';
-import { tempFolder } from '../shared/test-repo';
+import { madeUpAgentHome, tempFolder } from '../shared/test-repo';
+import { menuOf, sessionPick, teamOf } from '../shared/models';
 import { EXAMPLE_LOOK, makeCheckExample, putLookFiles } from './check-example';
 import { asDefault, type LookData } from './look-data';
 import { blocksAnswer, pageData, type CustomPageData } from './look-blocks';
@@ -28,6 +29,8 @@ import { saveMapDraft } from '../store/save';
 import { agentOf, allQuestions, answer, diffRanges, examplePage, lookOfPage, marksBeside, notesBeside, type SendTo } from './page-data';
 
 const [folderArg, fileArg, pointsArg, mapArg] = process.argv.slice(2);
+// Made up: the catalogs of the agent apps and the last turns of two sessions, in a home of their own; the real home is never read here.
+const agentHome = process.env.APOSTIL_AGENT_HOME = madeUpAgentHome({ claude: { 'made-up-session-0001': ['claude-opus-5-5', 'xhigh'], 'made-up-session-0002': ['claude-sonnet-5-5', 'medium'] } });
 const example = folderArg ? undefined : makeCheckExample();
 const folder = folderArg ?? example!.folder;
 const file: ChangeFile = JSON.parse(readFileSync(fileArg ?? example!.changeFile, 'utf8'));
@@ -73,10 +76,11 @@ const labels = { review: { name: 'needs review', color: 'fbca04' }, borrowing: {
 // ----- end of the made-up part -----
 
 const apps = ['claude-code', 'codex', 'opencode']; // made up: the connected apps (on the path, with the skills of Apostil)
-// Made up: one more Claude Code session that Apostil knows in this repo, and the models that a new session would take.
+// Made up: one more Claude Code session that Apostil knows in this repo, with what each session last used, and the models that a new session would take.
 const sendTo: SendTo = {
-  sessions: [{ app: 'claude-code', session: 'made-up-session-0002', name: 'Tests for holds', at: minutesAgo(4) }],
-  models: { 'claude-code': 'haiku', codex: 'gpt-6-luna' }, effort: 'high',
+  sessions: [{ app: 'claude-code', session: 'made-up-session-0002', name: 'Tests for holds', at: minutesAgo(4), run: sessionPick('claude-code', 'made-up-session-0002', 'haiku') }],
+  models: { 'claude-code': menuOf('claude-code', 'haiku'), codex: menuOf('codex', 'gpt-6-luna'), opencode: menuOf('opencode', undefined) },
+  own: sessionPick('claude-code', agent.session, 'haiku'),
 };
 const base = example?.base ?? baseOf(folder, currentBranch(folder));
 
@@ -202,6 +206,7 @@ const pagePulls = pulls[page.branch].slice(0, 2); // the page knows the two that
 const readyPull = pullRequestFrom(exampleReadyPullRequest()); // #12 as a read gives it once it can merge: the browser check puts it in place of #12
 
 const target = join(__dirname, '../../view/media/example-data.js');
-writeFileSync(target, `// Written by view/example-data.ts. Not in Git.\n${iconScript(join(__dirname, '../../view/media'))}window.APOSTIL_EXAMPLE = ${JSON.stringify({ page, pageLooks, pagePulls, readyPull, answers, list, home, homeLooks, homeNoMap, graphs, lookPages, graphsLooks, mapRuns, homeState })};\n`);
+writeFileSync(target, `// Written by view/example-data.ts. Not in Git.\n${iconScript(join(__dirname, '../../view/media'))}window.APOSTIL_EXAMPLE = ${JSON.stringify({ page, pageLooks, pagePulls, readyPull, answers, list, home, homeLooks, homeNoMap, graphs, lookPages, graphsLooks, mapRuns, homeState, askTeam: teamOf('claude-code') })};\n`);
 example?.remove();
+rmSync(agentHome, { recursive: true, force: true });
 console.log(`Wrote ${target}: ${page.files.length} files, ${page.parts.length} parts, ${Object.keys(answers).length} answers, ${rows.length} list rows, ${home.map?.diagrams.length ?? 0} map diagrams, ${Object.keys(graphs).length} graphs pages.`);

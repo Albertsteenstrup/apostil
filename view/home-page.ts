@@ -5,11 +5,13 @@ import * as vscode from 'vscode';
 import { keptOnMap, withKept } from '../shared/comment-lines';
 import type { Target } from '../shared/look';
 import { homeRun, QUIET_MS, withEnd, withSession } from '../shared/map-run';
+import { teamFrom } from '../shared/models';
 import type { Store } from '../shared/store';
 import { startMapRun, startRun } from './agent-run';
 import { agentsNeedSetup, runNextStep } from './change-list';
 import { apostilOnPath, appName, commentRuns, runModels, showRunProblem } from './run-settings';
 import { openAgentSession, openLink, openRemarkSession, webviewHtml, type NewRemark } from './change-page';
+import { menusOf } from './page-data';
 import { graphsData, homeData, idOf, type GraphsData, type HomeData } from './home-data';
 import { blocksAnswer, lookPages, pageData, type CustomPageData } from './look-blocks';
 import type { Step, WindowTrail } from './trail';
@@ -19,7 +21,7 @@ type Message =
   | { type: 'walk'; from: Step; to: Step; open: boolean }
   | { type: 'back'; to: Step }
   | { type: 'move'; way: -1 | 1; from?: Step } // Cmd+Left and Cmd+Right: one step back or forward
-  | { type: 'writeMap'; app: string }
+  | { type: 'writeMap'; app: string; team?: unknown } // the press "Map this repo", with the lead and the writers of its control
   | { type: 'anotherApp' } // the link under the press: pick one of the other installed apps
   | NewRemark
   | { type: 'remarkAction'; id: number; action: 'resolve' | 'reopen' | 'start' }
@@ -183,11 +185,13 @@ export class HomePages {
   /**
    * Starts a new session of an app that writes the map, and with `describe` then the change; Home shows that it works, and the map when it is saved.
    * The record of the map run starts at once, takes the session that the run reports, and ends with the run: as a stop when it failed or saved no map.
+   * `chosen`: the lead and the writers that the control after the press sent; else, as for the question of a new repo, the default of teamOf().
    */
-  writeMap(app: string, describe = false): void {
+  writeMap(app: string, describe = false, chosen?: unknown): void {
     const folder = this.openFolder();
     if (!folder || this.writing) return;
-    const again = (): void => this.writeMap(app, describe);
+    const team = teamFrom(app, chosen);
+    const again = (): void => this.writeMap(app, describe, chosen);
     // The run saves the map with the command apostil: without it, the fix comes first, not a run that fails at its end.
     if (!apostilOnPath()) return showRunProblem(`${appName(app)} cannot write the map yet.`, { app, again, folder, noCommand: true });
     // The other connected agent app, which a toast offers when this one cannot run now.
@@ -204,7 +208,7 @@ export class HomePages {
       // "codex" stays in small letters at the start: the problem of its model is told by that word.
       if (why) showRunProblem(`${app === 'codex' ? 'codex' : appName(app)} did not write the map. It said: ${why}`, { app, again, folder, instead, ...facts });
       this.reload();
-    }, runModels(), describe, (session) => { record((run) => withSession(run, session)); this.reload(); });
+    }, runModels(), describe, (session) => { record((run) => withSession(run, session)); this.reload(); }, team);
     if (!started) return void vscode.window.showWarningMessage(`A new session of ${app} cannot be started from here.`);
     this.writing = app;
     record(() => homeRun(app, new Date().toISOString()));
@@ -222,7 +226,8 @@ export class HomePages {
     // A picture or a film of the look is loaded from Apostil's store by its webview address.
     const webview = this.home?.panel.webview;
     const data = homeData(this.store, this.openFolder(), this.apps, (file) => (webview ? webview.asWebviewUri(vscode.Uri.file(file)).toString() : file), this.writing);
-    this.homeShown = { ...data, writing: this.writing, needsSetup: !data.map && agentsNeedSetup(this.openFolder()) };
+    // The picker of a comment on the map offers a new session of each app, with the model and the effort of its run.
+    this.homeShown = { ...data, writing: this.writing, needsSetup: !data.map && agentsNeedSetup(this.openFolder()), sendTo: { sessions: [], models: menusOf(this.apps, runModels(), this.openFolder()) } };
     // A run that stops saves nothing, so the store does not change and nothing loads Home again: one timer does, after the quiet time, and the line then says that the run stopped.
     clearTimeout(this.quiet);
     if (data.mapRun?.state === 'writing') this.quiet = setTimeout(() => this.reload(), QUIET_MS + 1000);
@@ -314,7 +319,7 @@ export class HomePages {
         this.trail.move(message.way, message.from);
         break;
       case 'writeMap':
-        this.writeMap(message.app);
+        this.writeMap(message.app, false, message.team);
         break;
       case 'anotherApp':
         void this.pickApp();

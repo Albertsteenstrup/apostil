@@ -44,7 +44,7 @@ test('a run of the session of a change keeps the permission mode that the person
   }
 });
 
-test('a comment sent to another session that Apostil knows in the repo continues that session, not the session of the change; the run keeps it, and the inbox of the session of the change leaves the comment out', async () => {
+test('a comment sent to another session that Apostil knows in the repo continues that session, not the session of the change, with the effort of the picker and its own model; the run keeps it, and the inbox of the session of the change leaves the comment out', async () => {
   const repo = makeTestRepo();
   const home = tempFolder('apostil-home-');
   const bin = tempFolder('apostil-bin-');
@@ -59,7 +59,7 @@ test('a comment sent to another session that Apostil knows in the repo continues
     const base = baseOf(repo.folder, currentBranch(repo.folder));
     const change = store.saveChange({ repoId: repoId(repo.folder), folder: repo.folder, branch: currentBranch(repo.folder), base, head: headCommit(repo.folder), file: testChangeFile(), checks: checkChangeFile(repo.folder, base, testChangeFile()), agent: { app: 'claude-code', session: 'made-up-change-0001' } });
     const remark = store.addRemark(change, { kind: 'part', part: 'app', label: 'Part "App"' }, 'Is the empty list tested?');
-    store.sendRemark(remark, { app: 'claude-code', kind: 'session', session: 'made-up-known-0002', name: 'Tests for holds' });
+    store.sendRemark(remark, { app: 'claude-code', kind: 'session', session: 'made-up-known-0002', name: 'Tests for holds', effort: 'xhigh' });
     assert.deepEqual(sentRemarks(store, 'made-up-change-0001', repo.folder), []); // the session of the change does not take it
     await new Promise<string | undefined>((done) => {
       startRun(store, remark, done);
@@ -67,7 +67,8 @@ test('a comment sent to another session that Apostil knows in the repo continues
     });
     const args = readFileSync(got, 'utf8').split('\n');
     assert.deepEqual(args.slice(0, 3), ['-p', '--resume', 'made-up-known-0002']);
-    assert.equal(args.includes('--model'), false); // a continued session keeps its own model
+    assert.equal(args.includes('--model'), false); // a continued session keeps its own model: he did not choose another
+    assert.equal(args[args.indexOf('--effort') + 1], 'xhigh'); // the effort that the picker sent
   } finally {
     store.close();
     Object.assign(process.env, kept);

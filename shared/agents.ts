@@ -99,32 +99,51 @@ const claudeRights = ({ claudeMode, commentRuns, describe, diagrams }: RunOption
 ];
 
 /**
- * The small model of each app, which every new session that Apostil starts takes unless the owner set another (the settings apostil.claudeModel and
- * apostil.codexModel), and also a run that draws diagrams in a session that it continues. A comment run that continues a session gives no model: the
- * session keeps the model that it has. Codex knows its small model by its full name only (its model list has no "luna" alone).
+ * The small model of each app, the default of the settings apostil.claudeModel and apostil.codexModel: every new session of a comment takes it unless the
+ * person chose another in the picker. A comment run that continues a session gives no model unless he chose one: the session keeps the model that it has.
+ * Codex knows its small model by its full name only (its model list has no "luna" alone).
  */
 export const SMALL_MODELS: Record<string, string> = { 'claude-code': 'haiku', codex: 'gpt-6-luna' };
 
 /** A run that draws diagrams: the map of a repo, or the description of a change (whose skill draws the diagrams of the change). */
 const drawsDiagrams = (options: RunOptions): boolean => !!(options.diagrams || options.describe);
 
-/** The reasoning effort of a run (the owner, 18 November): the most for a run that draws diagrams, else high. */
-export const runEffort = (options: RunOptions): 'max' | 'high' => (drawsDiagrams(options) ? 'max' : 'high');
+/** The reasoning effort of a run when nobody chose one (the owner, 18 November): the most for a run that draws diagrams, else high. */
+export const runEffort = (options: RunOptions): string => options.effort ?? (drawsDiagrams(options) ? 'max' : 'high');
+
+/** The model of a run: the one that the person chose (shared/models.ts), else the setting of the app; none: the app takes the model of its own settings. */
+const modelOf = (app: string, options: RunOptions): string | undefined =>
+  options.model ?? (app === 'claude-code' ? options.claudeModel : app === 'codex' ? options.codexModel : app === 'opencode' ? options.opencodeModel : undefined);
 
 /**
- * The words that choose the model and the reasoning effort of a run: `--model` and `--effort` for Claude Code; `-c model=` and `-c model_reasoning_effort=`
- * for Codex (as it reads its config.toml); for OpenCode `--model provider/model#variant`, where the variant is the effort and needs a model (a model that the
- * person set with a variant keeps it). `withModel` false sets the effort only, so that a session that a run continues keeps its model.
- * With no model set, the app takes the model of its own settings.
+ * The words that choose the model and the reasoning effort of a run, the one place that makes them: `--model` and `--effort` for Claude Code; `-c model=` and
+ * `-c model_reasoning_effort=` for Codex (as it reads its config.toml); for OpenCode `--model provider/model#variant`, where the variant is the effort and
+ * needs a model (a model that the person set with a variant keeps it). `withModel` false sets the effort only, so that a session that a run continues keeps
+ * its model. With no model, the app takes the model of its own settings.
  */
 export function modelWords(app: string, options: RunOptions, withModel = true): string[] {
-  const { claudeModel, codexModel, opencodeModel } = options;
+  const model = withModel ? modelOf(app, options) : undefined;
   const effort = runEffort(options);
-  if (app === 'claude-code') return [...(withModel && claudeModel ? ['--model', claudeModel] : []), '--effort', effort];
-  if (app === 'codex') return [...(withModel && codexModel ? ['-c', `model=${JSON.stringify(codexModel)}`] : []), '-c', `model_reasoning_effort=${JSON.stringify(effort)}`];
-  if (app === 'opencode' && withModel && opencodeModel) return ['--model', opencodeModel.includes('#') ? opencodeModel : `${opencodeModel}#${effort}`];
+  if (app === 'claude-code') return [...(model ? ['--model', model] : []), '--effort', effort];
+  if (app === 'codex') return [...(model ? ['-c', `model=${JSON.stringify(model)}`] : []), '-c', `model_reasoning_effort=${JSON.stringify(effort)}`];
+  if (app === 'opencode' && model) return ['--model', model.includes('#') ? model : `${model}#${effort}`];
   return [];
 }
+
+/** The agent that every writer subagent of a map run or a description run of Claude Code starts as: its model and effort are set here, not in words. */
+export const WRITER_AGENT = 'apostil-writer';
+
+/**
+ * Claude Code's `--agents` for a run with writers: one agent, apostil-writer, with the model (an alias) and the effort of the writers. Claude Code's own
+ * docs name `model` and `effort` as fields of an agent; a model that the lead passes when it starts one would win, so the prompt asks it to pass none.
+ */
+const writerAgents = (options: RunOptions): string[] => (options.writers?.model ? ['--agents', JSON.stringify({
+  [WRITER_AGENT]: {
+    description: 'A writer or checker of Apostil: it writes or checks one part of a map or a description, as the prompt of its task says.',
+    prompt: 'Do the task that the lead gives you, as its prompt says, and nothing more.',
+    model: options.writers.model, ...(options.writers.effort ? { effort: options.writers.effort } : {}),
+  },
+})] : []);
 
 /** The text of a JSON file that may hold comments and commas before a closing bracket (JSONC), as JSON. A "//" inside a string stays. */
 const plainJson = (text: string): string =>
@@ -185,6 +204,9 @@ const codexRights = (store?: string, sandbox?: string): string[] => (sandbox ===
 /** What a run needs from outside: the folder of Apostil's store, the models, and what the run is for. */
 export interface RunOptions {
   store?: string;
+  model?: string; // the model that the person chose for this run, or the lead of a map or description run (shared/models.ts); none: the setting of the app
+  effort?: string; // the effort that the person chose, or that of the lead; none: runEffort()
+  writers?: { model?: string; effort?: string }; // a map or description run: the model and effort of its writer subagents
   claudeModel?: string; // the model of a Claude Code run (setting apostil.claudeModel, "haiku" by default); empty: Claude Code takes the model of its own settings
   codexModel?: string; // the model of a Codex run (setting apostil.codexModel, "gpt-6-luna" by default); empty: Codex takes the model of its own settings
   opencodeModel?: string; // the small model that the person set for OpenCode (opencodeSmallModel); none: OpenCode keeps its own
@@ -208,14 +230,14 @@ export const runOptions = (folder: string, store: string, models: RunModels = {}
 const codexWords = (options: RunOptions, withModel = true): string[] => [...codexRights(options.store, options.codexSandbox), ...modelWords('codex', options, withModel)];
 
 /**
- * The command and arguments that continue the session with a prompt, or undefined. A comment run gives no model, so the session keeps the model that it has,
- * and sets the effort only; a run that draws diagrams takes the small model at the most effort, as a new session does.
+ * The command and arguments that continue the session with a prompt, or undefined. A comment run gives no model unless the person chose one, so the session
+ * keeps the model that it has, and sets the effort; a run that draws diagrams gives the session the model of its lead, as a new session does.
  */
 export function resumeCommand(agent: AgentSession, prompt: string, options: RunOptions = {}): string[] | undefined {
   const { session } = agent;
   if (!session) return undefined;
-  const withModel = drawsDiagrams(options);
-  if (agent.app === 'claude-code') return ['claude', '-p', '--resume', session, prompt, '--output-format', 'json', ...modelWords(agent.app, options, withModel), ...claudeRights(options)];
+  const withModel = drawsDiagrams(options) || !!options.model;
+  if (agent.app === 'claude-code') return ['claude', '-p', '--resume', session, prompt, '--output-format', 'json', ...modelWords(agent.app, options, withModel), ...writerAgents(options), ...claudeRights(options)];
   if (agent.app === 'codex') return ['codex', 'exec', 'resume', session, prompt, '--json', ...codexWords(options, withModel)];
   if (agent.app === 'antigravity') return ['agy', '-p', prompt, '--conversation', session];
   if (agent.app === 'opencode') return ['opencode', 'run', '--session', session, prompt, '--format', 'json', ...modelWords(agent.app, options, withModel)];
@@ -338,7 +360,7 @@ export function runProblem(problem: string, has: { app?: string; again?: boolean
 
 /** The command and arguments that start a new session of an app with a prompt, or undefined. The run may edit files and give its answer, and nothing more. */
 export function newRunCommand(app: string, prompt: string, options: RunOptions = {}): string[] | undefined {
-  if (app === 'claude-code') return ['claude', '-p', prompt, '--output-format', 'json', ...(options.sessionId ? ['--session-id', options.sessionId] : []), ...modelWords(app, options), ...claudeRights(options)];
+  if (app === 'claude-code') return ['claude', '-p', prompt, '--output-format', 'json', ...(options.sessionId ? ['--session-id', options.sessionId] : []), ...modelWords(app, options), ...writerAgents(options), ...claudeRights(options)];
   if (app === 'codex') return ['codex', 'exec', prompt, '--json', ...codexWords(options)];
   if (app === 'antigravity') return ['agy', '-p', prompt, '--mode', 'accept-edits'];
   if (app === 'opencode') return ['opencode', 'run', prompt, '--format', 'json', ...modelWords(app, options)]; // its JSON events name the session (sessionID)
@@ -420,7 +442,7 @@ function nameIn(path: string, session: string, pick: (line: string) => string | 
 }
 
 /** The transcript of a Claude Code session: <session id>.jsonl in one of the folders under ~/.claude/projects. */
-function claudeTranscript(session: string, home: string): string | undefined {
+export function claudeTranscript(session: string, home: string): string | undefined {
   const projects = join(home, '.claude', 'projects');
   let folders: string[];
   try { folders = readdirSync(projects); } catch { return undefined; }

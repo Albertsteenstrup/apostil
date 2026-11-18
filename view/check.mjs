@@ -37,6 +37,10 @@ writeFileSync(path.join(LOCK, 'owner'), `npm run check ${process.pid}\n`);
 process.on('exit', () => rmSync(LOCK, { recursive: true, force: true }));
 for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => process.exit(1));
 
+// No check reads the catalogs or the sessions of the agent apps in the real home: every part gets an empty home of the agents (shared/models.ts falls back).
+process.env.APOSTIL_AGENT_HOME = path.join(tmpdir(), 'apostil-check-agent-home');
+rmSync(process.env.APOSTIL_AGENT_HOME, { recursive: true, force: true });
+
 const load = loadavg().map((one) => one.toFixed(1)).join(' '); // how busy the Mac was when the run started
 const start = Date.now();
 const seconds = (from) => (Date.now() - from) / 1000;

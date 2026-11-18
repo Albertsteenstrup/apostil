@@ -98,7 +98,8 @@ test('every new session takes the small model of its app unless the owner set an
   assert.deepEqual(newRunCommand('opencode', 'Do it', models), ['opencode', 'run', 'Do it', '--format', 'json', '--model', 'made-up-provider/small-one#high']);
   assert.deepEqual(resumeCommand({ app: 'opencode', session: 'o1' }, 'Do it', models), ['opencode', 'run', '--session', 'o1', 'Do it', '--format', 'json']);
   assert.deepEqual(newRunCommand('antigravity', 'Do it', models), ['agy', '-p', 'Do it', '--mode', 'accept-edits']);
-  // A run that draws diagrams (the map, a description): the small model at the most effort, also in a session that it continues (the owner, 18 November).
+  // A run that draws diagrams (the map, a description) with no model of its own: the model of the setting at the most effort, also in a session that it
+  // continues (the owner, 18 November). Apostil gives these runs the model of their lead (shared/models.test.ts checks that).
   for (const kind of [{ diagrams: true as const }, { describe: true as const }]) {
     const drawing = { ...models, ...kind };
     assert.deepEqual(modelWords('claude-code', drawing), ['--model', 'haiku', '--effort', 'max']);
