@@ -116,7 +116,7 @@ const Split = {
     if (!code) return null;
     const file = App.page.files.find((candidate) => candidate.path === path);
     right.classList.add('file-half');
-    right.innerHTML = `<div class="fh" ${Places.attrs({ kind: 'file', file: path })}><a data-open-file="${esc(path)}">${esc(path)}</a><i class="c">${countsHtml(file)}</i>${this.hideHtml}</div>`
+    right.innerHTML = `<div class="fh" ${Places.attrs({ kind: 'file', file: path })}><a data-open-file="${esc(path)}">${esc(path)}</a><i class="c">${countsHtml(file)}</i>${this.hideHtml()}</div>`
       + `<div class="fc" data-file="${esc(path)}"></div>`;
     const rows = fileRows(code);
     const color = lineColors(codeToColor(code));
