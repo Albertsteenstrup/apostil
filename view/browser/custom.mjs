@@ -504,7 +504,7 @@ try {
   // "Messages": the comments of a bot in the colour of the rule, no commit, and the day lines in the words of the rule.
   await lookOfConversation(pull, 'messages');
   const messages = await pull.evaluate(() => ({
-    bots: [...document.querySelectorAll('.feed .prod > .prow, .feed .prods > .prow')].map((row) => row.classList.contains('lk-box') && getComputedStyle(row).backgroundColor),
+    bots: [...document.querySelectorAll('.feed .prods > .lrow')].map((row) => row.classList.contains('lk-box') && getComputedStyle(row).backgroundColor),
     commits: document.querySelectorAll('.feed .ico.git-commit').length, days: [...document.querySelectorAll('.feed .dayline')].map((line) => line.textContent),
     open: !document.querySelector('.about .more') && !document.querySelector('.about .md.folded'),
   }));
