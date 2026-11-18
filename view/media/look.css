@@ -1032,7 +1032,7 @@ a.srow:hover{background:var(--seg)}
 
 /* ----- the code of each node and arrow (build prompt 25) ----- */
 /* beside the title: the changed lines in no node and no arrow, and whether a second agent read the diagram; quiet words, no colour */
-.dfact{color:var(--muted);font-size:var(--small);font-weight:400;white-space:nowrap;margin-left:12px}
+.dfact,.drepo{color:var(--muted);font-size:var(--small);font-weight:400;white-space:nowrap;margin-left:12px}
 .dfact.nothing::before{content:"";display:inline-block;width:3px;height:.9em;margin-right:6px;vertical-align:-1px;background:var(--line2)}
 /* a changed line in no node and no arrow: a quiet mark at its number, the same mark as beside the title */
 .cn .code .l.nothing .n{box-shadow:inset 3px 0 var(--line2)}

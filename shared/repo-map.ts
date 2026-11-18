@@ -174,7 +174,8 @@ export function mapProblems(value: unknown): string[] {
     problems.push(...diagramProblems(diagram, new Set()));
     if (ids.has(diagram?.id)) problems.push(`Diagram "${diagram.id}": this id is used twice.`);
     ids.add(diagram?.id);
-    if (Object.keys(diagram?.nodePaths ?? {}).length === 0) problems.push(`Diagram "${diagram?.id ?? '?'}": "nodePaths" must say which paths each node stands for.`);
+    // A diagram of one file (a function, as a change draws on it) has its nodes at lines of that file: it needs no paths.
+    if (!diagram?.file && Object.keys(diagram?.nodePaths ?? {}).length === 0) problems.push(`Diagram "${diagram?.id ?? '?'}": "nodePaths" must say which paths each node stands for.`);
     const notes = Array.isArray(diagram?.notes) ? diagram.notes : [];
     if (notes.length && !diagram.parent) problems.push(`Diagram "${diagram.id}": the top diagram has no notes. Put notes in the diagram of an area.`);
     if (notes.length > MAX_MAP_NOTES) problems.push(`Diagram "${diagram.id}": it has ${notes.length} notes. Keep the ${MAX_MAP_NOTES} that matter most.`);
@@ -255,7 +256,7 @@ export function checkMap(folder: string, map: RepoMap, around = map.diagrams.fin
     const drawn = Object.keys(diagramGraph(diagram).nodes);
     for (const problem of nodeIdProblems(diagram)) check.badNodes.push(`Diagram "${diagram.id}": ${problem}`);
     for (const [node] of nodes) if (!drawn.includes(node)) check.badNodes.push(`Diagram "${diagram.id}": "${node}" has paths but is no node of the diagram.`);
-    for (const node of drawn) if (!diagram.nodePaths?.[node]) check.badNodes.push(`Diagram "${diagram.id}": the node "${node}" has no paths.`);
+    for (const node of diagram.file ? [] : drawn) if (!diagram.nodePaths?.[node]) check.badNodes.push(`Diagram "${diagram.id}": the node "${node}" has no paths.`);
     for (const [node, paths] of nodes) {
       for (const problem of paths.map((path) => pathProblem(folder, path)).filter(Boolean)) check.badPaths.push(`Diagram "${diagram.id}", node "${node}": ${problem}`);
     }
@@ -314,6 +315,7 @@ export function diagramsOf(store: Store, folder: string, path: string): DiagramO
   for (const diagram of map?.diagrams ?? []) {
     const lit = nodesAt(diagram, at);
     if (lit.length > 0) found.push({ level: 'map', diagram, lit, line: diagram.title });
+    else if (diagram.file && touches(at, diagram.file)) found.push({ level: 'map', diagram, lit: [], line: diagram.title }); // a diagram of one file is about it whole
   }
   found.sort((a, b) => (depthOf(mapById, a.diagram!) ?? 0) - (depthOf(mapById, b.diagram!) ?? 0));
   // The processes that have steps in the path, each with those steps lit.

@@ -103,7 +103,7 @@ const graphs: Record<string, GraphsData> = Object.fromEntries([...graphPaths].ma
 put?.clean(); // the files of the writers leave the repo before the page of the change reads its files
 
 // Made up: a second agent read the flow chart; the other diagrams are not checked yet.
-const page = examplePage(folder, base, file, points, remarks, agent, apps, map?.diagrams.map((diagram) => diagram.id), changeId, ['offer-flow']); // the id of the stored change, so that the graphs pages open this page
+const page = examplePage(folder, base, file, points, remarks, agent, apps, map, changeId, ['offer-flow']); // the id of the stored change, so that the graphs pages open this page
 
 // Each made-up look of the example (view/check-example/look/look*.json), saved as a writer saves it, one after the other: "look.json" (build 51,
 // with its second set and its marks) is "?look=1", "look-<name>.json" is "?look=<name>". Home and the note cards are read after each save.

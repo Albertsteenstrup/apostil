@@ -17,6 +17,8 @@ import { baseBranchOf, changedFiles, commitExists, fileBytes, fileDiff, fileMode
 import { cellHead, cellsAt, inCellText, isNotebookPath, placeInCell, readNotebook, type NotebookCells } from '../shared/notebook';
 import { githubRepoOf, type PullRequestView } from '../shared/read-pull-request';
 import { changeWhere, savedWords, type SavedAt } from '../shared/change-rows';
+import { repoDiagramOf, type RepoDiagram } from '../shared/repo-diagram';
+import type { RepoMap } from '../shared/repo-map';
 import type { CheckResult, OpenPoint, Remark, Store } from '../shared/store';
 import { broadMermaid, broadTotal, changeMermaid, drillUpStyle, partMermaid, type BroadTotal } from './change-diagram';
 import { lookData, standingMarks, type LookData, type MarkHere } from './look-data';
@@ -116,7 +118,7 @@ export interface PageData {
   agent?: PageAgent;
   listening: boolean; // the session of the change has a live waiter, so a sent remark reaches it
   apps: string[]; // the agent apps whose program is on the path: "@" offers a new session of each
-  onHome: string[]; // ids of the diagrams of this change that the map of the repo holds too: their large view links to Home
+  onHome: Record<string, RepoDiagram>; // by the id of a diagram of this change: the repo diagram that it draws on ("of"), which the link "on Home" opens
   head?: string; // the commit that the diffs end at: a pull request, or a change, that is not checked out
   savedWords?: string; // one quiet line: the change is shown as saved at a commit, or that this clone has no such commit
   pullOnly?: PullOnly; // a pull request with no stored change: the page has "Conversation" and "Diffs"
@@ -133,10 +135,10 @@ export interface PullOnly {
   fetch?: string; // the command that gets its commits, when they are not in the folder
 }
 
-/** The ids of the diagrams in the stored map of the repo of a folder. */
-export function mapDiagramIds(store: Store, folder: string): string[] {
+/** The stored map of the repo of a folder. */
+export function mapOfFolder(store: Store, folder: string): RepoMap | undefined {
   const id = tryGit(folder, 'rev-list', '--max-parents=0', 'HEAD')?.split('\n').pop();
-  return (id && store.getMap(id)?.map.diagrams.map((diagram) => diagram.id)) || [];
+  return id ? store.getMap(id)?.map : undefined;
 }
 
 /** The page data of a stored change. `openFolder` is used when the folder of the change is gone. */
@@ -150,7 +152,7 @@ export function pageData(store: Store, changeId: number, openFolder: string, app
   return buildPage({
     changeId, folder, branch: change.branch, base: change.base, file: change.file, checks, outOfDate, saved,
     openPoints: store.openPoints(changeId), remarks: store.remarks(changeId),
-    agent: change.agent, listening: isListening(store, change.agent), apps, mapIds: mapDiagramIds(store, folder), checked: change.checked ?? [],
+    agent: change.agent, listening: isListening(store, change.agent), apps, map: mapOfFolder(store, folder), checked: change.checked ?? [],
   });
 }
 
@@ -173,7 +175,7 @@ interface PageInput {
   listening: boolean;
   apps: string[];
   saved?: SavedAt; // the folder is not on the branch: files and diffs come from the saved commit
-  mapIds: string[];
+  map?: RepoMap; // the stored map of the repo: the diagrams that the diagrams of the change draw on
   checked: string[]; // the diagrams that a second agent read for this save, and "links:<part id>" for the links that leave a part
 }
 
@@ -276,7 +278,10 @@ function buildPage(input: PageInput): PageData {
     altered: diagrams.filter((diagram) => diagram.difference).map((diagram) => diagram.id),
     notes, functionTests, openPoints, remarks: input.remarks,
     agent: input.agent && agentOf(input.agent), listening: input.listening, apps: input.apps,
-    onHome: diagrams.filter((diagram) => input.mapIds.includes(diagram.id)).map((diagram) => diagram.id),
+    onHome: Object.fromEntries((file.diagrams ?? []).flatMap((diagram) => {
+      const repo = repoDiagramOf(input.map, diagram);
+      return repo ? [[diagram.id, repo]] : [];
+    })),
     ...(saved ? { savedWords: savedWords(saved), ...(head ? { head } : {}) } : {}),
   };
 }
@@ -343,10 +348,10 @@ export function repoName(folder: string): string {
 }
 
 /** Page data for a change file that is not stored, for the example page in a browser. */
-export function examplePage(folder: string, base: string, file: ChangeFile, openPoints: OpenPoint[], remarks: Remark[] = [], agent?: AgentSession, apps: string[] = [], mapIds: string[] = [], changeId = 0, checked: string[] = []): PageData {
+export function examplePage(folder: string, base: string, file: ChangeFile, openPoints: OpenPoint[], remarks: Remark[] = [], agent?: AgentSession, apps: string[] = [], map?: RepoMap, changeId = 0, checked: string[] = []): PageData {
   return buildPage({
     changeId, folder, branch: tryGit(folder, 'branch', '--show-current') ?? 'example', base, file,
-    checks: checkChangeFile(folder, base, file), outOfDate: false, openPoints, remarks, agent, listening: false, apps, mapIds, checked,
+    checks: checkChangeFile(folder, base, file), outOfDate: false, openPoints, remarks, agent, listening: false, apps, map, checked,
   });
 }
 
@@ -367,7 +372,7 @@ export function pullOnlyPage(folder: string, pull: PullRequestView, apps: string
     changeId: 0, repo: pull.repo, folder, branch: pull.head, base: base ?? pull.baseOid, head: pull.headOid, title: pull.title, reason: '', outOfDate: false,
     checks: { filesInNoPart: files.map((file) => file.path), filesInTwoParts: [], filesNotChanged: [], generated: [], badNotes: [] },
     files, parts: [], links: [], linksChecked: false, diagrams: [], changeDiagram: '', altered: [], notes: [], functionTests: {}, openPoints: [], remarks: [],
-    listening: false, apps, onHome: [], pullOnly,
+    listening: false, apps, onHome: {}, pullOnly,
   };
 }
 
@@ -377,7 +382,7 @@ export function filePage(folder: string): PageData {
     changeId: 0, repo: repoName(folder), folder, branch: tryGit(folder, 'branch', '--show-current') || 'detached', base: tryGit(folder, 'rev-parse', 'HEAD') ?? '', title: '', reason: '', outOfDate: false,
     checks: { filesInNoPart: [], filesInTwoParts: [], filesNotChanged: [], generated: [], badNotes: [] },
     files: [], parts: [], links: [], linksChecked: false, diagrams: [], changeDiagram: '', altered: [], notes: [], functionTests: {}, openPoints: [], remarks: [],
-    listening: false, apps: [], onHome: [], plain: true,
+    listening: false, apps: [], onHome: {}, plain: true,
   };
 }
 

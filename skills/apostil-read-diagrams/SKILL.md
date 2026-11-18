@@ -12,11 +12,11 @@ Apostil keeps diagrams of the code: flow charts, sequence diagrams and state dia
 1. Before you open a large file, list the diagram titles for its folder.
    - Command: `apostil diagrams --path <folder>` (the path is a prefix of repo paths).
    - Helper tool: `diagram_titles` with `folder` set to your worktree.
-   - You get one short line for each diagram: its id, its kind, its title and what it explains.
+   - You get one short line for each diagram: its id, its kind, its title and what it explains. The diagrams of the repo come first, with `"map": true`: the diagrams of the map and the drawings of its processes (`process:…`). The diagrams of stored changes follow, each with its branch.
 2. Pick the one diagram whose title matches your question.
    - Command: `apostil diagram <id>`.
    - Helper tool: `show_diagram` with `folder` and the diagram id.
-   - You get the diagram and the code lines of its function.
+   - You get the diagram: for a repo diagram, the text that Home draws; for a diagram of a change, the code lines of its function too.
 3. Answer from the diagram. Open the file only for the lines that you still need.
 
 ## Rules
@@ -32,4 +32,4 @@ The owner reviews with these diagrams. When you use the same diagrams, your pict
 
 ## Broader diagrams and a change
 
-At the end of a task, the skill `apostil-describe-change` asks you which broader diagrams your change alters. Use this skill to find them: list the titles for the folders that you changed and open the ones that your change touches.
+A change draws on the diagrams of the repo, never on new ones. Find the repo diagram of the code first, and draw on it. At the end of a task, the skill `apostil-describe-change` asks you which broader diagrams your change alters. Use this skill to find them: list the titles for the folders that you changed and open the repo diagrams that your change touches.

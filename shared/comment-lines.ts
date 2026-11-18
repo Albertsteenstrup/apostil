@@ -35,6 +35,10 @@ const spansText = (node: ProcessDiagram['nodes'][string]): string => {
   return spans.length > 2 ? `${spans.slice(0, 2).join(', ')} and ${spans.length - 2} more` : spans.join(', ') || (node.kind === 'call' ? 'out of the repo' : '');
 };
 
+/** Where each box of a drawn process stands in the code, by its id: for a writer that draws a change on the drawing. */
+export const drawingPlaces = (process: ProcessDiagram): Record<string, string> =>
+  Object.fromEntries(Object.entries(process.nodes).map(([id, node]) => [id, spansText(node)]));
+
 /** The diagram as text for the agent: one line for each box (its title, file and lines) and one for each arrow, at most `max` lines, then one line for those left out. */
 export function diagramText(diagram: Diagram, process?: ProcessDiagram, max = MAX_DRAWN_LINES): string[] {
   const graph = diagramGraph(diagram);

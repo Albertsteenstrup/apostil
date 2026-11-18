@@ -98,18 +98,29 @@ test('the panels of a path in a map node, a change and a function diagram, the w
   assert.deepEqual(graphsData(store, repo.folder, 'later.txt').panels, []);
 });
 
-test('the Files tree marks a row that a diagram stands for and a folder above it, and the change page names the diagrams of the change that the map holds too', () => {
+test('the Files tree marks a row that a diagram stands for and a folder above it, and the change page links a diagram that draws on a repo diagram to Home, or says that the map was written again since', () => {
   const paths = diagramPaths(store, repo.folder);
   assert.ok(inDiagrams(paths, 'src/app.py'));
   assert.ok(inDiagrams(paths, 'src/'));
   assert.ok(inDiagrams(paths, 'README.md'));
   assert.ok(!inDiagrams(paths, 'later.txt'));
 
-  // The change page names the diagrams of the change that the map holds too.
+  // A diagram that draws on a repo diagram ("of") links to it while the map holds it as its "before" has it; a wider diagram from before names it by its own id.
+  const STOP = 'flowchart TD\n  ask["Ask to stop"]';
   const map = testMap();
-  map.diagrams.push({ ...testChangeFile().diagrams![0], parent: 'top', nodePaths: { done: ['src/app.py'] } });
+  map.diagrams.push({ id: 'stop-repo', kind: 'flow', title: 'How the app stops', mermaid: STOP, parent: 'top', file: 'src/app.py' });
   store.saveMap(repoId(repo.folder), headCommit(repo.folder), map);
-  assert.deepEqual(pageData(store, changeId, repo.folder)!.onHome, ['stop-flow']);
+  const onHome = (more: Partial<Diagram>) => {
+    const file = testChangeFile();
+    Object.assign(file.diagrams![0], { new: undefined }, more);
+    const id = store.saveChange({ repoId: repoId(repo.folder), folder: repo.folder, branch: 'feature', base: repo.base, head: headCommit(repo.folder), file, checks: checkChangeFile(repo.folder, repo.base, file) });
+    return pageData(store, id, repo.folder)!.onHome;
+  };
+  assert.deepEqual(onHome({}), {});
+  assert.deepEqual(onHome({ of: 'stop-repo', before: STOP }), { 'stop-flow': { id: 'stop-repo', title: 'How the app stops' } });
+  assert.deepEqual(onHome({ of: 'stop-repo', before: 'flowchart TD\n  ask["Ask"]' }), { 'stop-flow': { id: 'stop-repo', title: 'How the app stops', again: true } });
+  assert.deepEqual(onHome({ of: 'stop-gone', before: STOP }), { 'stop-flow': { again: true } });
+  assert.deepEqual(onHome({ id: 'stop-repo', broad: true }), { 'stop-repo': { id: 'stop-repo', title: 'How the app stops' } });
 });
 
 test('Home: the press starts the app that Apostil started last in this repo, from the map runs and the runs for a comment (the order itself: shared/map-app.test.ts)', () => {

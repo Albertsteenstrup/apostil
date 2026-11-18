@@ -50,7 +50,7 @@ export function makeTestRepo(): TestRepo {
   return { ...made, base };
 }
 
-/** A change file that fits the test repo: two parts, one note, one diagram, one generated folder. */
+/** A change file that fits the test repo: two parts, one note, one diagram of new code, one generated folder. */
 export const testChangeFile = (): ChangeFile => ({
   format: 1,
   title: 'Adds a stop function and a tool',
@@ -62,7 +62,7 @@ export const testChangeFile = (): ChangeFile => ({
   links: [{ from: 'app', to: 'tool', lines: 'order' }],
   diagrams: [{
     id: 'stop-flow', kind: 'flow', title: 'How the app stops', part: 'app', file: 'src/app.py', symbol: 'stop',
-    mermaid: 'flowchart TD\n  ask["Ask to stop"] --> done(["Return 0"])', nodeLines: { ask: [5, 5], done: [6, 6] }, covers: [5, 6],
+    mermaid: 'flowchart TD\n  ask["Ask to stop"] --> done(["Return 0"])', nodeLines: { ask: [5, 5], done: [6, 6] }, covers: [5, 6], new: true, // stop() is all new
   }],
   generated: ['generated/'],
 });

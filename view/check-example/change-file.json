@@ -107,6 +107,7 @@
   "diagrams": [
     {
       "id": "offer-flow",
+      "new": true,
       "kind": "flow",
       "title": "How one night run offers returned copies",
       "mermaid": "flowchart TD\n  start[\"Read the date and the opening hours\"]\n  open{\"Library open today?\"}\n  closed([\"Return: closed today\"])\n  pick[\"Select the returned copies\"]\n  each{\"More copies?\"}\n  member{\"Card still active?\"}\n  passed[\"Pass the hold over\"]\n  ready[\"Set the pickup day\"]\n  notice[\"Send the pickup notice\"]\n  done([\"Return what the run did\"])\n  start --> open\n  open -- no --> closed\n  open -- yes --> pick\n  pick --> each\n  each -- yes --> member\n  member -- no --> passed\n  member -- yes --> ready\n  ready --> notice\n  notice -- ok --> each\n  notice -- error --> each\n  passed --> each\n  each -- no --> done\n",
@@ -133,6 +134,7 @@
     },
     {
       "id": "offer-sequence",
+      "new": true,
       "kind": "sequence",
       "title": "The night run, message by message",
       "mermaid": "sequenceDiagram\n  participant J as Night job\n  participant S as Hold service\n  participant T as Tables\n  J->>S: offer_returned_copies(limit=50)\n  S->>T: select the returned copies\n  T-->>S: rows\n  loop each returned copy\n    S->>T: set the pickup day\n    S->>S: send the notice\n  end\n  S-->>J: checked, offered, passed over\n",
@@ -156,6 +158,7 @@
     },
     {
       "id": "hold-schema",
+      "of": "lib-reservations",
       "kind": "schema",
       "title": "Holds in the database",
       "mermaid": "erDiagram\n  book_hold {\n    bigint id PK\n    bigint member_id FK\n    bigint book_id FK\n    text branch_id\n    integer position\n    text state\n    timestamptz placed_at\n    bigint copy_id FK\n    timestamptz ready_at\n    date pickup_by\n    date paused_until\n    timestamptz collected_at\n    timestamptz cancelled_at\n    integer notice_count\n    timestamptz last_notice_at\n    text note\n    text placed_by\n    integer revision\n    timestamptz created_at\n    timestamptz updated_at\n    uuid client_key UK\n  }\n  hold_event {\n    bigint id PK\n    bigint hold_id FK\n    bigint member_id FK\n    bigint copy_id FK\n    text kind\n    text from_state\n    text to_state\n    timestamptz happened_at\n    text actor\n    jsonb detail\n  }\n  member {\n    bigint id UK\n  }\n  book {\n    bigint id UK\n  }\n  book_copy {\n    bigint id UK\n    bigint book_id\n  }\n  book_hold }o--|| member : member_id\n  book_hold }o--|| book : book_id\n  book_hold }o--o| book_copy : copy_id\n  hold_event }o--|| book_hold : hold_id\n  hold_event }o--|| member : member_id\n  hold_event }o--o| book_copy : copy_id\n",
@@ -182,6 +185,7 @@
     },
     {
       "id": "hold-states",
+      "new": true,
       "kind": "state",
       "title": "The states of one hold",
       "mermaid": "stateDiagram-v2\n  direction LR\n  [*] --> waiting: place\n  waiting --> paused: pause\n  paused --> waiting: resume\n  waiting --> ready: copy offered\n  ready --> waiting: missed pickup\n",
@@ -219,6 +223,7 @@
     },
     {
       "id": "member-areas",
+      "of": "member-areas",
       "kind": "flow",
       "title": "The areas of the member page",
       "mermaid": "flowchart LR\n  page[\"Member page\"] --> loans[\"Loans: books at home\"]\n  page --> history[\"History: books read before\"]\n  page --> lists[\"Reading lists to share\"]\n  page --> holds[\"Holds: books to wait for\"]\n  loans --> renew[\"Renew a loan\"]\n  lists --> share[\"Share a list with a link\"]\n  holds --> pickup[\"Pick up at the ready shelf\"]\n",
