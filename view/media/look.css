@@ -586,7 +586,15 @@ div.nomap a:hover{text-decoration:underline;text-underline-offset:3px}
 .conv .more,.conv .rest{display:inline-block;margin-top:4px;color:var(--tealink);font-weight:600;font-size:var(--small)}
 [data-box] .hide,[data-box].open .show{display:none}
 [data-box].open .hide{display:inline}
-.conv .head{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;margin-top:22px;padding-bottom:8px;border-bottom:1px solid var(--line);font-size:var(--small);color:var(--muted)}
+.conv .head{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;padding:8px 14px;border-bottom:1px solid var(--line);font-size:var(--small);color:var(--muted)}
+/* The conversation is a window of its own in the column: its head at its top, the box to write at its bottom, its own scroll between.
+   It is as tall as the view less the slim bar, and no taller than what it holds. At its top or bottom end the wheel scrolls the page on. */
+.conv .cwin{position:relative;display:flex;flex-direction:column;margin-top:18px;max-height:max(280px,calc(100vh - 80px));border:1px solid var(--line);border-radius:10px;background:var(--paper)}
+.conv .cwin > .head{flex:none}
+.conv .cscroll{position:relative;flex:0 1 auto;min-height:0;overflow-y:auto;padding:0 14px 6px} /* relative: a thing placed absolutely inside stays inside, and the page does not grow */
+.conv .cfoot{flex:none;position:relative;padding:10px 14px;border-top:1px solid var(--line)}
+.conv .cfoot:not(:has(.ghend,.ghlock)){padding:0;border-top:0}
+.conv .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 .conv .head b{color:var(--soft);font-weight:600}
 .conv .toggle{white-space:nowrap}
 .conv .toggle a{padding:1px 2px}
@@ -594,7 +602,7 @@ div.nomap a:hover{text-decoration:underline;text-underline-offset:3px}
 .conv .toggle .sep{color:var(--faint);margin:0 4px}
 .conv .cutline{margin-top:6px;font-size:var(--small);color:var(--muted)}
 .conv .feed{padding-bottom:8px}
-.conv .feed > *{content-visibility:auto;contain-intrinsic-size:auto 60px} /* a long conversation lays out only what is near the view */
+/* Every row of the window is laid out: with content-visibility a window below the view had guessed heights, and opened at a wrong place. 1,500 rows take about 0.2 s. */
 .short{display:none;position:fixed;z-index:6;top:0;left:0;right:0;align-items:center;gap:10px;padding:8px 20px;background:var(--paper);border-bottom:1px solid var(--line);box-shadow:0 2px 6px rgba(26,43,36,.06)}
 .short.on{display:flex}
 .short .name{min-width:0;flex:1;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -694,7 +702,7 @@ div.nomap a:hover{text-decoration:underline;text-underline-offset:3px}
 .conv .hid{display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:8px;background:var(--region);font-size:var(--small);color:var(--muted)}
 .conv .hid > span:not(.av):not(.show):not(.hide){min-width:0;flex:1}
 .conv .hid .show,.conv .hid .hide{color:var(--tealink)}
-.conv .new{display:flex;align-items:center;gap:10px;margin:12px 0 2px;color:var(--tealink);font-size:var(--small);font-weight:600;content-visibility:visible}
+.conv .new{display:flex;align-items:center;gap:10px;margin:12px 0 2px;color:var(--tealink);font-size:var(--small);font-weight:600}
 .conv .new::before,.conv .new::after{content:"";height:1px;background:var(--teal);flex:1}
 .conv .new::before{flex:none;width:16px}
 
@@ -841,9 +849,35 @@ div.nomap a:hover{text-decoration:underline;text-underline-offset:3px}
 .conv .prods > .inner{padding-left:18px}
 :is(.conv,.status,.cl) .av.prodav{background:var(--region);color:var(--soft);border:1px solid var(--line)}
 :is(.conv,.status,.cl) .av.prodav .ico{margin:0;color:var(--soft)}
-/* In the middle of the lower edge: at the right it lay over "Resolve", the switch of looks and the ends of rows. */
-.newest{display:none;position:fixed;z-index:6;left:50%;transform:translateX(-50%);bottom:14px;padding:4px 12px;border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--tealink);font-size:var(--small);font-weight:600;box-shadow:var(--shadow);cursor:pointer}
+/* "↓ Newest" belongs to the window: in the middle of its lower edge, over the end of what it shows, just above the box to write.
+   At the right it lay over "Resolve", the switch of looks and the ends of rows. */
+.newest{display:none;position:absolute;z-index:2;left:50%;transform:translateX(-50%);bottom:calc(100% + 10px);padding:4px 12px;border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--tealink);font-size:var(--small);font-weight:600;box-shadow:var(--shadow);cursor:pointer;white-space:nowrap}
 .newest.on{display:block}
+/* "Messages" more like a chat. A group: messages of one person in a row, close together, one avatar and one name; a later one has its time
+   beside it while the pointer is on it. His own messages stand at the right in a tinted bubble with no avatar. Events are small centred lines. */
+.conv.messages .msg.same{padding-top:2px}
+.conv.messages .msg:has(+ .msg.same){padding-bottom:2px}
+.conv .gut{flex:none;width:28px;display:flex;justify-content:flex-end;padding-top:2px;white-space:nowrap}
+.conv .hov{opacity:0;font-size:calc(var(--size) - 3px)}
+.conv :is(.msg,.sc):hover > .hov,.conv .msg:hover > .gut > .hov,.conv .sc:hover > .top > .hov{opacity:1}
+.conv .msg.mine{justify-content:flex-end;align-items:center;gap:8px}
+.conv .msg.mine > .body{flex:0 1 auto;max-width:min(80%,640px)}
+.conv .msg.mine > .body:has(> .card){flex:1;max-width:none}
+.conv .msg.mine .top{justify-content:flex-end}
+.conv .msg.mine .top .time,.conv .sc.mine .top .time{margin-left:0}
+.conv .bub{margin-top:2px;padding:6px 12px;border-radius:14px 14px 4px 14px;background:var(--tealsoft);color:var(--ink)}
+.conv .bub > .tx,.conv .bub > .long > .tx{margin-top:0}
+.conv .msg.mine .react{text-align:right}
+.conv.messages .sc + .sc{border-top:0;padding-top:2px}
+.conv .sc.same{padding-top:0}
+.conv .sc.same > .hov{float:right;margin-left:10px}
+.conv .sc.mine{display:flex;flex-direction:column;align-items:flex-end}
+.conv .sc.mine > .top{align-self:stretch;justify-content:flex-end}
+.conv .sc.mine > .bub{max-width:85%}
+.conv.messages .feed .row{justify-content:center;gap:6px;padding:3px 0}
+.conv.messages .feed .row .what{flex:0 1 auto}
+.conv.messages .feed .row .time{margin-left:0;padding-left:2px}
+.conv.messages .feed :is(.commits,.evrun) > .inner{padding-left:0}
 /* writing to GitHub: a quiet field on one line that opens to a few lines with its button; Resolve beside it; GitHub's sentence under it */
 .ghw{display:block;min-width:0}
 .conv .thread .ghw{padding:6px 12px 8px;border-top:1px solid var(--line)}
@@ -865,8 +899,7 @@ div.nomap a:hover{text-decoration:underline;text-underline-offset:3px}
 .ghr{flex:none;margin-top:4px;color:var(--tealink);font-size:var(--small);cursor:pointer}
 .ghr:hover{text-decoration:underline;text-underline-offset:3px}
 .gherr{margin:6px 0 0;color:var(--del);font-size:var(--small);overflow-wrap:anywhere}
-.conv .ghend{margin-top:14px}
-.ghlock{margin:14px 0 4px;color:var(--muted);font-size:var(--small)}
+.ghlock{margin:0;color:var(--muted);font-size:var(--small)}
 .conv .t.ex{padding:0 6px;border:1px dashed var(--line2);border-radius:8px}
 /* the review: a quiet button in the strip, and its panel under the strip */
 .status .rvb{color:var(--tealink);cursor:pointer;border-radius:5px;padding:0 6px;margin:0 -6px;font-weight:600}
