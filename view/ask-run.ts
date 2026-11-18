@@ -9,15 +9,31 @@ import { isAlive, storeFolder, type Store } from '../shared/store';
 import { spawnRun, type RunFacts } from './agent-run';
 import { idOf } from './home-data';
 import { connectedApps } from './new-repo-steps';
+import { pullFolder, realFolder, removePullFolder, worktreeWith, type PullHead } from './pull-folder';
 
 /** The change of the page, whose session gets the words there; elsewhere none. */
 export type OfChange = { agent?: AgentSession; folder?: string };
 
-/** Where words go from a folder (askTo): the session of the change, else the newest session that Apostil knows in the repo, else a new session of the app that the press of Home starts. */
-function askToFrom(store: Store, folder: string, installed: string[], change?: OfChange): AskTo | undefined {
+/** What words are about: the change of the page (its session gets them), or a pull request of the repo, whose head branch the run needs checked out. */
+export interface AskAbout {
+  change?: OfChange;
+  pull?: PullHead;
+}
+
+/** The sentence after the words of a run for a pull request: Apostil checked its branch out, so the agent need not try. */
+export const ON_BRANCH = 'The branch of the pull request is checked out in this folder.';
+
+/**
+ * Where words go from a folder (askTo): the session of the change, else the newest session that Apostil knows in the repo, else a new session of the app
+ * that the press of Home starts. A session continues only in its own folder: for a pull request, only a session whose folder has its head branch checked out counts.
+ */
+function askToFrom(store: Store, folder: string, installed: string[], about: AskAbout = {}): AskTo | undefined {
   const repo = idOf(folder);
   const app = appToStart(store.startedRuns(), repo, installed, connectedApps(installed, folder));
-  return askTo(repo ? store.knownSessions(repo, folder) : [], installed, app, change);
+  const known = repo ? store.knownSessions(repo, folder) : [];
+  const there = about.pull && worktreeWith(folder, about.pull.branch);
+  const usable = about.pull ? known.filter((one) => !!there && !!one.folder && realFolder(one.folder) === realFolder(there)) : known;
+  return askTo(usable, installed, app, about.change);
 }
 
 const nameOf = (agent: AgentSession): string | undefined => sessionName(agent) ?? agent.name;
@@ -29,27 +45,37 @@ export function askRunOf(store: Store, folder: string, words: string): AskRun | 
 }
 
 /** What the page shows for its words: the line of their run when one started, and the press when an app can be started and no run of them works or is done. */
-export function askView(store: Store, folder: string, words: string, installed: string[], change?: OfChange): AskView {
+export function askView(store: Store, folder: string, words: string, installed: string[], about: AskAbout = {}): AskView {
   const run = askRunOf(store, folder, words);
   const line = run && askLine(run, run.pid !== undefined && isAlive(run.pid), nameOf(run.agent));
-  const to = !line || line.state === 'stopped' ? askToFrom(store, folder, installed, change) : undefined;
+  const to = !line || line.state === 'stopped' ? askToFrom(store, folder, installed, about) : undefined;
   return { words, ...(to ? { press: askPress(to, to.kind === 'current' ? nameOf(to.agent) : undefined) } : {}), ...(line ? { line } : {}) };
 }
 
 /**
- * Sends words to the session that the press names: a run continues it in its folder, or starts a new session of its app in `folder`, with what the skill
- * apostil-describe-change runs (`describe`). The record keeps the session (a new Claude Code session gets its id at once) and the end. `changed` is called
- * when the record changes, `ended` when the run ends, with its problem when it failed or was not allowed a command. Returns false when no app can be started from here.
+ * Sends words to the session that the press names: a run continues it in its folder, or starts a new session of its app, with what the skill
+ * apostil-describe-change runs (`describe`). A new session runs in `folder`; for a pull request, in a folder with its head branch checked out, which Apostil
+ * finds or makes (view/pull-folder.ts) and removes when the run ends, if it made it. The record keeps the session (a new Claude Code session gets its id at
+ * once) and the end. `changed` is called when the record changes, `ended` when the run ends, with its problem when it failed or was not allowed a command.
+ * Gives back true when the run started, false when no app can be started from here, and one sentence when the branch of the pull request could not be checked out.
  */
-export function startAsk(store: Store, folder: string, words: string, installed: string[], models: RunModels, changed: () => void, ended: (problem?: string, facts?: RunFacts) => void, change?: OfChange): boolean {
+export async function startAsk(store: Store, folder: string, words: string, installed: string[], models: RunModels, changed: () => void, ended: (problem?: string, facts?: RunFacts) => void, about: AskAbout = {}): Promise<boolean | string> {
   const repo = idOf(folder);
-  const to = askToFrom(store, folder, installed, change);
+  const to = askToFrom(store, folder, installed, about);
   if (!repo || !to) return false;
-  const where = to.kind === 'current' && to.folder && existsSync(to.folder) ? to.folder : folder;
+  const got = about.pull ? await pullFolder(folder, about.pull, storeFolder()) : undefined;
+  if (got && 'problem' in got) return got.problem;
+  const where = got?.folder ?? (to.kind === 'current' && to.folder && existsSync(to.folder) ? to.folder : folder);
+  /** Removes the worktree that Apostil made for this run, once the run is over or did not start. */
+  const tidy = async (): Promise<void> => { if (got?.made) await removePullFolder(folder, got.folder, storeFolder()); };
+  const prompt = about.pull ? `${words}. ${ON_BRANCH}` : words;
   const sessionId = to.kind === 'new' && to.app === 'claude-code' ? randomUUID() : undefined;
   const options = { ...runOptions(where, storeFolder(), models), describe: true as const, sessionId };
-  const command = to.kind === 'current' ? resumeCommand(to.agent, words, options) : newRunCommand(to.app, words, options);
-  if (!command) return false;
+  const command = to.kind === 'current' ? resumeCommand(to.agent, prompt, options) : newRunCommand(to.app, prompt, options);
+  if (!command) {
+    await tidy();
+    return false;
+  }
   const agent: AgentSession = to.kind === 'current' ? to.agent : { app: to.app, ...(sessionId ? { session: sessionId } : {}) };
   const startedAt = new Date().toISOString();
   store.setAskRun(repo, words, { to: to.kind, agent, folder: where, startedAt });
@@ -61,10 +87,10 @@ export function startAsk(store: Store, folder: string, words: string, installed:
     changed();
   };
   const pid = spawnRun(command, where, (session) => record({ agent: { ...agent, session } }), (problem, facts) => {
-    // A run that was not allowed a command (to get the branch of a pull request, for one) ended before it was done, also when it says that it ended well.
+    // A run that was not allowed a command ended before it was done, also when it says that it ended well.
     const why = problem ?? (facts?.denied.length ? 'It ended before it was done.' : undefined);
     record({ endedAt: new Date().toISOString(), ...(why ? { problem: why } : {}) });
-    ended(why, facts);
+    void tidy().then(() => ended(why, facts));
   });
   record(pid === undefined ? {} : { pid });
   return true;

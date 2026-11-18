@@ -135,6 +135,27 @@ export function makeNotebookRepo(): TestRepo {
   return { ...repo, base };
 }
 
+/**
+ * A clone on "main" whose remote, a bare repo beside it, holds pull request #35 of the branch "made-up/reminders" at refs/pull/35/head, as GitHub keeps one.
+ * As over the network, the clone got only the branches of the remote, so it lacks the commits of the pull request. `base`: the commit of main that the pull
+ * request starts from; `head`: its last commit. Only local Git: no network.
+ */
+export function makePullRepo(): TestRepo & { head: string; branch: string; number: number } {
+  const root = tempFolder('apostil-pull-');
+  git(root, 'init', '-q', '-b', 'main', 'work');
+  const work = repoIn(join(root, 'work'), '');
+  work.write('src/app.py', 'def start():\n    return 1\n');
+  const base = work.commit('base');
+  git(root, 'clone', '-q', '--bare', 'work', 'remote.git');
+  const branch = 'made-up/reminders';
+  git(work.folder, 'checkout', '-q', '-b', branch);
+  work.write('src/reminders.py', 'def remind():\n    return "due soon"\n');
+  const head = work.commit('reminders');
+  git(work.folder, 'push', '-q', join(root, 'remote.git'), 'HEAD:refs/pull/35/head');
+  git(root, 'clone', '-q', '--no-local', 'remote.git', 'clone');
+  return { ...repoIn(join(root, 'clone'), base), head, branch, number: 35, remove: () => rmSync(root, { recursive: true, force: true }) };
+}
+
 /** A change file that fits the notebook repo: notes in cells, by id and by number, a note on removed lines of a cell, and a diagram with places in a cell. */
 export const notebookChangeFile = (): ChangeFile => ({
   format: 1,

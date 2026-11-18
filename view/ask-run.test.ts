@@ -1,13 +1,15 @@
-// Tests for the run of words for an agent: what the run gets, and a run that was not allowed a command.
+// Tests for the run of words for an agent: what the run gets, a run that was not allowed a command, and the run for a pull request whose branch is not checked out.
 
 import assert from 'node:assert/strict';
-import { chmodSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { describeWords } from '../shared/ask';
+import { git, repoId } from '../shared/git';
 import { Store } from '../shared/store';
-import { makeTestRepo, tempFolder } from '../shared/test-repo';
-import { askView, startAsk } from './ask-run';
+import { makePullRepo, makeTestRepo, tempFolder, testChangeFile } from '../shared/test-repo';
+import { askView, ON_BRANCH, startAsk } from './ask-run';
+import { pageData } from './page-data';
 
 test('the press starts a new session with the words, its id known at once and the small model; a run that was not allowed a command stopped, and the press is there again', async () => {
   const repo = makeTestRepo();
@@ -23,10 +25,11 @@ test('the press starts a new session with the words, its id known at once and th
   const words = describeWords(35);
   try {
     assert.equal(askView(store, repo.folder, words, ['claude-code']).press?.label, 'Describe it with a new Claude Code session');
-    const ended = await new Promise<{ problem?: string; denied?: string[] }>((done) => {
-      assert.equal(startAsk(store, repo.folder, words, ['claude-code'], { claude: 'haiku' }, () => {}, (problem, facts) => done({ problem, denied: facts?.denied })), true);
-      assert.equal(askView(store, repo.folder, words, ['claude-code']).line?.state, 'working');
-    });
+    let done: (end: { problem?: string; denied?: string[] }) => void = () => {};
+    const ending = new Promise<{ problem?: string; denied?: string[] }>((resolve) => { done = resolve; });
+    assert.equal(await startAsk(store, repo.folder, words, ['claude-code'], { claude: 'haiku' }, () => {}, (problem, facts) => done({ problem, denied: facts?.denied })), true);
+    assert.equal(askView(store, repo.folder, words, ['claude-code']).line?.state, 'working');
+    const ended = await ending;
     const args = readFileSync(got, 'utf8').split('\n');
     const view = askView(store, repo.folder, words, ['claude-code']);
     assert.deepEqual(args.slice(0, 2), ['-p', words]);
@@ -36,6 +39,52 @@ test('the press starts a new session with the words, its id known at once and th
     assert.deepEqual(ended, { problem: 'It ended before it was done.', denied: ['Bash(gh pr *)'] });
     assert.equal(view.line?.state, 'stopped');
     assert.equal(view.press?.label, 'Describe it with a new Claude Code session'); // the session of a run that stopped is not asked again
+  } finally {
+    store.close();
+    Object.assign(process.env, kept);
+    if (kept.APOSTIL_HOME === undefined) delete process.env.APOSTIL_HOME;
+    repo.remove();
+  }
+});
+
+test('the press of a pull request whose branch is not checked out names a new session, not a known one on main; its run starts in a folder on the head branch, which is gone when the run ends, the branch stays, and the page of the pull request then shows the description', async () => {
+  const repo = makePullRepo();
+  const home = tempFolder('apostil-home-');
+  const bin = tempFolder('apostil-bin-');
+  const got = join(bin, 'where.txt');
+  // A stand-in claude that keeps the folder that it runs in, the branch there and its words, and says that it ended well.
+  writeFileSync(join(bin, 'claude'), `#!/bin/sh\npwd -P > '${got}'\ngit branch --show-current >> '${got}'\nprintf '%s\\n' "$2" >> '${got}'\necho '{"type":"result","is_error":false,"result":"Done"}'\n`);
+  chmodSync(join(bin, 'claude'), 0o755);
+  const kept = { PATH: process.env.PATH, APOSTIL_HOME: process.env.APOSTIL_HOME };
+  Object.assign(process.env, { PATH: `${bin}:${kept.PATH}`, APOSTIL_HOME: home });
+  const store = new Store(home);
+  const words = describeWords(repo.number);
+  try {
+    // A session that Apostil knows in the open folder, which is on main: a run of it would describe main.
+    const checks = { filesInNoPart: [], filesInTwoParts: [], filesNotChanged: [], generated: [], badNotes: [] };
+    store.saveChange({ repoId: repoId(repo.folder), folder: repo.folder, branch: 'main', base: repo.base, head: repo.base, file: testChangeFile(), checks, agent: { app: 'claude-code', session: 'made-up-main-0001' } });
+    const pull = { number: repo.number, branch: repo.branch, head: repo.head, base: repo.base, remote: 'origin' };
+    assert.equal(askView(store, repo.folder, words, ['claude-code'], { pull }).press?.label, 'Describe it with a new Claude Code session');
+
+    let done: (problem?: string) => void = () => {};
+    const ending = new Promise<string | undefined>((resolve) => { done = resolve; });
+    assert.equal(await startAsk(store, repo.folder, words, ['claude-code'], {}, () => {}, (problem) => done(problem), { pull }), true);
+    const run = store.askRun(repoId(repo.folder), words);
+    assert.equal(await ending, undefined);
+    const [folder, branch, prompt] = readFileSync(got, 'utf8').split('\n');
+    assert.equal(branch, repo.branch); // the run works on the head branch of the pull request
+    assert.equal(prompt, `${words}. ${ON_BRANCH}`);
+    assert.equal(folder, run?.folder);
+    assert.notEqual(folder, repo.folder);
+    assert.equal(existsSync(folder), false); // the worktree that Apostil made is gone after the run
+    assert.equal(git(repo.folder, 'rev-parse', `refs/heads/${repo.branch}`), repo.head); // the branch that it made stays
+
+    // What the run saved, in the folder that is gone now: the page of the pull request shows it, read from the commits in the open folder.
+    const file = { format: 1 as const, title: 'Reminders before a book is due', reason: 'Members forget the day.', parts: [{ id: 'remind', name: 'Remind', files: ['src/reminders.py'] }], links: [] };
+    const id = store.saveChange({ repoId: repoId(repo.folder), folder, branch: repo.branch, base: repo.base, head: repo.head, file, checks, agent: run?.agent });
+    const page = pageData(store, id, repo.folder);
+    assert.equal(page?.title, 'Reminders before a book is due');
+    assert.deepEqual(page?.files.map((one) => [one.path, one.added]), [['src/reminders.py', 2]]);
   } finally {
     store.close();
     Object.assign(process.env, kept);

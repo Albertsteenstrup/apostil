@@ -131,10 +131,11 @@ function mapRunHtml(run, again = null) {
  * One direct link that starts the work in the session that it names (`ask`, an AskView of shared/ask.ts). The page never shows the words that go to the
  * agent and never asks the person to give them: they ride in `data-ask` for VS Code alone. Before the press: `intro` and the press; with no app that
  * can be started, `intro` and the links that install one. After it: the session that does the work, its state ("working", "done", "stopped") and
- * "Open the session"; after a run that stopped, the press once more. Nothing in the line moves.
+ * "Open the session"; after a run that stopped, the press once more. A press that started no run: why, in one sentence, and the press again. Nothing in the line moves.
  */
 function askHtml(ask, intro) {
   const press = ask.press ? `<a data-ask="${esc(ask.words)}" title="${esc(ask.press.tip)}">${esc(ask.press.label)}</a>` : '';
+  if (ask.problem && press) return `${esc(ask.problem)} ${press}`;
   const { line } = ask;
   if (!line) return press ? `${intro} ${press}` : `${intro} Install ${INSTALL_LINKS} to describe it.`;
   const open = line.opens ? `<a data-ask-open="${esc(ask.words)}" title="${OPENS_TIP[line.opens]}">Open the session</a>` : '';
