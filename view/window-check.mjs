@@ -712,7 +712,7 @@ try {
   const gotWhileHidden = await until(() => stage.evaluate(() => App.page.remarks.some((remark) => remark.text.startsWith('Is the index'))), 6000);
   await changeTab.click();
   const back = await until(() => stage.evaluate(() => {
-    const nodes = [...document.querySelectorAll('#view g.node')];
+    const nodes = [...document.querySelectorAll('#view g.node:not(.ovcards g.node)')]; // the diagram of the change, not the small diagrams of the cards under it (build 83)
     return document.visibilityState === 'visible' && nodes.length >= 7 && nodes.every((node) => node.getBoundingClientRect().width > 40) && { parts: document.querySelectorAll('#view b[data-part]').length, nodes: nodes.length };
   }));
   check('the change page gets new data while another tab shows, and shows the diagram with its parts when he comes back', gotWhileHidden && back?.parts === 6, JSON.stringify({ gotWhileHidden, back }));

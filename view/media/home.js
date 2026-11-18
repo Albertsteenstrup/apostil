@@ -1,4 +1,4 @@
-// Home: the map of the repo as one large diagram that he moves and zooms, one level at a time.
+// Home: the map of the repo, one level at a time: the diagram of the level, which he moves and zooms, with a card for each of its nodes under it (overview.js).
 // The graphs page: one small panel for each diagram that a folder or file is a part of, drawn when it comes into view.
 // A page of the look (build 58): the blocks of one page of the look of the repo, in a tab of its own.
 'use strict';
@@ -224,6 +224,22 @@ function pickMark(thing, one) {
   return false;
 }
 
+// ----- the overview: a card under the diagram for each node that leads somewhere (build 83) -----
+
+/**
+ * True when a click on the node leads somewhere: a diagram one level down (an area, the processes of a place, a process, a step that holds steps), or
+ * folders and files (a step with no inner steps opens its file at its line). A quiet box of another place, or a call out of the repo, has no card.
+ */
+const leadsSomewhere = (node) => !!node && !node.quiet && (!!diagramOf(node.down) || node.paths.length > 0);
+
+/** The card of a node: its diagram one level down drawn small, as a panel of the graphs page with nothing lit, and its click; else its folders and files. */
+function homeCard(g, node, open, graph) {
+  const title = plainName(graph, nodeKey(g));
+  const below = diagramOf(node.down);
+  if (below) return { title, open, draw: (box) => drawPanel(box, { ...below, lit: [] }, true) };
+  return { title, files: node.paths.map(({ path, files }) => ({ path, count: files, line: node.line })) };
+}
+
 /**
  * The repo has no map: the wordmark of Apostil, large and quiet, where VS Code shows its own logo in an empty editor area.
  * Under it the press that maps the repo, one press for the app that Apostil started last (mapPressHtml in tools.js), and the next steps (the set-up step and the example).
@@ -242,8 +258,12 @@ async function drawHome() {
   const view = document.getElementById('view');
   view.innerHTML = '';
   view.className = 'view';
+  const cards = document.getElementById('cards');
+  Overview.cards(cards, []);
   const diagram = map && (diagramOf(Home.at) ?? diagramOf(map.top));
   if (diagram) Home.at = diagram.id;
+  if (Home.shownAt !== Home.at) scrollTo(0, 0); // another level opens at its top; the same one drawn again stays where he scrolled
+  Home.shownAt = Home.at;
   App.page = mapPage(Home.data);
   const look = Home.data.look;
   Trail.show(document.getElementById('crumb'), ownStep(), { look });
@@ -286,8 +306,14 @@ async function drawHome() {
       }
     }
     if (svg) ProcessDrawing.decorate(svg, laid, diagram);
+    // The overview (build 83): a card under the diagram for each node that leads somewhere, in the reading order of the drawing, unless he chose the
+    // diagram alone. With no such node the diagram stands alone and has no icon.
+    const leading = Overview.inReadingOrder([...view.querySelectorAll('g.node, g.image-shape')]).filter((g) => leadsSomewhere(nodesOf[nodeKey(g)]));
+    const overview = leading.length > 0 && !Overview.isFull();
     // A wide map opens where its words read; drawn again with new data, it stays where he left it. The drawing in columns is another drawing.
-    makeSurface(view, true, false, laid === diagram ? diagram.id : `${diagram.id}:columns`);
+    makeSurface(view, true, false, laid === diagram ? diagram.id : `${diagram.id}:columns`, overview);
+    if (leading.length) Overview.icon(view, !overview, () => Home.render());
+    const opens = new Map(); // the click of each node, which its card does too
     const joined = { ...drawn.graph, dots: (plain ? diagram : laid).dots }; // for a focus: with the boxes that a drawn process joins by a dot
     frameLook(view, look, diagram.id);
     for (const g of view.querySelectorAll('g.node, g.image-shape')) {
@@ -315,7 +341,9 @@ async function drawHome() {
         else tell({ type: 'showInTree', paths, open: true });
       } : null;
       if (Marks.bind(g, thing?.slots ?? {}, today, Marks.nameOf(g))) g.classList.add('go');
+      opens.set(g, today);
     }
+    Overview.cards(cards, overview ? leading.map((g) => homeCard(g, nodesOf[nodeKey(g)], opens.get(g), drawn.graph)) : []);
     lightNodes(view, Home.lit);
     const first = view.querySelector('g.node.lit');
     if (first && !view.surface?.kept) view.surface?.show(first); // not when the same diagram drew again: the view stays where he left it
@@ -336,8 +364,11 @@ async function drawHome() {
 let panelQueue = Promise.resolve(); // panels draw one after the other
 let drawnPanels = 0;
 
-/** Draws one panel small, with the nodes of the path lit and the rest quiet, in the look of the repo; also a diagram of a block (blocks.js). Resolves when it is drawn. */
-function drawPanel(box, panel) {
+/**
+ * Draws one panel small, with the nodes of the path lit and the rest quiet, in the look of the repo; also a diagram of a block (blocks.js), and with
+ * `card` a card of the overview, with nothing lit. Resolves when it is drawn.
+ */
+function drawPanel(box, panel, card = false) {
   return panelQueue = panelQueue.then(async () => {
     if (!box.isConnected) return;
     const look = Home.data.look;
@@ -364,7 +395,7 @@ function drawPanel(box, panel) {
     svg.removeAttribute('width');
     svg.removeAttribute('height');
     box.classList.toggle('rest', panel.lit.length > 0); // only the lit part stands out
-    box.dataset.lit = lightNodes(box, panel.lit, true);
+    box.dataset.lit = lightNodes(box, panel.lit, !card);
     drawnPanels++;
     if (Home.data.kind === 'graphs') tell({ type: 'rendered', kind: 'graphs', nodes: 0, panels: Home.data.panels.length, drawn: drawnPanels });
   });
@@ -395,6 +426,7 @@ async function drawGraphs() {
   view.className = 'view';
   frameDouble = null;
   focus = null;
+  Overview.cards(document.getElementById('cards'), []);
   Trail.show(document.getElementById('crumb'), ownStep(), { look: data.look });
   const { groups, ordered, count } = panelsInLook(data);
   // The count line: the panels that show; "the widest first" while no rule orders them. A rule gives other words, or leaves it out.
@@ -439,6 +471,7 @@ async function drawPage() {
   const { data } = Home;
   const view = document.getElementById('view');
   view.className = 'view bk-page';
+  Overview.cards(document.getElementById('cards'), []);
   Trail.show(document.getElementById('crumb'), ownStep());
   document.getElementById('summary').textContent = '';
   view.innerHTML = data.gone ? `<p class="nomap">${esc(data.gone)}</p>` : `<h1 class="bk-head">${esc(data.title)}</h1><div class="bk-body"></div>`;
@@ -467,8 +500,10 @@ window.addEventListener('message', (event) => {
   if (message?.type === 'data') {
     Home.data = message.data;
     if (message.trail) Trail.set(message.trail);
+    Overview.heard(message.full); // the overview or the diagram alone, as he chose last
     Home.render();
   }
+  if (message?.type === 'layout' && Overview.heard(message.full)) Home.render(); // he chose on another page
   if (message?.type === 'trail') Trail.set(message.steps);
   if (message?.type === 'go') Home.goTo(message.go.diagram || null, message.go.lit ?? []);
   if (message?.type === 'remark') (Home.drawing ?? Promise.resolve()).then(() => Remarks.openFromVsCode()); // the comment key

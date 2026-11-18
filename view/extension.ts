@@ -75,6 +75,12 @@ export function activate(context: vscode.ExtensionContext) {
   const page = new ChangePage(media, theStore, openFolder, setState, apps, folderChange);
   page.trail = trail;
   const home = new HomePages(media, theStore, openFolder, apps, trail);
+  // How every diagram shows (build 83): the overview with its cards, or the diagram alone. One choice for every page and window, in the global state of VS Code.
+  const LAYOUT_KEY = 'apostil.diagramFull';
+  home.layout = page.layout = {
+    full: () => context.globalState.get<boolean>(LAYOUT_KEY, false),
+    set: (full) => void context.globalState.update(LAYOUT_KEY, full).then(() => { home.postLayout(); page.postLayout(); }),
+  };
   // From outside a page (the side bar, the Files tree, the Explorer, a title bar, a command) a view starts a new path.
   const openHome = (quiet = false): void => { trail.start(TrailRules.HOME); home.openHome(undefined, quiet); };
   const openChange = (id: number): void => {

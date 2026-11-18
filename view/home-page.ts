@@ -34,7 +34,17 @@ type Message =
   | { type: 'showInTree'; paths: string[]; open?: boolean }
   | { type: 'setUp' }
   | { type: 'rendered'; kind: string; nodes: number; panels: number; drawn: number }
-  | { type: 'ask'; id: number; question: string }; // the blocks of a section of its own or of the window of a target, when it opens
+  | { type: 'ask'; id: number; question: string } // the blocks of a section of its own or of the window of a target, when it opens
+  | { type: 'layout'; full: boolean }; // the icon of a diagram: the diagram alone, or the overview with its cards (build 83)
+
+/**
+ * How every diagram shows (build 83): the overview, with a card for each node under the diagram, or the diagram alone ("full"). One choice for every
+ * page and window, kept by the extension; a page that shows gets it again when it changed.
+ */
+export interface DiagramLayout {
+  full(): boolean;
+  set(full: boolean): void;
+}
 
 /** One tab of home.html. Messages wait until its scripts are loaded. */
 interface Tab {
@@ -58,6 +68,7 @@ export class HomePages {
   graphsShown: Record<string, GraphsData> = {}; // what each graphs tab shows now, for the check inside VS Code
   pagesShown: Record<string, CustomPageData> = {}; // what each page of the look shows now, for the check inside VS Code
   rendered: Record<string, Message & { type: 'rendered' }> = {}; // what each tab drew last, by "home" or its path
+  layout: DiagramLayout = { full: () => false, set: () => {} }; // how every diagram shows; set by the extension, which keeps it
 
   /** Shows folders and files of the repo in the tree "Files" of the side bar; with `open` also when that tree does not show. Set by the extension, which owns the tree. */
   showInTree: (paths: string[], open: boolean) => void = () => {};
@@ -146,6 +157,11 @@ export class HomePages {
     for (const tab of [this.home, ...this.graphs.values(), ...this.pages.values()]) if (tab?.panel.visible) this.post(tab, { type: 'trail', steps });
   }
 
+  /** He chose how every diagram shows on another page: Home draws it again when it shows; hidden, it gets the choice when it shows. */
+  postLayout(): void {
+    if (this.home?.panel.visible) this.post(this.home, { type: 'layout', full: this.layout.full() });
+  }
+
   /** True when the comment key belongs to Home: the pointer is on it, or it has the focus. */
   wantsKey(): boolean {
     return !!this.pointerOn || !!this.home?.panel.active;
@@ -231,7 +247,7 @@ export class HomePages {
     // A run that stops saves nothing, so the store does not change and nothing loads Home again: one timer does, after the quiet time, and the line then says that the run stopped.
     clearTimeout(this.quiet);
     if (data.mapRun?.state === 'writing') this.quiet = setTimeout(() => this.reload(), QUIET_MS + 1000);
-    return { type: 'data', data: this.homeShown, trail: this.trail.steps };
+    return { type: 'data', data: this.homeShown, trail: this.trail.steps, full: this.layout.full() };
   }
 
   private graphsMessage(path: string): unknown {
@@ -287,6 +303,7 @@ export class HomePages {
       if (!panel.visible) return; // a hidden tab gets no message: see `postTrail`
       this.post(tab, { type: 'away' }); // a hover window from before the tab was hidden is closed
       this.post(tab, { type: 'trail', steps: this.trail.steps });
+      if (tab === this.home) this.post(tab, { type: 'layout', full: this.layout.full() });
     });
     panel.onDidDispose(() => { if (this.pointerOn === tab) this.setPointer(undefined); });
     return tab;
@@ -361,6 +378,9 @@ export class HomePages {
         break;
       case 'ask':
         void tab.panel.webview.postMessage({ type: 'answer', id: message.id, value: this.answer(message.question, tab) });
+        break;
+      case 'layout':
+        this.layout.set(message.full);
         break;
     }
   }

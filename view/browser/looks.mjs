@@ -83,7 +83,7 @@ try {
         if (!m || !c) return null;
         const y = (c.top + c.bottom) / 2, x = (m.left + c.right) / 2, top = document.elementFromPoint(x, y);
         const text = document.createRange(); text.selectNodeContents(more);
-        return { tall: Math.abs(m.height - c.height) <= 0.5, round: parseFloat(getComputedStyle(more).borderRadius) >= m.height / 2 - 0.5, overlaps: m.left < c.right - 1, middle: Math.abs((m.top + m.bottom) - (c.top + c.bottom)) <= 1,
+        return { tall: Math.abs(m.height - c.height) <= 0.5, round: parseFloat(getComputedStyle(more).borderRadius) >= more.offsetHeight / 2 - 0.5, /* in its own size: the overview draws a small map larger (build 83) */ overlaps: m.left < c.right - 1, middle: Math.abs((m.top + m.bottom) - (c.top + c.bottom)) <= 1,
           behind: !!top && chip.contains(top), clear: text.getBoundingClientRect().left >= c.right };
       })(),
     }));

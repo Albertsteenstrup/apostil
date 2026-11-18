@@ -224,6 +224,7 @@ const App = {
     tabs.innerHTML = '';
     view.innerHTML = '';
     view.className = 'view'; // a diagram drawn here before made it a stage, or two halves
+    Overview.cards(document.getElementById('cards'), []); // the cards of the overview of the change, under the view (drawSections)
     Code.shown = null;
     Split.right = null;
     Split.list = null;
@@ -273,7 +274,7 @@ const App = {
     if (state.view === 'diagram') scrollTo(0, this.scrolls[this.place()] ?? 0);
     else if (state.view !== 'conversation') scrollTo(0, 0); // the conversation opens at its own place
     tell({ type: 'state', view: state.view === 'diagram' ? 'diagram' : 'code', part: state.part ?? undefined, file: state.view === 'code' ? state.file : undefined, lines: state.lines ?? undefined });
-    this.rendered = { type: 'rendered', view: state.view, level: state.level, nodes: view.querySelectorAll('g.node').length, notes: view.querySelectorAll('.mc').length, lines: state.lines ?? undefined, map: CodeMap.shown() };
+    this.rendered = { type: 'rendered', view: state.view, level: state.level, nodes: view.querySelectorAll('g.node:not(.ovcards g.node)').length, notes: view.querySelectorAll('.mc').length, lines: state.lines ?? undefined, map: CodeMap.shown() };
     tell(this.rendered);
     window.apostilRendered = (window.apostilRendered ?? 0) + 1;
   },
@@ -565,6 +566,7 @@ window.addEventListener('message', (event) => {
     if (message.lines) App.state.lines = message.lines;
     if (message.at) App.state.at = message.at;
     if (message.trail) Trail.set(message.trail);
+    Overview.heard(message.full); // the overview of a diagram or the diagram alone, as he chose last (build 83)
     if (message.pullRead) takePullRead(message.pullRead);
     App.ask = message.ask ?? null; // the words for an agent of the page, with their press and the line of their run
     App.render();
@@ -579,6 +581,7 @@ window.addEventListener('message', (event) => {
   if (message?.type === 'reread') App.reread();
   if (message?.type === 'lines') App.showCode(App.tab, message.lines ?? null, message.at ?? null);
   if (message?.type === 'trail') Trail.set(message.steps);
+  if (message?.type === 'layout' && Overview.heard(message.full) && !App.tab && App.state.view === 'diagram') App.render(); // he chose on another page
   // A large pull request while it is read: the head and what is read so far, with how far the read is.
   if (message?.type === 'pullProgress' && App.page && App.pullLink() === message.link && !App.read[message.link]
     && (App.state.view === 'conversation' || App.page.pullOnly)) {

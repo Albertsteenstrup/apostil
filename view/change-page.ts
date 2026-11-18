@@ -22,6 +22,7 @@ import type { PullHead } from './pull-folder';
 import { appName, commentRuns, runModels, showRunProblem } from './run-settings';
 import { iconCss } from './state-icons';
 import { blocksAnswer } from './look-blocks';
+import type { DiagramLayout } from './home-page';
 import { keptPullRequests, pullRequestsLater } from './change-list';
 import { reopenStaleRuns } from './list-rows';
 import { answer, filePage, isListening, lookOfPage, marksBeside, notesBeside, pageData, pullLines, pullOnlyPage, takeStart, type PageData, type PullLines } from './page-data';
@@ -117,7 +118,8 @@ type Message =
   | { type: 'looked'; repo: string; number: number }
   | { type: 'askAgent'; words: string; team?: unknown } // the press of words for an agent: they go to the session that it names, with the lead and the effort of its control
   | { type: 'openAskSession'; words: string } // "Open the session" on the line of their run
-  | { type: 'write'; id: number; write: Write };
+  | { type: 'write'; id: number; write: Write }
+  | { type: 'layout'; full: boolean }; // the icon of a diagram: the diagram alone, or the overview with its cards (build 83)
 
 /**
  * The answer to "pull:<link>": the pull request as read, when he last looked, where GitHub takes a comment on the code here,
@@ -185,6 +187,7 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
   renderedFile?: Message & { type: 'rendered'; file?: string }; // what a file tab last drew, for the check inside VS Code
   trail?: WindowTrail; // the path that he followed in this window
   onTarget: (target: Target, diagram?: string) => void = () => {}; // does what a target of the look says (look-targets.ts); set by the extension
+  layout: DiagramLayout = { full: () => false, set: () => {} }; // how every diagram shows (build 83); set by the extension, which keeps it
 
   constructor(
     private media: vscode.Uri,
@@ -211,6 +214,7 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
       if (!panel.visible && this.pointerOn === view) this.setPointer(undefined);
       this.post(view, { type: 'away' }); // a hover window from before the tab was hidden or shown is closed
       if (panel === this.panel && panel.visible && this.trail) this.post(view, { type: 'trail', steps: this.trail.steps });
+      if (panel === this.panel && panel.visible) this.post(view, { type: 'layout', full: this.layout.full() }); // he may have chosen on another page
     });
     panel.onDidDispose(() => {
       this.views.delete(view);
@@ -334,6 +338,12 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
     if (page?.panel.visible) this.post(page, { type: 'trail', steps });
   }
 
+  /** He chose how every diagram shows on another page: the page draws it again when it shows; hidden, it gets the choice when it shows. */
+  postLayout(): void {
+    const page = [...this.views].find((view) => view.panel === this.panel);
+    if (page?.panel.visible) this.post(page, { type: 'layout', full: this.layout.full() });
+  }
+
   /** Posts a message to a view now, or when its scripts are loaded. */
   private post(view: View, message: Posted): void {
     if (view.ready) void view.panel.webview.postMessage(message);
@@ -345,7 +355,7 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
     const { lines, at } = takeStart(view);
     const pulls = this.page && !this.page.pullOnly ? keptPullRequests(this.page.folder, this.page.branch) : undefined; // known now: the page opens at the right view at once
     if (pulls) this.sentPulls = JSON.stringify(pulls);
-    return { type: 'data', page: this.page, pulls, file: view.file, lines, at, trail: this.trail?.steps, minimap: minimapOn(), ask: this.askNow(), ...(view.file && this.pullRead ? { pullRead: this.pullRead } : {}) };
+    return { type: 'data', page: this.page, pulls, file: view.file, lines, at, trail: this.trail?.steps, full: this.layout.full(), minimap: minimapOn(), ask: this.askNow(), ...(view.file && this.pullRead ? { pullRead: this.pullRead } : {}) };
   }
 
   /**
@@ -604,6 +614,9 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
       }
       case 'looked':
         this.store.setLooked(message.repo, message.number);
+        break;
+      case 'layout':
+        this.layout.set(message.full);
         break;
       case 'write':
         await this.write(message.id, message.write, view);

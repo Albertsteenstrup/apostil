@@ -153,8 +153,9 @@ const leftAt = { page: null, views: new Map() };
  * With `stack` (one of several diagrams one under the other in a half that scrolls), the card takes the height of the diagram fit to its width, or at the size
  * where its words read, and at most most of the half; a scroll that the drawing cannot take (all of it shows that way) scrolls the half.
  * With `key` (the name of the diagram in its view), the same diagram drawn again keeps the zoom and the place that he left it at (leftAt); a fit forgets them.
+ * With `overview` (build 83: cards stand under it), the card takes the upper part of the tab, and a small diagram is drawn larger, up to GROW, to fill its width.
  */
-function makeSurface(stage, readable = false, stack = false, key = undefined) {
+function makeSurface(stage, readable = false, stack = false, key = undefined, overview = false) {
   const page = typeof Trail === 'object' ? Trail.ownKey() : null;
   if (page !== leftAt.page) Object.assign(leftAt, { page, views: new Map() });
   const left = leftAt.views.get(key);
@@ -171,6 +172,7 @@ function makeSurface(stage, readable = false, stack = false, key = undefined) {
     stage.style.height = `${Math.round(Math.min(height * scale, stage.closest('.half').clientHeight * 0.8))}px`;
   };
   if (stack) stackHeight();
+  else if (overview) keepOverview(stage, width, height);
   else keepFilled(stage);
   let view = { x: x0, y: y0, scale: 1 };
   let moved = false; // he moved or zoomed it, so a new size of the card keeps his view
@@ -187,7 +189,8 @@ function makeSurface(stage, readable = false, stack = false, key = undefined) {
   const fit = (whole = false) => {
     const [w, h] = [stage.clientWidth, stage.clientHeight];
     if (!w || !h) return;
-    let scale = Math.min(1, w / width, h / height);
+    const room = overview ? 2 * OVERVIEW_ROOM : 0; // in the overview the drawing keeps some room from the edges of its frame
+    let scale = Math.min(overview ? GROW : 1, (w - room) / width, (h - room) / height);
     const columns = stage.classList.contains('columns'); // a long chain in columns: tall, but it opens where its words read, at its top
     const wide = (readable || half) && (half || columns || w / width < h / height) && scale < READABLE;
     if (wide && !whole) scale = READABLE;
@@ -849,19 +852,34 @@ function repoHtml(diagram) {
     + (repo?.again ? '<span class="drepo">The map was written again since this change was described.</span>' : '');
 }
 
-/** The diagram of one part or function: a flow, a sequence, the states or a schema, with what the change did to it. `join` as in wireCode, `stack` as in makeSurface. */
-async function drawPart(into, diagram, join, stack = false) {
-  // The look of its steps (build 60): a colour, or a picture in place of a step, by the same code as a node on Home (marks.js); and on a flow chart
-  // the marks inside the lines of each step at its corners (build 63).
+/**
+ * Draws a diagram of a part in the look of its steps (build 60): a colour, or a picture in place of a step, by the same code as a node on Home
+ * (marks.js); and on a flow chart the marks inside the lines of each step at its corners (build 63). Returns the SVG.
+ */
+async function drawInLook(into, diagram) {
   const { look } = App.page;
   const things = look ? Object.fromEntries(Object.entries(Marks.stepThings(diagram, look.marks)).map(([key, thing]) => [key, { ...thing, slots: Marks.slotsIn(look, thing) }])) : {};
   const shaped = look && !diagram.schema ? await Marks.lookText({ ...diagram, mermaid: diagram.draw }, things, [], look) : { text: diagram.draw, filled: {} };
   const svg = await drawMermaid(into, shaped.text, shaped.text === diagram.draw ? diagram.plain : diagram.draw, diagram.schema, diagram.id);
   if (look && svg && !svg.hasAttribute('data-plain') && Marks.decorate(svg, things, [], look, shaped.filled, { nodeKey, open: openMark, pick: pickPlace })) fitToContent(svg);
+  return svg;
+}
+
+/** The diagram of one part or function: a flow, a sequence, the states or a schema, with what the change did to it. `join` as in wireCode, `stack` as in makeSurface. */
+async function drawPart(into, diagram, join, stack = false) {
+  await drawInLook(into, diagram);
   markDiagram(into, diagram);
   paintChange(into, diagram);
   wireCode(into, diagram, join);
   makeSurface(into, false, stack, `part:${diagram.id}`);
+}
+
+/** A diagram of a part drawn small and read only, for a card of the overview (build 83): in the look, with what the change did to it, filling its card. */
+async function drawSmall(into, diagram) {
+  const svg = await drawInLook(into, diagram);
+  paintChange(into, diagram);
+  svg?.removeAttribute('width');
+  svg?.removeAttribute('height');
 }
 
 /**
@@ -891,7 +909,31 @@ async function drawSections(into, fromPart, tie) {
   Marks.paintBox(into.firstChild, slots);
   const body = into.querySelector('.sb');
   await drawChange(body, fromPart, tie);
-  makeSurface(body, false, false, `change:${fromPart ?? ''}`);
+  // The overview (build 83): under the card, a card for each part and for the files in no part, unless he chose the diagram alone.
+  const items = changeCards(body);
+  const overview = items.length > 0 && !Overview.isFull();
+  makeSurface(body, false, false, `change:${fromPart ?? ''}`, overview);
+  if (items.length) Overview.icon(body, !overview, () => App.render());
+  // The cards stand under the view; beside the code they stand in the half of the diagram, under its card, and the half scrolls.
+  const cards = into.id === 'view' ? document.getElementById('cards') : into.appendChild(html('<div class="ovcards" hidden></div>'));
+  Overview.cards(cards, overview ? items : []);
+}
+
+/**
+ * The cards of the overview of a change, in the reading order of its drawing: a part with its first diagram drawn small (a click opens it), or with
+ * its files and their counts (a click on one opens its file tab); and the files in no part.
+ */
+function changeCards(body) {
+  const page = App.page;
+  const fileOf = (path) => ({ path, counts: page.files.find((file) => file.path === path) ?? {} });
+  const nodes = [...body.querySelectorAll('b[data-part], b[data-nopart]')].map((title) => title.closest('g.node')).filter(Boolean);
+  return Overview.inReadingOrder(nodes).map((g) => {
+    const id = g.querySelector('b[data-part]')?.dataset.part;
+    if (!id) return { title: 'In no part', files: page.checks.filesInNoPart.map(fileOf) };
+    const part = page.parts.find((one) => one.id === id);
+    const [diagram] = partDiagrams(part);
+    return diagram ? { title: part.name, open: () => App.openPart(id), draw: (box) => drawSmall(box, diagram) } : { title: part.name, files: part.files.map(fileOf) };
+  });
 }
 
 /** "+2 parts −1 part" for the difference of a wider diagram, as HTML. */
