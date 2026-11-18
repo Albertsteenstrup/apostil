@@ -88,6 +88,8 @@ writeFileSync(path.join(temp, 'pulls.json'), JSON.stringify([
 // The open pull requests of the repo (gh pr list --state open): one with no stored change, whose branch has no row.
 writeFileSync(path.join(temp, 'open-pulls.json'), JSON.stringify([pr(35, 'OPEN', 'REVIEW_REQUIRED', false, { author: JONAS, headRefName: 'made-up/reminders' })]));
 writeFileSync(path.join(temp, 'conversation.json'), JSON.stringify({ data: { repository: { pullRequest: examplePullRequest().raw.pr } } }));
+// The read of #35 answers as #35: with the conversation of #12 the page of #35 said "#12" as soon as the answer came.
+writeFileSync(path.join(temp, 'conversation-35.json'), JSON.stringify({ data: { repository: { pullRequest: { ...examplePullRequest().raw.pr, number: 35, title: 'Made-up pull request 35', url: 'https://github.com/made-up/example/pull/35' } } } }));
 writeFileSync(path.join(bin, 'write.mjs'), [
   "import { appendFileSync, readFileSync } from 'node:fs';",
   "const input = readFileSync(0, 'utf8');",
@@ -100,6 +102,7 @@ writeFileSync(path.join(bin, 'gh'), [
   `if [ "$1" = api ] && [ "$3" = --input ]; then exec '${process.execPath}' '${path.join(bin, 'write.mjs')}'; fi`,
   `if [ "$1" = pr ] && [ "$3" = --state ]; then cat '${path.join(temp, 'open-pulls.json')}'; exit 0; fi`,
   `if [ "$4" = '${SECOND}' ]; then echo '[]'; exit 0; fi`,
+  `case "$*" in *number=35*) cat '${path.join(temp, 'conversation-35.json')}'; exit 0;; esac`,
   `if [ "$1" = api ]; then cat '${path.join(temp, 'conversation.json')}'; else cat '${path.join(temp, 'pulls.json')}'; fi`, '',
 ].join('\n'));
 // The map of the example as a writer saves it, with the made-up services at lines of its code: the second run of the map calls this.
@@ -227,13 +230,20 @@ try {
   const waitTabs = (names, ms = 8000) => until(async () => { const now = await tabs(); return now.join() === names.join() && now; }, ms).then(async (got) => got || tabs());
   const activeTab = () => page.locator('.editor-group-container.active .tab.active').first().getAttribute('aria-label').catch(() => '');
   /** Closes a tab with a middle click, as a person can. */
+  /** Closes a tab with a middle click and waits until it is gone. A click that only closed an open menu of VS Code is made once more. */
   const closeTab = async (name) => {
-    const at = await until(() => page.$$eval('.tabs-container .tab', (all, wanted) => {
+    const place = () => page.$$eval('.tabs-container .tab', (all, wanted) => {
       const box = all.find((one) => one.querySelector('.label-name')?.textContent.trim() === wanted)?.getBoundingClientRect();
       return box?.width > 0 && { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-    }, name), 4000);
+    }, name);
+    let at = await until(place, 4000);
     if (!at) throw new Error(`No tab "${name}" to close; the tabs: ${(await tabs()).join(', ')}`);
-    await page.mouse.click(at.x, at.y, { button: 'middle' });
+    for (let turn = 0; at && turn < 3; turn += 1) {
+      await page.mouse.click(at.x, at.y, { button: 'middle' });
+      if (await until(async () => !(await place()), 1500)) return;
+      console.log(`NOTE  the tab "${name}" still stands after a middle click; once more`);
+      at = await place();
+    }
   };
   const focus = () => page.evaluate(() => {
     const el = document.activeElement;
@@ -1167,7 +1177,7 @@ try {
   const bareList = await frameWith('.cl .prow');
   const bareRow = await bareList?.locator('.prow').first().textContent();
   await bareList?.locator('.prow .nm').first().click();
-  const barePage = await frameWhere(() => /no description of Apostil yet/.test(document.getElementById('summary')?.textContent ?? ''));
+  const barePage = await frameWhere(() => /no description of Apostil yet/.test(document.getElementById('summary')?.textContent ?? '') && /Made-up pull request 35/.test(document.body.textContent)); // after the read of the pull request
   const bareLine = await barePage?.evaluate(() => document.getElementById('summary').textContent);
   check('the open pull request of the stand-in gh with no stored change stands in the list under "Pull requests" with its title, number and state, and a click opens its page, which says that it has no description of Apostil yet and gives the words to give an agent',
     /^Made-up pull request 35#35review needed$/.test(bareRow ?? '') && /Describe pull request #35 for Apostil/.test(bareLine ?? ''), JSON.stringify({ bareRow, bareLine }));
