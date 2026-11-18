@@ -114,32 +114,85 @@ try {
   await conv.click('#status [data-checks]');
   await conv.mouse.move(2, 2);
   await conversationAfter(() => conv.click('.switch a[data-view="conversation"]'));
+  // The owner (18 November): "always show top of pr", and the rule of the unseen "should just apply to already seen messages. make it it's own inline window".
+  // He looked 26 hours ago, so messages are unseen: the page is at its top, and the window of the conversation, under the description, is at the line.
   const opened = await conv.evaluate(() => {
+    const room = document.getElementById('cscroll');
     const line = document.getElementById('new-line');
-    return { line: line?.textContent, top: Math.round(line?.getBoundingClientRect().top ?? -1), scrolled: Math.round(scrollY), short: document.getElementById('short')?.classList.contains('on'),
+    const card = document.getElementById('pcard').getBoundingClientRect();
+    return { line: line?.textContent, edge: line && room ? Math.round(line.getBoundingClientRect().top - room.getBoundingClientRect().top) : null, inWindow: !!line && !!room?.contains(line), page: Math.round(scrollY),
+      card: card.top > 0 && card.bottom < innerHeight, short: document.getElementById('short')?.classList.contains('on'),
       crumb: document.getElementById('crumb').textContent, looked: window.apostilSent.filter((message) => message.type === 'looked') };
   });
-  await convShot('60-conversation-opened-at-new');
+  await convShot('60-page-opened-again-at-its-top');
+  // The window comes into view, as a scroll of the page brings it: under the slim bar, which carries the switch of views.
+  await conv.evaluate(() => document.getElementById('cwin')?.scrollIntoView({ block: 'end' }));
+  await frames(conv);
+  await convShot('60a-window-at-the-new-line');
   const newest = await conv.evaluate(async () => {
-    const on = document.getElementById('newest').classList.contains('on');
-    const box = document.getElementById('newest').getBoundingClientRect();
-    // The button stands in the middle of the lower edge, so it does not lie over "Resolve", the switch of looks or the end of a row at the right.
-    const middle = Math.abs((box.left + box.right) / 2 - innerWidth / 2) < 4 && box.right < innerWidth - 200;
-    document.getElementById('newest').click();
+    const button = document.getElementById('newest');
+    const room = document.getElementById('cscroll');
+    const win = document.getElementById('cwin')?.getBoundingClientRect();
+    const field = document.querySelector('.cfoot .ghend')?.getBoundingClientRect();
+    if (!room || !win || !field) return { window: false };
+    const on = button.classList.contains('on');
+    const box = button.getBoundingClientRect();
+    // "↓ Newest" belongs to the window: in the middle of its lower edge, just above the box to write; at the right it lay over "Resolve" and the ends of rows.
+    const middle = Math.abs((box.left + box.right) / 2 - (win.left + win.right) / 2) < 4 && box.bottom <= field.top && box.top > win.top;
+    const page = scrollY;
+    button.click();
     await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))); // the scroll event marks the button
-    const atEnd = scrollY + innerHeight >= document.documentElement.scrollHeight - 2;
-    const off = !document.getElementById('newest').classList.contains('on');
-    return { on, atEnd, off, middle };
+    return { on, middle, atEnd: room.scrollTop + room.clientHeight >= room.scrollHeight - 2, off: !button.classList.contains('on'), pageStays: scrollY === page };
   });
+  await convShot('60b-window-at-its-newest-message');
   const slimSwitch = await conv.evaluate(() => {
     const short = document.querySelector('#short');
     return { on: short?.classList.contains('on'), views: [...(short?.querySelectorAll('.switch a:not([hidden])') ?? [])].map((a) => a.textContent), marked: short?.querySelector('.switch a.on')?.textContent };
   });
-  // The slim bar carries the switch of views, so that "Diagram" and "Diffs" are never scrolled away (a fault of a walk with fresh eyes); "Newest" stands in the middle (a fault of the trial with real sends).
-  check('the conversation opens at the line "New since you last looked", under the slim bar that carries the switch of views; a "Newest" button shows in the middle of the lower edge when he is not at the end, and goes there; the page tells VS Code once that he looked now, and the line at the top ends with the pull request',
-    /^New since you last looked · \d+$/.test(opened.line) && opened.top > 30 && opened.top < 120 && opened.scrolled > 0 && opened.short && newest.on && newest.middle && newest.atEnd && newest.off
+  // The slim bar carries the switch of views, so that "Diagram" and "Diffs" are never scrolled away (a fault of a walk with fresh eyes).
+  check('a pull request opened before, with unseen messages: the page opens at its top with the state card in view, and its window of the conversation is scrolled so that "New since you last looked" stands at its top edge; "↓ Newest" shows in the middle of the lower edge of the window and takes the window to its newest message, the page stays; the slim bar carries the switch of views; the page tells VS Code once that he looked now, and the line at the top ends with the pull request',
+    /^New since you last looked · \d+$/.test(opened.line) && opened.inWindow && opened.edge >= 0 && opened.edge <= 12 && opened.page === 0 && opened.card && !opened.short
+    && newest.on && newest.middle && newest.atEnd && newest.off && newest.pageStays
     && slimSwitch.on && slimSwitch.views.includes('Diagram') && slimSwitch.views.includes('Diffs') && slimSwitch.marked === 'Conversation'
     && opened.looked.length === 1 && opened.looked[0].repo === 'made-up/example' && opened.looked[0].number === 12 && /›Pull request #12$/.test(opened.crumb), JSON.stringify({ opened, newest, slimSwitch }));
+
+  // The window scrolls on its own: the wheel with the pointer in it moves what it shows, its head and its box stay where they are, and the page stays.
+  // At its top end the wheel scrolls the page on, so nothing traps the pointer. A short conversation gives a short window.
+  const windowNow = () => conv.evaluate(() => {
+    const rect = (el) => { const box = el.getBoundingClientRect(); return [Math.round(box.top), Math.round(box.bottom)]; };
+    const room = document.getElementById('cscroll');
+    return { page: Math.round(scrollY), shows: Math.round(room.scrollTop), head: rect(document.querySelector('#cwin > .head')), box: rect(document.querySelector('.cfoot .ghend')), view: innerHeight };
+  });
+  const pointer = await conv.evaluate(() => { const box = document.getElementById('cscroll').getBoundingClientRect(); return { x: box.left + box.width / 2, y: box.top + box.height / 2 }; });
+  await conv.mouse.move(pointer.x, pointer.y);
+  const wheelStart = await windowNow();
+  await conv.mouse.wheel(0, -600);
+  await conv.waitForFunction((was) => Math.round(document.getElementById('cscroll').scrollTop) < was, wheelStart.shows, { timeout: 3000 }).catch(() => {});
+  await frames(conv);
+  const wheeled = await windowNow();
+  await conv.evaluate(() => { document.getElementById('cscroll').scrollTop = 0; });
+  await frames(conv);
+  await conv.mouse.wheel(0, -200);
+  await conv.waitForFunction((was) => scrollY < was, wheeled.page, { timeout: 3000 }).catch(() => {});
+  const pageOn = await windowNow();
+  const shortWindow = await conv.evaluate(async () => {
+    const link = App.pullLink();
+    window.keptPull = App.read[link];
+    const pull = window.keptPull.pull;
+    App.read[link] = { ...window.keptPull, pull: { ...pull, items: pull.items.filter((item) => item.kind === 'comment').slice(0, 2) } };
+    await App.render();
+    await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+    const room = document.getElementById('cscroll');
+    const win = document.getElementById('cwin').getBoundingClientRect();
+    const result = { height: Math.round(win.height), view: innerHeight, scrolls: room.scrollHeight > room.clientHeight + 1, messages: room.querySelectorAll('.msg').length };
+    App.read[link] = window.keptPull;
+    return result;
+  });
+  await conversationAfter(() => conv.evaluate(() => App.render()));
+  check('the window of the conversation scrolls on its own: the wheel with the pointer in it moves what it shows while its head and its box to write stay in place and in view, and the page stays; at its top end the wheel scrolls the page on; a conversation of two messages gives a short window with nothing to scroll',
+    wheeled.shows < wheelStart.shows - 100 && wheeled.page === wheelStart.page && JSON.stringify([wheeled.head, wheeled.box]) === JSON.stringify([wheelStart.head, wheelStart.box])
+    && wheeled.head[0] >= 0 && wheeled.box[1] <= wheeled.view && pageOn.shows === 0 && pageOn.page < wheeled.page
+    && shortWindow.messages === 2 && !shortWindow.scrolls && shortWindow.height < shortWindow.view / 2, JSON.stringify({ wheelStart, wheeled, pageOn, shortWindow }));
   await conv.evaluate(() => scrollTo(0, 0));
   const about = await conv.evaluate(() => {
     const md = document.querySelector('.about .md');
@@ -192,11 +245,12 @@ try {
     const first = document.querySelector('.conv .meta .fact');
     return title && first ? { indent: Math.round(first.getBoundingClientRect().left - title.left), padding: getComputedStyle(first).paddingLeft } : null;
   });
-  // The time has one place in each look: "Messages" at the right edge of each row; "Classic" right after the words.
+  // The time has one place in each look: "Messages" at the right edge of the first line of a message (an event is a centred line, its time after its words);
+  // "Classic" right after the words.
   const timesIn = () => conv.evaluate(() => {
     const visible = [...document.querySelectorAll('.conv .feed .time')].filter((el) => el.offsetHeight > 0);
     const inBox = (el) => el.closest('.thread, .card, .prow');
-    const feedRights = visible.filter((el) => !inBox(el)).map((el) => Math.round(el.getBoundingClientRect().right));
+    const feedRights = visible.filter((el) => !inBox(el) && el.matches('.msg > .body > .top > .time')).map((el) => Math.round(el.getBoundingClientRect().right));
     // inside a thread card: at the right edge of its own row, within its padding
     const boxed = visible.filter(inBox).map((el) => { const row = el.closest('.sc, .prow, .top'); const style = getComputedStyle(row); return Math.round(row.getBoundingClientRect().right - parseFloat(style.paddingRight) - el.getBoundingClientRect().right); });
     // "Classic": no time at the right edge; each follows the words before it
@@ -273,11 +327,13 @@ try {
   // Classic and back; the choice is kept for the window.
   await conv.click('[data-mode="classic"]');
   await frames(conv, 8);
-  // "Classic" opens at the first row that he has not seen, as "Messages" does, with an empty mark in place of the line (GitHub's look has none).
+  // The window of "Classic" opens at the first row that he has not seen, as "Messages" does, with an empty mark in place of the line (GitHub's look has none).
   // In the example that is an answer of others in an earlier review thread, which stands above the newer rows, as on GitHub.
   const classicOpen = await conv.evaluate(() => {
     const at = document.querySelector('.conv [data-first-unseen]');
-    return { at: at?.dataset.said ? 'answer' : at?.id === 'new-line' ? 'mark' : at ? at.className : null, line: !!document.querySelector('.conv .new'), top: Math.round(at?.getBoundingClientRect().top ?? -1), scrolled: Math.round(scrollY) };
+    const room = document.getElementById('cscroll');
+    return { at: at?.dataset.said ? 'answer' : at?.id === 'new-line' ? 'mark' : at ? at.className : null, line: !!document.querySelector('.conv .new'),
+      edge: Math.round((at?.getBoundingClientRect().top ?? -99) - room.getBoundingClientRect().top), shows: Math.round(room.scrollTop), inWindow: !!at && room.contains(at) };
   });
   await conv.evaluate(() => scrollTo(0, 0));
   await convShot('62-conversation-classic');
@@ -305,19 +361,26 @@ try {
     && /backend.*4 reviewers.*mira-k.*Version 0\.5, due .*closes #24.*1 of 2 tasks/.test(facts.text) && facts.labels.every((one) => one.fits && one.lines <= 1)
     && facts.sections.join() === 'Reviewers,Assignees,Labels,Milestone,Closes,Tasks' && facts.team && classic.side && narrowSide.under && narrowSide.title, JSON.stringify({ factsLine, facts, side: classic.side, narrowSide }));
 
-  // The page opens as a chat app opens a conversation (the owner: "it should show the oldest comment/message I havn't seen in viewpoint first when entering a pr.
-  // same way gmail chat does it", "and if not entered before then the top of pr"): at the same first unseen message also after a later read knows the look of now
-  // (a write reads the pull request again), and at the top when he never opened it. The tasks in "Details" go to their list in the description ("I should be able to click tasks in details").
+  // The window opens as a chat app opens a conversation; the page always opens at its top (the owner, 18 November: "always show top of pr", which ends
+  // "if I already been to pr then show messages"). The window: at the same first unseen message also after a later read knows the look of now (a write reads
+  // the pull request again); at its newest message when nothing is unseen; at its first message when he never opened it. The tasks in "Details" go to their
+  // list in the description ("I should be able to click tasks in details").
   const placeOf = () => conv.evaluate(async () => {
     await App.render();
     await new Promise((done) => setTimeout(done, 400)); // the place is set again for a few frames until it holds
+    const room = document.getElementById('cscroll');
     const line = document.getElementById('new-line');
-    return { scrolled: Math.round(scrollY), line: line ? Math.round(line.getBoundingClientRect().top) : null };
+    return { page: Math.round(scrollY), line: line ? Math.round(line.getBoundingClientRect().top - room.getBoundingClientRect().top) : null,
+      top: Math.round(room.scrollTop), toEnd: Math.round(room.scrollHeight - room.clientHeight - room.scrollTop) };
   });
   const pullLink = await conv.evaluate(() => App.pullLink());
   const keptLook = await conv.evaluate((link) => ({ since: App.since.get(link), read: App.read[link].lastLooked }), pullLink);
   await conv.evaluate((link) => { App.read[link] = { ...App.read[link], lastLooked: new Date().toISOString() }; }, pullLink);
   const afterRead = await placeOf();
+  await conv.evaluate((link) => App.since.set(link, new Date().toISOString()), pullLink);
+  await resize(conv, 1400, 520); // the last messages fill a lower window, so that it has something to scroll
+  const allSeen = await placeOf();
+  await resize(conv, 1400);
   await conv.evaluate((link) => App.since.set(link, undefined), pullLink);
   const neverOpened = await placeOf();
   await conv.evaluate(({ link, kept }) => { App.since.set(link, kept.since); App.read[link] = { ...App.read[link], lastLooked: kept.read }; }, { link: pullLink, kept: keptLook });
@@ -331,17 +394,67 @@ try {
     const task = document.querySelector('.conv .about input[type="checkbox"]')?.closest('li')?.getBoundingClientRect();
     return { open: !!document.querySelector('.conv .about.open'), inView: !!task && task.top >= 0 && task.bottom <= innerHeight };
   });
-  check('the conversation opens at the first message that he has not seen also when a later read knows the look of now, at the top of the pull request when he never opened it; "Tasks" in "Details" is a link that opens the description at its tasks',
-    afterRead.line !== null && afterRead.line > 30 && afterRead.line < 120 && afterRead.scrolled > 0 && neverOpened.line === null && neverOpened.scrolled === 0
+  check('the page of a pull request always opens at its top; its window of the conversation opens at the first message that he has not seen also when a later read knows the look of now, at its newest message when he has seen all, and at its first message when he never opened it; "Tasks" in "Details" is a link that opens the description at its tasks',
+    afterRead.line !== null && afterRead.line >= 0 && afterRead.line <= 12 && afterRead.top > 0 && afterRead.page === 0
+      && allSeen.line === null && allSeen.top > 0 && allSeen.toEnd <= 2 && allSeen.page === 0 && neverOpened.line === null && neverOpened.top === 0 && neverOpened.toEnd > 0 && neverOpened.page === 0
       && tasksLink === '1 of 2 tasks' && tasksShown.open && tasksShown.inView,
-    JSON.stringify({ afterRead, neverOpened, tasksLink, tasksShown }));
-  check('the time has one place in each look: in "Messages" every time of the feed ends at the same right edge, and in a thread card at the right edge of its row; in "Classic" every time follows its words',
+    JSON.stringify({ afterRead, allSeen, neverOpened, tasksLink, tasksShown }));
+  check('the time has one place in each look: in "Messages" the time of every message ends at the right edge of its first line, and in a thread card at the right edge of its row; in "Classic" every time follows its words',
     messageTimes.count > 10 && messageTimes.feedRights.length === 1 && messageTimes.boxed.every((gap) => Math.abs(gap) <= 1)
     && classicTimes.count > 10 && classicTimes.followed.every((gap) => gap > 20), JSON.stringify({ messageTimes, classicTimes }));
-  check('"Classic" shows every comment in a box in the order of GitHub, folds only resolved, outdated and hidden, and opens at the first row that he has not seen with no line; its state is the card at the top, with no merge box at the end; the choice stays for the window; "Messages" comes back',
-    classic.boxes >= 10 && classic.events >= 15 && classic.gfold === 3 && classic.hidden === 1 && classicOpen.at === 'answer' && !classicOpen.line && classicOpen.top > 30 && classicOpen.top < 300 && classicOpen.scrolled > 0 && classic.on === 'Classic' && keptMode === 'Classic' && backMode.on === 'Messages' && backMode.line
+  check('"Classic" shows every comment in a box in the order of GitHub, folds only resolved, outdated and hidden, and its window opens at the first row that he has not seen with no line; its state is the card at the top, with no merge box at the end; the choice stays for the window; "Messages" comes back',
+    classic.boxes >= 10 && classic.events >= 15 && classic.gfold === 3 && classic.hidden === 1 && classicOpen.at === 'answer' && !classicOpen.line && classicOpen.inWindow && classicOpen.edge >= 0 && classicOpen.edge <= 12 && classicOpen.shows > 0 && classic.on === 'Classic' && keptMode === 'Classic' && backMode.on === 'Messages' && backMode.line
     && classic.days === 0 && classic.products === 0 && classic.reports === 2 && classic.runs === 0 && classic.shownResolved === 'Show resolved' && /^Blocked.*Waits for #9 below it in the stack · 2 checks failed · An approving review is needed/.test(classic.card) && !classic.box
     && classic.verified === 1 && classic.marks.includes('Author') && classic.marks.includes('bot'), JSON.stringify({ classicOpen }) + JSON.stringify({ classic, keptMode, backMode }));
+
+  // "Messages" more like a chat (the owner: "make it feel even more like chat"): three messages of one person a minute apart are one group, with one avatar
+  // and one name, and a later one has its time only while the pointer is on it; his own message stands at the right in a tinted bubble, with no avatar;
+  // an event is a small centred line. Made-up messages are added at the end of the example for this.
+  await conversationAfter(() => conv.evaluate(() => {
+    const link = App.pullLink();
+    window.keptPull = App.read[link];
+    const pull = window.keptPull.pull;
+    const at = (minutes) => new Date(Date.now() - minutes * 60_000).toISOString();
+    const said = (id, author, minutes, text, more = {}) => ({ kind: 'comment', id, author, at: at(minutes), edited: false, html: `<p>${text}</p>`, reactions: [], url: link, ...more });
+    const ada = { login: 'ada-made-up', avatar: '', bot: false };
+    const items = [...pull.items, said('group-1', ada, 9, 'I ran the night job on a copy of the data.'), said('group-2', ada, 8, 'Two holds were offered twice.'),
+      said('group-3', ada, 7, 'Both had a pause that ended on that day.'), said('own-1', pull.viewer, 4, 'Thanks, I will look at the pauses.', { mine: true })];
+    App.read[link] = { ...window.keptPull, pull: { ...pull, items } };
+    App.render();
+  }));
+  const chat = await conv.evaluate(() => {
+    const room = document.getElementById('cscroll');
+    room.scrollTop = room.scrollHeight;
+    const rows = [...room.querySelectorAll('.feed > .msg')].slice(-4);
+    const group = rows.slice(0, 3);
+    const own = rows[3];
+    const feed = room.querySelector('.feed').getBoundingClientRect();
+    const bubble = own?.querySelector('.bub');
+    const box = bubble?.getBoundingClientRect();
+    const later = group[1]?.querySelector('.hov');
+    const event = [...room.querySelectorAll('.feed > .row, .feed > :is(.evrun, .commits) > .row')].find((row) => row.offsetHeight > 0);
+    const words = event && [...event.children].map((el) => el.getBoundingClientRect());
+    const eventBox = event?.getBoundingClientRect();
+    return {
+      texts: rows.map((row) => row.querySelector('.tx')?.textContent),
+      avatars: group.map((row) => row.querySelectorAll('.av:not(.gap)').length), names: group.map((row) => [...row.querySelectorAll('.top b:not(.sr)')].map((b) => b.textContent).join()),
+      same: group.map((row) => row.classList.contains('same')), laterTime: later && getComputedStyle(later).opacity,
+      own: own && box && { avatar: own.querySelectorAll('.av').length, right: Math.round(feed.right - box.right), left: Math.round(box.left - feed.left), width: Math.round(feed.width),
+        tint: getComputedStyle(bubble).backgroundColor !== getComputedStyle(document.getElementById('cwin')).backgroundColor, name: own.querySelector('.sr')?.textContent },
+      event: event && { centred: Math.abs((Math.min(...words.map((one) => one.left)) + Math.max(...words.map((one) => one.right))) / 2 - (eventBox.left + eventBox.right) / 2) <= 4 },
+    };
+  });
+  await conv.hover('.feed > .msg.same >> nth=-1', { timeout: 3000 }).catch(() => {}); // the check says what it saw
+  const hoverTime = await conv.evaluate(() => { const time = [...document.querySelectorAll('.feed > .msg.same')].at(-1)?.querySelector('.hov'); return time && getComputedStyle(time).opacity; });
+  await conv.mouse.move(1, 1);
+  await conv.evaluate(() => document.getElementById('cwin').scrollIntoView({ block: 'end' }));
+  await frames(conv);
+  await takePicture(conv.locator('#cwin'), '78-a-group-and-his-own-message.png');
+  await conversationAfter(() => conv.evaluate(() => { App.read[App.pullLink()] = window.keptPull; App.render(); }));
+  check('"Messages" reads like a chat: three messages of one person a minute apart are one group with one avatar and one name, a later one has its time only under the pointer; his own message stands at the right in a tinted bubble with no avatar (his name only for a screen reader); an event is a small centred line',
+    chat.texts.join('|') === 'I ran the night job on a copy of the data.|Two holds were offered twice.|Both had a pause that ended on that day.|Thanks, I will look at the pauses.'
+    && chat.avatars.join() === '1,0,0' && chat.names.join('|') === 'ada-made-up||' && chat.same.join() === 'false,true,true' && chat.laterTime === '0' && hoverTime === '1'
+    && chat.own?.avatar === 0 && chat.own.right <= 2 && chat.own.left > chat.own.width / 3 && chat.own.tint && chat.own.name === 'you' && chat.event?.centred, JSON.stringify({ chat, hoverTime }));
 
   // The other pull request of the branch, from the small choice in the strip. A merged one: the strip says who merged it; "closed" right after "merged" is left out.
   await conv.click('#status [data-pulls]');
@@ -614,7 +727,10 @@ try {
     if (!(await conv.$('#status .review-panel'))) await conv.click('#status [data-review]');
     const fit = await conv.evaluate(() => {
       const boxes = [...document.querySelectorAll('.conv .ghw, #status .review-panel')].filter((el) => el.offsetHeight > 0);
-      const parts = boxes.flatMap((box) => [...box.querySelectorAll('textarea, button, .ghk, .ghr, .ghv, .gherr')]).filter((el) => el.offsetHeight > 0);
+      // A part that the window of the conversation scrolls out of what it shows is not seen, so it overlaps nothing.
+      const room = document.getElementById('cscroll').getBoundingClientRect();
+      const seen = (el) => !el.closest('#cscroll') || (el.getBoundingClientRect().bottom > room.top && el.getBoundingClientRect().top < room.bottom);
+      const parts = boxes.flatMap((box) => [...box.querySelectorAll('textarea, button, .ghk, .ghr, .ghv, .gherr')]).filter((el) => el.offsetHeight > 0 && seen(el));
       const over = parts.filter((el) => el.getBoundingClientRect().right > innerWidth + 1 || el.getBoundingClientRect().left < -1).map((el) => el.className || el.tagName);
       const hit = (a, b) => a.left < b.right - 1 && a.right > b.left + 1 && a.top < b.bottom - 1 && a.bottom > b.top + 1;
       const overlaps = [];
@@ -755,12 +871,20 @@ try {
     await frames(conv, 8);
     for (const width of look === 'classic' ? [370, 760, 1400] : [370, 1400]) {
       await resize(conv, width);
+      if (look === 'messages' && width === 370) { // as he sees it, before the check opens every fold
+        await conv.evaluate(() => scrollTo(0, 0));
+        await convShot('65-messages-at-370');
+        await conv.evaluate(() => document.getElementById('cwin').scrollIntoView({ block: 'end' }));
+        await frames(conv);
+        await convShot('65a-the-window-at-370');
+      }
       const fit = await conv.evaluate(() => {
         document.querySelectorAll('.conv [data-box]').forEach((box) => box.classList.add('open'));
         document.querySelector('[data-classic-more]')?.click();
         document.querySelector('.conv .stack:not(.open) .sline')?.click();
         scrollTo(0, 0);
-        const scrolls = (el) => { for (let at = el.parentElement; at; at = at.parentElement) if (['auto', 'scroll', 'hidden'].includes(getComputedStyle(at).overflowX)) return true; return false; }; // a box that scrolls, or a row that ends in dots
+        // A box that scrolls sideways, or a row that ends in dots. The window of the conversation scrolls only up and down: what is past its right edge is cut off.
+        const scrolls = (el) => { for (let at = el.parentElement; at; at = at.parentElement) if (at.id !== 'cscroll' && ['auto', 'scroll', 'hidden'].includes(getComputedStyle(at).overflowX)) return true; return false; };
         const over = [...document.querySelectorAll('.conv *, #status *')].filter((el) => el.getBoundingClientRect().right > innerWidth + 1 && !scrolls(el) && el.getBoundingClientRect().width > 0).map((el) => el.className || el.tagName).slice(0, 5);
         const rows = [...document.querySelectorAll('.conv .tcode .x')].filter((x) => x.offsetHeight > 0);
         const cut = rows.filter((x) => x.scrollWidth > x.clientWidth + 1).length;
@@ -771,7 +895,6 @@ try {
           stackInside: stackRows.length === 3 && stackRows.every((row) => row.getBoundingClientRect().right <= innerWidth + 0.5) };
       });
       widthFits.push({ look, width, ...fit });
-      if (look === 'messages' && width === 370) await convShot('65-messages-at-370', true);
     }
   }
   check('both looks at 370 and 1400 px, and "Classic" at 760 px: no sideways scroll, nothing past the right edge, no code line of a thread cut off (at 760 px and less a long one wraps), and the open rows of the stack stay inside',
@@ -793,7 +916,12 @@ try {
     return { mode: document.querySelector('[data-mode].on')?.textContent, count: texts.length, low: low.slice(0, 6), body: getComputedStyle(document.body).backgroundColor };
   });
   check('"Classic" on a dark theme: every text is readable (contrast at least 3 to 1)', readable.mode === 'Classic' && readable.count > 20 && !readable.low.length, JSON.stringify(readable));
-  await conv.evaluate(() => { document.body.classList.remove('vscode-dark'); document.documentElement.style.removeProperty('--vscode-editor-background'); document.querySelector('[data-mode="messages"]')?.click(); });
+  await conv.evaluate(() => document.querySelector('[data-mode="messages"]')?.click());
+  await frames(conv, 8);
+  await conv.evaluate(() => { document.getElementById('cwin').scrollIntoView({ block: 'end' }); const room = document.getElementById('cscroll'); room.scrollTop = room.scrollHeight; });
+  await frames(conv);
+  await convShot('78b-messages-in-the-dark-theme'); // at the newest messages: his comments and reviews sent above, at the right
+  await conv.evaluate(() => { document.body.classList.remove('vscode-dark'); document.documentElement.style.removeProperty('--vscode-editor-background'); });
   await frames(conv, 8);
 
   // A conversation of 500 made-up items opens fast and scrolls well.
@@ -818,13 +946,14 @@ try {
     const drawMs = performance.now() - t0;
     await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
     const paintMs = performance.now() - t0;
-    // Scroll through the whole page in 40 steps, one frame each, and take the longest frame.
+    // Scroll through the whole window of the conversation in 40 steps, one frame each, and take the longest frame.
     let longest = 0;
-    const height = document.documentElement.scrollHeight;
-    scrollTo(0, 0);
+    const room = document.getElementById('cscroll');
+    const height = room.scrollHeight;
+    room.scrollTop = 0;
     for (let step = 1; step <= 40; step++) {
       const before = performance.now();
-      scrollTo(0, (height * step) / 40);
+      room.scrollTop = (height * step) / 40;
       await new Promise((done) => requestAnimationFrame(done));
       longest = Math.max(longest, performance.now() - before);
     }

@@ -1,5 +1,5 @@
 // The view "Conversation" of a pull request: the status strip with its checks, the title with the side facts, the folded description,
-// and the messages from GitHub, in two looks. "Messages" reads like a modern chat: one column, day lines, calm folds.
+// and the messages from GitHub in a window of their own, in two looks. "Messages" reads like a calm chat: groups of one person, his own words at the right, day lines, calm folds.
 // "Classic" reads like GitHub's own conversation tab: boxes on a line, events with their icons, a merge box, a side column.
 // The HTML of a description or a comment was cleaned when it was read (shared/clean-html.ts); every other text is escaped here.
 // The owner writes to GitHub from here: an answer in a thread, Resolve, a comment at the end, a review from the strip. Nothing is sent
@@ -52,7 +52,10 @@ const Conversation = (() => {
   // The time has one place in each look. "Classic": it follows the words ("commented 3 days ago"), as on GitHub.
   // "Messages": the clock time at the right edge of its row, on the first line; the date stands in the day line and in the tooltip.
   const when = (iso) => `<span class="t time" title="${esc(exact(iso))}">${esc(ago(iso))}</span>`;
-  const clock = (iso) => `<span class="t time" title="${esc(exact(iso))}">${esc(new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }))}</span>`;
+  const hhmm = (iso) => new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  const clock = (iso) => `<span class="t time" title="${esc(exact(iso))}">${esc(hhmm(iso))}</span>`;
+  /** The time of a later message of a group: it shows only while the pointer is on the message, beside it. */
+  const hoverTime = (iso) => `<span class="t time hov" title="${esc(exact(iso))}">${esc(hhmm(iso))}</span>`;
   const timeOf = (iso) => (mode === 'messages' ? clock(iso) : when(iso));
   const edited = (flag) => (flag ? '<span class="t">edited</span>' : '');
   /** "edited"; "sending" on his words while GitHub has not answered yet; "example" on an item that a send in the example page added. */
@@ -67,6 +70,8 @@ const Conversation = (() => {
 
   // ico(), avatar(), labelRgb(), REVIEWER_LOOK and reviewerFaces() are in tools.js: the list of the side bar draws people with them too.
   const name = (person) => `<b>${esc(person.login)}</b>${person.bot ? '<i class="bot">bot</i>' : ''}`;
+  /** His own name on his own message in "Messages": for a screen reader only, since the message stands at the right with no avatar and no name, as in a chat app. */
+  const ownName = (person) => `<b class="sr">${esc(person.login)}</b>`;
   /** The reactions as small chips; none when a rule of the look leaves them out. */
   const chips = (list) => (list.length && own('reaction')['show.shown'] !== false ? `<div class="react">${list.map((one) => `<span class="chip">${one.emoji} ${one.count}</span>`).join('')}</div>` : '');
   const plainText = (markup) => { const box = document.createElement('template'); box.innerHTML = markup; return box.content.textContent.replace(/\s+/g, ' ').trim(); };
@@ -340,9 +345,23 @@ const Conversation = (() => {
       + `<div class="early"></div>${codeRows(late)}</div>`;
   }
 
-  /** A comment inside a thread, or a hidden one as one quiet row that a click opens. Its suggested changes stand in its text, with their buttons. */
-  function smallComment(comment, thread, pull) {
-    const body = `<div class="sc" data-said="${esc(comment.id)}"><div class="top">${avatar(comment.author, 's')}${name(comment.author)}${mode === 'messages' ? `${marksOf(comment)}${clock(comment.at)}` : `${when(comment.at)}${marksOf(comment)}`}</div>${textHtml(commentText(comment, thread, pull, true))}${chips(comment.reactions)}</div>`;
+  /**
+   * A comment inside a thread, or a hidden one as one quiet row that a click opens. Its suggested changes stand in its text, with their buttons.
+   * In "Messages" the answers read as a small chat: his own at the right in a tinted bubble, and a comment right after one of the same person
+   * (`before`, within minutes) with no avatar and no name, its time on hover.
+   */
+  function smallComment(comment, thread, pull, before) {
+    const text = textHtml(commentText(comment, thread, pull, true));
+    let body;
+    if (mode !== 'messages') body = `<div class="sc" data-said="${esc(comment.id)}"><div class="top">${avatar(comment.author, 's')}${name(comment.author)}${when(comment.at)}${marksOf(comment)}</div>${text}${chips(comment.reactions)}</div>`;
+    else {
+      const mine = !!comment.mine;
+      const same = !!before && !before.hidden && before.author.login === comment.author.login && new Date(comment.at) - new Date(before.at) < SAME_MINUTES * MINUTE;
+      const marks = marksOf(comment);
+      const top = same && !marks ? hoverTime(comment.at)
+        : `<div class="top">${mine ? ownName(comment.author) : same ? '' : `${avatar(comment.author, 's')}${name(comment.author)}`}${marks}${same ? hoverTime(comment.at) : clock(comment.at)}</div>`;
+      body = `<div class="sc${mine ? ' mine' : ''}${same ? ' same' : ''}" data-said="${esc(comment.id)}">${top}${mine ? `<div class="bub">${text}</div>` : text}${chips(comment.reactions)}</div>`;
+    }
     return comment.hidden ? hiddenBox(comment, body) : body;
   }
 
@@ -362,7 +381,7 @@ const Conversation = (() => {
   function threadHtml(thread, pull, classic = false) {
     const head = `<div class="fh">${fileLink(thread)}<span>${esc(linesWord(thread))}</span>${thread.outdated ? '<span class="lab">Outdated</span>' : ''}</div>`;
     const cut = thread.cutComments ? `<a class="cut" data-link="${esc(thread.comments[0]?.url ?? pull.url)}">${plural(thread.cutComments, 'more comment')} on GitHub</a>` : '';
-    const inner = `<div class="excerpt">${head}${codeHtml(thread)}</div>${thread.comments.map((comment) => smallComment(comment, thread, pull)).join('')}${cut}${threadField(thread, pull)}`;
+    const inner = `<div class="excerpt">${head}${codeHtml(thread)}</div>${thread.comments.map((comment, at) => smallComment(comment, thread, pull, thread.comments[at - 1])).join('')}${cut}${threadField(thread, pull)}`;
     const id = `data-thread="${esc(thread.id)}"`; // a write draws this one thread again in its place
     const sending = thread.sending ? `<span class="t ex">${esc(WRITE.sendingMark)}</span>` : '';
     if (classic && (thread.resolved || thread.outdated)) {
@@ -416,16 +435,24 @@ const Conversation = (() => {
     const { box, shows } = messageLook(item, item.author);
     const words = shows('text') ? `${heading ? `<div class="mtitle">${esc(heading.title)}</div>` : ''}${textHtml(text)}` : '';
     const reactions = shows('reactions') ? chips(item.reactions) : '';
+    // His own message stands at the right with no avatar, as in a chat app; his name is there for a screen reader.
+    const mine = !!item.mine;
+    const who = shows('name') ? (mine ? ownName(item.author) : name(item.author)) : '';
+    const bubble = (inner) => (mine && inner ? `<div class="bub">${inner}</div>` : inner);
     if (item.kind === 'review') {
       const [i, look, verdict] = VERDICTS[item.state] ?? VERDICTS.reviewed;
-      const body = `<div class="msg${box.cls}"${box.style}>${shows('avatar') ? avatar(item.author) : gap}<div class="body"><div class="top">${shows('name') ? name(item.author) : ''}${marksOf(item)}${shows('time') ? clock(item.at) : ''}</div>`
+      const body = `<div class="msg${mine ? ' mine' : ''}${box.cls}"${box.style}>${mine ? '' : shows('avatar') ? avatar(item.author) : gap}<div class="body"><div class="top">${who}${marksOf(item)}${shows('time') ? clock(item.at) : ''}</div>`
         + `<div class="card review ${look}"><div class="verdict ${look}">${ico(i, look)}${esc(verdict)}</div>${words}${reactions}${item.threads.map((thread) => threadHtml(thread, pull)).join('')}</div></div></div>`;
       return item.hidden ? hiddenBox(item, body) : body;
     }
-    const body = `<div class="msg${same ? ' same' : ''}${box.cls}"${box.style}>${same || !shows('avatar') ? gap : avatar(item.author)}<div class="body">`
-      // A later message of the same author: its time stands at the right of its first line, with no line of its own.
-      + `${same ? (shows('time') ? `<span class="t time tr" title="${esc(exact(item.at))}">${esc(new Date(item.at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }))}</span>` : '') : `<div class="top">${shows('name') ? name(item.author) : ''}${marksOf(item)}${times}${shows('time') ? clock(item.at) : ''}</div>`}`
-      + `${words}${reactions}</div></div>`;
+    // A group: messages of one person in a row, a few minutes apart. The first has the avatar, the name and the time; a later one only its text,
+    // close under the one before, with its time beside it while the pointer is on it (and its marks, when it has some).
+    const marks = `${marksOf(item)}${times}`;
+    const head = same ? (marks ? `<div class="top">${marks}</div>` : '') : `<div class="top">${who}${marks}${shows('time') ? clock(item.at) : ''}</div>`;
+    const side = same && shows('time') ? hoverTime(item.at) : '';
+    const left = mine ? side : same ? `<span class="gut">${side}</span>` : shows('avatar') ? avatar(item.author) : gap;
+    const body = `<div class="msg${same ? ' same' : ''}${mine ? ' mine' : ''}${box.cls}"${box.style}>${left}<div class="body">${head}`
+      + `${bubble(words)}${reactions}</div></div>`;
     return item.hidden ? hiddenBox(item, body) : body;
   }
 
@@ -827,17 +854,73 @@ const Conversation = (() => {
     const el = document.querySelector(selector);
     if (!el) return;
     for (let box = el; box; box = box.parentElement?.closest('[data-box]')) if (box.matches('[data-box]')) openBox(box);
-    el.scrollIntoView({ block: 'center' });
+    toInWindow(el);
+  }
+
+  // ----- the window of the conversation: its own scroll, its head at the top and the box to write at the bottom -----
+
+  const SLIM = 52; // the slim bar at the top of the page and a small gap under it: where the top of the window stands when it comes into view
+  const scroller = () => document.getElementById('cscroll');
+
+  /** Brings the window into view on the page: all of it when it fits, else its top under the slim bar. */
+  function showWindow() {
+    const win = document.getElementById('cwin');
+    if (!win) return;
+    const box = win.getBoundingClientRect();
+    if (box.top < SLIM) scrollBy(0, box.top - SLIM);
+    else if (box.bottom > innerHeight - 8) scrollBy(0, Math.min(box.top - SLIM, box.bottom - innerHeight + 8));
+  }
+
+  /** The place of a thing inside the window, from the top of what the window shows; null when it is not in the window. */
+  function topInWindow(el) {
+    const room = scroller();
+    return room?.contains(el) ? el.getBoundingClientRect().top - room.getBoundingClientRect().top : null;
+  }
+
+  /** A link to a message or a thread: the window comes into view, and the window scrolls so that the thing stands near its top. */
+  function toInWindow(el, gap = 8) {
+    const top = topInWindow(el);
+    if (top === null) return el.scrollIntoView({ block: 'center' });
+    showWindow();
+    scroller().scrollTop += top - gap;
+  }
+
+  /** True when the window shows its newest message: at its end, or with nothing to scroll. */
+  const atNewest = () => { const room = scroller(); return !room || room.scrollTop + room.clientHeight >= room.scrollHeight - 24; };
+
+  let arrived = 0; // messages that came at the end while the window was not at its newest: "↓ 2 new"
+  /** "↓ Newest" shows while the window is not at its newest message, and says how many came since he left the end. */
+  function markNewest() {
+    const newest = document.getElementById('newest');
+    if (!newest) return;
+    if (atNewest()) arrived = 0;
+    newest.textContent = arrived ? `↓ ${arrived} new` : '↓ Newest';
+    newest.classList.toggle('on', !atNewest());
+  }
+
+  /** A new message at the end: at the newest message the window keeps the end in view; else "↓ Newest" counts it. `was` is atNewest() before it came. */
+  function cameAtEnd(was) {
+    const room = scroller();
+    if (!room) return;
+    if (was) room.scrollTop = room.scrollHeight;
+    else arrived++;
+    markNewest();
+  }
+
+  /** "Classic" above the window of the conversation: the stack and the description as the first boxes of GitHub's line, so that the page opens with them. */
+  function classicTopHtml(pull) {
+    const about = own('description');
+    const box = gbox(pull.author, `commented ${when(pull.openedAt)}`, `<div class="gb">${pull.html ? `<div class="md">${pull.html}</div>` : '<span class="quiet">No description provided.</span>'}</div>`, '', marks(pull.author, pull), 'description');
+    const description = about['show.shown'] === false ? '' : about['window.width'] ? `<div style="max-width:${Number(about['window.width'])}px">${box}</div>` : box;
+    const top = `${stackBox(pull)}${description}`;
+    return top ? `<div class="tl ctop">${top}</div>` : '';
   }
 
   /**
    * The form "Classic": GitHub's order and form. Nothing is folded apart from what GitHub folds: resolved, outdated, hidden, and the middle of a long
-   * conversation. `since` is when he last looked: the page opens at the first row that he has not seen.
+   * conversation. `since` is when he last looked: the window opens at the first row that he has not seen.
    */
   function classicHtml(pull, since) {
-    const about = own('description');
-    const box = gbox(pull.author, `commented ${when(pull.openedAt)}`, `<div class="gb">${pull.html ? `<div class="md">${pull.html}</div>` : '<span class="quiet">No description provided.</span>'}</div>`, '', marks(pull.author, pull), 'description');
-    const description = about['show.shown'] === false ? '' : about['window.width'] ? `<div style="max-width:${Number(about['window.width'])}px">${box}</div>` : box;
     const rows = pull.items.filter((item) => item.kind !== 'reply' && eventShown(item));
     // The first row that he has not seen, from the top: new itself, or a thread with a new answer of others (GitHub shows an answer in its thread).
     const fresh = (at) => since && at > since;
@@ -848,14 +931,14 @@ const Conversation = (() => {
     // The middle of a long conversation folds, as on GitHub, but never a row that he has not seen.
     const end = rows.length - CLASSIC_TAIL;
     const hidden = rows.length > CLASSIC_LONG && folds('earlier') ? rows.slice(CLASSIC_HEAD, firstNew >= 0 ? Math.max(CLASSIC_HEAD, Math.min(end, firstNew)) : end) : [];
-    // An empty mark before the first unseen row, where the page opens; Classic keeps GitHub's look, so it draws no line.
+    // An empty mark before the first unseen row, where the window opens; Classic keeps GitHub's look, so it draws no line.
     const shown = (from, to) => rows.slice(from, to).map((item, at) => (from + at === firstNew && !classicNew ? '<div class="new-at" id="new-line"></div>' : '') + classicRow(item, pull)).join('');
     const middle = hidden.length ? `<div class="ev more-row"><a class="gbtn" data-classic-more>Show ${number(hidden.length)} more</a></div>` : '';
     classicHidden = { rows: hidden, pull };
-    return `<div class="tl">${stackBox(pull)}${description}${hidden.length ? shown(0, CLASSIC_HEAD) + middle + shown(CLASSIC_HEAD + hidden.length) : shown(0)}</div>`;
+    return `<div class="tl">${hidden.length ? shown(0, CLASSIC_HEAD) + middle + shown(CLASSIC_HEAD + hidden.length) : shown(0)}</div>`;
   }
   let classicHidden = null;
-  let classicNew = null; // the id of the first unseen answer in a thread, when the first unseen thing of Classic is one: the page opens there
+  let classicNew = null; // the id of the first unseen answer in a thread, when the first unseen thing of Classic is one: the window opens there
 
   // ----- writing to GitHub -----
 
@@ -1050,7 +1133,10 @@ const Conversation = (() => {
     if (!target || !target.offsetParent) return; // folded away with its thread
     target.focus({ preventScroll: true });
     if (caret && target.tagName === 'TEXTAREA') target.setSelectionRange(Math.min(caret[0], target.value.length), Math.min(caret[1], target.value.length));
-    if (target.getBoundingClientRect().bottom > innerHeight) target.scrollIntoView({ block: 'nearest' }); // a new message above it pushed it out of the view
+    // A new message above it pushed it out of the view, or out of what the window shows.
+    const room = scroller();
+    const bottom = room?.contains(target) ? Math.min(innerHeight, room.getBoundingClientRect().bottom) : innerHeight;
+    if (target.getBoundingClientRect().bottom > bottom) target.scrollIntoView({ block: 'nearest' });
   }
 
   /**
@@ -1069,8 +1155,14 @@ const Conversation = (() => {
         const boxes = [...fresh.querySelectorAll('[data-box]')];
         opened.forEach((on, index) => { if (on && boxes[index]) openBox(boxes[index]); });
         if (fresh.matches('[data-box]')) fresh.classList.toggle('open', open ?? el.classList.contains('open'));
+        // In the window, the top of what it shows; the window moves, the page stays.
+        const room = scroller();
+        const top = room?.contains(fresh) ? Math.max(viewTop(), room.getBoundingClientRect().top) : viewTop();
         const place = fresh.getBoundingClientRect();
-        if (place.bottom < viewTop()) scrollBy(0, place.top - viewTop());
+        if (place.bottom < top) {
+          if (room?.contains(fresh)) room.scrollTop += place.top - top;
+          else scrollBy(0, place.top - top);
+        }
       }
     });
   }
@@ -1118,14 +1210,17 @@ const Conversation = (() => {
   function appendItem(item, pull, before) {
     const feed = document.querySelector('.conv .feed');
     if (!feed) return { line: [], nodes: [] };
+    const was = atNewest();
     if (mode === 'classic') {
       const nodes = nodesOf(classicRow(item, pull));
       feed.querySelector('.tl')?.append(...nodes);
+      cameAtEnd(was);
       return { line: [], nodes };
     }
     const line = !before || dayKey(before) !== dayKey(item.at) ? nodesOf(dayLine(item.at)) : [];
     const nodes = nodesOf(messageHtml(item, pull, false));
     feed.append(...line, ...nodes);
+    cameAtEnd(was);
     return { line, nodes };
   }
 
@@ -1477,13 +1572,13 @@ const Conversation = (() => {
       .then((result) => { if (result.ok && !vscodeApi) App.reread(); return result; });
   }
 
-  /** Cmd+Shift+. in "Conversation": the cursor goes to the end of the comment field. */
+  /** Cmd+Shift+. in "Conversation": the cursor goes to the end of the comment field, at the bottom of the window, which comes into view. */
   function focusComment() {
     const field = document.querySelector('.ghend textarea');
     if (!field) return;
-    field.focus();
+    field.focus({ preventScroll: true });
     field.setSelectionRange(field.value.length, field.value.length);
-    field.scrollIntoView({ block: 'center' });
+    showWindow();
   }
 
   // Typing keeps the text; Cmd+Enter sends; a click on a button sends; Resolve and Review take a click, or Enter on the keyboard.
@@ -1612,33 +1707,61 @@ const Conversation = (() => {
     }
   }
 
+  /** Scrolls the window to its newest message, again for a few frames: a picture or a drawing near the end can change its height. */
+  function toNewest(frames = 3) {
+    const room = scroller();
+    if (!room) return;
+    room.scrollTop = room.scrollHeight;
+    markNewest();
+    if (frames > 0) requestAnimationFrame(() => toNewest(frames - 1));
+  }
+
+  /** Opens a fold of the window in place: what it holds stands where the fold stood, and the window does not jump. */
+  function unfoldInPlace(fold, html) {
+    const top = topInWindow(fold);
+    const before = fold.previousElementSibling;
+    const parent = fold.parentElement;
+    fold.outerHTML = html;
+    const first = before ? before.nextElementSibling : parent.firstElementChild;
+    if (top !== null && first) scroller().scrollTop += topInWindow(first) - top;
+  }
+
   /**
    * Draws the conversation into a box. `since` is when he last looked, or undefined. `progress` ({ read, total }) while a large pull request is read.
-   * The page opens as a chat app opens a conversation: at the oldest message that he has not seen (in "Messages" the line "New since you last looked",
-   * in "Classic" the first row that he has not seen); at the top when he never opened this pull request; at the end when he has seen it all.
+   * The page opens at its top: the strip, the title, the facts, the state card and the description. The conversation is a window of its own under them,
+   * with its head at its top, the box to write at its bottom and its own scroll between. The window opens as a chat app opens a conversation: at the oldest
+   * message that he has not seen, at its top edge (in "Messages" the line "New since you last looked", in "Classic" the first row that he has not seen);
+   * at its first message when he never opened this pull request; at its newest message when he has seen it all.
    */
   function draw(into, pull, since, progress) {
     earlyRows.clear();
     // His last choice of "Messages" or "Classic" wins; with none, the look that a rule of the look puts first.
     mode = chosen === 'classic' || chosen === 'messages' ? chosen : own('conversation-look')['order.first']?.[0] === 'classic' ? 'classic' : 'messages';
+    // The same pull request drawn again (the other look, more of a large read): the page stays where it is. Else it opens at its top.
+    const again = into.querySelector(':scope > .conv')?.dataset.pull === pull.url;
+    const pageAt = again ? scrollY : 0;
+    const windowAt = again ? scroller()?.scrollTop : undefined;
+    arrived = 0;
     const messages = mode === 'messages' ? messagesHtml(pull, since) : null;
     const reading = progress ? `<p class="reading">Reading the conversation: ${number(progress.read)} of about ${number(progress.total)} items</p>` : '';
-    const main = `${cutLines(pull)}${reading}<div class="feed">${messages ? messages.html : classicHtml(pull, since)}</div>`;
-    into.innerHTML = `<div class="conv ${mode}">${shortHtml(pull)}${topHtml(pull)}`
-      + `<div class="head"><b>Conversation</b><span>${esc(spanWords(pull))}</span><span class="sp"></span>`
-      + `<span class="toggle"><a data-mode="messages" class="${mode === 'messages' ? 'on' : ''}">Messages</a><span class="sep">·</span><a data-mode="classic" class="${mode === 'classic' ? 'on' : ''}">Classic</a></span></div>`
-      + (mode === 'classic' ? `<div class="cwrap"><aside class="cside">${factsSections(pull)}</aside><div class="cmain">${main}</div></div>` : main)
-      + `${endHtml(pull)}<a class="newest" id="newest">↓ Newest</a></div>`;
+    const feed = `${cutLines(pull)}${reading}<div class="feed">${messages ? messages.html : classicHtml(pull, since)}</div>`;
+    const head = `<div class="head"><b>Conversation</b><span>${esc(spanWords(pull))}</span><span class="sp"></span>`
+      + `<span class="toggle"><a data-mode="messages" class="${mode === 'messages' ? 'on' : ''}">Messages</a><span class="sep">·</span><a data-mode="classic" class="${mode === 'classic' ? 'on' : ''}">Classic</a></span></div>`;
+    const win = `<section class="cwin" id="cwin">${head}<div class="cscroll" id="cscroll">${feed}</div><div class="cfoot"><a class="newest" id="newest">↓ Newest</a>${endHtml(pull)}</div></section>`;
+    into.innerHTML = `<div class="conv ${mode}" data-pull="${esc(pull.url)}">${shortHtml(pull)}${topHtml(pull)}`
+      + (mode === 'classic' ? `<div class="cwrap"><aside class="cside">${factsSections(pull)}</aside><div class="cmain">${classicTopHtml(pull)}${win}</div></div>` : win)
+      + '</div>';
     const conv = into.firstElementChild;
+    const room = conv.querySelector('#cscroll');
     const about = conv.querySelector('.about');
     const folded = about?.querySelector('.md.folded');
     if (folded && folded.scrollHeight <= folded.clientHeight + 4) { folded.classList.remove('folded'); about.querySelector('.more').remove(); }
     conv.querySelector('[data-earlier]')?.addEventListener('click', (event) => {
-      event.currentTarget.outerHTML = entriesHtml(messages.earlier, pull);
+      unfoldInPlace(event.currentTarget, entriesHtml(messages.earlier, pull));
       void drawMermaidBlocks(conv);
     }, { once: true });
     conv.querySelector('[data-classic-more]')?.addEventListener('click', (event) => {
-      event.currentTarget.closest('.ev').outerHTML = classicHidden.rows.map((item) => classicRow(item, classicHidden.pull)).join('');
+      unfoldInPlace(event.currentTarget.closest('.ev'), classicHidden.rows.map((item) => classicRow(item, classicHidden.pull)).join(''));
     }, { once: true });
     conv.querySelectorAll('[data-mode]').forEach((link) => link.addEventListener('click', () => {
       if (link.dataset.mode === mode) return;
@@ -1647,38 +1770,45 @@ const Conversation = (() => {
       draw(into, pull, since, progress);
     }));
     void drawMermaidBlocks(conv);
-    // The slim bar shows when the title is out of view; "Newest" shows when he is not at the end.
+    // The slim bar shows when the title is out of view on the page; "↓ Newest" shows when the window is not at its newest message.
     const short = conv.querySelector('#short');
-    const newest = conv.querySelector('#newest');
     const title = conv.querySelector('.ptitle');
-    const atEnd = () => scrollY + innerHeight >= document.documentElement.scrollHeight - 80;
     const onScroll = () => {
       if (!short.isConnected) return removeEventListener('scroll', onScroll);
       short.classList.toggle('on', title.getBoundingClientRect().bottom < 0);
-      newest.classList.toggle('on', !atEnd());
     };
-    newest.addEventListener('click', () => scrollTo({ top: document.documentElement.scrollHeight }));
     addEventListener('scroll', onScroll, { passive: true });
-    // The rows near the view are laid out only once they are near it, so the place is set again for a few frames until it holds.
+    room.addEventListener('scroll', markNewest, { passive: true });
+    const newest = conv.querySelector('#newest');
+    newest.addEventListener('mousedown', (event) => event.preventDefault()); // the box keeps the keyboard: it would close, and move the button away from the pointer
+    newest.addEventListener('click', () => toNewest());
     // The first unseen thing: the line or mark, or in Classic a new answer in its thread (its thread when that is folded).
     const said = mode === 'classic' && classicNew ? conv.querySelector(`[data-said="${CSS.escape(classicNew)}"]`) : null;
     const atCard = openAtCard && conv.querySelector('#pcard'); // the press "Merge" of the strip opened it
     openAtCard = false;
     const unseen = conv.querySelector('#new-line') ?? (said?.offsetParent ? said : said?.closest('.item'));
-    if (unseen) unseen.dataset.firstUnseen = ''; // where the page opens
-    const line = atCard || unseen;
+    if (unseen) unseen.dataset.firstUnseen = ''; // where the window opens
+    // A picture or a drawing can change a height after the first frame, so the place of the window is set again for a few frames until it holds.
     const place = (frames) => {
       if (!conv.isConnected) return;
-      const end = Math.max(0, document.documentElement.scrollHeight - innerHeight);
-      const at = atCard ? conv.querySelector('#pcard') : line; // the card is drawn again when its merge step opens
-      const target = at ? at.getBoundingClientRect().top + scrollY - 48 : since ? end : 0;
-      const want = Math.min(Math.max(0, target), end);
-      if (Math.abs(want - scrollY) > 1) scrollTo(0, want);
+      if (atCard) { // the card is drawn again when its merge step opens
+        const card = conv.querySelector('#pcard');
+        const want = Math.min(Math.max(0, card.getBoundingClientRect().top + scrollY - 48), document.documentElement.scrollHeight - innerHeight);
+        if (Math.abs(want - scrollY) > 1) scrollTo(0, want);
+      }
+      const end = room.scrollHeight - room.clientHeight;
+      const want = unseen ? room.scrollTop + topInWindow(unseen) - 4 : since ? end : 0;
+      room.scrollTop = Math.min(Math.max(0, want), end);
       onScroll();
+      markNewest();
       if (frames > 0) requestAnimationFrame(() => place(frames - 1));
     };
-    if (progress) onScroll(); // while it is read, the page stays where it is
-    else place(6);
+    scrollTo(0, pageAt);
+    if (progress) { // while it is read, the window stays where it is
+      if (windowAt !== undefined) room.scrollTop = windowAt;
+      onScroll();
+      markNewest();
+    } else place(6);
   }
 
   /** A failure in one plain line, and "Try again". */
