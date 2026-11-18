@@ -1,15 +1,19 @@
 // What the owner set in VS Code for the agent runs that Apostil starts, and how the problem of a run is shown.
 
 import * as vscode from 'vscode';
-import { APP_NAMES, findOnPath, runProblem } from '../shared/agents';
+import { APP_NAMES, findOnPath, runProblem, type RunModels } from '../shared/agents';
 import { tryGit } from '../shared/git';
 import { addAllowRules, keepOutOfGit, settingsFile } from '../store/connect-claude-code';
 
+const CLAUDE_MODEL = 'apostil.claudeModel';
 const CODEX_MODEL = 'apostil.codexModel';
 const COMMENT_RUNS = 'apostil.commentRuns';
 
-/** The model for Codex runs, or undefined when the owner set none: Codex then takes the model of its own settings. */
-export const codexModel = (): string | undefined => vscode.workspace.getConfiguration().get<string>(CODEX_MODEL)?.trim() || undefined;
+/** A model setting: its value ("haiku" and "luna" by default, the small models of SMALL_MODELS), or undefined when the owner emptied it: the app then takes the model of its own settings. */
+const modelSetting = (name: string): string | undefined => vscode.workspace.getConfiguration().get<string>(name)?.trim() || undefined;
+
+/** The models of every run that Apostil starts, for Claude Code and for Codex; OpenCode takes the small model of its own config (opencodeSmallModel). */
+export const runModels = (): RunModels => ({ claude: modelSetting(CLAUDE_MODEL), codex: modelSetting(CODEX_MODEL) });
 
 /** What a run that a comment starts may do in the repo: "read and edit" (the default) or "read only". */
 export const commentRuns = (): string => (vscode.workspace.getConfiguration().get<string>(COMMENT_RUNS) === 'read only' ? 'read only' : 'read and edit');

@@ -488,10 +488,15 @@
           "default": true,
           "description": "Open Apostil Home when a window on a Git repo has no open tab, in place of the empty editor area. When the look of the repo has a first page, that page opens instead, and once when the window starts. Off: Apostil opens nothing by itself, also not the first page."
         },
+        "apostil.claudeModel": {
+          "type": "string",
+          "default": "haiku",
+          "markdownDescription": "The model for the Claude Code runs that Apostil starts: for the map, for a comment to `@claude-new` or `@claude-current`, and for words that a press sends to an agent. The small model `haiku` by default. Leave it empty to use the model of your Claude Code settings."
+        },
         "apostil.codexModel": {
           "type": "string",
-          "default": "",
-          "markdownDescription": "The model for the Codex runs that Apostil starts: for a comment to `@codex-new` or `@codex-current`, and for the map. Leave it empty to use the model of your Codex settings. Set it when the command-line Codex refuses that model for your account."
+          "default": "luna",
+          "markdownDescription": "The model for the Codex runs that Apostil starts: for the map, for a comment to `@codex-new` or `@codex-current`, and for words that a press sends to an agent. The small model `luna` by default. Leave it empty to use the model of your Codex settings. Set another when the command-line Codex refuses that model for your account."
         },
         "apostil.commentRuns": {
           "type": "string",

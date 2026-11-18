@@ -40,6 +40,13 @@ export function sessionLink(agent: AgentSession): string | undefined {
   return undefined;
 }
 
+/**
+ * Where a session opens, the one way for every link of a session: in its app when it has a link of its own (the Claude desktop app, Codex),
+ * else in a terminal of VS Code with the command that continues it. Undefined when it cannot be opened from here. Never a page in the browser.
+ */
+export const sessionOpens = (agent: AgentSession): 'app' | 'terminal' | undefined =>
+  (sessionLink(agent) ? 'app' : agent.session && openSessionCommand(agent.app, agent.session) ? 'terminal' : undefined);
+
 // What a run of Claude Code may do without a prompt: edit files, and run the apostil command to give its answer. Nothing more.
 /** The permission modes of Claude Code in which a run can work with nobody to ask: the run then keeps the mode that the person set as default. */
 const RUN_ALONE = ['auto', 'acceptEdits', 'bypassPermissions'];
@@ -68,14 +75,61 @@ export const COMMENT_RUNS = ['read and edit', 'read only'] as const;
 const READ_TOOLS = ['Read', 'Grep', 'Glob'];
 
 /**
+ * What a run that describes a change uses, as the skill apostil-describe-change runs it: it reads the code, reads the code before the change and the size
+ * of the change with `git show` and `git diff`, writes its drafts whole (apostil-draft.json, apostil-diagram-<id>.json) and saves them with apostil.
+ * It changes no code, so it has no Edit.
+ */
+const DESCRIBE_TOOLS = [...READ_TOOLS, 'Write', 'Bash(git show *)', 'Bash(git diff *)'];
+
+/**
  * What a Claude Code run may do: its mode, and the command apostil, with which it saves what it writes. A run that a comment starts (`commentRuns` set) also
  * reads the repo and, with "read and edit", edits it: no other command. "Read only" takes the editing tools away also when the mode would accept edits.
+ * A run that describes a change (`describe`) gets what the skill runs, and no Edit.
  */
-const claudeRights = (mode?: string, commentRuns?: string): string[] => [
-  '--permission-mode', claudeRunMode(mode),
-  '--allowedTools', 'Bash(apostil *)', ...(commentRuns === undefined ? [] : commentRuns === 'read only' ? READ_TOOLS : [...READ_TOOLS, 'Edit', 'Write']),
-  ...(commentRuns === 'read only' ? ['--disallowedTools', 'Edit', 'Write', 'NotebookEdit'] : []),
+const claudeRights = ({ claudeMode, commentRuns, describe }: RunOptions): string[] => [
+  '--permission-mode', claudeRunMode(claudeMode),
+  '--allowedTools', 'Bash(apostil *)', ...(describe ? DESCRIBE_TOOLS : commentRuns === undefined ? [] : commentRuns === 'read only' ? READ_TOOLS : [...READ_TOOLS, 'Edit', 'Write']),
+  ...(describe ? ['--disallowedTools', 'Edit', 'NotebookEdit'] : commentRuns === 'read only' ? ['--disallowedTools', 'Edit', 'Write', 'NotebookEdit'] : []),
 ];
+
+/** The small model of each app, which every run that Apostil starts takes unless the owner set another (the settings apostil.claudeModel and apostil.codexModel). */
+export const SMALL_MODELS: Record<string, string> = { 'claude-code': 'haiku', codex: 'luna' };
+
+/**
+ * The words that choose the model of a run: `--model` for Claude Code and OpenCode, `-c model=` for Codex (as it reads its config.toml).
+ * None when no model is set: the app then takes the model of its own settings.
+ */
+export function modelWords(app: string, { claudeModel, codexModel, opencodeModel }: RunOptions): string[] {
+  if (app === 'claude-code' && claudeModel) return ['--model', claudeModel];
+  if (app === 'codex' && codexModel) return ['-c', `model=${JSON.stringify(codexModel)}`];
+  if (app === 'opencode' && opencodeModel) return ['--model', opencodeModel];
+  return [];
+}
+
+/** The text of a JSON file that may hold comments and commas before a closing bracket (JSONC), as JSON. A "//" inside a string stays. */
+const plainJson = (text: string): string =>
+  text.replace(/("(?:\\.|[^"\\])*")|\/\/[^\n]*|\/\*[\s\S]*?\*\//g, (all, string) => string ?? '').replace(/,(\s*[}\]])/g, '$1');
+
+/**
+ * The small model that the person set for OpenCode (`small_model`, "provider/model"), read as OpenCode reads its config, and never written:
+ * opencode.json or opencode.jsonc in the folder of the run, then the file that OPENCODE_CONFIG names, then the global one in ~/.config/opencode.
+ * Undefined when none names it: OpenCode then keeps the model of its own settings.
+ */
+export function opencodeSmallModel(folder?: string, home = homedir(), env: Record<string, string | undefined> = process.env): string | undefined {
+  const global = join(env.XDG_CONFIG_HOME || join(home, '.config'), 'opencode');
+  const files = [
+    ...(folder ? [join(folder, 'opencode.json'), join(folder, 'opencode.jsonc')] : []),
+    ...(env.OPENCODE_CONFIG ? [env.OPENCODE_CONFIG] : []),
+    join(global, 'opencode.json'), join(global, 'opencode.jsonc'),
+  ];
+  for (const file of files) {
+    try {
+      const model = JSON.parse(plainJson(readFileSync(file, 'utf8')))?.small_model;
+      if (typeof model === 'string' && model.trim()) return model.trim();
+    } catch { /* no file, or not JSON: the next one */ }
+  }
+  return undefined;
+}
 
 /**
  * The sandbox that the person set for Codex: `sandbox_mode` in config.toml (in CODEX_HOME, else ~/.codex), in the profile that it names, else at its top.
@@ -108,28 +162,38 @@ const codexRights = (store?: string, sandbox?: string): string[] => (sandbox ===
   ? ['-c', 'sandbox_mode="danger-full-access"'] // the person lets Codex work with no sandbox: the run keeps that
   : ['-c', 'sandbox_mode="workspace-write"', ...(store ? ['-c', `sandbox_workspace_write.writable_roots=[${JSON.stringify(store)}]`] : [])]);
 
-/** What a run needs from outside: the folder of Apostil's store, and the model for Codex when the owner set one in Apostil. */
+/** What a run needs from outside: the folder of Apostil's store, the models, and what the run is for. */
 export interface RunOptions {
   store?: string;
-  codexModel?: string; // empty: Codex takes the model of its own settings
+  claudeModel?: string; // the model of a Claude Code run (setting apostil.claudeModel, "haiku" by default); empty: Claude Code takes the model of its own settings
+  codexModel?: string; // the model of a Codex run (setting apostil.codexModel, "luna" by default); empty: Codex takes the model of its own settings
+  opencodeModel?: string; // the small model that the person set for OpenCode (opencodeSmallModel); none: OpenCode keeps its own
   claudeMode?: string; // the default permission mode of the person for Claude Code (claudeDefaultMode)
   codexSandbox?: string; // the sandbox of the person for Codex (codexDefaultSandbox)
   commentRuns?: string; // set for a run that a comment starts: "read and edit" or "read only" (Claude Code); Codex keeps its sandbox
+  describe?: true; // a run that describes a change (words for an agent): what the skill apostil-describe-change runs, and no Edit
+  sessionId?: string; // a new Claude Code session takes this id, so that its link is known before the run ends
 }
 
-/** The options of a run in a folder: the store, the model for Codex, and the modes that the person set as default for Claude Code and Codex. */
-export const runOptions = (folder: string, store: string, codexModel?: string): RunOptions => ({ store, codexModel, claudeMode: claudeDefaultMode(folder), codexSandbox: codexDefaultSandbox() });
+/** The models of the runs, as the owner set them in VS Code. */
+export interface RunModels { claude?: string; codex?: string }
+
+/** The options of a run in a folder: the store, the models, and the modes that the person set as default for Claude Code and Codex. */
+export const runOptions = (folder: string, store: string, models: RunModels = {}): RunOptions => ({
+  store, claudeModel: models.claude, codexModel: models.codex, opencodeModel: opencodeSmallModel(folder), claudeMode: claudeDefaultMode(folder), codexSandbox: codexDefaultSandbox(),
+});
 
 /** The words that set the sandbox of a Codex run, and its model when one is set. */
-const codexWords = ({ store, codexModel, codexSandbox }: RunOptions): string[] => [...codexRights(store, codexSandbox), ...(codexModel ? ['-c', `model=${JSON.stringify(codexModel)}`] : [])];
+const codexWords = (options: RunOptions): string[] => [...codexRights(options.store, options.codexSandbox), ...modelWords('codex', options)];
 
 /** The command and arguments that continue the session with a prompt, or undefined. */
 export function resumeCommand(agent: AgentSession, prompt: string, options: RunOptions = {}): string[] | undefined {
   const { session } = agent;
   if (!session) return undefined;
-  if (agent.app === 'claude-code') return ['claude', '-p', '--resume', session, prompt, '--output-format', 'json', ...claudeRights(options.claudeMode, options.commentRuns)];
+  if (agent.app === 'claude-code') return ['claude', '-p', '--resume', session, prompt, '--output-format', 'json', ...modelWords(agent.app, options), ...claudeRights(options)];
   if (agent.app === 'codex') return ['codex', 'exec', 'resume', session, prompt, '--json', ...codexWords(options)];
   if (agent.app === 'antigravity') return ['agy', '-p', prompt, '--conversation', session];
+  if (agent.app === 'opencode') return ['opencode', 'run', '--session', session, prompt, '--format', 'json', ...modelWords(agent.app, options)];
   return undefined;
 }
 
@@ -137,6 +201,7 @@ export function resumeCommand(agent: AgentSession, prompt: string, options: RunO
 export function openSessionCommand(app: string, session: string): string[] | undefined {
   if (app === 'claude-code') return ['claude', '--resume', session];
   if (app === 'codex') return ['codex', 'resume', session];
+  if (app === 'opencode') return ['opencode', '--session', session];
   return undefined;
 }
 
@@ -248,10 +313,10 @@ export function runProblem(problem: string, has: { app?: string; again?: boolean
 
 /** The command and arguments that start a new session of an app with a prompt, or undefined. The run may edit files and give its answer, and nothing more. */
 export function newRunCommand(app: string, prompt: string, options: RunOptions = {}): string[] | undefined {
-  if (app === 'claude-code') return ['claude', '-p', prompt, '--output-format', 'json', ...claudeRights(options.claudeMode, options.commentRuns)];
+  if (app === 'claude-code') return ['claude', '-p', prompt, '--output-format', 'json', ...(options.sessionId ? ['--session-id', options.sessionId] : []), ...modelWords(app, options), ...claudeRights(options)];
   if (app === 'codex') return ['codex', 'exec', prompt, '--json', ...codexWords(options)];
   if (app === 'antigravity') return ['agy', '-p', prompt, '--mode', 'accept-edits'];
-  if (app === 'opencode') return ['opencode', 'run', prompt];
+  if (app === 'opencode') return ['opencode', 'run', prompt, '--format', 'json', ...modelWords(app, options)]; // its JSON events name the session (sessionID)
   return undefined;
 }
 
