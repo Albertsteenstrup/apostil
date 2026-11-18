@@ -175,7 +175,8 @@ const child = spawn(CODE, [
   `--extensionDevelopmentPath=${apostil}`, `--user-data-dir=${temp}/u`, `--extensions-dir=${temp}/e`, `--remote-debugging-port=${PORT}`,
   '--disable-workspace-trust', '--skip-welcome', '--skip-release-notes', '--disable-updates', repo,
   // VSCODE_CLI keeps this environment: without it VS Code takes PATH from the login shell and would miss the stand-ins.
-], { env: { ...process.env, APOSTIL_HOME: storeFolder, PATH: `${bin}:${process.env.PATH}`, VSCODE_CLI: '1' }, stdio: 'ignore' });
+  // APOSTIL_AGENT_HOME: an empty home of the agents, so that the window reads no catalog and no session of the real home (the models fall back).
+], { env: { ...process.env, APOSTIL_HOME: storeFolder, APOSTIL_AGENT_HOME: process.env.APOSTIL_AGENT_HOME ?? `${temp}/agents`, PATH: `${bin}:${process.env.PATH}`, VSCODE_CLI: '1' }, stdio: 'ignore' });
 
 const results = [];
 let page;
@@ -1228,7 +1229,8 @@ try {
   check('the open pull request of the stand-in gh with no stored change stands in the list under "Pull requests" with its title, number and state, and a click opens its page, which says that it has no description of Apostil yet, with one link that describes it and no words to give an agent',
     /^Made-up pull request 35#35review needed$/.test(bareRow ?? '') && /no description of Apostil yet\. Describe it with /.test(bareLine ?? '') && !/Describe pull request #35/.test(bareLine ?? ''), JSON.stringify({ bareRow, bareLine }));
   await shot('2b-an-open-pull-request-with-no-change');
-  // Its press (build 75) names the session that gets the words; a click starts a run of the stand-in claude with the words and the small model, and the line
+  // Its press (build 75) names the session that gets the words; a click starts a run of the stand-in claude with the words and the lead of the control after the
+  // press (build 81: the second smallest model at max, the writers on the smallest), and the line
   // then says where the words went, with the link that opens that session.
   const runsBeforePress = runsNow().length;
   const pressLabel = await barePage?.evaluate(() => document.querySelector('#summary [data-ask]')?.textContent);
@@ -1238,9 +1240,9 @@ try {
   await shot('2c-the-words-went-to-a-session');
   // Build 77: the sessions that Apostil knows here are on the branch of the example, and a session cannot continue in another folder, so the link names a new
   // session; Apostil checks the branch of #35 out for it, and its words say so.
-  check('the link names the Claude Code session that will describe the pull request, a new one since no known session has its branch; a click starts one run of the stand-in claude with the words and that the branch is checked out, the rights of a description (it reads the repo, gh pr view too), and the small model at the most effort, and the line names the session, with "Open the session"',
-    pressLabel === 'Describe it with a new Claude Code session' && !!pressRun && pressRun.includes('Describe pull request #35 for Apostil. The branch of the pull request is checked out in this folder.\n')
-      && pressRun.includes('--model\nhaiku\n') && pressRun.includes('--effort\nmax\n')
+  check('the link names the Claude Code session that will describe the pull request, a new one since no known session has its branch; a click starts one run of the stand-in claude with the words and that the branch is checked out, the rights of a description (it reads the repo, gh pr view too), the lead on the second smallest model at the most effort and the writers on the smallest, and the line names the session, with "Open the session"',
+    pressLabel === 'Describe it with a new Claude Code session' && !!pressRun && pressRun.includes('Describe pull request #35 for Apostil. The branch of the pull request is checked out in this folder. You lead on Sonnet at max effort:')
+      && pressRun.includes('--model\nsonnet\n') && pressRun.includes('--effort\nmax\n') && pressRun.includes('"apostil-writer":{')
       && pressRun.includes('Bash(git show *)\n') && pressRun.includes('Bash(gh pr view *)\n') && /^Description by a new Claude Code session \S.* · (working|done) · Open the session$/.test(wentLine ?? ''),
     JSON.stringify({ pressLabel, run: (pressRun || '').replace(/\n/g, ' ').slice(0, 300), wentLine }));
   // The Apostil icon in the activity bar has a badge with the count of open pull requests (the stand-in gh lists one), as Source Control has.

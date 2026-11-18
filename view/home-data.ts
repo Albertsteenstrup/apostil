@@ -12,11 +12,13 @@ import { sessionName } from '../shared/agents';
 import { changedFiles, commitExists, tryGit } from '../shared/git';
 import { appToStart } from '../shared/map-app';
 import { homeRun, mapRunLine, type MapRunLine } from '../shared/map-run';
+import { teamOf, type Team } from '../shared/models';
 import { diagramsOf, touches, type DiagramOfPath } from '../shared/repo-map';
 import { allProcessDrawings, placeDiagramId, placeDrawing, processDiagramId, processesStartingIn, type LineOf, type ProcessDiagram, type ProcessNode, type Span } from '../shared/process-diagrams';
 import { lookData, type LookData } from './look-data';
 import { connectedApps } from './new-repo-steps';
 import type { Remark, StoredChange, Store } from '../shared/store';
+import type { SendTo } from './page-data';
 import { changeMermaid, nodeId, partMermaid } from './change-diagram';
 import { repoName } from './page-data';
 import type { Step } from './trail';
@@ -70,6 +72,8 @@ export interface HomeData {
   look?: LookData; // the look of the repo and its marks: the default look when none is saved
   apps: string[]; // the agent apps whose program is on the path: each can write the map, and "@" offers a new session of each
   mapApp?: string; // the app that the press "Map this repo" starts (appToStart); missing with no installed app
+  team?: Team; // the lead and the writers of that run (teamOf in shared/models.ts), which the control after the press shows and changes
+  sendTo?: SendTo; // what the picker of a comment on the map offers: a new session of each app, with its models
   writing?: string; // the app that writes the map now
   mapRun?: MapRunLine; // while a map run writes, or after one stopped: which session, and what is saved so far
   needsSetup?: boolean; // with no map: no agent app has the skills, so Home shows "Set up for agents"
@@ -172,7 +176,7 @@ export function homeData(store: Store, folder: string, apps: string[] = [], addr
   const stored = id ? store.getMap(id) : undefined;
   const mapRun = mapRunOf(store, id, writing);
   const mapApp = appToStart(store.startedRuns(), id, apps, connected);
-  const base: HomeData = { kind: 'home', repo: repoName(folder), folder, apps, ...(mapApp ? { mapApp } : {}), remarks: id ? store.repoRemarks(id) : [], ...(mapRun ? { mapRun } : {}) };
+  const base: HomeData = { kind: 'home', repo: repoName(folder), folder, apps, ...(mapApp ? { mapApp, team: teamOf(mapApp) } : {}), remarks: id ? store.repoRemarks(id) : [], ...(mapRun ? { mapRun } : {}) };
   if (!id || !stored) return base;
   const files = repoFiles(folder);
   const changes = store.listChanges(id).map((change) => ({ ref: { id: change.id, branch: change.branch, title: change.file.title }, files: filesOfChange(change) }));

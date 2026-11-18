@@ -328,7 +328,7 @@ try {
   await homeAt('?path=nothing.txt');
   const nothing = await home.textContent('#view');
   await homeAt('?nomap=1');
-  const noMap = await home.evaluate(() => ({ line: document.querySelector('.nomap p').textContent, actions: [...document.querySelectorAll('[data-write]')].map((a) => a.textContent), quiet: [...document.querySelectorAll('.nomap > p.quiet')].map((p) => p.textContent), svg: !!document.querySelector('#view svg') }));
+  const noMap = await home.evaluate(() => ({ line: document.querySelector('.nomap p').textContent, actions: [...document.querySelectorAll('[data-write]')].map((a) => a.textContent), quiet: [...document.querySelectorAll('.nomap > p.quiet')].map((p) => p.textContent), svg: !!document.querySelector('#view svg:not(.chev)') }));
   await takePicture(home, '34-home-with-no-map.png');
   await home.click('[data-write="claude-code"]');
   const wrote = await home.evaluate(() => window.apostilSent.find((message) => message.type === 'writeMap'));
@@ -360,6 +360,25 @@ try {
       && marked.loaded && marked.width >= 280 && marked.centred && marked.middle && marked.ask === 'A new agent session reads the repo, draws its map and writes notes beside your code. It takes a few minutes and changes no file of the repo.' && marked.next === NEXT_LINES
       && nextSent === 'setUp' && narrowMark.width < 370 && narrowMark.centred && narrowMark.wide,
     JSON.stringify({ nothing, noMap, other, oneApp, marked, narrowMark, nextSent }));
+
+  // Right after the press, the control of the models of the map run: who leads and who writes, at Max; its menu has both and the efforts, and a choice goes with the press.
+  await homeAt('?nomap=1');
+  const team = { words: await home.textContent('.nomap .runpick .rp').catch(() => '') };
+  await home.click('.nomap [data-rp-open]', { timeout: 3000 }).catch(() => {});
+  team.heads = await home.$$eval('.nomap .rmenu .ph', (heads) => heads.map((head) => head.textContent));
+  await home.click('.nomap [data-rp-writer="sonnet"]', { timeout: 3000 }).catch(() => {});
+  team.open = await home.$$eval('.nomap .rmenu', (all) => all.length);
+  await home.mouse.move(5, 5);
+  await takePicture(home, '81-the-control-of-the-map-with-its-menu-open.png');
+  await home.mouse.click(5, 5); // a click outside closes the menu
+  team.closed = await home.$$eval('.nomap .rmenu', (all) => all.length) === 0;
+  team.chosen = (await home.textContent('.nomap .runpick .rp').catch(() => '')).trim();
+  await home.click('[data-write="claude-code"]');
+  team.sent = await home.evaluate(() => window.apostilSent.filter((message) => message.type === 'writeMap').pop());
+  check('right after the press "Map this repo" one quiet control says who leads and who writes the map, "Sonnet 5.5 leads · Haiku 5.5 writes · Max"; its menu has the lead, the writers and the effort, a choice stays while the menu is open, a click outside closes it, and the press sends the choice',
+    team.words.trim() === 'Sonnet 5.5 leads · Haiku 5.5 writes · Max' && team.heads.join() === 'Leads,Writers,Effort' && team.open === 1 && team.closed
+      && team.chosen === 'Sonnet 5.5 leads · Sonnet 5.5 writes · Max' && JSON.stringify(team.sent) === JSON.stringify({ type: 'writeMap', app: 'claude-code', team: { app: 'claude-code', lead: 'sonnet', writer: 'sonnet', effort: 'max' } }),
+    JSON.stringify(team));
 
   // The line of a map run (build prompt 65), from the made-up records of example-data.ts. While a run writes: which session, and what is saved so far.
   const SAVED = 'overview, 3 of 8 areas, notes of 40 files';

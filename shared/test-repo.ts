@@ -18,6 +18,31 @@ export interface TestRepo {
 /** A new empty temporary folder. */
 export const tempFolder = (name = 'apostil-'): string => realpathSync(mkdtempSync(join(tmpdir(), name)));
 
+/**
+ * A made-up home folder of the agent apps, for the checks and the example (APOSTIL_AGENT_HOME), never the real one: a catalog of Claude Code in the form
+ * of its own (`*-cc.json`, the section "main" and an older model), a catalog that Codex fetched (with an older and a hidden model), and records of
+ * sessions: `claude` and `codex` map a session id to the model and effort of its last turn.
+ */
+export function madeUpAgentHome(sessions: { claude?: Record<string, [string, string?]>; codex?: Record<string, [string, string?]> } = {}, home = tempFolder('apostil-agents-')): string {
+  const efforts = ['low', 'medium', 'high', 'xhigh', 'max'];
+  const claude = (id: string, name: string, family: string, section = 'main') => ({ id, name, section, runtime: { family, effort_levels: efforts, default_effort: 'medium' } });
+  const models = [claude('claude-opus-4-8', 'Opus 4.8', 'opus', 'overflow'), claude('claude-opus-5-5', 'Opus 5.5', 'opus'), claude('claude-fable-5-2', 'Fable 5.2', 'fable'), claude('claude-sonnet-5-5', 'Sonnet 5.5', 'sonnet'), claude('claude-haiku-5-5', 'Haiku 5.5', 'haiku')];
+  mkdirSync(join(home, '.claude', 'cache', 'model-catalog'), { recursive: true });
+  writeFileSync(join(home, '.claude', 'cache', 'model-catalog', 'made-up-cc.json'), JSON.stringify({ version: 2, catalog: { surface: 'cc', config: { models } } }));
+  const codex = (slug: string, more: string[] = [], visibility = 'list') => ({ slug, visibility, supported_reasoning_levels: [...efforts, ...more].map((effort) => ({ effort })) });
+  mkdirSync(join(home, '.codex'), { recursive: true });
+  writeFileSync(join(home, '.codex', 'models_cache.json'), JSON.stringify({ models: [codex('gpt-6.1-sol', ['ultra']), codex('gpt-6-astra', ['ultra']), codex('gpt-6.1-terra', ['ultra']), codex('gpt-6-luna'), codex('gpt-5.6-luna'), codex('gpt-made-up-hidden', [], 'hide')] }));
+  for (const [session, [model, effort]] of Object.entries(sessions.claude ?? {})) {
+    mkdirSync(join(home, '.claude', 'projects', 'made-up-project'), { recursive: true });
+    writeFileSync(join(home, '.claude', 'projects', 'made-up-project', `${session}.jsonl`), `${JSON.stringify({ type: 'user', message: { content: 'Hi' } })}\n${JSON.stringify({ type: 'assistant', message: { model }, ...(effort ? { effort } : {}) })}\n`);
+  }
+  for (const [session, [model, effort]] of Object.entries(sessions.codex ?? {})) {
+    mkdirSync(join(home, '.codex', 'sessions', '2026', '11', '18'), { recursive: true });
+    writeFileSync(join(home, '.codex', 'sessions', '2026', '11', '18', `rollout-2026-11-18T09-00-00-${session}.jsonl`), `${JSON.stringify({ type: 'turn_context', payload: { model, ...(effort ? { effort } : {}) } })}\n`);
+  }
+  return home;
+}
+
 /** A repo in a folder: its files, and a commit of every edit. */
 function repoIn(folder: string, base: string): TestRepo {
   const write = (path: string, text: string): void => {

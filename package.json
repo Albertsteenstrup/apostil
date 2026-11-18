@@ -28,7 +28,7 @@
   },
   "scripts": {
     "build": "tsc -p .",
-    "test": "npm run build && node --test \"out/**/*.test.js\"",
+    "test": "npm run build && APOSTIL_AGENT_HOME=out/no-agent-home node --test \"out/**/*.test.js\"",
     "check": "node view/check.mjs",
     "package": "npm run build && vsce package --no-dependencies --allow-missing-repository --skip-license --readme-path skills/README.md",
     "check-package": "node out/view/package-check.js",
@@ -491,12 +491,12 @@
         "apostil.claudeModel": {
           "type": "string",
           "default": "haiku",
-          "markdownDescription": "The model for each new Claude Code session that Apostil starts: for the map, for a comment to `@claude-new`, and for a description that a link starts. The small model `haiku` by default. A run that draws diagrams (the map, a description) thinks at the most effort (`max`) and takes this model also in a session that it continues; a comment run thinks at `high`, and when it continues a session (`@claude-current`) that session keeps its model. Leave it empty to use the model of your Claude Code settings."
+          "markdownDescription": "The model that a new Claude Code session for a comment starts on, until you choose another in the line of the model under the picker of the comment. The small model `haiku` by default. A session that a comment continues keeps the model it last used. The map and a description do not use it: their lead runs on the second smallest model at max effort and every writer on the smallest, unless you choose others in the line after their press. Leave it empty to use the model of your Claude Code settings."
         },
         "apostil.codexModel": {
           "type": "string",
           "default": "gpt-6-luna",
-          "markdownDescription": "The model for each new Codex session that Apostil starts: for the map, for a comment to `@codex-new`, and for a description that a link starts. The small model `gpt-6-luna` by default. A run that draws diagrams (the map, a description) thinks at the most effort (`max`) and takes this model also in a session that it continues; a comment run thinks at `high`, and when it continues a session (`@codex-current`) that session keeps its model. Leave it empty to use the model of your Codex settings. Set another when the command-line Codex refuses that model for your account."
+          "markdownDescription": "The model that a new Codex session for a comment starts on, until you choose another in the line of the model under the picker of the comment. The small model `gpt-6-luna` by default. A session that a comment continues keeps the model it last used. The map and a description do not use it: their lead runs on the second smallest model at max effort and every writer on the smallest, unless you choose others in the line after their press. Leave it empty to use the model of your Codex settings. Set another when the command-line Codex refuses that model for your account."
         },
         "apostil.commentRuns": {
           "type": "string",

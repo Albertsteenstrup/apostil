@@ -3,7 +3,8 @@
 
 import { existsSync } from 'node:fs';
 import { basename, dirname } from 'node:path';
-import { opencodeSmallModel, resumeCommand, runEffort, sessionLink, sessionName, type AgentSession, type RunModels } from '../shared/agents';
+import { opencodeSmallModel, resumeCommand, sessionLink, sessionName, type AgentSession, type RunModels } from '../shared/agents';
+import { menuOf, sessionPick, type ModelMenu, type RunPick } from '../shared/models';
 import type { ChangeFile, Diagram, Link, Note } from '../shared/change-file';
 import { cellsIn, checkChangeFile, fileChange } from '../shared/checks';
 import { diagramChange, withRemoved, type DiagramChange, type DrawnEdge } from '../shared/diagram-change';
@@ -129,13 +130,26 @@ export interface PageData {
 
 /** What the picker of where a comment goes offers, besides the connected apps. */
 export interface SendTo {
-  sessions: { app: string; session: string; name?: string; at: string }[]; // the other sessions that Apostil knows in the repo and that a run can continue in its folder, newest first
-  models: Record<string, string | undefined>; // the model of a new session of each app (its setting, the small model of OpenCode); none: the model of the app's own settings
-  effort: string; // the reasoning effort of a comment run
+  // the other sessions that Apostil knows in the repo and that a run can continue in its folder, newest first, each with the model and effort it last used
+  sessions: { app: string; session: string; name?: string; at: string; run?: RunPick }[];
+  models: Record<string, ModelMenu>; // by app: its newest models (shared/models.ts) and the model of a new session (its setting, the small model of OpenCode)
+  own?: RunPick; // the model and effort that the session of the change last used
   last?: RemarkTo | null; // where the newest comment of the repo went (null: to no agent); missing when the repo has none
 }
 
-/** The sessions, models and last choice of the picker of a change: only connected apps, and sessions other than the session of the change. */
+/** The model settings of the runs by app: Claude Code and Codex from VS Code, OpenCode its small model of its own config. */
+const settingsOf = (models: RunModels, folder: string): Record<string, string | undefined> => ({ 'claude-code': models.claude, codex: models.codex, opencode: opencodeSmallModel(folder) });
+
+/** The menus of the models of each connected app (shared/models.ts), for the picker of a comment on a change and on Home. */
+export const menusOf = (apps: string[], models: RunModels, folder: string): Record<string, ModelMenu> => {
+  const settings = settingsOf(models, folder);
+  return Object.fromEntries(apps.filter((app) => app in settings).map((app) => [app, menuOf(app, settings[app])]));
+};
+
+/**
+ * The sessions, models and last choice of the picker of a change: only connected apps, and sessions other than the session of the change. Each session
+ * has what it last used, from its own record; a new session the model of the setting.
+ */
 export function sendToOf(store: Store, repo: string, folder: string, apps: string[], models: RunModels, own?: AgentSession): SendTo {
   const newest = new Map<string, SendTo['sessions'][number]>();
   for (const one of store.knownSessions(repo, folder)) {
@@ -146,11 +160,15 @@ export function sendToOf(store: Store, repo: string, folder: string, apps: strin
     const name = sessionName(one.agent) ?? one.agent.name;
     newest.set(key, { app, session, ...(name ? { name } : {}), at: one.at });
   }
+  const settings = settingsOf(models, folder);
+  const newestFirst = [...newest.values()].sort((a, b) => b.at.localeCompare(a.at));
+  const sessions = newestFirst.filter((one) => newestFirst.filter((other) => other.app === one.app).indexOf(one) < 3) // a picker shows at most 3 of each app
+    .map((one) => ({ ...one, run: sessionPick(one.app, one.session, settings[one.app]) }));
   const last = store.lastRemarkTo(repo);
   return {
-    sessions: [...newest.values()].sort((a, b) => b.at.localeCompare(a.at)),
-    models: { 'claude-code': models.claude, codex: models.codex, opencode: opencodeSmallModel(folder) },
-    effort: runEffort({}),
+    sessions,
+    models: menusOf(apps, models, folder),
+    ...(own?.session && apps.includes(own.app) && own.app in settings ? { own: sessionPick(own.app, own.session, settings[own.app]) } : {}),
     ...(last !== undefined ? { last } : {}),
   };
 }

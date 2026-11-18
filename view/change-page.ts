@@ -6,6 +6,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { basename, join, relative, sep } from 'node:path';
 import * as vscode from 'vscode';
 import { openSessionCommand, sessionLink, resumeCommand, type AgentSession } from '../shared/agents';
+import { pickFrom, type RunPick } from '../shared/models';
 import { describeWords, type AskView } from '../shared/ask';
 import { keptInChange, withKept } from '../shared/comment-lines';
 import { fetchPullCommits, rawFileText } from '../shared/git';
@@ -100,7 +101,7 @@ type Message =
   | { type: 'showChange'; go: ChangeGo; place?: RemarkTarget }
   | { type: 'revealFolder'; path: string }
   | NewRemark
-  | { type: 'remarkAction'; id: number; action: RemarkAction }
+  | { type: 'remarkAction'; id: number; action: RemarkAction; run?: unknown } // "Start a run" sends the model and the effort of its control
   | { type: 'openLink'; url: string }
   | { type: 'target'; target: Target; diagram?: string }
   | { type: 'openSession'; id: number }
@@ -114,7 +115,7 @@ type Message =
   | { type: 'pointer'; on: boolean }
   | { type: 'edit'; line?: number }
   | { type: 'looked'; repo: string; number: number }
-  | { type: 'askAgent'; words: string } // the press of words for an agent: they go to the session that it names
+  | { type: 'askAgent'; words: string; team?: unknown } // the press of words for an agent: they go to the session that it names, with the lead and writers of its control
   | { type: 'openAskSession'; words: string } // "Open the session" on the line of their run
   | { type: 'write'; id: number; write: Write };
 
@@ -370,7 +371,7 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
    * The press: the words go to the session that it named (view/ask-run.ts), in a folder with the head branch of the pull request checked out, and the page
    * shows the line of their run as it changes. When that branch cannot be checked out, no run starts, and the line says why, with the press again.
    */
-  private async askAgent(words: string): Promise<void> {
+  private async askAgent(words: string, team?: unknown): Promise<void> {
     const now = this.askNow();
     // A second click while the branch is checked out or the run works starts nothing; nor do words of a pull request that the page no longer shows ("try again").
     if (this.asking || now?.words !== words || now.press === undefined) return;
@@ -380,14 +381,14 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
       const page = [...this.views].find((one) => one.panel === this.panel);
       if (page && ask?.words === words) this.post(page, { type: 'asked', ask });
     };
-    const again = (): void => void this.askAgent(words);
+    const again = (): void => void this.askAgent(words, team);
     this.asking = true;
     this.askProblem = undefined;
     const started = await startAsk(this.store, folder, words, this.apps, runModels(), tell, (problem, facts) => {
       const app = askRunOf(this.store, folder, words)?.agent.app ?? '';
       // "codex" stays in small letters at the start: the problem of its model is told by that word (runProblem).
       if (problem) showRunProblem(`${app === 'codex' ? 'codex' : appName(app)} did not finish "${words}". It said: ${problem}`, { app, again, folder, ...facts });
-    }, { pull: this.pullHead() }).finally(() => { this.asking = false; });
+    }, { pull: this.pullHead() }, team).finally(() => { this.asking = false; });
     if (started === false) return void vscode.window.showWarningMessage('No agent app can be started from here.');
     if (typeof started === 'string') this.askProblem = { words, problem: started };
     tell();
@@ -542,21 +543,21 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
     this.visibleSince = !closing && this.panel?.visible ? Date.now() : 0;
   }
 
-  /** What the owner did with a thread: resolve it or open it again; or start a run for one sent remark. */
-  act(id: number, action: RemarkAction): void {
+  /** What the owner did with a thread: resolve it or open it again; or start a run for one sent remark, with the model and the effort of its control. */
+  act(id: number, action: RemarkAction, run?: unknown): void {
     if (this.changeId === undefined) return;
     if (action === 'resolve') this.store.closeThread(id);
     if (action === 'reopen') this.store.reopenThread(id);
-    if (action === 'start') this.run(id);
+    if (action === 'start') this.run(id, undefined, pickFrom(run));
     this.reload();
   }
 
-  /** Starts a run for a sent remark: it continues the session of the change, or starts a new session of an app. */
-  private run(id: number, newApp?: string): void {
+  /** Starts a run for a sent remark: it continues the session of the change, or starts a new session of an app; `pick` is a model and an effort that he chose. */
+  private run(id: number, newApp?: string, pick?: RunPick): void {
     startRun(this.store, id, (problem) => {
       if (problem) showRunProblem(problem, { app: newApp });
       this.reloadIfChanged();
-    }, newApp, undefined, runModels(), commentRuns());
+    }, newApp, undefined, runModels(), commentRuns(), pick);
   }
 
   /**
@@ -593,7 +594,7 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
         else this.post(view, { type: 'answer', id: message.id, value: this.page ? answer(this.page, message.question, (path, lines) => notesBeside(this.store, this.page!, path, lines), (path) => marksBeside(this.store, this.page!, path)) : undefined });
         break;
       case 'askAgent':
-        await this.askAgent(message.words);
+        await this.askAgent(message.words, message.team);
         break;
       case 'openAskSession': {
         // The worktree of a run for a pull request is gone when the run ended: the terminal then opens in the open folder.
@@ -623,7 +624,7 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
         this.saveRemark(message);
         break;
       case 'remarkAction':
-        this.act(message.id, message.action);
+        this.act(message.id, message.action, message.run);
         break;
       case 'openSession':
         openRemarkSession(this.store, message.id, this.openFolder());

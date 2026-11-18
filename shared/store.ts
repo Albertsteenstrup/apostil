@@ -133,6 +133,8 @@ export interface RemarkTo {
   kind: 'current' | 'new' | 'session';
   session?: string; // kind "session": the session that a run continues
   name?: string; // kind "session": its name, as the picker showed it
+  model?: string; // the model of its run: a new session's, or one that he chose for a session that a run continues (none: that session keeps its own)
+  effort?: string; // the effort of its run
 }
 
 /** What the owner has open and selected in the app right now. */

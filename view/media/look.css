@@ -392,18 +392,37 @@ p.fact{margin:0;padding:8px 12px;color:var(--muted)} /* what a file is, in one l
 .cbox .pick .icon,.cbox .pick .ico{width:13px;height:13px;margin:0}
 .cbox .pick .chev{width:14px;height:14px;flex:none}
 .cbox .pick:hover,.cbox .pick.on{background:var(--seg)}
-.cbox .pmenu{position:absolute;left:-12px;right:-12px;top:calc(100% + 8px);z-index:2;overflow:auto;padding:5px;border:1px solid var(--line);border-radius:11px;background:var(--card);box-shadow:var(--shadow);font-size:var(--small)}
+.cbox .pmenu{position:absolute;left:-12px;right:-12px;top:calc(100% + 8px);z-index:2}
+:is(.cbox,.rpick) .pmenu{overflow:auto;padding:5px;border:1px solid var(--line);border-radius:11px;background:var(--card);box-shadow:var(--shadow);font-size:var(--small);text-align:left;white-space:normal}
 .cbox .pmenu.up{top:auto;bottom:calc(100% + 8px)}
-.cbox .ph{display:flex;align-items:center;gap:7px;padding:7px 8px 3px;color:var(--muted);font-weight:600}
+:is(.cbox,.rpick) .ph{display:flex;align-items:center;gap:7px;padding:7px 8px 3px;color:var(--muted);font-weight:600}
 .cbox .ph .icon,.cbox .pi .ico{width:13px;height:13px;margin:0}
-.cbox .pi{display:flex;align-items:center;gap:8px;padding:5px 8px 5px 28px;border-radius:7px;color:var(--ink)}
+:is(.cbox,.rpick) .pi{display:flex;align-items:center;gap:8px;padding:5px 8px 5px 28px;border-radius:7px;color:var(--ink)}
 .cbox .pi.flat{padding-left:8px}
-.cbox .pi span{flex:1;min-width:0}
+:is(.cbox,.rpick) .pi span{flex:1;min-width:0}
 .cbox .pi i{display:block;font-style:normal;color:var(--faint)}
-.cbox .pi svg{width:14px;height:14px;color:var(--teal);flex:none}
-.cbox .pi:hover{background:var(--seg)}
-.cbox .pi.on{background:color-mix(in srgb,var(--teal) 9%,var(--card))}
-.cbox .psep{height:1px;margin:4px;background:var(--line)}
+:is(.cbox,.rpick) .pi svg{width:14px;height:14px;color:var(--teal);flex:none}
+:is(.cbox,.rpick) .pi:hover{background:var(--seg)}
+:is(.cbox,.rpick) .pi.on{background:color-mix(in srgb,var(--teal) 9%,var(--card))}
+:is(.cbox,.rpick) .psep{height:1px;margin:4px;background:var(--line)}
+/* The control of the model and the effort of a run (RunPick in tools.js): quiet words, and its small menu in the look of the picker. */
+.rpick{position:relative;display:inline-block;max-width:100%;vertical-align:baseline}
+.rpick .rp{display:inline-flex;align-items:center;gap:4px;max-width:100%;margin:0 -5px;padding:1px 5px;border-radius:6px;color:var(--muted);font-size:var(--small);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rpick a.rp{cursor:pointer}
+.rpick a.rp:hover,.rpick a.rp.on{background:var(--seg);color:var(--soft)}
+.rpick .rp .chev{width:13px;height:13px;flex:none}
+.rpick .rmenu{position:absolute;left:0;top:calc(100% + 6px);z-index:30;width:max-content;min-width:200px;max-width:calc(100vw - 16px)}
+.rpick .rmenu.up{top:auto;bottom:calc(100% + 6px)}
+.rpick .rmenu .pi{padding-left:20px}
+.rpick .rmenu .cols{display:grid;grid-template-columns:1fr 1fr;gap:0 4px}
+.rpick .rmenu.team .pi{padding-left:12px}
+.rpick .rmenu .chips{display:flex;flex-wrap:wrap;gap:5px;padding:4px 8px 6px}
+.rpick .rmenu .chip{padding:2px 10px;border:1px solid var(--line);border-radius:999px;color:var(--ink);cursor:pointer}
+.rpick .rmenu .chip:hover{background:var(--seg)}
+.rpick .rmenu .chip.on{border-color:color-mix(in srgb,var(--teal) 55%,var(--line));background:color-mix(in srgb,var(--teal) 12%,var(--card))}
+.cbox .pickbox .rpick{position:static;display:block}
+.cbox .pickbox .rmenu{left:-12px;right:-12px;width:auto;min-width:0;max-width:none}
+.cbox .prun{margin:1px 0 0 1px}
 .cbox .pnone{margin:6px 8px 4px;color:var(--muted)}
 .cbox .pnone a{color:var(--tealink)}
 .cbox .cbline{margin:6px 0 0;font-size:var(--small);color:var(--muted)}
@@ -565,6 +584,8 @@ div.nomap .acts{justify-content:center;margin:0 0 6px}
 div.nomap .next{margin-top:18px}
 div.nomap .next a{color:var(--tealink)}
 div.nomap a:hover{text-decoration:underline;text-underline-offset:3px}
+div.nomap .rpick a:hover{text-decoration:none}
+div.nomap .runpick{margin:0 0 8px}
 
 /* the graphs of a folder or file: small panels in a grid, each a diagram with one line under it */
 .panels{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}

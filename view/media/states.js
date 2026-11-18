@@ -15,7 +15,6 @@ const States = (() => {
     connect: 'connect Claude Code',
     startRun: 'Start a run',
     answered: 'answered',
-    since: (time) => `since ${time}`,
     session: 'session',
     closedOne: 'closed',
     resolve: 'Resolve',
@@ -48,12 +47,21 @@ const States = (() => {
     keptAsNote: 'Keep it as a note',
     usedAgo: (ago) => `used ${ago}`,
     defaultModel: 'default model',
+    ownModel: "OpenCode's own model",
+    leads: (name) => `${name} leads`,
+    writes: (name) => `${name} writes`,
+    lead: 'Leads',
+    writers: 'Writers',
+    model: 'Model',
+    effort: 'Effort',
     noAppConnected: 'No agent app is connected.',
     setUpAgents: 'Set up for agents',
     changedCount: (n) => `Changed ${count(n, 'file', 'files')}`,
     openPoint: 'Open point',
     noteToNoAgent: 'a note, sent to no agent',
     thisSession: 'the session that made this change',
+    placeThis: 'this session',
+    placeNew: 'new session',
     namedSession: (name) => `the session ${name}`,
     newSession: 'a new session',
     waitingFor: (name) => `waiting for ${name}`,
@@ -119,8 +127,45 @@ const States = (() => {
     return hours < 24 ? `${count(hours, 'hour', 'hours')} ago` : `${count(Math.round(hours / 24), 'day', 'days')} ago`;
   }
 
-  /** The model words of a run: a continued session keeps its own model, so only the effort; a new session the model it gets and the effort. Antigravity takes neither. */
-  const modelWords = (app, fresh, model, effort) => (app === 'antigravity' ? '' : fresh ? `${model || WORDS.defaultModel} · ${effort}` : effort);
+  // ----- the model and the effort of a run (shared/models.ts gives the lists) -----
+
+  /** Every effort, lowest first; a model that does not take an effort takes the nearest lower one. */
+  const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'];
+  /** The words of an effort as each app names it: Claude Code says "Extra", Codex "Extra high"; the others start with a capital. */
+  const EFFORT_WORDS = { 'claude-code': { xhigh: 'Extra' }, codex: { xhigh: 'Extra high' } };
+  const effortWord = (app, effort) => EFFORT_WORDS[app]?.[effort] ?? (effort ? `${effort.charAt(0).toUpperCase()}${effort.slice(1)}` : '');
+
+  /** The effort that a model takes for a wanted one: the same, else the nearest lower one, else its lowest (nearestEffort in shared/models.ts). */
+  function nearestEffort(efforts = [], wanted) {
+    if (!efforts.length || efforts.includes(wanted)) return wanted;
+    return [...efforts].reverse().find((one) => EFFORTS.indexOf(one) <= EFFORTS.indexOf(wanted)) ?? efforts[0];
+  }
+  const modelIn = (list = [], id) => list.find((model) => model.id === id);
+  const modelName = (list, id, name) => modelIn(list, id)?.name ?? name ?? id;
+
+  /** The quiet words of the model and the effort of a run: "Haiku 5.5 · High"; with no model, the model of the app's own settings. */
+  function runWords(app, run, list = []) {
+    if (!run) return '';
+    const model = run.model ? modelName(list, run.model, run.name) : run.name ?? (app === 'opencode' ? WORDS.ownModel : WORDS.defaultModel);
+    return run.effort ? `${model} · ${effortWord(app, run.effort)}` : model;
+  }
+
+  /** The words of a map run or a description run: "Sonnet 5.5 leads · Haiku 5.5 writes · Max"; OpenCode keeps its own models. */
+  function teamWords(team) {
+    if (!team.lead) return team.app === 'opencode' ? WORDS.ownModel : effortWord(team.app, team.effort);
+    return [WORDS.leads(modelName(team.list, team.lead)), WORDS.writes(modelName(team.list, team.writer)), effortWord(team.app, team.effort)].join(' · ');
+  }
+
+  /**
+   * The run that a choice of the picker starts with: a session that a run continues, what it last used (`known`, from its own record), else the model of
+   * a new session; a new session the model of the setting (`menu.fresh`). The effort: the session's last one, else high, as the model takes it.
+   */
+  function choiceRun(app, menu, known) {
+    if (app === 'antigravity' || !menu) return null;
+    const base = known?.model ? known : menu.fresh ?? {};
+    const effort = nearestEffort(modelIn(menu.list, base.model)?.efforts, known?.effort ?? 'high');
+    return { ...(base.model ? { model: base.model } : {}), ...(base.name ? { name: base.name } : {}), ...(app === 'opencode' && !base.model ? {} : { effort }) };
+  }
 
   const PICKED_MAX = 3; // the known sessions of one app that the picker offers
 
@@ -131,22 +176,24 @@ const States = (() => {
    * A page with no stored change offers only GitHub. Each choice: { key, app, to, words, sub, model }; `to` is what the remark is sent to
    * ({ app, kind: 'current' | 'new' | 'session', session }), { app: 'github' }, or null for a note.
    */
-  function sendChoices({ agent, apps = [], sessions = [], models = {}, effort = 'high', github = false, pullOnly = false, now = Date.now() }) {
-    const gitHub = github ? [{ key: 'github', app: 'github', to: { app: 'github' }, words: WORDS.choiceGitHub, sub: '', model: '' }] : [];
+  function sendChoices({ agent, apps = [], sessions = [], models = {}, own, github = false, pullOnly = false, now = Date.now() }) {
+    const gitHub = github ? [{ key: 'github', app: 'github', to: { app: 'github' }, words: WORDS.choiceGitHub, sub: '', run: null }] : [];
     if (pullOnly) return gitHub;
     const ofApp = (app) => {
-      const own = hasSession(agent) && agent.app === app;
+      const ofChange = hasSession(agent) && agent.app === app;
       const known = sessions.filter((one) => one.app === app && one.session !== agent?.session).sort((a, b) => b.at.localeCompare(a.at)).slice(0, PICKED_MAX);
+      const menu = models[app];
+      const list = menu?.list ?? [];
       return [
-        ...(own ? [{ key: `${app}:current`, app, to: { app, kind: 'current' }, words: WORDS.choiceThis, sub: WORDS.choiceThisSub, model: modelWords(app, false, '', effort) }] : []),
+        ...(ofChange ? [{ key: `${app}:current`, app, to: { app, kind: 'current' }, words: WORDS.choiceThis, sub: WORDS.choiceThisSub, run: choiceRun(app, menu, own), list }] : []),
         ...known.map((one) => ({
           key: `${app}:session:${one.session}`, app, to: { app, kind: 'session', session: one.session, ...(one.name ? { name: one.name } : {}) },
-          words: one.name || one.session.slice(0, 8), sub: WORDS.usedAgo(agoWords(one.at, now)), model: modelWords(app, false, '', effort),
+          words: one.name || one.session.slice(0, 8), sub: WORDS.usedAgo(agoWords(one.at, now)), run: choiceRun(app, menu, one.run), list,
         })),
-        { key: `${app}:new`, app, to: { app, kind: 'new' }, words: WORDS.choiceNew, sub: '', model: modelWords(app, true, models[app], effort) },
+        { key: `${app}:new`, app, to: { app, kind: 'new' }, words: WORDS.choiceNew, sub: '', run: choiceRun(app, menu), list },
       ];
     };
-    return [...apps.filter((app) => MENTION_WORDS[app]).flatMap(ofApp), ...gitHub, { key: 'none', app: '', to: null, words: WORDS.choiceNone, sub: '', model: '' }];
+    return [...apps.filter((app) => MENTION_WORDS[app]).flatMap(ofApp), ...gitHub, { key: 'none', app: '', to: null, words: WORDS.choiceNone, sub: '', run: null }];
   }
 
   /** The key of the choice that a remark was sent to: "claude-code:current", "codex:session:<id>", "github"; "none" for a note. */
@@ -161,17 +208,22 @@ const States = (() => {
     return (wanted !== undefined && has(choiceKey(wanted))) || choices.find((choice) => choice.to?.kind === 'current') || choices.find((choice) => choice.to?.kind === 'new') || choices[0];
   }
 
-  /** The closed picker in words: "Claude Code · this session · high", "Codex · new session · gpt-6-luna · high", "GitHub · the pull request". */
+  /** The place of a choice in words: "this session", "new session", or the name of a known session. */
+  const placeWords = (to) => (to.kind === 'current' ? WORDS.placeThis : to.kind === 'new' ? WORDS.placeNew : to.name || to.session.slice(0, 8));
+
+  /** The closed picker in words: "Claude Code · this session", "Codex · new session", "GitHub · the pull request". The model and the effort stand on their own line. */
   function choiceWords(choice) {
     if (!choice.to) return WORDS.keptAsNote;
     if (choice.app === 'github') return 'GitHub · the pull request';
-    const which = choice.to.kind === 'current' ? 'this session' : choice.to.kind === 'new' ? 'new session' : choice.words;
-    return [AGENT_WORDS[choice.app] ?? choice.app, which, choice.model].filter(Boolean).join(' · ');
+    return `${AGENT_WORDS[choice.app] ?? choice.app} · ${placeWords(choice.to)}`;
   }
   const AGENT_WORDS = { 'claude-code': 'Claude Code', codex: 'Codex', antigravity: 'Antigravity', opencode: 'OpenCode' };
 
-  /** Who a remark went to, in a few words for its state line: "claude-current", "codex-new", or the name of a known session. */
-  const toName = (to) => (to.kind === 'session' ? to.name || to.session.slice(0, 8) : mentionName(to));
+  /** Who a remark went to, in the words of the picker, for its state line: "Claude Code · this session", "Codex · new session", "Claude Code · Tests for holds". */
+  const toName = (to) => `${AGENT_WORDS[to.app] ?? to.app} · ${placeWords(to)}`;
+
+  /** How long a run has worked, in short words: "just now", "4 min", "3 hours", "2 days". */
+  const forWords = (iso, now = Date.now()) => agoWords(iso, now).replace(/ ago$/, '');
 
   /** The state line of a row, the first that applies. counts: remarks by state; phrase: what the row says without remarks. */
   function rowLine(counts, phrase) {
@@ -190,7 +242,8 @@ const States = (() => {
   }
 
   /**
-   * What a remark shows under its text. agent: the agent of the change ({ hostSession, link, canResume }); listening: its session has a live waiter.
+   * What a remark shows under its text, in the words of the picker: "Claude Code · this session is working", "waiting for Codex · new session".
+   * agent: the agent of the change ({ hostSession, link, canResume }); listening: its session has a live waiter.
    * way: what the owner can do next: "listening", "connect", "start" or none. A reply with the mention sends again.
    */
   function remarkLine(remark, agent, listening) {
@@ -289,7 +342,8 @@ const States = (() => {
     + `${state !== 'note' && AGENT_WORDS[app] ? `<img src="agents/${app}.svg" alt="${esc(AGENT_WORDS[app])}">` : ''}${count > 1 ? `<b class="n">${count}</b>` : ''}</i>`;
 
   return {
-    WORDS, MENTION_WORDS, mentionName, mentionChoices, cutChoices, sendChoices, choiceKey, startChoice, choiceWords, agoWords, rowLine, rowState, remarkLine,
+    WORDS, MENTION_WORDS, mentionName, mentionChoices, cutChoices, sendChoices, choiceKey, startChoice, choiceWords, agoWords, forWords, rowLine, rowState, remarkLine,
+    EFFORTS, effortWord, nearestEffort, runWords, teamWords,
     threadLead, threadState, markState, isOpen, foldPulls, foldRows, stackOrder, lineHtml, markHtml, bubbleSvg, BUBBLE_PATH, pullTip, pullIcon,
   };
 })();

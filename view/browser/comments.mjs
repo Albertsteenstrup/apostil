@@ -69,7 +69,7 @@ const cardNow = () => page.evaluate((sel) => {
       const at = msg.getBoundingClientRect();
       return `${msg.classList.contains('mine') ? 'mine' : 'agent'}:${msg.classList.contains('mine') ? (own.right - at.right < 20 ? 'right' : 'left') : (at.left - own.left < 20 ? 'left' : 'right')}:${msg.querySelector('.who')?.textContent ?? ''}:${msg.querySelector('.av img')?.getAttribute('src') ?? ''}:${msg.title ? 'tip' : ''}`;
     }),
-    state: el.querySelector('.st')?.textContent.trim() ?? '', picker: el.querySelector('.pick')?.textContent.trim() ?? '',
+    state: el.querySelector('.st')?.textContent.trim() ?? '', picker: el.querySelector('.pick')?.textContent.trim() ?? '', run: el.querySelector('.prun')?.textContent.trim() ?? '',
     tools: [...el.querySelectorAll('.ch .tl')].map((tool) => tool.title).join(), animations: el.getAnimations().length,
   };
 }, theCard);
@@ -141,8 +141,8 @@ try {
   const reply = (await sentRemarks()).pop();
   const replied = { open: await page.$$eval(theCard, (all) => all.length), last: await page.$$eval(`${theCard} .cth .msg .tx`, (all) => all.at(-1)?.textContent) };
   await closeCard();
-  check('a click on the bubble opens the card beside its part, not over it: ✓ ⋯ ✕ in its head; his own words at the right, the agent at the left with its icon and name, the exact time as a tooltip; the state line and the picker; it marks the answer read; Escape and a click outside close it; a reply belongs to its thread and the card stays open',
-    beside && opened.tools === 'Resolve,More,Close' && opened.state === 'answered · session' && /^Send to Claude Code · this session · high/.test(opened.picker)
+  check('a click on the bubble opens the card beside its part, not over it: ✓ ⋯ ✕ in its head; his own words at the right, the agent at the left with its icon and name, the exact time as a tooltip; the state line and the picker, with the model and the effort that the session last used on their own line; it marks the answer read; Escape and a click outside close it; a reply belongs to its thread and the card stays open',
+    beside && opened.tools === 'Resolve,More,Close' && opened.state === 'answered · session' && opened.picker === 'Send to Claude Code · this session' && opened.run === 'Opus 5.5 · Extra'
       && JSON.stringify(opened.messages) === JSON.stringify(['mine:right:::tip', 'agent:left:Claude Code:agents/claude-code.svg:tip', 'mine:right:::tip', 'agent:left:Claude Code:agents/claude-code.svg:tip'])
       && /\bseen\b/.test(seen) && afterEsc === 0 && afterOutside === 0 && reply?.thread === 4 && reply.text === 'Good, thanks.' && replied.open === 1 && replied.last === 'Good, thanks.',
     JSON.stringify({ beside, opened, seen, afterEsc, afterOutside, reply, replied }));
@@ -192,15 +192,74 @@ try {
   const toSession = (await sentRemarks()).pop();
   const afterSend = { ...(await cardNow()), mark: await page.$eval(`${service} .cb`, (el) => el.className).catch(() => ''), count: await page.textContent('[data-comments] .n').catch(() => '') };
   await closeCard();
-  check('a new comment opens the same card, empty, beside its thing, with the cursor in its box; the picker lists each connected app with this session, a known session of the repo and a new session, each with the model and effort of its run, then "No agent"; the choice sends it there, and the card stays open on its thread with no flight while the mark and the count show',
+  check('a new comment opens the same card, empty, beside its thing, with the cursor in its box; the picker lists each connected app with this session, a known session of the repo and a new session, each with the model and effort of its run, then "No agent"; the choice sends it there with the effort and no model, and the card stays open on its thread with no flight while the mark and the count show',
     fresh.where === 'Part "Hold service"' && fresh.threads === 0 && !/url/.test(fresh.cursor) && fresh.beside
-      && JSON.stringify(menu) === JSON.stringify(['Claude Code', 'This session made this change · high', 'Tests for holds used n min ago · high', 'New session haiku · high', 'Codex', 'New session gpt-6-luna · high', 'OpenCode', 'New session default model · high', 'No agent: keep it as a note'])
-      && /^Send to Claude Code · Tests for holds · high/.test(pickedWords.trim()) && JSON.stringify(toSession?.to) === JSON.stringify({ app: 'claude-code', kind: 'session', session: 'made-up-session-0002', name: 'Tests for holds' })
-      && toSession.target.part === 'hold-service' && JSON.stringify(afterSend.messages) === JSON.stringify(['mine:right:::tip']) && afterSend.state === 'waiting for Tests for holds · Start a run' && afterSend.animations === 0
+      && JSON.stringify(menu) === JSON.stringify(['Claude Code', 'This session made this change · Opus 5.5 · Extra', 'Tests for holds used n min ago · Sonnet 5.5 · Medium', 'New session Haiku 5.5 · High', 'Codex', 'New session Luna 6 · High', 'OpenCode', "New session OpenCode's own model", 'No agent: keep it as a note'])
+      && pickedWords.trim() === 'Send to Claude Code · Tests for holds' && JSON.stringify(toSession?.to) === JSON.stringify({ app: 'claude-code', kind: 'session', session: 'made-up-session-0002', name: 'Tests for holds', effort: 'medium' })
+      && toSession.target.part === 'hold-service' && JSON.stringify(afterSend.messages) === JSON.stringify(['mine:right:::tip']) && afterSend.state === 'waiting for Claude Code · Tests for holds · Start a run · Sonnet 5.5 · Medium' && afterSend.animations === 0
       && /\bwaiting\b/.test(afterSend.mark) && afterSend.count === '1' && noCountEmpty,
     JSON.stringify({ fresh, menu, pickedWords, to: toSession?.to, afterSend, noCountEmpty }));
   await page.evaluate(() => { App.page.remarks = []; App.render(); });
   await settle();
+
+  // ----- the model and the effort of a run: one quiet line under the picker, and its small menu -----
+  const runLine = () => page.textContent(`${theCard} .prun .rp`).then((text) => text.trim()).catch(() => '');
+  const runMenu = () => page.$$eval(`${theCard} .rmenu :is(.ph, .pi, .chip)`, (rows) => rows.map((row) => `${row.textContent.trim()}${row.classList.contains('on') ? ' ✓' : ''}`).filter(Boolean)).catch(() => []);
+  const choose = async (selector) => { await page.click(`${theCard} ${selector}`, { timeout: 3000 }).catch(() => {}); };
+  await keyOn(service);
+  await choose('.pick');
+  await choose('.pi[data-choice="claude-code:new"]');
+  const model = { fresh: await runLine() };
+  await choose('.prun [data-rp-open]');
+  model.menu = await runMenu();
+  await shot('81-the-menu-of-the-model-of-claude-code');
+  await choose('[data-rp-model="opus"]');
+  await choose('[data-rp-effort="max"]');
+  model.open = await page.$$eval(`${theCard} .rmenu`, (all) => all.length); // one click sets it, and the menu stays open
+  model.chosen = await runLine();
+  await page.keyboard.press('Escape'); // Escape closes the menu, and the card stays
+  model.afterEscape = { menu: await page.$$eval(`${theCard} .rmenu`, (all) => all.length), card: await page.$$eval(theCard, (all) => all.length) };
+  await page.click(boxField);
+  await page.keyboard.type('Check the late fee.');
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => document.querySelector('.cbox.card .cth .msg.mine'), null, { timeout: 3000 }).catch(() => {});
+  model.sent = (await sentRemarks()).pop()?.to;
+  await closeCard();
+  // Codex: Luna takes no Ultra, Sol takes it; a model with no Ultra takes the nearest lower effort.
+  await keyOn(service);
+  await choose('.pick');
+  await choose('.pi[data-choice="codex:new"]');
+  await choose('.prun [data-rp-open]');
+  model.luna = (await runMenu()).filter((row) => /^(Low|Medium|High|Extra high|Max|Ultra)/.test(row));
+  await shot('81-the-menu-of-the-model-of-codex');
+  await choose('[data-rp-model="gpt-6.1-sol"]');
+  model.sol = (await runMenu()).filter((row) => /^(Low|Medium|High|Extra high|Max|Ultra)/.test(row));
+  await choose('[data-rp-effort="ultra"]');
+  await choose('[data-rp-model="gpt-6-luna"]');
+  model.back = await runLine();
+  if (process.argv.includes('--pictures')) {
+    await page.setViewportSize({ width: 370, height: 800 });
+    await choose('[data-rp-model="gpt-6.1-sol"]');
+    await page.evaluate(() => window.dispatchEvent(new Event('resize')));
+    await shot('81-the-menu-at-370-px');
+    await page.evaluate(() => { document.body.classList.add('vscode-dark'); document.documentElement.style.setProperty('--vscode-editor-background', '#1e1e1e'); });
+    await shot('81-the-menu-in-the-dark-theme');
+    await page.evaluate(() => { document.body.classList.remove('vscode-dark'); document.documentElement.style.removeProperty('--vscode-editor-background'); });
+    await page.setViewportSize({ width: 1400, height: 900 });
+  }
+  await page.keyboard.press('Escape');
+  await closeCard();
+  await page.evaluate(() => { App.page.remarks = []; App.render(); });
+  await settle();
+  const EFFORTS = ['Low', 'Medium', 'High', 'Extra high', 'Max'];
+  check('under the picker one quiet line says the model and the effort of the run, "Haiku 5.5 · High" for a new Claude Code session; its menu lists the newest model of each family, the one in use ticked, then the efforts of that model; one click sets each and the menu stays open until Escape, which leaves the card; a choice of Opus 5.5 and Max sends both; a Codex session on Luna offers no Ultra, Sol offers it, and Luna again takes Max',
+    model.fresh === 'Haiku 5.5 · High'
+      && JSON.stringify(model.menu) === JSON.stringify(['Model', 'Haiku 5.5 ✓', 'Sonnet 5.5', 'Opus 5.5', 'Fable 5.2', 'Effort', 'Low', 'Medium', 'High ✓', 'Extra', 'Max'])
+      && model.open === 1 && model.chosen === 'Opus 5.5 · Max' && model.afterEscape.menu === 0 && model.afterEscape.card === 1
+      && JSON.stringify(model.sent) === JSON.stringify({ app: 'claude-code', kind: 'new', model: 'opus', effort: 'max' })
+      && JSON.stringify(model.luna) === JSON.stringify(['Low', 'Medium', 'High ✓', ...EFFORTS.slice(3)]) && JSON.stringify(model.sol) === JSON.stringify(['Low', 'Medium', 'High ✓', ...EFFORTS.slice(3), 'Ultra'])
+      && model.back === 'Luna 6 · Max',
+    JSON.stringify(model));
 
   // VS Code passes the key press on late, after the click and the first words; it shows the page first, which takes the keyboard out of the field for
   // a moment. Every word typed after it must still go into the field.
@@ -271,20 +330,21 @@ try {
   await closeCard();
   check('Shift+Enter makes a new line; the comment with @claude-current is sent to that session; as a file in a browser nothing can run, so it waits, with "Start a run"',
     twoLines && sent?.to?.app === 'claude-code' && sent.to.kind === 'current' && /^Log the opening hours that the run used\. @claude-current please\s+Thanks\.$/.test(sent.text)
-      && /^waiting for claude-current · Start a run$/.test(sentState.trim()), `${JSON.stringify(sent?.text)}; ${sentState}`);
+      && /^waiting for Claude Code · this session · Start a run · Opus 5\.5 · Extra$/.test(sentState.trim()), `${JSON.stringify(sent?.text)}; ${sentState}`);
 
   // ----- the states of a thread -----
   await openMark(partTitle('night-job'));
   const states = {
     pulse: await page.locator(`${theCard} .st .dot.pulse`).evaluate((dot) => getComputedStyle(dot).animationName).catch(() => ''),
     running: (await page.textContent(`${theCard} .st`).catch(() => '')).trim(), links: await page.locator(`${theCard} .st [data-session]`).count(),
+    exact: await page.getAttribute(`${theCard} .st .ago`, 'title').catch(() => ''),
   };
   await page.click(`${theCard} .st [data-session]`);
   states.opened = await page.evaluate(() => window.apostilSent.filter((message) => message.type === 'openSession').pop()?.id);
   await closeCard();
   states.answered = opened.state; // before the reply above went to the agent again
-  check('a running thread shows the pulsing dot, "claude-current is working", since when, and the session link; a click on "session" asks VS Code to open the session of that comment, and an answered thread keeps its session link',
-    states.pulse === 'pulse' && /^claude-current is working · since .+ · session$/.test(states.running) && states.links === 1 && states.opened === 3 && states.answered === 'answered · session', JSON.stringify(states));
+  check('a running thread shows the pulsing dot, "Claude Code · this session is working" in the words of the picker, how long as a relative time with the exact time in its tooltip, and the session link; a click on "session" asks VS Code to open the session of that comment, and an answered thread keeps its session link',
+    states.pulse === 'pulse' && /^Claude Code · this session is working · \d+ min · session$/.test(states.running) && /\d:\d\d/.test(states.exact) && states.links === 1 && states.opened === 3 && states.answered === 'answered · session', JSON.stringify(states));
 
   // ----- the changed files of a run: a quiet block under the answer, at most three rows, then "n more"; a row opens the change of its file -----
   await drawn(() => page.evaluate(() => {

@@ -243,7 +243,7 @@ test('the page of a part has the code of each thing, the changed lines in no ste
   }
 });
 
-test('the state line of a row and of a remark: the first case that applies, the way that reaches its session, whom it waits for or who works on it, and the state of the newest remark of a thread that is not open', () => {
+test('the state line of a row and of a remark: the first case that applies, the way that reaches its session, whom it waits for or who works on it in the words of the picker, and the state of the newest remark of a thread that is not open', () => {
   const line = (sent: number, running: number, done: number, phrase = 'out of date') => States.rowLine({ sent, running, done }, phrase);
   assert.deepEqual(line(2, 1, 1), { text: 'the agent is working', dot: 'pulse' });
   assert.deepEqual(line(2, 0, 3), { text: '3 answers to read', dot: 'teal' });
@@ -263,13 +263,15 @@ test('the state line of a row and of a remark: the first case that applies, the 
   // The mark of a thread: a note to no agent, waiting, working, answered until its card shows the answer.
   assert.deepEqual(['open', 'sent', 'running', 'done'].map((state) => States.markState({ state })), ['note', 'waiting', 'working', 'answered']);
   assert.equal(States.markState({ state: 'done' }, true), 'seen');
-  assert.deepEqual(States.remarkLine({ state: 'running', to: { app: 'claude-code', kind: 'session', session: 's2', name: 'Tests for holds' } }, undefined, false), { text: 'Tests for holds is working', dot: 'pulse' });
+  assert.deepEqual(States.remarkLine({ state: 'running', to: { app: 'claude-code', kind: 'session', session: 's2', name: 'Tests for holds' } }, undefined, false), { text: 'Claude Code · Tests for holds is working', dot: 'pulse' });
 
-  // The state line names whom a remark waits for, or who works on it.
+  // The state line names whom a remark waits for, or who works on it, as the picker says the app and the place; how long it works is a relative time.
   const current = { app: 'claude-code', kind: 'current' };
-  assert.deepEqual(States.remarkLine({ state: 'sent', to: current }, { canResume: true }, false), { text: 'waiting for claude-current', way: 'start' });
-  assert.deepEqual(States.remarkLine({ state: 'sent', to: { app: 'codex', kind: 'new' } }, undefined, false), { text: 'waiting for codex-new' });
-  assert.deepEqual(States.remarkLine({ state: 'running', to: { app: 'claude-code', kind: 'new' } }, undefined, false), { text: 'claude-new is working', dot: 'pulse' });
+  assert.deepEqual(States.remarkLine({ state: 'sent', to: current }, { canResume: true }, false), { text: 'waiting for Claude Code · this session', way: 'start' });
+  assert.deepEqual(States.remarkLine({ state: 'sent', to: { app: 'codex', kind: 'new' } }, undefined, false), { text: 'waiting for Codex · new session' });
+  assert.deepEqual(States.remarkLine({ state: 'running', to: { app: 'claude-code', kind: 'new' } }, undefined, false), { text: 'Claude Code · new session is working', dot: 'pulse' });
+  const now = Date.parse('2026-11-18T12:00:00Z');
+  assert.deepEqual([0.2, 4, 125].map((minutes) => States.forWords(new Date(now - minutes * 60_000).toISOString(), now)), ['just now', '4 min', '2 hours']);
 
   // A thread shows the state of its newest remark that is not open.
   assert.equal(States.threadLead([{ id: 1, state: 'done' }, { id: 2, state: 'open' }]).id, 1);
@@ -281,24 +283,32 @@ test('the state line of a row and of a remark: the first case that applies, the 
 test('the picker of where a comment goes: for each connected app this session, the known sessions of the repo (at most 3, newest first) and a new session, each with the model and effort of its run; GitHub only when the pull request takes it; no agent last; a page with no stored change offers only GitHub', () => {
   const now = Date.parse('2026-11-18T12:00:00Z');
   const at = (minutes: number) => new Date(now - minutes * 60_000).toISOString();
-  const sessions: { app: string; session: string; name?: string; at: string }[] = [1, 2, 3, 4].map((n) => ({ app: 'claude-code', session: `known-000${n}`, name: n === 1 ? 'Tests for holds' : undefined, at: at(n * 10) }));
+  const sessions: { app: string; session: string; name?: string; at: string; run?: object }[] = [1, 2, 3, 4].map((n) => ({ app: 'claude-code', session: `known-000${n}`, name: n === 1 ? 'Tests for holds' : undefined, at: at(n * 10) }));
+  sessions[0].run = { model: 'sonnet', effort: 'xhigh' }; // what it last used, from its own record; the others are unknown
   sessions.push({ app: 'claude-code', session: 's1', at: at(1) }, { app: 'antigravity', session: 'a1', at: at(1) }); // the session of the change, and an app that is not connected
-  const choices = States.sendChoices({ agent: { app: 'claude-code', session: 's1' }, apps: ['claude-code', 'codex', 'opencode'], sessions, models: { 'claude-code': 'haiku', codex: 'gpt-6-luna' }, effort: 'high', github: true, now });
-  const shown = choices.map((choice: { key: string; words: string; sub: string; model: string }) => [choice.key, choice.words, choice.sub, choice.model].filter(Boolean).join(' | '));
+  const efforts = ['low', 'medium', 'high', 'xhigh', 'max'];
+  const claude = { list: [{ id: 'haiku', name: 'Haiku 5.5', efforts }, { id: 'sonnet', name: 'Sonnet 5.5', efforts }, { id: 'opus', name: 'Opus 5.5', efforts }], fresh: { model: 'haiku', name: 'Haiku 5.5', effort: 'high' } };
+  const codex = { list: [{ id: 'gpt-6-luna', name: 'Luna 6', efforts }, { id: 'gpt-6.1-sol', name: 'Sol 6.1', efforts: [...efforts, 'ultra'] }], fresh: { model: 'gpt-6-luna', name: 'Luna 6', effort: 'high' } };
+  const models = { 'claude-code': claude, codex, opencode: { list: [], fresh: {} } };
+  const choices = States.sendChoices({ agent: { app: 'claude-code', session: 's1' }, apps: ['claude-code', 'codex', 'opencode'], sessions, models, own: { model: 'claude-opus-4-8', name: 'Opus 4.8', effort: 'max' }, github: true, now });
+  const shown = choices.map((choice: { key: string; words: string; sub: string; app: string; run: object; list: object[] }) => [choice.key, choice.words, choice.sub, States.runWords(choice.app, choice.run, choice.list)].filter(Boolean).join(' | '));
   assert.deepEqual(shown, [
-    'claude-code:current | This session | made this change | high',
-    'claude-code:session:known-0001 | Tests for holds | used 10 min ago | high', // a continued session keeps its own model: only the effort
-    'claude-code:session:known-0002 | known-00 | used 20 min ago | high',
-    'claude-code:session:known-0003 | known-00 | used 30 min ago | high',
-    'claude-code:new | New session | haiku · high',
-    'codex:new | New session | gpt-6-luna · high',
-    'opencode:new | New session | default model · high', // no model set: the model of the app's own settings
+    'claude-code:current | This session | made this change | Opus 4.8 · Max', // the model that the session of the change last used, older than the menu
+    'claude-code:session:known-0001 | Tests for holds | used 10 min ago | Sonnet 5.5 · Extra',
+    'claude-code:session:known-0002 | known-00 | used 20 min ago | Haiku 5.5 · High', // its model is unknown: the setting, at high
+    'claude-code:session:known-0003 | known-00 | used 30 min ago | Haiku 5.5 · High',
+    'claude-code:new | New session | Haiku 5.5 · High',
+    'codex:new | New session | Luna 6 · High',
+    "opencode:new | New session | OpenCode's own model", // no small model: OpenCode takes the model of its own settings, with no choice
     'github | The pull request on GitHub',
     'none | No agent: keep it as a note',
   ]);
   assert.deepEqual(choices[1].to, { app: 'claude-code', kind: 'session', session: 'known-0001', name: 'Tests for holds' });
-  assert.equal(States.choiceWords(choices[0]), 'Claude Code · this session · high');
-  assert.equal(States.choiceWords(choices[5]), 'Codex · new session · gpt-6-luna · high');
+  assert.equal(States.choiceWords(choices[0]), 'Claude Code · this session');
+  assert.equal(States.choiceWords(choices[5]), 'Codex · new session');
+  // A map run and a description run name the lead and the writers; an effort that a model does not take falls to the nearest lower one.
+  assert.equal(States.teamWords({ app: 'claude-code', lead: 'sonnet', writer: 'haiku', effort: 'max', list: claude.list }), 'Sonnet 5.5 leads · Haiku 5.5 writes · Max');
+  assert.deepEqual([States.nearestEffort(efforts, 'ultra'), States.nearestEffort([...efforts, 'ultra'], 'ultra'), States.nearestEffort(['high', 'max'], 'medium')], ['max', 'ultra', 'high']);
   assert.equal(States.choiceWords(choices.at(-1)), 'Keep it as a note');
   // No session of the change, no pull request that takes it: a new session of each connected app and no agent; with no app connected only no agent.
   const keys = (options: object) => States.sendChoices(options).map((choice: { key: string }) => choice.key);

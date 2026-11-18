@@ -16,6 +16,7 @@ const Remarks = (() => {
   let asking = null; // the small window that asks before a new comment with text is thrown away
   let list = null; // the open list of all comments under the count in the top bar: { el, points, resolved }
   let lastPick; // the choice that he made last on this page; before one, the choice of the newest comment of the repo (App.page.sendTo.last)
+  let cards = 0; // the count of cards opened: the model of a run starts again in each new card
 
   // VS Code learns when the pointer is on the page, so the key works here even when the focus is in an editor.
   // It is said again now and then, so a missed message does not leave the key with the wrong owner.
@@ -153,7 +154,7 @@ const Remarks = (() => {
     const { point: fromNote, ...place } = target;
     closeCard();
     Hover.hide();
-    card = { key: 'new', threads: [], target: place, point: point ?? fromNote, at };
+    card = { key: 'new', threads: [], target: place, point: point ?? fromNote, at, serial: ++cards };
     drawCard();
     // The words that the box starts with, from a rule of "comment-box" of the look of the repo.
     const look = App.page?.look;
@@ -182,7 +183,7 @@ const Remarks = (() => {
     closeCard();
     Hover.hide();
     const rect = from?.getBoundingClientRect();
-    card = { key: shown[0][0].id, threads: shown.map((thread) => thread[0].id), reply: shown.at(-1)[0].id, target: shown[0][0].target, at: rect && { x: rect.right, y: rect.top } };
+    card = { key: shown[0][0].id, threads: shown.map((thread) => thread[0].id), reply: shown.at(-1)[0].id, target: shown[0][0].target, at: rect && { x: rect.right, y: rect.top }, serial: ++cards };
     drawCard();
   }
 
@@ -264,7 +265,7 @@ const Remarks = (() => {
     const pull = pullPage();
     const github = !!(pull && (target.kind === 'message' ? pull.messageChoice(target) : pull.githubChoice(target)));
     const sendTo = App.page.sendTo ?? {};
-    return States.sendChoices({ agent: App.page.agent, apps: App.page.apps ?? [], sessions: sendTo.sessions, models: sendTo.models, effort: sendTo.effort, github, pullOnly: !!App.page.pullOnly });
+    return States.sendChoices({ agent: App.page.agent, apps: App.page.apps ?? [], sessions: sendTo.sessions, models: sendTo.models, own: sendTo.own, github, pullOnly: !!App.page.pullOnly });
   }
 
   /** The choice that a card starts at: a reply goes where its thread went; else his last choice on this page, else that of the newest comment of the repo. */
@@ -280,14 +281,21 @@ const Remarks = (() => {
   const CLOSE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
   const appIcon = (app) => (app === 'github' ? '<i class="ico git-pull-request"></i>' : agentIcon({ app }));
 
-  /** The closed picker: "Send to <icon> Claude Code · this session · high", or "Keep it as a note". */
+  /** The control of the model and the effort of the run of a choice (RunPick in tools.js): it starts again in a new card and for another choice. */
+  const runControl = (choice) => (choice.run ? RunPick.html('card', { app: choice.app, list: choice.list, run: choice.run, reset: `${card.serial}:${choice.key}`, onOpen: () => { if (card.menu) { card.menu = false; redrawPicker(); } } }) : '');
+
+  /**
+   * The closed picker: "Send to <icon> Claude Code · this session", or "Keep it as a note", and on its own line after the place the model and the effort
+   * of the run ("Haiku 5.5 · High"), whose click opens their small menu.
+   */
   function pickerHtml() {
     const choice = card.picked;
     if (!choice) return '';
     const words = States.choiceWords(choice);
     const [app, rest] = [words.split(' · ')[0], words.split(' · ').slice(1).join(' · ')];
     const shown = choice.to ? `${esc(W.sendTo)} ${appIcon(choice.app)}<b>${esc(app)}</b>${rest ? `<span class="pw"> · ${esc(rest)}</span>` : ''}` : esc(words);
-    return `<a class="pick${card.menu ? ' on' : ''}" data-pick tabindex="0">${shown}${DOWN}</a>${card.menu ? menuHtml() : ''}`;
+    const run = runControl(choice);
+    return `<a class="pick${card.menu ? ' on' : ''}" data-pick tabindex="0">${shown}${DOWN}</a>${run ? `<div class="prun">${run}</div>` : ''}${card.menu ? menuHtml() : ''}`;
   }
 
   /** The menu of the picker: each connected app with its sessions and a new session, then GitHub, then no agent; the model of each run in faint words. */
@@ -297,7 +305,7 @@ const Remarks = (() => {
       const head = choice.app !== app && choice.to?.kind ? `<div class="ph">${appIcon(choice.app)}${esc(appName({ app: choice.app }))}</div>` : '';
       const sep = choice.app !== app && !choice.to?.kind ? '<div class="psep"></div>' : '';
       app = choice.app;
-      const sub = [choice.sub, choice.model].filter(Boolean).join(' · ');
+      const sub = [choice.sub, States.runWords(choice.app, choice.run, choice.list)].filter(Boolean).join(' · ');
       const lead = choice.app === 'github' ? appIcon('github') : '';
       return `${head}${sep}<a class="pi${choice.to?.kind ? '' : ' flat'}${choice === card.picked ? ' on' : ''}" data-choice="${esc(choice.key)}">${lead}<span>${esc(choice.words)}${sub ? `<i>${esc(sub)}</i>` : ''}</span>${choice === card.picked ? CHECK : ''}</a>`;
     }).join('');
@@ -319,7 +327,8 @@ const Remarks = (() => {
     const at = card?.el.querySelector('.pickbox');
     if (!at) return;
     at.innerHTML = pickerHtml();
-    const menu = at.querySelector('.pmenu');
+    RunPick.placeIn(at);
+    const menu = at.querySelector('.pmenu:not(.rmenu)');
     if (!menu) return;
     // Under the picker when it fits, else above it; when neither fits, on the side with more room, which it scrolls.
     const pick = at.getBoundingClientRect();
@@ -338,7 +347,10 @@ const Remarks = (() => {
     const choice = card.picked;
     if (choice?.app === 'github') return sendToGitHub(field, text);
     if (App.page.pullOnly) return boxLine(pullPage().WRITE.onlyGitHub, true); // a page with no stored change keeps no comment
-    const to = choice?.to ?? undefined;
+    // The model and the effort go with it: a new session takes the model that the control shows; a session that a run continues keeps its own unless he chose one.
+    const run = choice?.run ? RunPick.value('card') : undefined;
+    const model = run?.model && (choice.to.kind === 'new' || run.changed) ? { model: run.model } : {};
+    const to = choice?.to ? { ...choice.to, ...model, ...(run?.effort ? { effort: run.effort } : {}) } : undefined;
     const thread = card.key === 'new' ? null : threadOf(card.reply);
     const point = card.key === 'new' && card.point ? points().find((one) => one.id === card.point) : null;
     const target = thread ? thread[0].target : card.target;
@@ -386,9 +398,10 @@ const Remarks = (() => {
     closeCard();
   }
 
-  /** Resolve, Reopen or Start a run. As a file in a browser the page changes the states itself. */
+  /** Resolve, Reopen or Start a run; a run takes the model and the effort of the control after "Start a run". As a file in a browser the page changes the states itself. */
   function act(id, action) {
-    tell({ type: 'remarkAction', id, action });
+    const run = action === 'start' ? RunPick.value(`start:${id}`) : undefined;
+    tell({ type: 'remarkAction', id, action, ...(run ? { run: { ...(run.changed ? { model: run.model } : {}), ...(run.effort ? { effort: run.effort } : {}) } } : {}) });
     if (vscodeApi || action === 'start') return;
     for (const remark of threads().find((thread) => thread.some((one) => one.id === id))) {
       if (action === 'resolve') remark.state = 'closed';
@@ -692,21 +705,37 @@ const Remarks = (() => {
   /** True when a remark has a session to open: the one that its run reported, the known session that it went to, else the session of the change. */
   const hasSession = (remark) => !!(remark.run?.session || (remark.to?.kind === 'session' ? remark.to.session : remark.to?.kind !== 'new' && App.page.agent?.session));
 
-  /** The quiet state line of a thread, with the way on that fits it. */
-  function stateOf(remark) {
+  /**
+   * The control of the model and the effort after "Start a run" in a card: what the comment was sent with, else what its session last used, as the picker
+   * offers it for that session.
+   */
+  function startControl(remark) {
+    const to = remark.to ?? (App.page.agent?.session ? { app: App.page.agent.app, kind: 'current' } : null);
+    const choice = to && choicesFor(remark.target).find((one) => one.key === States.choiceKey(to));
+    if (!choice?.run) return '';
+    const run = remark.to?.model || remark.to?.effort ? { ...choice.run, ...(remark.to.model ? { model: remark.to.model } : {}), ...(remark.to.effort ? { effort: remark.to.effort } : {}) } : choice.run;
+    return ` · ${RunPick.html(`start:${remark.id}`, { app: choice.app, list: choice.list, run, reset: card?.serial })}`;
+  }
+
+  /**
+   * The quiet state line of a thread, with the way on that fits it, in the words of the picker; how long a run works as a relative time, with the exact
+   * time in its tooltip. In a card, "Start a run" has the control of the model and the effort after it.
+   */
+  function stateOf(remark, inCard = false) {
     const { agent, listening } = App.page;
     const line = States.remarkLine(remark, agent, listening);
     const link = (text, attrs) => `<a ${attrs}>${esc(text)}</a>`;
     // The session that works or worked on it: a click opens it, in its app or in a terminal that continues it.
     const session = hasSession(remark) ? link(W.session, `data-session="${remark.id}"`) : '';
     if (remark.state === 'running' || remark.state === 'done') {
-      const since = remark.state === 'running' && remark.run?.startedAt ? esc(W.since(new Date(remark.run.startedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }))) : '';
+      const start = remark.state === 'running' && remark.run?.startedAt;
+      const since = start ? `<span class="ago" title="${esc(new Date(start).toLocaleString())}">${esc(States.forWords(start))}</span>` : '';
       return States.lineHtml(line, [since, session].filter(Boolean).map((bit) => ` · ${bit}`).join(''));
     }
     const more = {
       listening: ` · ${esc(W.listening)}`,
       connect: ` · ${agent?.link ? link(W.openSession, `data-link="${esc(agent.link)}"`) : esc(W.openSession)}, or ${link(W.connect, 'data-connect')}`,
-      start: ` · ${link(W.startRun, `data-start="${remark.id}"`)}`,
+      start: ` · ${link(W.startRun, `data-start="${remark.id}"`)}${inCard ? startControl(remark) : ''}`,
     }[line.way] ?? '';
     return States.lineHtml(line, more);
   }
@@ -737,7 +766,7 @@ const Remarks = (() => {
     const parts = {
       where: many && !sameThing(thread[0].target, card.target) ? `<div class="sub">${whereHtml(thread[0].target)}</div>` : '', // the head names the first thing
       messages: thread.map(messagesHtml).join(''),
-      state: `<div class="st">${stateOf(lead)}</div>`,
+      state: `<div class="st">${stateOf(lead, true)}</div>`,
       reply: many && thread[0].id !== card.reply ? `<a class="toreply" data-reply-to="${thread[0].id}">${esc(W.reply)}</a>` : '',
     };
     return `<div class="cth${many && thread[0].id === card.reply ? ' cur' : ''}" data-thread="${thread[0].id}">${fields.map((field) => parts[field] ?? '').join('')}</div>`;
@@ -794,6 +823,7 @@ const Remarks = (() => {
       document.querySelectorAll(`.cb[data-threads~="${id}"]`).forEach((el) => el.classList.add('on'));
     }
     placeCard();
+    RunPick.placeIn(card.el);
   }
 
   /** While the card of code lines is open, those lines have a soft tint. */
@@ -861,7 +891,7 @@ const Remarks = (() => {
     if (target.closest('[data-close]')) return closeCard();
     if (target.closest('[data-resolve]')) return act(card.reply, 'resolve');
     if (target.closest('[data-more]')) { card.moreOpen = !card.moreOpen; return drawCard(); }
-    if (target.closest('[data-pick]')) { card.menu = !card.menu; return redrawPicker(); }
+    if (target.closest('[data-pick]')) { card.menu = !card.menu; RunPick.close('card'); return redrawPicker(); }
     const choice = target.closest('[data-choice]');
     if (choice) { pick(choice.dataset.choice); return focusField(card.el, card.key === 'new' ? 'new' : card.reply); }
     const reply = target.closest('[data-reply-to]');

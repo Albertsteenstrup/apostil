@@ -2,7 +2,8 @@
 
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { newRunCommand, resumeCommand, runOptions, sessionName, type AgentSession, type RunModels } from '../shared/agents';
+import { newRunCommand, resumeCommand, runOptions, sessionName, WRITER_AGENT, type AgentSession, type RunModels } from '../shared/agents';
+import { teamFrom, teamOf, teamRun, teamSentence } from '../shared/models';
 import { askLine, askPress, askTo, type AskRun, type AskTo, type AskView } from '../shared/ask';
 import { appToStart } from '../shared/map-app';
 import { isAlive, storeFolder, type Store } from '../shared/store';
@@ -45,12 +46,17 @@ export function askRunOf(store: Store, folder: string, words: string): AskRun | 
   return repo ? store.askRun(repo, words) : undefined;
 }
 
-/** What the page shows for its words: the line of their run when one started, and the press when an app can be started and no run of them works or is done. */
+const appOf = (to: AskTo): string => (to.kind === 'current' ? to.agent.app : to.app);
+
+/**
+ * What the page shows for its words: the line of their run when one started, and the press when an app can be started and no run of them works or is
+ * done, with the team of the run (the lead and the writers) for the control after the press.
+ */
 export function askView(store: Store, folder: string, words: string, installed: string[], about: AskAbout = {}): AskView {
   const run = askRunOf(store, folder, words);
   const line = run && askLine(run, run.pid !== undefined && isAlive(run.pid), nameOf(run.agent));
   const to = !line || line.state === 'stopped' ? askToFrom(store, folder, installed, about) : undefined;
-  return { words, ...(to ? { press: askPress(to, to.kind === 'current' ? nameOf(to.agent) : undefined) } : {}), ...(line ? { line } : {}) };
+  return { words, ...(to ? { press: askPress(to, to.kind === 'current' ? nameOf(to.agent) : undefined), team: teamOf(appOf(to)) } : {}), ...(line ? { line } : {}) };
 }
 
 /**
@@ -58,9 +64,11 @@ export function askView(store: Store, folder: string, words: string, installed: 
  * apostil-describe-change runs (`describe`). A new session runs in `folder`; for a pull request, in a folder with its head branch checked out, which Apostil
  * finds or makes (view/pull-folder.ts) and removes when the run ends, if it made it. The record keeps the session (a new Claude Code session gets its id at
  * once) and the end. `changed` is called when the record changes, `ended` when the run ends, with its problem when it failed or was not allowed a command.
+ * `team`: the lead and the writers that the control after the press sent (checked by teamFrom), else the default: the second smallest model leads, the
+ * smallest writes, at the most effort; a session that the run continues takes the lead's model.
  * Gives back true when the run started, false when no app can be started from here, and one sentence when the branch of the pull request could not be checked out.
  */
-export async function startAsk(store: Store, folder: string, words: string, installed: string[], models: RunModels, changed: () => void, ended: (problem?: string, facts?: RunFacts) => void, about: AskAbout = {}): Promise<boolean | string> {
+export async function startAsk(store: Store, folder: string, words: string, installed: string[], models: RunModels, changed: () => void, ended: (problem?: string, facts?: RunFacts) => void, about: AskAbout = {}, team?: unknown): Promise<boolean | string> {
   const repo = idOf(folder);
   const to = askToFrom(store, folder, installed, about);
   if (!repo || !to) return false;
@@ -69,9 +77,12 @@ export async function startAsk(store: Store, folder: string, words: string, inst
   const where = got?.folder ?? (to.kind === 'current' && to.folder && existsSync(to.folder) ? to.folder : folder);
   /** Removes the worktree that Apostil made for this run, once the run is over or did not start. */
   const tidy = async (): Promise<void> => { if (got?.made) await removePullFolder(folder, got.folder, storeFolder()); };
-  const prompt = about.pull ? `${words}. ${ON_BRANCH}` : words;
+  const lead = teamFrom(appOf(to), team);
+  const first = about.pull ? `${words}. ${ON_BRANCH}` : words;
+  const sentence = teamSentence(lead, WRITER_AGENT); // the models of the lead and the writers, in plain words
+  const prompt = sentence ? `${first.replace(/\.?$/, '.')} ${sentence}` : first;
   const sessionId = to.kind === 'new' && to.app === 'claude-code' ? randomUUID() : undefined;
-  const options = { ...runOptions(where, storeFolder(), models), describe: true as const, sessionId };
+  const options = { ...runOptions(where, storeFolder(), models), describe: true as const, sessionId, ...teamRun(lead) };
   const command = to.kind === 'current' ? resumeCommand(to.agent, prompt, options) : newRunCommand(to.app, prompt, options);
   if (!command) {
     await tidy();
