@@ -870,7 +870,7 @@ const Marks = (() => {
     return `<span class="mk-chip${fillsSquare(value.icon) ? ' square' : ''}" data-mk="${esc(key)}"><img src="${esc(value.icon)}" alt=""></span>`;
   }
 
-  /** The HTML of a stack: at most three chips, then "+n". */
+  /** The HTML of a stack: at most three chips, then "+n" as one more chip of the same size and form, so that it reads as the next value. */
   function stackHtml(look, stack) {
     const chips = stack.slice(0, SHOWN).map((one) => chipHtml(look, one.key));
     return `${chips.join('')}${stack.length > SHOWN ? `<span class="mk-more">+${stack.length - SHOWN}</span>` : ''}`;

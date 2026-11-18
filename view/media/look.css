@@ -429,7 +429,6 @@ body.list{--bar:var(--vscode-sideBar-background,var(--paper));background:var(--b
 .cl .row{--ring:var(--bar)}.cl .row:hover{--ring:var(--region)}.cl .row.sel{--ring:var(--tealsoft)} /* the ring between avatars has the colour of the row */
 .cl .pr .rv .av{width:14px;height:14px;font-size:8px;box-shadow:0 0 0 1.5px var(--ring)}
 .cl .pr .rb{position:absolute;right:-2px;bottom:-2px;width:6px;height:6px;border-radius:50%;box-shadow:0 0 0 1px var(--ring)}
-.cl .pr .rvs > i{margin-left:5px;font-style:normal;color:var(--muted)}
 .cl .pr:hover,.cl .more:hover,.cl .fold:hover{color:var(--ink)}
 .cl .row .more{padding:3px 0 0}
 .cl .more{display:block;padding:0 10px 8px;font-size:var(--small);color:var(--muted)}
@@ -550,7 +549,12 @@ div.nomap a:hover{text-decoration:underline;text-underline-offset:3px}
 :is(.status,.cl) .rv{position:relative;display:inline-flex;margin-left:-7px}
 :is(.status,.cl) .rv:first-child{margin-left:0}
 .status .rv .av{box-shadow:0 0 0 1.5px var(--region)}
-:is(.status,.cl) .rvs > i{margin-left:6px}
+/* the others of the reviewers: one more face with their count, round, as large as the faces, lying behind the last face (its own layer keeps it in front of the row);
+   the wider left padding keeps the count clear of the face in front */
+:is(.status,.cl) .rvs{isolation:isolate}
+:is(.status,.cl) .rv.rest{z-index:-1}
+:is(.status,.cl) .rv.rest .av{box-sizing:border-box;width:auto;min-width:20px;padding:0 3px 0 9px;border-radius:10px;background:color-mix(in srgb,var(--ink) 9%,var(--paper));color:var(--soft);font-weight:700;letter-spacing:-.2px}
+.cl .pr .rv.rest .av{min-width:14px;padding:0 2px 0 6px;border-radius:7px;font-size:7.5px}
 .status .rb{position:absolute;right:-1px;bottom:-2px;width:7px;height:7px;border-radius:50%;box-shadow:0 0 0 1.5px var(--region)}
 :is(.status,.cl) .rb.ok{background:var(--pr-green)}:is(.status,.cl) .rb.bad{background:var(--pr-red)}:is(.status,.cl) .rb.wait{background:var(--pr-amber)}:is(.status,.cl) .rb.quiet{display:none}
 .status .others{margin-left:auto;color:var(--tealink)}
@@ -1121,7 +1125,12 @@ a.srow:hover{background:var(--seg)}
 .mk-stack:hover .mk-chip{margin-left:2px}
 .mk-stack:hover .mk-chip:first-child{margin-left:0}
 @media (prefers-reduced-motion:reduce){.mk-chip{transition:none}}
-.mk-more{margin-left:3px;padding:0 5px;height:16px;border-radius:8px;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.14);font:600 10px/16px var(--sans);color:#3d4a45!important;cursor:pointer;flex:none}
+/* "+n" after the chips: one more chip, round and as large as a chip, lying behind the one before it, so that it reads as the next service in the stack.
+   The stack is its own layer (isolation), so z-index -1 puts "+n" behind the chips and not behind the node. The wider left padding keeps the text clear of the chip in front. */
+.mk-stack{isolation:isolate}
+.mk-more{position:relative;z-index:-1;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;min-width:18px;height:18px;margin-left:-5px;padding:0 3px 0 6px;border-radius:9px;background:#fff;
+  box-shadow:0 0 0 1px rgba(0,0,0,.14),0 1px 2px rgba(0,0,0,.12);font:700 9px/1 var(--sans);letter-spacing:-.2px;color:#3d4a45!important;cursor:pointer;flex:none;transition:margin .15s ease-out}
+.mk-stack:hover .mk-more{margin-left:2px}
 .mk-button{background:var(--tealsoft);box-shadow:0 0 0 1px var(--tealline)}
 .win .mk-rows .mk-chip{margin:0 2px 0 0;align-self:center}
 .mk-rows a{font-family:var(--sans)}

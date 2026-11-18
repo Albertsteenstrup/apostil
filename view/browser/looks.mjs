@@ -75,9 +75,20 @@ try {
     const plain = await one.evaluate(() => ({
       stacks: [...document.querySelectorAll('#view .mk-stack')].map((stack) => `${nodeKey(stack.closest('g'))}:${stack.querySelectorAll('.mk-chip').length}${stack.querySelector('.mk-more')?.textContent ?? ''}`).sort(),
       changed: document.querySelectorAll('#view [class*="lk-"]').length,
+      // "+1" is one more chip (the owner: "+x component should look the same as icons so it looks like the 4th service" and "+x should not be in front instead behind 3rd"):
+      // as tall, round, overlapping the last chip and behind it, with its text clear of that chip.
+      more: (() => {
+        const more = document.querySelector('#view .mk-more'), chip = more?.previousElementSibling;
+        const [m, c] = [more?.getBoundingClientRect(), chip?.getBoundingClientRect()];
+        if (!m || !c) return null;
+        const y = (c.top + c.bottom) / 2, x = (m.left + c.right) / 2, top = document.elementFromPoint(x, y);
+        const text = document.createRange(); text.selectNodeContents(more);
+        return { tall: Math.abs(m.height - c.height) <= 0.5, round: parseFloat(getComputedStyle(more).borderRadius) >= m.height / 2 - 0.5, overlaps: m.left < c.right - 1, middle: Math.abs((m.top + m.bottom) - (c.top + c.bottom)) <= 1,
+          behind: !!top && chip.contains(top), clear: text.getBoundingClientRect().left >= c.right };
+      })(),
     }));
-    check('the default look: the logos of the services stand at the upper right of each node whose code reaches them, at most 3 then "+1", and nothing else changes; a diagram that the look does not touch is drawn exactly as with no look',
-      plain.stacks.join() === 'data:1,jobs:3+1,lending:3' && plain.changed === 0 && none === byDefault && tablesByDefault === byLook, JSON.stringify({ ...plain, same: [none === byDefault, tablesByDefault === byLook] }));
+    check('the default look: the logos of the services stand at the upper right of each node whose code reaches them, at most 3 then "+1" as one more chip of the same size and form, behind the third, and nothing else changes; a diagram that the look does not touch is drawn exactly as with no look',
+      plain.stacks.join() === 'data:1,jobs:3+1,lending:3' && plain.more?.tall && plain.more.round && plain.more.overlaps && plain.more.middle && plain.more.behind && plain.more.clear && plain.changed === 0 && none === byDefault && tablesByDefault === byLook, JSON.stringify({ ...plain, same: [none === byDefault, tablesByDefault === byLook] }));
 
     // Each slot of the example look, in the look "Apostil" and in the dark default theme: a colour, a shape, a picture, a button, an arrow and the corner of a second set.
     const slots = {};

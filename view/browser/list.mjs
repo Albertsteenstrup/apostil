@@ -202,15 +202,23 @@ try {
     const faces = pr.querySelector('.rvs');
     return {
       number: pr.querySelector('.pn').textContent, author: author.matches('img.av.xs') && author.naturalWidth > 0, size: Math.round(author.getBoundingClientRect().width),
-      faces: faces?.querySelectorAll('.rv').length ?? 0, more: faces?.querySelector('i.muted')?.textContent ?? '', letters: [...(faces?.querySelectorAll('span.av:not(.prodav)') ?? [])].map((av) => av.textContent).join(),
+      faces: faces?.querySelectorAll('.rv:not(.rest)').length ?? 0, more: faces?.querySelector('.rv.rest')?.textContent ?? '', letters: [...(faces?.querySelectorAll('.rv:not(.rest) span.av:not(.prodav)') ?? [])].map((av) => av.textContent).join(),
+      // "+n" is one more face, behind the last face, with its count clear of it (the owner: "+x should not be in front instead behind 3rd")
+      restBehind: (() => {
+        const rest = faces?.querySelector('.rv.rest'), last = rest?.previousElementSibling;
+        if (!rest || !last) return null;
+        const [r, l] = [rest.getBoundingClientRect(), last.getBoundingClientRect()], top = document.elementFromPoint((r.left + l.right) / 2, (l.top + l.bottom) / 2);
+        const text = document.createRange(); text.selectNodeContents(rest.querySelector('.av'));
+        return !!top && last.contains(top) && text.getBoundingClientRect().left >= l.right && Math.abs(r.height - l.height) <= 0.5;
+      })(),
       tip: faces?.querySelector('.rv')?.title ?? '', atEnd: faces ? Math.abs(faces.getBoundingClientRect().right - box.right) <= 1 : true,
       oneLine: box.height < 2.2 * parseFloat(getComputedStyle(pr).fontSize), inRow: box.right <= pr.closest('.row').getBoundingClientRect().right + 0.5,
     };
   }));
   await snap(narrow, 'apostil-250-pull-request-lines-with-avatars');
-  check('at 250 px each pull request line shows the avatar of its author at its left, 16 px, and its reviewers small at its right end: three, the one who asked for changes first, then "+1"; a person with no picture is one letter; one line, inside its row',
+  check('at 250 px each pull request line shows the avatar of its author at its left, 16 px, and its reviewers small at its right end: three, the one who asked for changes first, then "+1" as one more face behind the third; a person with no picture is one letter; one line, inside its row',
     people.length === 2 && people.every((line) => line.author && line.size === 16 && line.atEnd && line.oneLine && line.inRow)
-    && people[0].number === '#12' && people[0].faces === 3 && people[0].more === '+1' && people[0].letters === 'L,M' && people[0].tip === 'lena-s: asked for changes'
+    && people[0].number === '#12' && people[0].faces === 3 && people[0].more === '+1' && people[0].restBehind && people[0].letters === 'L,M' && people[0].tip === 'lena-s: asked for changes'
     && people[1].number === '#14' && people[1].faces === 1 && people[1].more === '', JSON.stringify(people));
   await narrow.close();
 

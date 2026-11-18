@@ -220,8 +220,8 @@ const REVIEWERS_SHOWN = 3; // the reviewers that show as avatars; the others are
 /**
  * The reviewers as avatars that lie over each other, the first one on top and whole; each has a small dot in the colour of its state at its lower right.
  * The pointer says the name and the state. Three show: first who asked for changes, then who approved, then who is asked, then the others; with the same
- * state a person stands before a team and a team before a bot, so that a bot that only commented takes no place from a person. The others are a count
- * ("+2"), and the pointer on it names each with the state. The status strip of a pull request and its line in the list of the side bar use it.
+ * state a person stands before a team and a team before a bot, so that a bot that only commented takes no place from a person. The others are one more
+ * round face with their count ("+2"), and the pointer on it names each with the state. The status strip of a pull request and its line in the list of the side bar use it.
  */
 function reviewerFaces(reviewers, size = 's') {
   const order = ['changes requested', 'approved', 'asked'];
@@ -233,7 +233,9 @@ function reviewerFaces(reviewers, size = 's') {
     return `<span class="rv" style="z-index:${REVIEWERS_SHOWN - index}" title="${esc(tipOf(reviewer))}">${avatar(reviewer.person, size, tipOf(reviewer))}<i class="rb ${look}"></i></span>`;
   };
   const rest = sorted.slice(REVIEWERS_SHOWN);
-  return `<span class="rvs">${sorted.slice(0, REVIEWERS_SHOWN).map(one).join('')}${rest.length ? `<i class="muted" title="${esc(rest.map(tipOf).join(', '))}">+${rest.length}</i>` : ''}</span>`;
+  // The others are one more face in the row, round and as large as the faces, with their count, behind the third face (look.css), so that it reads as the next person.
+  const more = rest.length ? `<span class="rv rest" title="${esc(rest.map(tipOf).join(', '))}"><span class="av ${size}">+${rest.length}</span></span>` : '';
+  return `<span class="rvs">${sorted.slice(0, REVIEWERS_SHOWN).map(one).join('')}${more}</span>`;
 }
 
 window.addEventListener('message', (event) => {

@@ -32,8 +32,8 @@ try {
   const strip = await conv.evaluate(() => {
     const el = document.querySelector('#status .status');
     const icon = el?.querySelector('.pri');
-    const faces = [...(el?.querySelectorAll('.rv') ?? [])].map((one) => one.getBoundingClientRect());
-    return { text: el?.textContent, reviewers: [...(el?.querySelectorAll('.rv') ?? [])].map((one) => one.title), avatars: el?.querySelectorAll('.rv .av').length, all: el?.querySelector('.msent')?.title,
+    const faces = [...(el?.querySelectorAll('.rv:not(.rest)') ?? [])].map((one) => one.getBoundingClientRect());
+    return { text: el?.textContent, reviewers: [...(el?.querySelectorAll('.rv:not(.rest)') ?? [])].map((one) => one.title), avatars: el?.querySelectorAll('.rv:not(.rest) .av').length, all: el?.querySelector('.msent')?.title,
       stacked: faces.slice(1).every((face, at) => face.left < faces[at].right - 4 && face.right > faces[at].right + 8), dots: [...(el?.querySelectorAll('.rv .rb') ?? [])].map((dot) => dot.className.replace('rb ', '')).join(),
       icon: icon?.className, masked: icon && getComputedStyle(icon).maskImage.startsWith('url("data:image/svg+xml'), switchText: [...document.querySelectorAll('.bar .switch a:not([hidden])')].map((a) => a.textContent).join(' · ') };
   });
@@ -47,11 +47,11 @@ try {
     ];
     const el = document.createElement('div');
     el.innerHTML = Conversation.stripHtml(pull, pull, 0);
-    const count = el.querySelector('.rvs > i');
+    const count = el.querySelector('.rvs > .rv.rest');
     pull.reviewers = [];
     el.innerHTML += Conversation.stripHtml(pull, pull, 0);
     drawStrip(); // the strip of the page again, so that a later click draws the real one
-    return { shown: [...el.querySelectorAll('.rv')].map((one) => one.title), count: count?.textContent, rest: count?.title, none: el.querySelectorAll('.status')[1]?.textContent };
+    return { shown: [...el.querySelectorAll('.rv:not(.rest)')].map((one) => one.title), count: count?.textContent, rest: count?.title, none: el.querySelectorAll('.status')[1]?.textContent };
   });
   // The strip says each fact once: after the state, the review and the checks, only the rest of the merge sentence (in the title of .msent).
   check('the page of a change with a pull request has "Conversation" in the switch, and the status strip in one short line: the icon, the reviewers as avatars that lie over each other with a dot for the state, the checks, and the first thing before a merge with a count of the others, each fact once; with seven reviewers three avatars show, who asked for changes first and people before bots, and "+4" names the others; with no reviewer it says so in words',
