@@ -57,7 +57,8 @@ test('the store knows the sessions of a repo, from its changes and from the runs
     store.sendRemark(fresh, { app: 'codex', kind: 'new' });
     store.startRemarkRun(fresh, { startedAt: '2026-11-18T10:00:00Z' });
     store.setRunSession(fresh, 'made-up-thread-0004');
-    store.setAskRun('repo-a', describeWords(35), { to: 'new', agent: { app: 'claude-code', session: 'made-up-ask-0005' }, folder: '/made-up/a', startedAt: '2026-11-18T11:00:00Z' });
+    // The newest session: the change is saved with the time of now, so this run starts a minute after now, whenever the test runs.
+    store.setAskRun('repo-a', describeWords(35), { to: 'new', agent: { app: 'claude-code', session: 'made-up-ask-0005' }, folder: '/made-up/a', startedAt: new Date(Date.now() + 60_000).toISOString() });
 
     const sessions = store.knownSessions('repo-a', '/made-up/open');
     assert.deepEqual(sessions.map((one) => [one.agent.app, one.agent.session, one.agent.hostSession, one.folder]), [
