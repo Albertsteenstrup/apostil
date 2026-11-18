@@ -62,6 +62,12 @@ export function pullRequestsLater(folder: string, branch: string, repo?: string)
   });
 }
 
+/** The pull requests of a branch that pullRequestsLater() kept and that are still fresh, or undefined. A page sends them with its data so that it opens at the right view at once. */
+export function keptPullRequests(folder: string, branch: string): PullRequest[] | undefined {
+  const kept = pullCache.get(`${folder}\n${branch}\n`);
+  return kept && Date.now() - kept.at < KEEP_MS ? kept.pulls : undefined;
+}
+
 /** True when no agent app on this machine sees the Apostil skills for the repo of the folder: Home with no map then shows "Set up for agents". */
 export function agentsNeedSetup(folder: string): boolean {
   return !someAppSeesSkills(thisInstall(), { home: homedir(), path: process.env.PATH ?? '' }, folder ? tryGit(folder, 'rev-parse', '--show-toplevel') : undefined);

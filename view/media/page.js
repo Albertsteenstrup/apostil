@@ -2,6 +2,8 @@
 // the conversation of its pull request. A pull request with no stored change has a page too: "Conversation" and "Diffs".
 'use strict';
 
+const PULLS_WAIT_MS = 1500; // how long a change that just opened waits for the pull requests of its branch
+
 const App = {
   page: null,
   tab: null, // the file that this tab shows: a file tab of VS Code, or "?file=" when the page is a file in a browser
@@ -12,6 +14,7 @@ const App = {
   scrolls: {}, // where each diagram view was scrolled, for the way back
   pulls: [], // the pull requests of the branch, in short, newest first; they come after the page
   pullsKnown: false, // the pull requests of the branch have come, maybe none
+  awaitingPulls: false, // a change that just opened waits a moment for the pull requests of its branch, to open at the right view
   read: {}, // each pull request as read in full from GitHub, by its link: { pull, lastLooked } or { problem }
   looked: new Set(), // the pull requests whose conversation he opened on this page: their time is set once
   unknownTries: {}, // how often a pull request was read again because GitHub did not know yet if it can merge
@@ -22,6 +25,16 @@ const App = {
   pull() {
     const { pulls, state } = this;
     return pulls.find((pull) => pull.number === state.pull) ?? pulls.find((pull) => pull.state !== 'merged' && pull.state !== 'closed') ?? pulls[0] ?? null;
+  },
+
+  /** Waits at most PULLS_WAIT_MS for the pull requests of the branch; the first view is chosen when they come or when the time is over. A step to a place ends the wait. */
+  waitForPulls() {
+    this.awaitingPulls = true;
+    setTimeout(() => {
+      if (!this.awaitingPulls) return;
+      this.awaitingPulls = false;
+      this.render(); // opens at what it knows
+    }, PULLS_WAIT_MS);
   },
 
   /** The link of the pull request that the page shows, or null. */
@@ -57,6 +70,7 @@ const App = {
   /** Goes to a view of the change. It is a step of the path, unless `quiet`: VS Code asked for it, and the path has it already. */
   go(change, quiet = false) {
     Hover.hide();
+    this.awaitingPulls = false;
     if (this.tab) return tell({ type: 'showChange', go: change }); // a file tab: the change page shows it
     this.keepScroll();
     const from = this.state.view === 'diagram' && this.state.level === 'part' ? this.state.part : null; // drill up: that part keeps its diagram whole
@@ -162,6 +176,7 @@ const App = {
   async draw() {
     const { page, state } = this;
     if (!page) return;
+    if (this.awaitingPulls) { document.getElementById('view').innerHTML = '<p class="quiet">Looking for the pull request of this branch…</p>'; return; }
     if (this.tab) Object.assign(state, { view: 'code', file: this.tab });
     // A change of one part with no diagram opens the code of that part with its notes.
     const only = onlyPart();
@@ -329,12 +344,12 @@ function pullChoice(anchor) {
  * that a rule leaves out. With no look: diagram, diffs, conversation.
  */
 function lookViews() {
-  return Marks.shownInOrder(Marks.changeThings(App.page, 'change-view'), App.page.look).map((view) => view.id);
+  return Marks.shownInOrder(Marks.changeThings({ ...App.page, hasPull: !!App.pullLink() }, 'change-view'), App.page.look).map((view) => view.id);
 }
 
 /** The view that a change opens at first: the first view of the switch in the look that the page has; "Conversation" only with a pull request. */
 function firstView() {
-  return lookViews().find((view) => view !== 'conversation' || App.pullLink() || !App.pullsKnown) ?? 'diagram';
+  return lookViews().find((view) => view !== 'conversation' || App.pullLink()) ?? 'diagram';
 }
 
 /**
@@ -509,8 +524,12 @@ window.addEventListener('message', (event) => {
     App.tab = message.file ?? null;
     if (changed) {
       Object.assign(App.state, { view: message.page.pullOnly ? 'conversation' : 'diagram', level: 'change', part: null, diagram: null, from: null, file: null, lines: null, at: null, lit: null, pull: null });
-      Object.assign(App, { pulls: [], pullsKnown: false });
-      if (!message.page.pullOnly && !message.file) App.state.view = firstView(); // the first view of the look
+      // The pull requests that the extension knows come with the data, so the first view is right at once. With none known, a change waits for gh a moment (PULLS_WAIT_MS).
+      Object.assign(App, { pulls: message.pulls ?? [], pullsKnown: !!message.pulls, awaitingPulls: false });
+      if (!message.page.pullOnly && !message.file) {
+        App.state.view = firstView(); // the first view of the look
+        if (!message.pulls) App.waitForPulls();
+      }
     }
     if (message.minimap !== undefined) CodeMap.on = message.minimap; // the setting of VS Code "editor.minimap.enabled"
     if (message.lines) App.state.lines = message.lines;
@@ -531,8 +550,10 @@ window.addEventListener('message', (event) => {
   }
   // The pull requests of the branch, in short: they come after the page. The strip and the switch show them.
   if (message?.type === 'pulls' && App.page) {
+    const first = App.awaitingPulls; // still waiting: the first view is chosen now; later, the page stays where it is
     Object.assign(App, { pulls: message.pulls, pullsKnown: true });
-    if (App.state.view === 'conversation') App.render();
+    if (first) { App.awaitingPulls = false; App.state.view = firstView(); App.render(); }
+    else if (App.state.view === 'conversation') App.render();
     else { drawSwitch(); drawStrip(); }
   }
   // A place to show: from a step back along the path (the path has it), or from a file tab (a step), with a thing to light there.
@@ -594,12 +615,16 @@ if (vscodeApi) {
     const query = new URLSearchParams(location.search);
     App.page = window.APOSTIL_EXAMPLE.page;
     if (query.get('look')) App.page = { ...App.page, look: window.APOSTIL_EXAMPLE.pageLooks[query.get('look')] }; // a made-up look of the example: "1", "shared" or "change"
-    Object.assign(App, { pulls: window.APOSTIL_EXAMPLE.pagePulls ?? [], pullsKnown: true }); // in VS Code they come later
+    // As in VS Code, a page of the change comes first and the pull requests of its branch after it: the first view is chosen before them.
+    // "?pulls=kept" has them at once, as when the extension kept them; "?pulls=none" is a branch with none. A file tab, "?go=" and "?pull=" have them at once.
+    const examplePulls = query.get('pulls') === 'none' ? [] : window.APOSTIL_EXAMPLE.pagePulls ?? [];
+    const pullsNow = query.get('pulls') || query.get('pull') || query.get('file') || query.get('go');
+    if (pullsNow) Object.assign(App, { pulls: examplePulls, pullsKnown: true });
     if (query.get('pull')) return loadPullData(query.get('pull'));
     App.tab = query.get('file'); // the page as a file tab
     if (App.tab) App.loadPull(); // the pull request of the example, so that a comment on code can go to it
     if (query.get('go')) App.go(JSON.parse(query.get('go')), true); // a view that another page opened: "?go=<place>"
-    else { if (!App.tab) App.state.view = firstView(); App.render(); }
+    else { if (!App.tab) App.state.view = firstView(); if (!pullsNow) Object.assign(App, { pulls: examplePulls, pullsKnown: true }); App.render(); }
   };
   script.onerror = () => { document.getElementById('view').innerHTML = '<p class="quiet">Run node out/view/example-data.js to write example-data.js.</p>'; };
   document.head.append(script);

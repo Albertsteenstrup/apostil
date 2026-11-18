@@ -55,7 +55,7 @@ try {
   });
   // The strip says each fact once: after the state, the review and the checks, only the rest of the merge sentence (in the title of .msent).
   check('the page of a change with a pull request has "Conversation" in the switch, and the status strip in one short line: the icon, the reviewers as avatars that lie over each other with a dot for the state, the checks, and the first thing before a merge with a count of the others, each fact once; with seven reviewers three avatars show, who asked for changes first and people before bots, and "+4" names the others; with no reviewer it says so in words',
-    strip.switchText === 'Diagram · Diffs · Conversation' && strip.icon === 'pri git-pull-request red' && strip.masked
+    strip.switchText === 'Conversation · Diagram · Diffs' && strip.icon === 'pri git-pull-request red' && strip.masked
     && /2 of 12 checks failed▸Waits for #9 below it in the stack2 moreReview1 more pull request$/.test(strip.text) && !/approved|jonas/.test(strip.text)
     && strip.reviewers.join() === 'jonas-b: approved,lena-s: waiting,made-up/lending-team: waiting' && strip.avatars === 3 && strip.stacked && strip.dots === 'ok,wait,wait'
     && strip.all === 'Waits for #9 below it in the stack · 1 check is still running · 3 commits behind made-up/hold-store'
@@ -851,8 +851,36 @@ try {
     return result;
   });
   check('a change of one part with no diagram opens on its code, and the switch calls that view "Code"; with a diagram it says "Diagram" again; the summary line of a change on top of another branch says which branch it is compared with',
-    onePart.view === 'code' && onePart.on === 'Code' && /^Code · Diffs/.test(onePart.shown) && onePart.back === 'Diagram' && /^compared with made-up\/hold-store/.test(onePart.summary), JSON.stringify(onePart));
+    onePart.view === 'code' && onePart.on === 'Code' && /^Conversation · Code · Diffs/.test(onePart.shown) && onePart.back === 'Diagram' && /^compared with made-up\/hold-store/.test(onePart.summary), JSON.stringify(onePart));
   await stack.close();
+  }
+
+  // ----- a change whose branch has a pull request opens at "Conversation" (build 72) -----
+  {
+    const first = await newPage({ viewport: { width: 1280, height: 900 } });
+    await first.goto(`file://${pageFile}?pulls=kept`);
+    await first.waitForFunction(() => (window.apostilConversations ?? 0) >= 1, null, { timeout: 15000 });
+    const kept = await first.evaluate(() => ({ view: App.state.view, on: document.querySelector('.switch a.on')?.textContent, switchText: [...document.querySelectorAll('.bar .switch a:not([hidden])')].map((a) => a.textContent).join(' · ') }));
+    check('a change whose branch has a pull request, known when the page opens, opens at "Conversation" and its switch reads "Conversation · Diagram · Diffs"',
+      kept.view === 'conversation' && kept.on === 'Conversation' && kept.switchText === 'Conversation · Diagram · Diffs', JSON.stringify(kept));
+    // As VS Code sends it: a change with no pull request opens at "Diagram"; one whose pull requests are not known waits for them, then opens at "Conversation";
+    // when they come after the wait, the page stays where it is.
+    const sent = (message) => first.evaluate((m) => { window.postMessage(m, '*'); return new Promise((done) => setTimeout(done, 50)); }, message);
+    const read = () => first.evaluate(() => ({ view: App.state.view, text: document.getElementById('view').textContent.slice(0, 60), switchText: [...document.querySelectorAll('.bar .switch a:not([hidden])')].map((a) => a.textContent).join(' · ') }));
+    const own = await first.evaluate(() => ({ page: App.page, pulls: App.pulls }));
+    await sent({ type: 'data', page: { ...own.page, changeId: 901 }, pulls: [] });
+    const none = await read();
+    await sent({ type: 'data', page: { ...own.page, changeId: 902 } });
+    const waiting = await read();
+    await sent({ type: 'pulls', pulls: own.pulls });
+    await first.waitForFunction(() => App.state.view === 'conversation' && !App.awaitingPulls, null, { timeout: 5000 });
+    await sent({ type: 'data', page: { ...own.page, changeId: 903 } });
+    await first.waitForFunction(() => !App.awaitingPulls && App.state.view === 'diagram', null, { timeout: 5000 }); // the time is over: opens at what it knows
+    await sent({ type: 'pulls', pulls: own.pulls });
+    const late = await read();
+    check('a change with no pull request opens at "Diagram" with "Diagram · Diffs"; while its pull requests are not known it says "Looking for the pull request of this branch…" and opens at "Conversation" when they come, and when they come after 1.5 seconds the page stays at "Diagram"',
+      none.view === 'diagram' && none.switchText === 'Diagram · Diffs' && /^Looking for the pull request/.test(waiting.text) && late.view === 'diagram' && late.switchText === 'Conversation · Diagram · Diffs', JSON.stringify({ none, waiting, late }));
+    await first.close();
   }
 
 } catch (error) {

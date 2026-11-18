@@ -17,7 +17,7 @@ import { startRun } from './agent-run';
 import { codexModel, commentRuns, showRunProblem } from './run-settings';
 import { iconCss } from './state-icons';
 import { blocksAnswer } from './look-blocks';
-import { pullRequestsLater } from './change-list';
+import { keptPullRequests, pullRequestsLater } from './change-list';
 import { reopenStaleRuns } from './list-rows';
 import { answer, filePage, isListening, lookOfPage, marksBeside, notesBeside, pageData, pullLines, pullOnlyPage, takeStart, type PageData, type PullLines } from './page-data';
 import type { ChangeGo, Step, WindowTrail } from './trail';
@@ -321,7 +321,9 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
   /** The data message of a view. A file tab gets its first lines or change once; later loads keep where the owner is. */
   private dataFor(view: View): Posted {
     const { lines, at } = takeStart(view);
-    return { type: 'data', page: this.page, file: view.file, lines, at, trail: this.trail?.steps, minimap: minimapOn(), ...(view.file && this.pullRead ? { pullRead: this.pullRead } : {}) };
+    const pulls = this.page && !this.page.pullOnly ? keptPullRequests(this.page.folder, this.page.branch) : undefined; // known now: the page opens at the right view at once
+    if (pulls) this.sentPulls = JSON.stringify(pulls);
+    return { type: 'data', page: this.page, pulls, file: view.file, lines, at, trail: this.trail?.steps, minimap: minimapOn(), ...(view.file && this.pullRead ? { pullRead: this.pullRead } : {}) };
   }
 
   /** The setting "editor.minimap.enabled" changed: each view shows or hides the small code map beside a whole file, in place. */
