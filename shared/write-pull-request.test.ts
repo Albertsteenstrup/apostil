@@ -6,8 +6,8 @@ import { test } from 'node:test';
 import { diffRanges } from '../view/page-data';
 import type { GhResult } from './read-pull-request';
 import {
-  addCodeComment, addComment, addPullRequestReviewThreadReply, COMMENT, COMMIT, FILE_AT, LINES_ALONE, LINES_IN_REVIEW, REPLY, RESOLVE, resolveReviewThread, REVIEW, SEND_PENDING,
-  sendReview, UNRESOLVE, unresolveReviewThread, writePullRequest, type Write,
+  addCodeComment, addComment, addPullRequestReviewThreadReply, CLOSE, COMMENT, COMMIT, DELETE_BRANCH, FILE_AT, LINES_ALONE, LINES_IN_REVIEW, MERGE, READY, REOPEN, REPLY, RESOLVE,
+  resolveReviewThread, REVIEW, SEND_PENDING, sendReview, TO_DRAFT, UNRESOLVE, unresolveReviewThread, UPDATE_BRANCH, writePullRequest, type Write,
 } from './write-pull-request';
 
 /** A stand-in for gh that keeps every call with what came on its standard input, and answers as GitHub does. */
@@ -51,7 +51,7 @@ test('every kind of write sends exactly one mutation and no read: an answer, a r
       assert.match(sent(gh.calls[0]).query, /^mutation/);
     }
     const gh = standIn();
-    assert.ok('problem' in await writePullRequest({ kind: 'merge' } as never, gh.run));
+    assert.ok('problem' in await writePullRequest({ kind: 'rename' } as never, gh.run));
     assert.equal(gh.calls.length, 0, 'a kind that is not known sends nothing');
   }
 });
@@ -165,6 +165,38 @@ test('"Commit suggestion" reads each file at the head, puts the suggested lines 
   const moved = await writePullRequest(write, run);
   assert.ok('problem' in moved && /Expected branch to point to "h1"/.test(moved.problem));
   assert.deepEqual(steps(), ['read h1:a.ts', 'read h1:b.ts', 'commit']);
+});
+
+test('a merge sends the method, the title, the message and the head that the page showed (a rebase no title); GitHub\'s answer is the merged state, an answer that did not merge is a problem; close, reopen, ready, draft, update and delete each send their one mutation', async () => {
+  const merged = { merged: true, mergedAt: '2026-11-03T09:05:00Z', mergedBy: { login: 'ada-made-up', avatarUrl: '', __typename: 'User' }, mergeCommit: { abbreviatedOid: 'abc1234' } };
+  const gh = standIn({ out: JSON.stringify({ data: { mergePullRequest: { pullRequest: merged } } }), err: '' });
+  const squash = await writePullRequest({ kind: 'merge', pullId: 'PR_made_up_7', method: 'SQUASH', title: 'Made-up change (#7)', body: '* one', headOid: 'h1' }, gh.run);
+  assert.deepEqual(squash, { ok: true, merged: { at: '2026-11-03T09:05:00Z', by: { login: 'ada-made-up', avatar: '', bot: false }, commit: 'abc1234' } });
+  await writePullRequest({ kind: 'merge', pullId: 'PR_made_up_7', method: 'REBASE', title: 'ignored', body: 'ignored', headOid: 'h1' }, gh.run);
+  assert.deepEqual(gh.calls.map(sent), [
+    { query: MERGE, variables: { pull: 'PR_made_up_7', method: 'SQUASH', title: 'Made-up change (#7)', body: '* one', head: 'h1' } },
+    { query: MERGE, variables: { pull: 'PR_made_up_7', method: 'REBASE', head: 'h1' } },
+  ]);
+  assert.match(MERGE, /mergePullRequest\(input: \{ pullRequestId: \$pull, mergeMethod: \$method, commitHeadline: \$title, commitBody: \$body, expectedHeadOid: \$head \}\)/);
+  const notMerged = await writePullRequest({ kind: 'merge', pullId: 'p', method: 'MERGE', headOid: 'h1' }, standIn({ out: JSON.stringify({ data: { mergePullRequest: { pullRequest: { merged: false } } } }), err: '' }).run);
+  assert.ok('problem' in notMerged && /did not merge/.test(notMerged.problem));
+  const moved = await writePullRequest({ kind: 'merge', pullId: 'p', method: 'MERGE', headOid: 'h1' }, standIn({ out: JSON.stringify({ data: null, errors: [{ message: 'Head branch was modified. Review and try the merge again.' }] }), err: '' }).run);
+  assert.deepEqual(moved, { problem: 'GitHub says: Head branch was modified. Review and try the merge again.' });
+
+  // The changes that can be undone: one mutation each, with the node id of the pull request (or of the branch).
+  const each = [
+    [{ kind: 'close', pullId: 'p' }, CLOSE, { pull: 'p' }, /closePullRequest/], [{ kind: 'reopen', pullId: 'p' }, REOPEN, { pull: 'p' }, /reopenPullRequest/],
+    [{ kind: 'ready', pullId: 'p' }, READY, { pull: 'p' }, /markPullRequestReadyForReview/], [{ kind: 'draft', pullId: 'p' }, TO_DRAFT, { pull: 'p' }, /convertPullRequestToDraft/],
+    [{ kind: 'update', pullId: 'p', headOid: 'h1' }, UPDATE_BRANCH, { pull: 'p', head: 'h1' }, /updatePullRequestBranch\(input: \{ pullRequestId: \$pull, expectedHeadOid: \$head \}\)/],
+    [{ kind: 'delete-branch', refId: 'REF_1' }, DELETE_BRANCH, { ref: 'REF_1' }, /deleteRef/],
+  ] as const;
+  for (const [write, query, variables, name] of each) {
+    const one = standIn({ out: JSON.stringify({ data: { updatePullRequestBranch: { pullRequest: { headRefOid: 'h2' } } } }), err: '' });
+    const result = await writePullRequest(write, one.run);
+    assert.deepEqual(one.calls.map(sent), [{ query, variables }], write.kind);
+    assert.match(query, name);
+    assert.deepEqual(result, write.kind === 'update' ? { ok: true, headOid: 'h2' } : { ok: true });
+  }
 });
 
 test('the lines of a diff where GitHub takes a comment: each hunk on each side, a removed file on the old side, and "---" inside a hunk is code', () => {

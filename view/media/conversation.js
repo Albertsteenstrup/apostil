@@ -226,10 +226,10 @@ const Conversation = (() => {
     const checksBit = checks.dot === 'none' ? bit(checks) : `<a class="chk${checksOpen ? ' on' : ''}" data-checks title="Show the checks">${checks.dot === 'none' ? '' : `<i class="dot ${REVIEW_DOTS[checks.dot] ?? ''}"></i>`}${esc(checks.text)}<span class="chev">${checksOpen ? '▾' : '▸'}</span></a>`;
     const [first, ...rest] = stripSentence(full);
     const sentence = first ? `<span class="msent${full.merge.ready ? ' ok' : ''}"${rest.length ? ` title="${esc([first, ...rest].join(' · '))}"` : ''}>${esc(first)}${rest.length ? `<i class="muted">${rest.length} more</i>` : ''}</span>` : '';
-    // The bits in the order of a rule of the look; "Review" and the choice of pull requests keep their place at the end, since "Review" writes to GitHub.
+    // The bits in the order of a rule of the look; "Merge", "Review" and the choice of pull requests keep their place at the end, since they write to GitHub.
     const bits = { reviewers: () => (full.reviewers.length ? reviewersHtml(full) : ''), review: () => bit(reviewLine(full)), checks: () => checksBit, blocker: () => sentence };
     const shown = PartLook.stripBits(pageLook(), full).map((name) => bits[name]()).join('');
-    return `<div class="status">${stateBit(full, full.state === 'draft' || full.state === 'conflicts', look)}${shown}${reviewBit(full)}${choice}</div>`
+    return `<div class="status">${stateBit(full, full.state === 'draft' || full.state === 'conflicts', look)}${shown}${mergeBit(full)}${reviewBit(full)}${choice}</div>`
       + (checksOpen ? `<section class="checks-panel">${checksHtml(full)}</section>` : '') + reviewHtml(full);
   }
 
@@ -641,18 +641,193 @@ const Conversation = (() => {
     return item.hidden ? `<div class="hidbox classic" data-box><a class="hid" data-toggle>${avatar(item.author, 's')}<span>This comment was hidden as ${esc(item.hidden)}</span><span class="show">Show</span><span class="hide">Hide</span></a><div class="inner">${html}</div></div>` : html;
   }
 
-  /** The merge box at the end: the reviews in short, the checks with a fold for the list, the merge sentence. */
-  function mergeBox(pull) {
-    const review = pull.open ? reviewLine(pull) : null;
-    const checks = checksLine(pull);
-    const sentence = pull.merge.sentence;
-    const sections = [
-      review ? `<div class="mb">${ico(review.dot === 'teal' ? 'check-circle-fill' : 'dot-fill', review.dot === 'teal' ? 'ok' : 'wait')}<div><b>${esc(review.text.charAt(0).toUpperCase() + review.text.slice(1))}</b>${pull.reviewers.length ? `<div class="quiet">${pull.reviewers.map((one) => `${esc(one.person.login)}: ${esc((REVIEWER_LOOK[one.state] ?? REVIEWER_LOOK.reviewed)[2])}`).join(' · ')}</div>` : ''}</div></div>` : '',
-      pull.checks.list.length ? `<div class="mb" data-box>${ico(checks.dot === 'red' ? 'x-circle-fill' : checks.dot === 'amber' ? 'dot-fill' : 'check-circle-fill', checks.dot === 'red' ? 'bad' : checks.dot === 'amber' ? 'wait' : 'ok')}<div class="mbw"><b>${esc(checks.text.charAt(0).toUpperCase() + checks.text.slice(1))}</b> <a class="more" data-toggle><span class="show">Show all checks</span><span class="hide">Hide all checks</span></a><div class="inner">${checksHtml(pull)}</div></div></div>` : '',
-      pull.deployments.length ? `<div class="mb">${ico('rocket')}<div>${deploymentsLine(pull)}</div></div>` : '',
-      `<div class="mb">${ico(pull.look.icon, pull.look.colour)}<div><b>${esc(sentence)}</b>${pull.open ? `<div class="quiet">Merge on <a data-link="${esc(pull.url)}">GitHub</a>.</div>` : ''}</div></div>`,
-    ];
-    return `<div class="item merge">${ico(pull.look.icon, `mic ${pull.look.colour}`)}<div class="gbox">${sections.filter(Boolean).join('')}</div></div>`;
+  // ----- the state card: the state, three meters and the actions, at the top of "Messages" and "Classic" (MergeCard in merge-card.js says what it holds) -----
+
+  const CARD = MergeCard.WORDS;
+  let mergeStep = null; // { pullId, method, admin } while the merge step of the card is open
+  let mergeRun = null; // { pullId, method } while a merge runs
+  let changing = null; // the action of the card that runs now (close, reopen, …): one click, one send
+  let openAtCard = false; // the press "Merge" of the strip opened "Conversation": it opens at the card, not at the first unseen message
+  const mergeEdits = {}; // his commit title and message, by pull id and method
+
+  /** A thin bar of a meter in segments; striped when nobody approved yet, a plain line when there is nothing to count. */
+  function barHtml(meter) {
+    if (meter.none) return '<span class="pcbar none"></span>';
+    const parts = meter.parts.filter((part) => part.count > 0);
+    return `<span class="pcbar">${parts.map((part) => `<i class="${part.look}" style="flex:${part.count}"></i>`).join('')}</span>`;
+  }
+  const meterHtml = (meter) => `<a class="pcmeter" data-card-go="${meter.go}" tabindex="0"><span class="pcml">${esc(meter.label)}</span><span class="pcmv">${esc(meter.text)}</span>${barHtml(meter)}</a>`;
+
+  /** A blocker as a link to its fix: the checks list, the first open thread, the review panel, "Update branch", the pull request below, a page of GitHub. */
+  function blockerHtml(part, pull) {
+    const text = esc(part.text);
+    if (part.go === 'conflicts') return `<a class="pcgo" data-link="${esc(`${pull.url}/conflicts`)}">${text}</a>`;
+    if (part.go === 'github') return `<a class="pcgo" data-link="${esc(pull.url)}">${text}</a>`;
+    if (part.go === 'stack') {
+      const below = pull.stack?.entries.filter((entry) => entry.position < pull.stack.position && entry.state !== 'merged' && entry.state !== 'closed').at(0);
+      return below ? `<a class="pcgo" data-stack-pull="${esc(below.url)}" data-number="${below.number}">${text}</a>` : text;
+    }
+    if (part.go === 'update' || part.go === 'ready') return `<a class="pcgo" data-card-act="${part.go}" tabindex="0">${text}</a>`;
+    return part.go ? `<a class="pcgo" data-card-go="${part.go}" tabindex="0">${text}</a>` : text;
+  }
+
+  /** The quiet actions of the card, in their order. */
+  function linkHtml(name, pull) {
+    if (name === 'conflicts') return `<a data-link="${esc(`${pull.url}/conflicts`)}">${esc(CARD.conflictsLink)}</a>`;
+    const words = { 'merge-admin': CARD.mergeAdmin, update: CARD.update, ready: CARD.readyIt, draft: CARD.draftIt, close: CARD.close, reopen: CARD.reopen, 'delete-branch': CARD.deleteBranch }[name];
+    return `<a data-card-act="${name}" tabindex="0">${esc(changing === name ? WRITE.sending : words)}</a>`;
+  }
+
+  /** The merge step in place: the method with its one sentence, the commit title and message (not for a rebase), "Confirm merge". */
+  function stepHtml(pull) {
+    const { method, admin } = mergeStep;
+    const base = pull.base;
+    const way = (one) => `<b>${esc(MergeCard.METHODS[one].name)}</b><span class="pcwhy">${esc(MergeCard.METHODS[one].say(base))}</span>`;
+    const ways = pull.methods.length === 1 ? `<p class="pcway one">${way(method)}</p>`
+      : pull.methods.map((one) => `<label class="pcway"><input type="radio" name="merge-method" value="${one}"${one === method ? ' checked' : ''}><span>${way(one)}</span></label>`).join('');
+    const text = mergeEdits[`${pull.id}:${method}`] ?? MergeCard.commitText(pull, method);
+    const fields = text ? `<label class="pcf"><span>${esc(CARD.title)}</span><input class="ghf" data-merge-field="title" value="${esc(text.title)}"></label>`
+      + `<label class="pcf"><span>${esc(CARD.message)}</span><textarea class="ghf" data-merge-field="body" rows="3">${esc(text.body)}</textarea></label>` : '';
+    return `<div class="pcstep" data-merge-step>${admin ? `<p class="pcnote">${esc(CARD.adminLine)}</p>` : ''}<div class="pcways" role="radiogroup" aria-label="${esc(CARD.method)}">${ways}</div>${fields}`
+      + `<div class="pcdo"><button class="mgo" data-card-act="confirm">${esc(CARD.confirm)}</button><a class="ghr" data-card-act="cancel" tabindex="0">${esc(CARD.cancel)}</a></div>${errorHtml(`merge:${pull.id}`)}</div>`;
+  }
+
+  /**
+   * The state card: the state in one headline with its icon, its colour and one sentence (a blocked one names what blocks it, each a link to its fix);
+   * the merge step when it is open; three meters while it is open; the quiet actions. "Merge" is the only filled button of the page, and only while it can merge.
+   */
+  function cardHtml(pull) {
+    const running = Boolean(mergeRun) && mergeRun.pullId === pull.id;
+    const card = running ? MergeCard.merging(pull, mergeRun.method) : MergeCard.of(pull, ago);
+    const writable = canWrite(pull);
+    const stepOpen = writable && !running && Boolean(mergeStep) && mergeStep.pullId === pull.id;
+    const say = card.kind === 'blocked' ? card.blockers.map((part) => blockerHtml(part, pull)).join('<span class="sep"> · </span>') : esc(card.sentence);
+    const primary = writable && card.primary && !stepOpen ? `<button class="mgo" data-card-act="merge">${esc(CARD.merge)}</button>` : '';
+    const sending = pull.sending ? `<span class="t ex">${esc(WRITE.sendingMark)}</span>` : '';
+    const open = pull.state !== 'merged' && pull.state !== 'closed';
+    const meters = open ? `<div class="pcm">${[card.meters.checks, card.meters.comments, card.meters.approvals].map(meterHtml).join('')}</div>` : '';
+    const links = writable && !stepOpen ? card.links.map((name) => linkHtml(name, pull)).join('') : ''; // the open merge step is the one thing to do
+    return `<section class="pcard" id="pcard" data-kind="${card.kind}"><div class="pch"><span class="pcb ${card.colour}">${ico(card.icon)}</span>`
+      + `<div class="pcw"><div class="pct">${esc(card.headline)}${sending}</div>${say ? `<div class="pcs">${say}</div>` : ''}</div>${primary}</div>`
+      + `${stepOpen ? stepHtml(pull) : ''}${meters}${links ? `<div class="pcl">${links}</div>` : ''}`
+      + `${pull.branchDeleted ? `<p class="pcnote">${esc(CARD.branchDeleted(pull.head))}</p>` : ''}${errorHtml(`card:${pull.id}`)}</section>`;
+  }
+
+  /** Draws the card again in its place, from the pull request as it is now. */
+  function redrawCard() {
+    const el = document.getElementById('pcard');
+    const pull = shownRead()?.pull;
+    if (el && pull) el.replaceWith(...nodesOf(cardHtml(pull)));
+  }
+
+  /** The strip, the card, the slim bar and the suggestions again, after the state of the pull request changed; the focus stays where it can. */
+  function redrawPullState() {
+    const pull = shownRead()?.pull;
+    if (!pull) return;
+    keepFocus(() => {
+      redrawStrip();
+      redrawCard();
+      redrawSuggestions(pull);
+      const short = document.querySelector('#short .pri');
+      if (short) short.outerHTML = icon(pull, false);
+    });
+  }
+
+  /** Opens the merge step of the card, with the method that he used last in this repo, else GitHub's for him; the cursor goes to the title. */
+  function openMerge(admin = false) {
+    const pull = shownRead()?.pull;
+    if (!pull || !canWrite(pull)) return;
+    mergeStep = { pullId: pull.id, method: MergeCard.firstMethod(pull, kept.mergeMethods?.[pull.repo]), admin };
+    delete failed[`merge:${pull.id}`];
+    redrawCard();
+    const card = document.getElementById('pcard');
+    (card?.querySelector('[data-merge-field="title"]') ?? card?.querySelector('.pcway input:checked') ?? card?.querySelector('[data-card-act="confirm"]'))?.focus({ preventScroll: true });
+    if (card && (card.getBoundingClientRect().top < viewTop() || card.getBoundingClientRect().bottom > innerHeight)) card.scrollIntoView({ block: 'start' });
+  }
+
+  /**
+   * "Confirm merge": a merge cannot be undone, so it is not shown before GitHub answers. The card says "Merging…" while it runs; then the merged
+   * state in place, or the merge step again with his choices and GitHub's reason in one line.
+   */
+  function confirmMerge() {
+    const pull = shownRead()?.pull;
+    if (!pull || !mergeStep || mergeRun) return;
+    const { method } = mergeStep;
+    const text = MergeCard.commitText(pull, method) && (mergeEdits[`${pull.id}:${method}`] ?? MergeCard.commitText(pull, method));
+    const write = { kind: 'merge', pullId: pull.id, method, ...(text ? { title: text.title, body: text.body } : {}), headOid: pull.headOid };
+    delete failed[`merge:${pull.id}`];
+    mergeRun = { pullId: pull.id, method };
+    redrawCard();
+    void inBackground(write, (result) => {
+      mergeRun = null;
+      mergeStep = null;
+      keep({ mergeMethods: { ...(kept.mergeMethods ?? {}), [pull.repo]: method } }); // the method he used last
+      Object.assign(pull, MergeCard.after(pull, 'merged', me(pull), new Date().toISOString(), { ...result.merged, method }));
+      reviewOpen = false;
+      redrawPullState();
+    }, (problem) => {
+      mergeRun = null;
+      failed[`merge:${pull.id}`] = problem;
+      redrawCard();
+    });
+  }
+
+  /**
+   * Close, reopen, ready for review, convert to draft, update the branch, delete the branch: each can be undone, so it shows at once and GitHub
+   * answers in the background; a failure puts the pull request back as it was and says why in one line of the card.
+   */
+  function changePull(action) {
+    const pull = shownRead()?.pull;
+    if (!pull || changing || mergeRun) return;
+    const write = action === 'delete-branch' ? { kind: action, refId: pull.headRefId } : action === 'update' ? { kind: action, pullId: pull.id, headOid: pull.headOid } : { kind: action, pullId: pull.id };
+    const change = MergeCard.after(pull, action, me(pull), new Date().toISOString());
+    const before = Object.fromEntries(Object.keys(change).map((key) => [key, pull[key]]));
+    const key = `card:${pull.id}`;
+    changing = action;
+    mergeStep = null;
+    delete failed[key];
+    Object.assign(pull, change, { sending: true });
+    if (!pull.open) reviewOpen = false;
+    redrawPullState();
+    void inBackground(write, (result) => {
+      changing = null;
+      delete pull.sending;
+      if (result.headOid) pull.headOid = result.headOid; // the branch moved on: a merge or a comment on code starts from it
+      redrawPullState();
+    }, (problem) => {
+      changing = null;
+      delete pull.sending;
+      Object.assign(pull, before);
+      failed[key] = problem;
+      redrawPullState();
+    });
+  }
+
+  /** A meter or a blocker of the card: the checks list under the strip, the first open thread (folds open), the review panel. */
+  function cardGo(where) {
+    const pull = shownRead()?.pull;
+    if (!pull) return;
+    const status = document.getElementById('status');
+    if (where === 'checks') {
+      checksOpen = true;
+      redrawStrip();
+      return status?.scrollIntoView({ block: 'nearest' });
+    }
+    if (where === 'review') {
+      if (!canWrite(pull) || !pull.open) return;
+      reviewOpen = true;
+      redrawStrip(true);
+      return status?.scrollIntoView({ block: 'nearest' });
+    }
+    if (where !== 'comments') return;
+    const thread = MergeCard.threadsOf(pull).find((one) => !one.resolved);
+    if (!thread) return;
+    const selector = `.conv [data-thread="${CSS.escape(thread.id)}"]`;
+    if (!document.querySelector(selector)) document.querySelector('.conv [data-earlier], .conv [data-classic-more]')?.click(); // drawn when the earlier messages open
+    const el = document.querySelector(selector);
+    if (!el) return;
+    for (let box = el; box; box = box.parentElement?.closest('[data-box]')) if (box.matches('[data-box]')) openBox(box);
+    el.scrollIntoView({ block: 'center' });
   }
 
   /**
@@ -677,7 +852,7 @@ const Conversation = (() => {
     const shown = (from, to) => rows.slice(from, to).map((item, at) => (from + at === firstNew && !classicNew ? '<div class="new-at" id="new-line"></div>' : '') + classicRow(item, pull)).join('');
     const middle = hidden.length ? `<div class="ev more-row"><a class="gbtn" data-classic-more>Show ${number(hidden.length)} more</a></div>` : '';
     classicHidden = { rows: hidden, pull };
-    return `<div class="tl">${stackBox(pull)}${description}${hidden.length ? shown(0, CLASSIC_HEAD) + middle + shown(CLASSIC_HEAD + hidden.length) : shown(0)}${mergeBox(pull)}</div>`;
+    return `<div class="tl">${stackBox(pull)}${description}${hidden.length ? shown(0, CLASSIC_HEAD) + middle + shown(CLASSIC_HEAD + hidden.length) : shown(0)}</div>`;
   }
   let classicHidden = null;
   let classicNew = null; // the id of the first unseen answer in a thread, when the first unseen thing of Classic is one: the page opens there
@@ -690,7 +865,7 @@ const Conversation = (() => {
     comment: 'Write a comment…', commentButton: 'Comment', sending: 'Sending…', sendingMark: 'sending', keys: '⌘ Enter',
     review: 'Review', reviewText: 'Write what the review says…', sendReview: 'Send review', needsText: 'Write what the review says first.',
     verdicts: { COMMENT: 'Comment', APPROVE: 'Approve', REQUEST_CHANGES: 'Request changes' },
-    own: 'This is your own pull request.',
+    own: 'This is your pull request: GitHub lets you comment on it, not approve it or ask for changes.',
     pending: (count) => `Your review is not sent: ${plural(count, 'comment')}`,
     locked: 'This conversation is locked. Nothing can be written here.',
     example: 'example',
@@ -749,24 +924,26 @@ const Conversation = (() => {
     return pull.id ? `<div class="ghend">${fieldHtml(`comment:${pull.id}`, WRITE.comment, WRITE.commentButton)}</div>` : '';
   }
 
+  /** The strip of a pull request that can merge: a quiet press "Merge", which opens the merge step of the card in "Conversation". */
+  const mergeBit = (pull) => (canWrite(pull) && !(mergeRun && mergeRun.pullId === pull.id) && MergeCard.canMerge(pull) ? `<a class="rvb" data-merge-go tabindex="0">${esc(CARD.merge)}</a>` : '');
+
   /** The strip of an open pull request: his review that is not sent yet, and the quiet button "Review". */
   const reviewBit = (pull) => (canWrite(pull) && pull.open
     ? `${pull.pending ? `<span class="ghpend">${esc(WRITE.pending(pull.pending.comments))}</span>` : ''}<a class="rvb${reviewOpen ? ' on' : ''}" data-review tabindex="0">${esc(WRITE.review)}</a>`
     : '');
 
-  /** The review panel under the strip: the text, the three verdicts, "Send review". On his own pull request two verdicts are not available. */
+  /**
+   * The review panel under the strip: the text, the three verdicts, "Send review". On his own pull request GitHub takes only a comment: the panel
+   * says so in one quiet line and shows no verdict, since a choice of one is none and greyed verdicts looked broken.
+   */
   function reviewHtml(pull) {
     if (!reviewOpen || !canWrite(pull) || !pull.open) return '';
     const key = `review:${pull.id}`;
     const chosen = verdicts[pull.id] ?? 'COMMENT';
-    const choice = (verdict) => {
-      const off = pull.mine && verdict !== 'COMMENT';
-      return `<label class="ghv${off ? ' off' : ''}"${off ? ` title="${esc(WRITE.own)}"` : ''}><input type="radio" name="verdict-${esc(pull.id)}" value="${verdict}"`
-        + `${verdict === chosen ? ' checked' : ''}${off ? ' disabled' : ''}>${esc(WRITE.verdicts[verdict])}</label>`;
-    };
-    return `<section class="review-panel"><div class="ghw on" data-gh="${esc(key)}">`
+    const choice = (verdict) => `<label class="ghv"><input type="radio" name="verdict-${esc(pull.id)}" value="${verdict}"${verdict === chosen ? ' checked' : ''}>${esc(WRITE.verdicts[verdict])}</label>`;
+    return `<section class="review-panel">${pull.mine ? `<p class="ghown">${esc(WRITE.own)}</p>` : ''}<div class="ghw on" data-gh="${esc(key)}">`
       + `<textarea class="ghf" rows="3" placeholder="${esc(WRITE.reviewText)}" aria-label="${esc(WRITE.reviewText)}">${esc(drafts[key] ?? '')}</textarea>`
-      + `<div class="gha"><span class="ghvs">${Object.keys(WRITE.verdicts).map(choice).join('')}</span>`
+      + `<div class="gha"><span class="ghvs">${pull.mine ? '' : Object.keys(WRITE.verdicts).map(choice).join('')}</span>`
       + `<button class="ghs" data-gh-send>${esc(WRITE.sendReview)}</button><span class="ghk">${esc(WRITE.keys)}</span></div>`
       + `${errorHtml(key)}</div></section>`;
   }
@@ -785,7 +962,7 @@ const Conversation = (() => {
     if (!pull) return { problem: 'The pull request is not read yet.' };
     if (kind === 'reply') return threadById(pull, id) ? { kind: 'reply', threadId: id, body } : { problem: 'This thread is not in the pull request as read.' };
     if (kind === 'comment') return { kind: 'comment', pullId: id, body };
-    const verdict = verdicts[id] ?? 'COMMENT';
+    const verdict = pull.mine ? 'COMMENT' : verdicts[id] ?? 'COMMENT'; // GitHub takes only a comment on his own pull request
     if (!body && verdict !== 'APPROVE' && !pull.pending) return { problem: WRITE.needsText };
     return { kind: 'review', pullId: id, verdict, body, ...(pull.pending ? { pendingId: pull.pending.id } : {}) };
   }
@@ -943,8 +1120,7 @@ const Conversation = (() => {
     if (!feed) return { line: [], nodes: [] };
     if (mode === 'classic') {
       const nodes = nodesOf(classicRow(item, pull));
-      const merge = feed.querySelector('.tl > .merge');
-      if (merge) merge.before(...nodes); else feed.querySelector('.tl')?.append(...nodes);
+      feed.querySelector('.tl')?.append(...nodes);
       return { line: [], nodes };
     }
     const line = !before || dayKey(before) !== dayKey(item.at) ? nodesOf(dayLine(item.at)) : [];
@@ -1065,7 +1241,7 @@ const Conversation = (() => {
 
   /**
    * After a read of the pull request in the background (App.reread): only what differs from what shows changes, in place: the strip, each thread
-   * whose comments or state changed, the merge box of "Classic". Nothing is drawn anew, so the place, the folds and the focus stay.
+   * whose comments or state changed, the state card. Nothing is drawn anew, so the place, the folds and the focus stay.
    * New items of others show at the next drawing of the conversation.
    */
   function refresh(before, after, shown) {
@@ -1074,8 +1250,7 @@ const Conversation = (() => {
       if (!shown || !document.querySelector('.conv')) return;
       const was = new Map(allThreads(before).map((thread) => [thread.id, threadKey(thread)]));
       for (const thread of allThreads(after)) if (was.has(thread.id) && was.get(thread.id) !== threadKey(thread)) redrawThread(thread);
-      const merge = document.querySelector('.conv .tl > .merge');
-      if (merge) merge.replaceWith(...nodesOf(mergeBox(after)));
+      redrawCard();
     });
   }
 
@@ -1241,6 +1416,9 @@ const Conversation = (() => {
       return { ok: true, review: { ...said(write.body), html: write.body ? said(write.body).html : '', state } };
     }
     if (write.kind === 'suggestions') return { ok: true, commit: { oid: `5e6f7a8${'0'.repeat(33)}`, short: '5e6f7a8' } };
+    if (write.kind === 'merge') return { ok: true, merged: { at: new Date().toISOString(), by: me(pull), commit: '9c4e2a1' } };
+    if (write.kind === 'update') return { ok: true, headOid: `4d8b0f3${'0'.repeat(33)}` };
+    if (['close', 'reopen', 'ready', 'draft', 'delete-branch'].includes(write.kind)) return { ok: true };
     // A comment on code comes from another view: the example keeps it as GitHub would, and the conversation shows it when it is drawn.
     if (write.kind === 'lines' && pull.pending) pull.pending.comments++;
     if (write.kind === 'lines' && !pull.pending) {
@@ -1310,6 +1488,13 @@ const Conversation = (() => {
 
   // Typing keeps the text; Cmd+Enter sends; a click on a button sends; Resolve and Review take a click, or Enter on the keyboard.
   document.addEventListener('input', (event) => {
+    const field = event.target.closest?.('[data-merge-field]');
+    const pull = field && mergeStep && shownRead()?.pull;
+    if (pull) { // his commit title and message, kept for this method while the page shows
+      const key = `${pull.id}:${mergeStep.method}`;
+      mergeEdits[key] = { ...(mergeEdits[key] ?? MergeCard.commitText(pull, mergeStep.method)), [field.dataset.mergeField]: field.value };
+      return;
+    }
     const box = event.target.closest?.('[data-gh]');
     if (!box || event.target.tagName !== 'TEXTAREA') return;
     drafts[box.dataset.gh] = event.target.value;
@@ -1319,11 +1504,18 @@ const Conversation = (() => {
   document.addEventListener('change', (event) => {
     const radio = event.target.closest?.('.review-panel input[type="radio"]');
     if (radio) verdicts[radio.name.slice('verdict-'.length)] = radio.value;
+    const method = event.target.closest?.('.pcway input[type="radio"]');
+    if (method && mergeStep) {
+      mergeStep.method = method.value;
+      redrawCard();
+      document.querySelector('#pcard .pcway input:checked')?.focus();
+    }
   });
   document.addEventListener('keydown', (event) => {
     const box = event.target.closest?.('[data-gh]');
     if (box && event.target.tagName === 'TEXTAREA' && event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); sendField(box); }
-    if (event.key === 'Enter' && event.target.closest?.('[data-gh-resolve], [data-review], a[data-suggest]')) { event.preventDefault(); event.target.click(); }
+    if (event.key === 'Enter' && event.target.closest?.('[data-gh-resolve], [data-review], a[data-suggest], a[data-card-act], a[data-card-go], [data-merge-go]')) { event.preventDefault(); event.target.click(); }
+    if (event.key === 'Escape' && event.target.closest?.('[data-merge-step]')) { mergeStep = null; redrawCard(); document.querySelector('#pcard [data-card-act="merge"]')?.focus(); }
   });
   document.addEventListener('click', (event) => {
     const send = event.target.closest('[data-gh-send]');
@@ -1336,7 +1528,22 @@ const Conversation = (() => {
       reviewOpen = !reviewOpen;
       redrawStrip(true);
     }
+    if (event.target.closest('[data-merge-go]')) return goMerge();
+    const act = event.target.closest('[data-card-act]')?.dataset.cardAct;
+    if (act === 'merge' || act === 'merge-admin') return openMerge(act === 'merge-admin');
+    if (act === 'confirm') return confirmMerge();
+    if (act === 'cancel') { mergeStep = null; return redrawCard(); }
+    if (act) return changePull(act);
+    const go = event.target.closest('[data-card-go]')?.dataset.cardGo;
+    if (go) cardGo(go);
   });
+
+  /** The press "Merge" of the strip: "Conversation" opens at the card, with its merge step open. */
+  function goMerge() {
+    if (App.state.view === 'conversation' && document.getElementById('pcard')) return openMerge();
+    openAtCard = true;
+    void App.go({ view: 'conversation' }).then(() => openMerge());
+  }
 
   // ----- the whole view -----
 
@@ -1376,7 +1583,8 @@ const Conversation = (() => {
       : `<section class="about" data-box${width}><div class="md folded">${pull.html}</div><a class="more" data-toggle><span class="show">Show more</span><span class="hide">Show less</span></a></section>`;
     const place = mode === 'messages' ? stackLine(pull) : pull.stack ? `<p class="splace">${ico('git-branch')}${esc(stackWords(pull))}</p>` : '';
     const shown = own('pull-facts').content?.fields ?? Object.keys(facts);
-    return `<h1 class="ptitle">${esc(pull.title)} <span class="num">#${pull.number}</span></h1><div class="meta">${shown.map((one) => facts[one]).join('')}</div>${place}${mode === 'messages' ? factsLine(pull) : ''}${about}`;
+    // The state card stands under the facts line and above the description, in both looks: the state has this one place.
+    return `<h1 class="ptitle">${esc(pull.title)} <span class="num">#${pull.number}</span></h1><div class="meta">${shown.map((one) => facts[one]).join('')}</div>${place}${mode === 'messages' ? factsLine(pull) : ''}${cardHtml(pull)}${about}`;
   }
 
   /**
@@ -1454,12 +1662,16 @@ const Conversation = (() => {
     // The rows near the view are laid out only once they are near it, so the place is set again for a few frames until it holds.
     // The first unseen thing: the line or mark, or in Classic a new answer in its thread (its thread when that is folded).
     const said = mode === 'classic' && classicNew ? conv.querySelector(`[data-said="${CSS.escape(classicNew)}"]`) : null;
-    const line = conv.querySelector('#new-line') ?? (said?.offsetParent ? said : said?.closest('.item'));
-    if (line) line.dataset.firstUnseen = ''; // where the page opens
+    const atCard = openAtCard && conv.querySelector('#pcard'); // the press "Merge" of the strip opened it
+    openAtCard = false;
+    const unseen = conv.querySelector('#new-line') ?? (said?.offsetParent ? said : said?.closest('.item'));
+    if (unseen) unseen.dataset.firstUnseen = ''; // where the page opens
+    const line = atCard || unseen;
     const place = (frames) => {
       if (!conv.isConnected) return;
       const end = Math.max(0, document.documentElement.scrollHeight - innerHeight);
-      const target = line ? line.getBoundingClientRect().top + scrollY - 48 : since ? end : 0;
+      const at = atCard ? conv.querySelector('#pcard') : line; // the card is drawn again when its merge step opens
+      const target = at ? at.getBoundingClientRect().top + scrollY - 48 : since ? end : 0;
       const want = Math.min(Math.max(0, target), end);
       if (Math.abs(want - scrollY) > 1) scrollTo(0, want);
       onScroll();

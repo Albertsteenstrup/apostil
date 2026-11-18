@@ -23,7 +23,7 @@ import { homeRun, withEnd, withSave, type MapRun, type MapRunLine } from '../sha
 import { sessionGroups, type ListRow } from './list-rows';
 import { pullRequestFrom, type Person } from '../shared/read-pull-request';
 import { iconScript } from './state-icons';
-import { exampleEarlierChange, examplePullRequest, exampleMergedPullRequest } from './example-pull-request';
+import { exampleEarlierChange, examplePullRequest, exampleMergedPullRequest, exampleReadyPullRequest } from './example-pull-request';
 import { saveMapDraft } from '../store/save';
 import { agentOf, allQuestions, answer, diffRanges, examplePage, lookOfPage, marksBeside, notesBeside } from './page-data';
 
@@ -193,8 +193,9 @@ const lines = { atHead: true, dirty: [], files: diffRanges(tryGit(folder, 'diff'
 answers['pull:https://example.com/made-up/pull/12'] = { pull: pullRequestFrom(conversation.raw), lastLooked: conversation.lastLooked, lines };
 answers['pull:https://example.com/made-up/pull/11'] = { pull: pullRequestFrom(exampleMergedPullRequest()) };
 const pagePulls = pulls[page.branch].slice(0, 2); // the page knows the two that have a made-up conversation
+const readyPull = pullRequestFrom(exampleReadyPullRequest()); // #12 as a read gives it once it can merge: the browser check puts it in place of #12
 
 const target = join(__dirname, '../../view/media/example-data.js');
-writeFileSync(target, `// Written by view/example-data.ts. Not in Git.\n${iconScript(join(__dirname, '../../view/media'))}window.APOSTIL_EXAMPLE = ${JSON.stringify({ page, pageLooks, pagePulls, answers, list, home, homeLooks, homeNoMap, graphs, lookPages, graphsLooks, mapRuns, homeState })};\n`);
+writeFileSync(target, `// Written by view/example-data.ts. Not in Git.\n${iconScript(join(__dirname, '../../view/media'))}window.APOSTIL_EXAMPLE = ${JSON.stringify({ page, pageLooks, pagePulls, readyPull, answers, list, home, homeLooks, homeNoMap, graphs, lookPages, graphsLooks, mapRuns, homeState })};\n`);
 example?.remove();
 console.log(`Wrote ${target}: ${page.files.length} files, ${page.parts.length} parts, ${Object.keys(answers).length} answers, ${rows.length} list rows, ${home.map?.diagrams.length ?? 0} map diagrams, ${Object.keys(graphs).length} graphs pages.`);

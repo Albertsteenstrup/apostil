@@ -838,7 +838,7 @@ div.nomap a:hover{text-decoration:underline;text-underline-offset:3px}
 :is(.conv,.status,.cl) .av.prodav{background:var(--region);color:var(--soft);border:1px solid var(--line)}
 :is(.conv,.status,.cl) .av.prodav .ico{margin:0;color:var(--soft)}
 /* In the middle of the lower edge: at the right it lay over "Resolve", the switch of looks and the ends of rows. */
-.newest{display:none;position:fixed;z-index:6;left:50%;transform:translateX(-50%);bottom:14px;padding:4px 12px;border-radius:14px;background:var(--button);color:var(--buttonink);font-size:var(--small);font-weight:600;box-shadow:var(--shadow);cursor:pointer}
+.newest{display:none;position:fixed;z-index:6;left:50%;transform:translateX(-50%);bottom:14px;padding:4px 12px;border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--tealink);font-size:var(--small);font-weight:600;box-shadow:var(--shadow);cursor:pointer}
 .newest.on{display:block}
 /* writing to GitHub: a quiet field on one line that opens to a few lines with its button; Resolve beside it; GitHub's sentence under it */
 .ghw{display:block;min-width:0}
@@ -852,7 +852,9 @@ div.nomap a:hover{text-decoration:underline;text-underline-offset:3px}
 .ghf[readonly]{color:var(--muted)}
 .gha{display:none;flex-wrap:wrap;align-items:center;gap:6px 12px;margin-top:6px}
 .ghw:focus-within .gha,.ghw.on .gha{display:flex}
-.ghs{padding:3px 12px;border:1px solid var(--button);border-radius:6px;background:var(--button);color:var(--buttonink);font:600 var(--small)/1.6 var(--sans);cursor:pointer}
+/* a send is a quiet button: "Merge" of the state card is the only filled one of the page */
+.ghs{padding:3px 12px;border:1px solid var(--tealline);border-radius:6px;background:transparent;color:var(--tealink);font:600 var(--small)/1.6 var(--sans);cursor:pointer}
+.ghs:hover{border-color:var(--teal);background:var(--tealsoft)}
 .ghs:disabled{opacity:.6;cursor:default}
 .ghk{color:var(--faint);font-size:var(--small)}
 .ghh{color:var(--muted);font-size:var(--small)}
@@ -870,7 +872,45 @@ div.nomap a:hover{text-decoration:underline;text-underline-offset:3px}
 .ghvs{display:flex;flex-wrap:wrap;gap:4px 14px;margin-right:auto}
 .ghv{display:inline-flex;align-items:center;gap:5px;color:var(--soft);cursor:pointer}
 .ghv input{margin:0;accent-color:var(--teal)}
-.ghv.off{color:var(--faint);cursor:default}
+.review-panel .ghown{margin:0 0 6px;color:var(--muted)}
+/* the state card of a pull request (merge-card.js): its state, three meters and its actions. "Merge" is the only filled button of the page; the rest are quiet links. Nothing moves. */
+.pcard{margin-top:14px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--card);font-size:var(--small)}
+.pch{display:flex;align-items:center;gap:12px;min-width:0}
+.pcb{flex:none;display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:color-mix(in srgb,currentColor 13%,transparent)}
+.pcb.green{color:var(--pr-green)}.pcb.grey{color:var(--pr-grey)}.pcb.amber{color:var(--pr-amber)}.pcb.red{color:var(--pr-red)}.pcb.purple{color:var(--pr-purple)}
+.pcb .ico{width:16px;height:16px;margin:0;color:currentColor;-webkit-mask-size:16px 16px;mask-size:16px 16px}
+.pcw{flex:1;min-width:0}
+.pct{display:flex;align-items:center;gap:8px;color:var(--ink);font-size:calc(var(--size) + 1px);font-weight:600}
+.pcs{margin-top:1px;color:var(--soft);overflow-wrap:anywhere}
+.pcs .sep{color:var(--faint)}
+.pcgo,.pcl a{color:var(--tealink);cursor:pointer}
+.pcgo{display:inline-block;max-width:100%} /* a blocker wraps as a whole */
+.pcgo:hover,.pcl a:hover{text-decoration:underline;text-underline-offset:3px}
+.mgo{flex:none;padding:4px 16px;border:1px solid var(--button);border-radius:6px;background:var(--button);color:var(--buttonink);font:600 var(--small)/1.6 var(--sans);cursor:pointer}
+.mgo:focus-visible,.pcmeter:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.pcm{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px 18px;margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
+.pcmeter{display:flex;flex-direction:column;gap:3px;min-width:0;margin:-4px -6px;padding:4px 6px;border-radius:6px;cursor:pointer}
+.pcmeter:hover{background:var(--seg)}
+.pcml{color:var(--muted)}
+.pcmv{color:var(--ink);overflow-wrap:anywhere}
+.pcbar{display:flex;gap:2px;height:4px;margin-top:2px;border-radius:2px;overflow:hidden;background:var(--line)}
+.pcbar i{display:block;min-width:3px}
+.pcbar i.ok{background:var(--pr-green)}.pcbar i.bad{background:var(--pr-red)}.pcbar i.wait{background:var(--pr-amber)}.pcbar i.quiet{background:var(--line2)}.pcbar i.none{background:transparent}
+.pcbar.none{background:repeating-linear-gradient(135deg,var(--line2) 0 3px,transparent 3px 6px)} /* nobody approved yet */
+.pcl{display:flex;flex-wrap:wrap;gap:4px 18px;margin-top:10px}
+.pcnote{margin:8px 0 0;color:var(--muted)}
+.pcstep{margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
+.pcstep .pcnote{margin:0 0 8px}
+.pcways{display:flex;flex-direction:column;gap:6px}
+.pcway{display:flex;align-items:baseline;gap:8px;margin:0;color:var(--soft);cursor:pointer}
+.pcway.one{cursor:default}
+.pcway input{margin:0;accent-color:var(--teal)}
+.pcway b{margin-right:8px;color:var(--ink);font-weight:600}
+.pcwhy{color:var(--muted)}
+.pcf{display:flex;flex-direction:column;gap:3px;margin-top:10px;color:var(--muted)}
+.pcdo{display:flex;align-items:center;gap:14px;margin-top:12px}
+.pcdo .ghr{margin-top:0}
+@media (max-width:560px){.pcm{grid-template-columns:1fr}.pch{flex-wrap:wrap}}
 /* the comment box on code: the quiet line about "@github" */
 .cbline{margin:6px 0 0;color:var(--muted);font-size:var(--small);overflow-wrap:anywhere}
 .cbline.err{color:var(--del)}
@@ -905,13 +945,6 @@ div.nomap a:hover{text-decoration:underline;text-underline-offset:3px}
 .conv .gbtn{margin-left:auto;padding:1px 10px;border:1px solid var(--line2);border-radius:6px;background:var(--region);color:var(--soft);font-size:var(--small);cursor:pointer}
 .conv.classic .more-row{justify-content:center}
 .conv.classic .more-row .gbtn{margin:0}
-.conv.classic .merge .mic{width:28px;height:28px;-webkit-mask-size:20px 20px;mask-size:20px 20px;margin:2px 0 0}
-.conv.classic .merge .mb{display:flex;gap:10px;padding:10px 12px;align-items:flex-start}
-.conv.classic .merge .mb + .mb{border-top:1px solid var(--line)}
-.conv.classic .merge .mb > .ico{margin-top:2px}
-.conv.classic .merge .mbw{min-width:0;flex:1}
-.conv.classic .merge [data-box]:not(.open) .inner{display:none}
-.conv.classic .merge .more{margin:0 0 0 8px}
 
 /* the time has one place: "Messages" at the right edge of its row, on the first line; "Classic" right after the words */
 .conv.messages .time{margin-left:auto;flex:none;padding-left:10px;white-space:nowrap}

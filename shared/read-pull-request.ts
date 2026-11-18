@@ -130,6 +130,19 @@ export interface Stack {
   cut: number; // entries past the limit
 }
 
+export type MergeMethod = 'MERGE' | 'SQUASH' | 'REBASE';
+
+/** What GitHub lets the owner do with the pull request. Each comes from a field that GitHub gives; nothing is guessed. */
+export interface Rights {
+  merge: boolean; // he may push to the base (viewerPermission ADMIN, MAINTAIN or WRITE)
+  mergeAsAdmin: boolean; // viewerCanMergeAsAdmin: he may merge past the rules of the repo
+  update: boolean; // viewerCanUpdate: "Ready for review" and "Convert to draft"
+  close: boolean; // viewerCanClose
+  reopen: boolean; // viewerCanReopen
+  updateBranch: boolean; // viewerCanUpdateBranch
+  deleteBranch: boolean; // viewerCanDeleteHeadRef, for a branch of this repo that GitHub does not delete itself after a merge
+}
+
 export interface PullRequestView {
   repo: string; // "owner/name"
   id: string; // the node id that a write names; '' in an answer stored before it was read
@@ -163,6 +176,15 @@ export interface PullRequestView {
   deployments: Deployment[]; // the newest of each environment
   merge: MergeFacts;
   mergeable: string; // MERGEABLE, CONFLICTING or UNKNOWN
+  mergeState: string; // GitHub's mergeStateStatus: CLEAN, UNSTABLE, HAS_HOOKS, BLOCKED, BEHIND, DIRTY or UNKNOWN; '' when it was not read
+  behindBy?: number; // commits of the base that the branch lacks
+  may: Rights;
+  methods: MergeMethod[]; // the merge methods that the repo allows, in GitHub's order; no merge commit when the base must keep a straight history
+  defaultMethod?: MergeMethod; // the method that GitHub keeps for him (viewerDefaultMergeMethod)
+  commitTexts: Partial<Record<MergeMethod, { title: string; body: string }>>; // the commit title and message that GitHub fills for a merge commit and a squash
+  needs: { approvals?: number; resolved: boolean }; // what the protection of the base asks for him: approving reviews, every thread resolved
+  headRefId: string; // the node id of the branch, for "Delete branch"; '' when it is gone
+  ended?: { by?: Person; at?: string; commit?: string }; // who merged or closed it, when, and the merge commit
   labels: Label[];
   assignees: Person[];
   milestone?: { title: string; due?: string; url: string };
@@ -180,7 +202,7 @@ export interface PullRequestView {
 
 // ----- the query -----
 
-const WHO = 'login avatarUrl(size: 80) __typename';
+export const WHO = 'login avatarUrl(size: 80) __typename';
 const REACTIONS = 'reactionGroups { content reactors { totalCount } }';
 export const SAID = `id url author { ${WHO} } authorAssociation createdAt lastEditedAt bodyHTML isMinimized minimizedReason viewerDidAuthor ${REACTIONS}`;
 const DEPLOYMENT = 'environment state createdAt latestStatus { state environmentUrl description createdAt }';
@@ -287,8 +309,13 @@ const wrap = (body: string, after = false, top = ''): string =>
 export const firstQuery = (size = PAGE): string => wrap(`
   id number title url state isDraft locked viewerDidAuthor viewerCanApplySuggestion createdAt headRefName baseRefName headRefOid baseRefOid
   author { ${WHO} } commits { totalCount } changedFiles additions deletions reviewDecision mergeable mergeStateStatus bodyHTML
-  repository { nameWithOwner isPrivate } headRepository { nameWithOwner }
-  mergedAt closedAt mergedBy { ${WHO} } mergeCommit { parents { totalCount } }
+  repository { nameWithOwner isPrivate viewerPermission mergeCommitAllowed squashMergeAllowed rebaseMergeAllowed viewerDefaultMergeMethod deleteBranchOnMerge }
+  headRepository { nameWithOwner } isCrossRepository headRef { id }
+  viewerCanMergeAsAdmin viewerCanUpdate viewerCanClose viewerCanReopen viewerCanUpdateBranch viewerCanDeleteHeadRef
+  mergeTitle: viewerMergeHeadlineText(mergeType: MERGE) mergeBody: viewerMergeBodyText(mergeType: MERGE)
+  squashTitle: viewerMergeHeadlineText(mergeType: SQUASH) squashBody: viewerMergeBodyText(mergeType: SQUASH)
+  baseRef { refUpdateRule { requiredApprovingReviewCount requiresConversationResolution requiresLinearHistory } }
+  mergedAt closedAt mergedBy { ${WHO} } mergeCommit { abbreviatedOid parents { totalCount } }
   autoMergeRequest { mergeMethod } mergeQueueEntry { position }
   labels(first: 50) { nodes { name color } }
   assignees(first: 20) { nodes { ${WHO} } }
@@ -520,6 +547,41 @@ function stackFacts(stack?: Stack): MergeInput['stack'] {
   return { below: open.find((entry) => entry.position < stack.position)?.number, open: open.length, allReady: open.every((entry) => entry.state === 'ready to merge') };
 }
 
+const METHOD_FIELDS: [MergeMethod, string][] = [['MERGE', 'mergeCommitAllowed'], ['SQUASH', 'squashMergeAllowed'], ['REBASE', 'rebaseMergeAllowed']];
+const WRITERS = ['ADMIN', 'MAINTAIN', 'WRITE']; // the permissions that may push to the base
+
+/** The merge methods that the repo allows; a base that must keep a straight history takes no merge commit. An answer stored before these were read allows none. */
+const methodsOf = (pr: Raw): MergeMethod[] => METHOD_FIELDS
+  .filter(([method, field]) => pr.repository?.[field] === true && !(method === 'MERGE' && pr.baseRef?.refUpdateRule?.requiresLinearHistory))
+  .map(([method]) => method);
+
+/** What GitHub lets him do, from its own fields. */
+const rightsOf = (pr: Raw): Rights => ({
+  merge: WRITERS.includes(pr.repository?.viewerPermission),
+  mergeAsAdmin: !!pr.viewerCanMergeAsAdmin,
+  update: !!pr.viewerCanUpdate,
+  close: !!pr.viewerCanClose,
+  reopen: !!pr.viewerCanReopen,
+  updateBranch: !!pr.viewerCanUpdateBranch,
+  deleteBranch: !!pr.viewerCanDeleteHeadRef && !pr.isCrossRepository && !pr.repository?.deleteBranchOnMerge,
+});
+
+/** The commit title and message that GitHub fills for him, for a merge commit and a squash; a rebase has none. */
+function commitTextsOf(pr: Raw): PullRequestView['commitTexts'] {
+  const texts: PullRequestView['commitTexts'] = {};
+  if (typeof pr.mergeTitle === 'string' && pr.mergeTitle) texts.MERGE = { title: pr.mergeTitle, body: pr.mergeBody ?? '' };
+  if (typeof pr.squashTitle === 'string' && pr.squashTitle) texts.SQUASH = { title: pr.squashTitle, body: pr.squashBody ?? '' };
+  return texts;
+}
+
+/** Who merged or closed it, when, and the merge commit; the one who closed it is the actor of the last "closed" of the timeline. */
+function endedOf(pr: Raw, items: PullItem[]): PullRequestView['ended'] {
+  if (pr.state === 'MERGED') return { by: pr.mergedBy ? person(pr.mergedBy) : undefined, at: pr.mergedAt ?? undefined, commit: pr.mergeCommit?.abbreviatedOid ?? undefined };
+  if (pr.state !== 'CLOSED') return undefined;
+  const closed = [...items].reverse().find((item) => item.kind === 'event' && item.text === 'closed it');
+  return { by: closed?.kind === 'event' ? closed.actor : undefined, at: pr.closedAt ?? closed?.at };
+}
+
 /** Turns what gh gave into the plain object of the page. Throws when the JSON is not what the code expects. */
 export function pullRequestFrom(raw: RawPullRequest, readAt = new Date().toISOString()): PullRequestView {
   const pr = raw.pr;
@@ -587,6 +649,7 @@ export function pullRequestFrom(raw: RawPullRequest, readAt = new Date().toISOSt
     stack: stackFacts(stack),
   });
   const pending = (pr.pending?.nodes ?? []).find((node: Raw) => node?.viewerDidAuthor && node.id);
+  const ended = endedOf(pr, items);
   return {
     repo: pr.repository?.nameWithOwner ?? '',
     id: pr.id ?? '',
@@ -620,6 +683,18 @@ export function pullRequestFrom(raw: RawPullRequest, readAt = new Date().toISOSt
     deployments: deploymentsOf(pr.last?.nodes?.[0]?.commit?.deployments?.nodes ?? []),
     merge,
     mergeable: pr.mergeable ?? 'UNKNOWN',
+    mergeState: pr.mergeStateStatus ?? '',
+    ...(raw.behindBy !== undefined ? { behindBy: raw.behindBy } : {}),
+    may: rightsOf(pr),
+    methods: methodsOf(pr),
+    ...(METHOD_FIELDS.some(([method]) => method === pr.repository?.viewerDefaultMergeMethod) ? { defaultMethod: pr.repository.viewerDefaultMergeMethod } : {}),
+    commitTexts: commitTextsOf(pr),
+    needs: {
+      ...(typeof pr.baseRef?.refUpdateRule?.requiredApprovingReviewCount === 'number' ? { approvals: pr.baseRef.refUpdateRule.requiredApprovingReviewCount } : {}),
+      resolved: !!pr.baseRef?.refUpdateRule?.requiresConversationResolution,
+    },
+    headRefId: pr.headRef?.id ?? '',
+    ...(ended ? { ended } : {}),
     labels: (pr.labels?.nodes ?? []).map(label),
     assignees: (pr.assignees?.nodes ?? []).map(person),
     milestone: pr.milestone ? { title: pr.milestone.title ?? '', due: pr.milestone.dueOn ?? undefined, url: pr.milestone.url ?? '' } : undefined,
