@@ -314,7 +314,8 @@ try {
   const made = (number, title, branch) => ({ number, title, url: `https://example.com/made-up/pull/${number}`, state: 'review needed', look: { icon: 'git-pull-request', colour: 'green' }, checks: { passed: 1, failed: 0, pending: 0 }, reviewers: [], labels: [], branch, updatedAt: new Date().toISOString() });
   await sendRepoPulls({ type: 'repoPulls', pulls: [...Array.from({ length: 23 }, (_, at) => made(100 + at, `Made-up pull request ${at}`, `made-up/open-${at}`)), made(14, 'Follow-up again', 'made-up/follow-up')] });
   const pullSection = () => prs.evaluate(() => ({
-    head: [...document.querySelectorAll('.eyebrow')].map((el) => el.textContent).join('|'), rows: document.querySelectorAll('.prow').length,
+    head: [...document.querySelectorAll('.eyebrow')].map((el) => el.firstChild.textContent).join('|'), rows: document.querySelectorAll('.prow').length,
+    count: document.querySelector('.eyebrow .cnt')?.textContent, countTip: document.querySelector('.eyebrow .cnt')?.title,
     more: document.querySelector('.fold[data-unfold="repo-pulls"]')?.textContent.trim(), first: document.querySelector('.prow .nm')?.textContent, line: document.querySelector('.prow .pr')?.textContent,
     twice: [...document.querySelectorAll('.prow')].some((el) => el.dataset.pull === '14'),
   }));
@@ -335,8 +336,8 @@ try {
   };
   const emptyBranch = await openBranch(0, 0);
   const changedBranch = await openBranch(2, 3);
-  check('every open pull request with no stored change stands under the head "Pull requests", 20 and "3 more" that opens the rest, none twice for a branch that has a row; a click asks for its page, the search finds it by its title; the open branch with no commit and no changed file opens Home, and with changes it does not',
-    before.head === 'Changes|Pull requests' && before.rows === 20 && before.more === '3 more' && before.first === 'Made-up pull request 0' && /^#100/.test(before.line) && !before.twice && opened.join() === '100'
+  check('every open pull request with no stored change stands under the head "Pull requests", with the count of all the open ones beside it as on the badge of the icon, 20 and "3 more" that opens the rest, none twice for a branch that has a row; a click asks for its page, the search finds it by its title; the open branch with no commit and no changed file opens Home, and with changes it does not',
+    before.head === 'Changes|Pull requests' && before.count === '24' && before.countTip === '24 open pull requests in this repo' && before.rows === 20 && before.more === '3 more' && before.first === 'Made-up pull request 0' && /^#100/.test(before.line) && !before.twice && opened.join() === '100'
     && unfolded.rows === 23 && !unfolded.twice && searched.join() === 'Made-up pull request 17' && emptyBranch === 1 && changedBranch === 0, JSON.stringify({ before, opened, unfolded, searched, emptyBranch, changedBranch }));
 
   // When gh fails the list says why, once, in one quiet line in place of the rows.
