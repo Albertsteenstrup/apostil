@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import type { AgentSession } from './agents';
+import type { AskRun, KnownSession } from './ask';
 import type { ChangeFile } from './change-file';
 import type { Look } from './look';
 import type { StartedRun } from './map-app';
@@ -223,7 +224,7 @@ export function threadsOf(remarks: Remark[]): Remark[][] {
 }
 
 /** True while a process with this id runs. */
-function isAlive(pid: number): boolean {
+export function isAlive(pid: number): boolean {
   try {
     process.kill(pid, 0);
     return true;
@@ -262,8 +263,10 @@ create table if not exists repo_look (
 );`;
 
 // The run that writes the map of a repo now, or the last one: one record for a repo (shared/map-run.ts).
+// And the run that words for an agent started, one for each words of a repo (shared/ask.ts).
 const RUN_SCHEMA = `
-create table if not exists map_run (repo_id text primary key, run_json text not null);`;
+create table if not exists map_run (repo_id text primary key, run_json text not null);
+create table if not exists ask_run (repo_id text not null, words text not null, run_json text not null, primary key (repo_id, words));`;
 
 /** The store of a home folder: ~/.apostil, or APOSTIL_HOME when it is set. */
 export const storeFolder = (home = homedir()): string => process.env.APOSTIL_HOME ?? join(home, '.apostil');
@@ -651,7 +654,7 @@ export class Store {
     return row && JSON.parse(row.run_json);
   }
 
-  /** The runs that Apostil started, in any repo: the map runs of its press, and the runs for a remark that it sent to a new session of an app. */
+  /** The runs that Apostil started, in any repo: the map runs of its press, and the runs for a remark or for words that it sent to a new session of an app. */
   startedRuns(): StartedRun[] {
     const maps = (this.db.prepare('select repo_id, run_json from map_run').all() as Row[])
       .map((row): [string, MapRun] => [row.repo_id, JSON.parse(row.run_json)]).filter(([, run]) => run.home && run.agent?.app)
@@ -660,7 +663,46 @@ export class Store {
       .map((row) => ({ to: JSON.parse(row.to_json) as RemarkTo, run: JSON.parse(row.run_json) as { startedAt: string }, repoId: row.repo_id as string }))
       .filter(({ to, repoId }) => to.kind === 'new' && repoId)
       .map(({ to, run, repoId }): StartedRun => ({ app: to.app, at: run.startedAt, repoId }));
-    return [...maps, ...remarks];
+    const asks = this.askRuns().filter(({ run }) => run.to === 'new').map(({ repoId, run }): StartedRun => ({ app: run.agent.app, at: run.startedAt, repoId }));
+    return [...maps, ...remarks, ...asks];
+  }
+
+  /**
+   * The sessions that Apostil knows in a repo, for words to the newest one (shared/ask.ts): the agents of its stored changes, and the sessions of the runs
+   * that it started there (a run for a remark, the map run, a run of words). `folder` is the folder of the repo where a run without its own folder ran.
+   */
+  knownSessions(repoId: string, folder?: string): KnownSession[] {
+    const changes = this.listChanges(repoId).filter((change) => change.agent?.session).map((change): KnownSession => ({ agent: change.agent!, at: change.savedAt, folder: change.folder }));
+    const remarks = (this.db.prepare(`select r.run_json, r.to_json, c.agent_json, c.folder from remark r left join change c on c.id = r.change_id
+      where coalesce(r.repo_id, c.repo_id) = ? and r.run_json is not null`).all(repoId) as Row[])
+      .map((row) => ({ run: JSON.parse(row.run_json) as NonNullable<Remark['run']>, to: row.to_json ? JSON.parse(row.to_json) as RemarkTo : undefined, agent: row.agent_json ? JSON.parse(row.agent_json) as AgentSession : undefined, folder: row.folder as string | null }))
+      .filter(({ run, to, agent }) => run.session && (to?.kind === 'new' || agent))
+      // A run that continued the session of the change keeps what the change knows of it (the id in the desktop app); a new session has only its id.
+      .map(({ run, to, agent, folder: own }): KnownSession => ({ agent: to?.kind === 'new' ? { app: to.app, session: run.session } : { ...agent!, session: run.session }, at: run.startedAt, folder: own ?? folder }));
+    const map = this.mapRun(repoId);
+    const maps = map?.agent?.session ? [{ agent: map.agent, at: map.savedAt ?? map.startedAt, folder }] : [];
+    // A run of words that failed may have no session behind its id (a new Claude Code session gets its id before it starts): it is left out.
+    const asks = this.askRuns(repoId).filter(({ run }) => run.agent.session && !run.problem).map(({ run }): KnownSession => ({ agent: run.agent, at: run.startedAt, folder: run.folder }));
+    return [...changes, ...remarks, ...maps, ...asks];
+  }
+
+  // ----- the runs of words for an agent (shared/ask.ts) -----
+
+  /** The record of the run that these words started in a repo, or undefined. */
+  askRun(repoId: string, words: string): AskRun | undefined {
+    const row = this.db.prepare('select run_json from ask_run where repo_id = ? and words = ?').get(repoId, words) as Row | undefined;
+    return row && JSON.parse(row.run_json);
+  }
+
+  /** Keeps the record of the run of words; a new run of the same words replaces it. */
+  setAskRun(repoId: string, words: string, run: AskRun): void {
+    this.db.prepare('insert into ask_run (repo_id, words, run_json) values (?, ?, ?) on conflict (repo_id, words) do update set run_json = excluded.run_json').run(repoId, words, JSON.stringify(run));
+  }
+
+  /** The records of the runs of words, of one repo or of all. */
+  private askRuns(repoId?: string): { repoId: string; run: AskRun }[] {
+    const rows = (repoId ? this.db.prepare('select repo_id, run_json from ask_run where repo_id = ?').all(repoId) : this.db.prepare('select repo_id, run_json from ask_run').all()) as Row[];
+    return rows.map((row) => ({ repoId: row.repo_id, run: JSON.parse(row.run_json) }));
   }
 
   /** Reads the record of the map run, lets `change` return the new one, and keeps it, all in one step, so that two writers at once lose no part. `change` returns undefined to keep it as it is. */

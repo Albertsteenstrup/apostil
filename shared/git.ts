@@ -1,6 +1,6 @@
 // Small helpers that read facts from Git. Every part uses these, so no part calls git by itself.
 
-import { execFileSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import { existsSync, lstatSync, readFileSync, readlinkSync, realpathSync } from 'node:fs';
 import { isAbsolute, join, relative } from 'node:path';
 import { diffLines } from './diff-lines';
@@ -49,6 +49,18 @@ export function workingFiles(folder: string): Map<string, string> | undefined {
 /** The files that differ between two of these fingerprints, sorted: those that are in one only, or have another hash. */
 export const changedBetween = (before: Map<string, string>, after: Map<string, string>): string[] =>
   [...new Set([...before.keys(), ...after.keys()])].filter((path) => before.get(path) !== after.get(path)).sort();
+
+/**
+ * Gets the commits of a pull request from a remote (`git fetch <remote> pull/<n>/head`), in the background: only objects and FETCH_HEAD change, no branch.
+ * Gives back nothing when it worked, else the first line of what git said.
+ */
+export function fetchPullCommits(folder: string, remote: string, pull: number, timeout = 60_000): Promise<string | undefined> {
+  return new Promise((done) => {
+    execFile('git', ['fetch', '--no-tags', remote, `pull/${pull}/head`], { cwd: folder, timeout, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } }, (error, _out, err) => {
+      done(error ? (String(err).trim().split('\n').find(Boolean) ?? error.message) : undefined);
+    });
+  });
+}
 
 /** The commits of a range such as "base..head", from one call of git: how many, and when the first one was written (ISO). None when git fails. */
 export function commitsOf(folder: string, range: string): { count: number; first?: string } {

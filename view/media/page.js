@@ -240,7 +240,9 @@ const App = {
     } else if (state.view === 'diffs') {
       // "Diffs": one file with its notes, with a counter over every changed file; on a wide tab the list of the files stands at its left, as closed rows.
       tabs.innerHTML = `${Split.controlHtml('files')}<span class="nav"></span>`;
-      this.diffs = Split.wanted('files') ? diffsPage(...Split.halves(view, `${LIST_WIDTH}px minmax(0,1fr)`)) : diffsPage(Split.alone(view), null);
+      const listed = Split.wanted('files');
+      this.diffs = listed ? diffsPage(...Split.halves(view, `${LIST_WIDTH}px minmax(0,1fr)`)) : diffsPage(Split.alone(view), null);
+      if (listed) Split.controls(view, false, 'files'); // "Hide files" over the list, as "Hide code" over the code
       await this.diffs.ready;
     } else if (state.level === 'part') {
       await drawPartView(tabs, view, page.parts.find((candidate) => candidate.id === state.part));
@@ -338,8 +340,9 @@ function drawConversation(view) {
 function drawPullFiles(view) {
   const { pullOnly, files } = App.page;
   const read = App.read[pullOnly.link]?.pull;
-  const line = pullOnly.otherRepo
-    ? 'This pull request is in another repo. Here are its changed files.'
+  const line = pullOnly.otherRepo ? 'This pull request is in another repo. Here are its changed files.'
+    : pullOnly.fetching ? 'Getting the commits of this pull request from GitHub…'
+    : pullOnly.fetchProblem ? `Apostil could not get the commits of this pull request: ${esc(pullOnly.fetchProblem)} Get them with <code>${esc(pullOnly.fetch)}</code>, then open it again.`
     : `The commits of this pull request are not in this folder. Get them with <code>${esc(pullOnly.fetch)}</code>, then open it again.`;
   const cut = read?.cut.files ? `<p class="quiet">${plural(read.cut.files, 'more file')} past the limit are on <a data-link="${esc(read.url)}">GitHub</a>.</p>` : '';
   view.innerHTML = `<p class="quiet pline">${line}</p><div class="pfiles">${files.map((file) => `<div class="pf"><span>${esc(file.path)}</span><i class="c">${countsHtml(file)}</i></div>`).join('')}</div>${cut}`;
@@ -435,15 +438,18 @@ async function drawPartView(tabs, view, part) {
   await drawPart(left, diagram, join);
 }
 
-/** The words to give an agent for a pull request that has no description of Apostil. */
+/** The words to give an agent for a pull request that has no description of Apostil (describeWords in shared/ask.ts). */
 const describeWords = (number) => `Describe pull request #${number} for Apostil`;
 
-/** A pull request with no stored change says so in one quiet line, with the words for an agent and a button that copies them. */
+/**
+ * A pull request with no stored change says so in one quiet line, with the words for an agent and one press that sends them to the session that it names
+ * (`App.ask`, from VS Code); after the press, the line of their run. As a file in a browser, with no VS Code, the words stay as text.
+ */
 function pullOnlyLineHtml() {
   const { pullOnly } = App.page;
   if (pullOnly.otherRepo) return '';
   const words = describeWords(pullOnly.number);
-  return `This pull request has no description of Apostil yet. Give an agent these words: <b>${esc(words)}</b> <a class="copy" data-copy="${esc(words)}">Copy</a>`;
+  return askHtml(App.ask?.words === words ? App.ask : { words }, 'This pull request has no description of Apostil yet. Give an agent these words:');
 }
 
 /** The line under the head, only for what shows nowhere else: the branch that a stacked change is compared with, and what the check found wrong. Empty for a change with nothing wrong: the counts of its files are in the diagram. */
@@ -491,8 +497,6 @@ function fileList(anchor, part = null) {
 // Clicks that work anywhere on the page.
 document.addEventListener('click', (event) => {
   const target = event.target;
-  const copy = target.closest('[data-copy]');
-  if (copy) { tell({ type: 'copy', text: copy.dataset.copy }); copy.textContent = 'Copied'; return; }
   const go = target.closest('[data-go]');
   if (go) return App.go(JSON.parse(go.dataset.go));
   const view = target.closest('.switch a');
@@ -559,7 +563,13 @@ window.addEventListener('message', (event) => {
     if (message.at) App.state.at = message.at;
     if (message.trail) Trail.set(message.trail);
     if (message.pullRead) takePullRead(message.pullRead);
+    App.ask = message.ask ?? null; // the words for an agent of the page, with their press and the line of their run
     App.render();
+  }
+  // The words went to a session, or its run moved on: only the line changes.
+  if (message?.type === 'asked') {
+    App.ask = message.ask;
+    if (App.page?.pullOnly) document.getElementById('summary').innerHTML = pullOnlyLineHtml();
   }
   if (message?.type === 'pullRead') takePullRead(message);
   if (message?.type === 'minimap') { CodeMap.set(message.on); if (App.rendered) tell({ ...App.rendered, map: CodeMap.shown() }); }

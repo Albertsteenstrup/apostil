@@ -1,7 +1,7 @@
 // The record of a map run: one for a repo while its map is being written. It says which session writes the map and what is saved so far.
 // The store keeps it (Store.mapRun and Store.changeMapRun), the saves of the writers add to it (store/map-run.ts), and Home shows its line (mapRunLine).
 
-import { APP_NAMES, openSessionCommand, sessionLink, type AgentSession } from './agents';
+import { APP_NAMES, sessionOpens, type AgentSession } from './agents';
 
 /** An open record with no save for this long counts as stopped. */
 export const QUIET_MS = 30 * 60_000;
@@ -79,8 +79,7 @@ export interface MapRunLine {
   state: 'writing' | 'stopped';
   words: string;
   tip?: string; // the whole id of the session and the titles of the saved areas
-  link?: string; // opens the session in its app
-  command?: string; // a session with no link: the command that resumes it, as text to copy
+  opens?: 'app' | 'terminal'; // "Open the session" opens it in its app, or in a terminal of VS Code that continues it (sessionOpens)
 }
 
 const count = (number: number, word: string): string => `${number} ${word}${number === 1 ? '' : 's'}`;
@@ -105,11 +104,15 @@ export function partsWords(parts: MapRunParts): string {
   ].filter(Boolean).join(', ');
 }
 
+/** What a session is called on a line: its name in quotes, cut when it is long, else the short id of the session, else nothing. */
+export const sessionCalled = (agent: AgentSession, name?: string): string =>
+  (name ? `"${name.length > NAME_LENGTH ? `${name.slice(0, NAME_LENGTH - 1)}…` : name}"` : agent.session ? shortId(agent.session) : '');
+
 /** Which session writes the map, in words. `name` is the name of the session in its app, when it has one. */
 function sessionWords(run: MapRun, name?: string): string {
   const app = run.agent && (APP_NAMES[run.agent.app] ?? run.agent.app);
   if (!app) return 'an agent session';
-  const called = name ? `"${name.length > NAME_LENGTH ? `${name.slice(0, NAME_LENGTH - 1)}…` : name}"` : run.agent?.session ? shortId(run.agent.session) : '';
+  const called = run.agent ? sessionCalled(run.agent, name) : '';
   if (run.home) return called ? `${app} session ${called} (a session with no window)` : `a ${app} session with no window`;
   return called ? `${app} session ${called}` : `a ${app} session`;
 }
@@ -117,7 +120,7 @@ function sessionWords(run: MapRun, name?: string): string {
 /**
  * The line of Home for a record, or undefined when the run is done or there is none. `name` is the name of the session in its app; `alive` says that
  * this window started the run and its program still runs, so a long quiet time is no stop.
- * A session of the Claude desktop app or of Codex has a link. Any other session that is known has the command that resumes it; a run of Home has it
+ * A session of the Claude desktop app or of Codex opens in its app. Any other session that is known opens in a terminal that continues it; a run of Home
  * only when it stopped, because it has no window and still works while it writes.
  */
 export function mapRunLine(run: MapRun | undefined, has: { name?: string; alive?: boolean; now?: number } = {}): MapRunLine | undefined {
@@ -129,7 +132,6 @@ export function mapRunLine(run: MapRun | undefined, has: { name?: string; alive?
   const words = state === 'writing' ? `Writing the map · ${session} · ${saved || 'nothing saved yet'}` : `The map run of ${session} stopped ${saved ? `after ${saved}` : 'with nothing saved'}`;
   const id = run.agent?.session;
   const tip = [id ? `Session ${id}` : '', run.parts.areas?.length ? `Areas: ${run.parts.areas.join(', ')}` : ''].filter(Boolean).join('\n');
-  const link = run.agent && !run.home ? sessionLink(run.agent) : undefined;
-  const resume = run.agent && id && /^[\w-]+$/.test(id) && !link && (!run.home || state === 'stopped') ? openSessionCommand(run.agent.app, id)?.join(' ') : undefined;
-  return { state, words, ...(tip ? { tip } : {}), ...(link ? { link } : {}), ...(resume ? { command: resume } : {}) };
+  const opens = run.agent && (!run.home || state === 'stopped') && (!id || /^[\w-]+$/.test(id)) ? sessionOpens(run.agent) : undefined;
+  return { state, words, ...(tip ? { tip } : {}), ...(opens ? { opens } : {}) };
 }

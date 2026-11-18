@@ -129,8 +129,8 @@ function sessionHead(agent) {
   return agentHead(words === undefined ? agent : { ...agent, name: Marks.fillText(words, fields) }, PartLook.iconHtml(look, own['text.icon']) || undefined);
 }
 
-/** A line that opens or folds a set of rows: a small arrow and the words. */
-const foldLine = (key, open, words, tip = '') => `<a class="fold" data-unfold="${esc(key)}"${tip ? ` title="${esc(tip)}"` : ''}><span class="chev">${open ? '▾' : '▸'}</span>${esc(words)}</a>`;
+/** A line that opens or folds a set of rows: its words say it ("2 more", "Fewer"), with no arrow. */
+const foldLine = (key, open, words, tip = '') => `<a class="fold" data-unfold="${esc(key)}"${tip ? ` title="${esc(tip)}"` : ''}>${esc(words)}</a>`;
 
 /**
  * The rows of one agent session under its head: at most two with an open pull request, and a line that shows the others.

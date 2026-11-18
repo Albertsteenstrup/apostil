@@ -363,13 +363,12 @@ try {
 
   // The line of a map run (build prompt 65), from the made-up records of example-data.ts. While a run writes: which session, and what is saved so far.
   const SAVED = 'overview, 3 of 8 areas, notes of 40 files';
-  const RESUME = 'claude --resume 1a2b3c4d-0000-4000-8000-00000000cafe';
-  /** The line of the map run as Home shows it: its words, its link, its command, its presses, and anything in it or beside it that moves. */
+  /** The line of the map run as Home shows it: its words, what "Open the session" says it does, its presses, and anything in it or beside it that moves. */
   const runLine = () => home.evaluate(() => {
     const line = document.querySelector('.maprun');
     return line && {
-      text: line.textContent, state: line.dataset.run, tip: line.querySelector('span[title]')?.title, link: line.querySelector('[data-link]')?.dataset.link, command: line.querySelector('code')?.textContent,
-      selects: line.querySelector('code') && getComputedStyle(line.querySelector('code')).userSelect, presses: [...document.querySelectorAll('[data-write]')].map((a) => a.textContent),
+      text: line.textContent, state: line.dataset.run, tip: line.querySelector('span[title]')?.title, opens: line.querySelector('[data-open-run]')?.title,
+      presses: [...document.querySelectorAll('[data-write]')].map((a) => a.textContent),
       moves: [line, ...line.querySelectorAll('*'), ...document.querySelectorAll('.nomap .dot')].filter((el) => getComputedStyle(el).animationName !== 'none').length,
       firstLine: document.querySelector('.nomap p')?.textContent, nodes: document.querySelectorAll('#view g.node.go').length, lines: document.querySelectorAll('.maprun').length,
     };
@@ -377,8 +376,8 @@ try {
   await homeAt('?run=desktop');
   const ownRun = await runLine();
   await takePicture(home, '35-home-while-a-map-run-writes.png');
-  await home.click('.maprun [data-link]', { timeout: 3000 }).catch(() => {});
-  const opened = await home.evaluate(() => window.apostilSent.find((message) => message.type === 'openLink'));
+  await home.click('.maprun [data-open-run]', { timeout: 3000 }).catch(() => {});
+  const opened = await home.evaluate(() => window.apostilSent.find((message) => message.type === 'openMapSession'));
   await homeAt('?run=terminal');
   const terminalRun = await runLine();
   await homeAt('?nomap=1&run=home');
@@ -386,11 +385,11 @@ try {
   await home.goto(`file://${listFile}?run=1`);
   await home.waitForFunction(() => window.apostilListDone, null, { timeout: 5000 });
   const homeRow = await home.$eval('.cl .home', (row) => ({ text: row.textContent, state: row.querySelector('.state')?.textContent }));
-  check('while a map run writes, Home says in one quiet line which session writes the map and what is saved so far, and nothing in it moves: on the map, for a session of the desktop app with the link "Open the session" (a click asks VS Code to open it); for a session in a terminal with the command that resumes it, which one click selects; in a repo with no map, for the run of Home, in place of the press; and the row "Home" of the list says "writing the map"',
+  check('while a map run writes, Home says in one quiet line which session writes the map and what is saved so far, and nothing in it moves: on the map, for a session of the desktop app with "Open the session", which opens it in its app (a click asks VS Code to open it); for a session in a terminal with "Open the session", which opens a terminal that continues it; in a repo with no map, for the run of Home, in place of the press; and the row "Home" of the list says "writing the map"',
     ownRun?.text === `Writing the map · Claude Code session "Map of library-app" · ${SAVED} · Open the session` && ownRun.lines === 1 && ownRun.nodes === 8 && ownRun.moves === 0 && ownRun.presses.length === 0
-      && ownRun.tip === 'Session 1a2b3c4d-0000-4000-8000-00000000cafe\nAreas: Lending, Desk, Catalogue' && ownRun.link === 'claude://claude.ai/epitaxy/made-up-host-0002' && opened?.url === ownRun.link
-      && terminalRun?.text === `Writing the map · Claude Code session 1a2b3c4d · ${SAVED} · ${RESUME}` && terminalRun.command === RESUME && terminalRun.selects === 'all' && !terminalRun.link
-      && homeRun?.text === `Writing the map · Claude Code session 1a2b3c4d (a session with no window) · ${SAVED}` && homeRun.firstLine === homeRun.text && homeRun.presses.length === 0 && homeRun.moves === 0 && !homeRun.link && !homeRun.command
+      && ownRun.tip === 'Session 1a2b3c4d-0000-4000-8000-00000000cafe\nAreas: Lending, Desk, Catalogue' && ownRun.opens === 'Opens the session in its app' && !!opened
+      && terminalRun?.text === `Writing the map · Claude Code session 1a2b3c4d · ${SAVED} · Open the session` && terminalRun.opens === 'Opens a terminal of VS Code that continues the session'
+      && homeRun?.text === `Writing the map · Claude Code session 1a2b3c4d (a session with no window) · ${SAVED}` && homeRun.firstLine === homeRun.text && homeRun.presses.length === 0 && homeRun.moves === 0 && !homeRun.opens
       && homeRow.state === 'writing the map' && homeRow.text === 'Homelibrary-appwriting the map',
     JSON.stringify({ ownRun, opened, terminalRun, homeRun, homeRow }));
 

@@ -7,7 +7,9 @@ import { changeOfFolder } from '../shared/context';
 import { Store, storeFolder, type AppState } from '../shared/store';
 import { cleanup } from '../store/cleanup';
 import { registerLookChoice } from '../theme/choose-look';
-import { agentsNeedSetup, ChangeList } from './change-list';
+import { agentsNeedSetup, ChangeList, repoPullsLater } from './change-list';
+import { pullBadge } from '../shared/pull-requests';
+import type { RepoPulls } from '../shared/repo-pulls';
 import { installedApps } from '../shared/agents';
 import { BaseText, ChangePage, mentionIn, type NewRemark, type RemarkAction } from './change-page';
 import { registerFirstStart } from './first-start';
@@ -144,6 +146,11 @@ export function activate(context: vscode.ExtensionContext) {
   };
 
   const filesView = vscode.window.createTreeView('apostil.files', { treeDataProvider: files });
+  // The badge of the Apostil icon in the activity bar: the open pull requests of the repo, with their lines in its tip. The tree "Files" carries it,
+  // since it exists from the start; the list asks gh again when it draws, at most once a minute (repoPullsLater).
+  const showPullBadge = (answer: RepoPulls): void => { filesView.badge = pullBadge(answer.pulls); };
+  list.onRepoPulls = showPullBadge;
+  if (openFolder()) void repoPullsLater(openFolder()).then(showPullBadge);
   // The tree "Files" follows the map: the folders and files of an area open and come into view, the first one marked (the choice: treeSteps).
   home.showInTree = (paths, open) => {
     void (async () => {

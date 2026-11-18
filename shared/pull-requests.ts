@@ -36,6 +36,8 @@ export interface RawPullRequest {
   createdAt?: string;
   updatedAt?: string;
   headRefName?: string; // asked only for the list of every open pull request
+  additions?: number; // also asked only for that list
+  deletions?: number;
 }
 
 /** A person as the list of gh gives it: a bot is "app/<name>" with is_bot, a team has a name and no login, and no one has the address of a picture. */
@@ -67,6 +69,8 @@ export interface PullRequest {
   createdAt?: string; // ISO
   updatedAt?: string; // ISO
   branch?: string; // its head branch, asked only for the list of every open pull request
+  added?: number; // its lines added and removed, asked only for the list of every open pull request (the badge of the Apostil icon)
+  removed?: number;
 }
 
 /** The place of a pull request in a stack: position 1 is the closest to the base of the stack. */
@@ -169,6 +173,7 @@ export function pullRequestsFromJson(json: string): PullRequest[] {
         labels: (pr.labels ?? []).map(({ name, color }) => ({ name, color })),
         ...(pr.createdAt ? { createdAt: pr.createdAt } : {}),
         ...(pr.updatedAt ? { updatedAt: pr.updatedAt } : {}),
+        ...(typeof pr.additions === 'number' ? { added: pr.additions, removed: pr.deletions ?? 0 } : {}),
         ...(pr.headRefName ? { branch: pr.headRefName } : {}),
       };
     })
@@ -181,7 +186,15 @@ export const ghArguments = (branch: string, repo?: string): string[] =>
   ['pr', 'list', '--head', branch, '--state', 'all', '--json', LIST_FIELDS, ...(repo ? ['--repo', repo] : [])];
 
 /** The arguments that ask gh for every open pull request of the repo of the folder (at most 100), with the branch of each. */
-export const openPullsArguments = (): string[] => ['pr', 'list', '--state', 'open', '--limit', '100', '--json', `${LIST_FIELDS},headRefName`];
+export const openPullsArguments = (): string[] => ['pr', 'list', '--state', 'open', '--limit', '100', '--json', `${LIST_FIELDS},headRefName,additions,deletions`];
+
+/** The badge of the Apostil icon in the activity bar: how many pull requests are open, and their lines added and removed in its tip. None with none open. */
+export function pullBadge(pulls: PullRequest[]): { value: number; tooltip: string } | undefined {
+  if (!pulls.length) return undefined;
+  const sum = (key: 'added' | 'removed') => pulls.reduce((total, pull) => total + (pull[key] ?? 0), 0).toLocaleString('en-US');
+  const counted = pulls.some((pull) => pull.added !== undefined);
+  return { value: pulls.length, tooltip: `${pulls.length} open pull request${pulls.length === 1 ? '' : 's'}${counted ? `, +${sum('added')} −${sum('removed')} in all` : ''}` };
+}
 
 /** The arguments that ask gh for the stacks of a repo (REST, read only); gh fills in "{owner}/{repo}" with the repo of the folder. */
 export const stackArguments = (repo = '{owner}/{repo}'): string[] => ['api', `repos/${repo}/stacks?per_page=100`];
