@@ -462,11 +462,35 @@ try {
   await home.click('.sec .alters a');
   await pageSettled();
   const onHome = await home.textContent('#tabs .home-link').catch(() => '');
+  const repoWords = (view) => view.evaluate(() => [...document.querySelectorAll('#tabs .drepo')].map((el) => el.textContent));
+  const writtenAgain = await repoWords(home); // the example map was written on the branch, after the change was described
   await home.click('#tabs .home-link');
   await home.waitForURL(/home\.html/, { timeout: 5000 }).catch(() => {});
   await homeDrawn();
   const onHomeCrumb = await crumbOf();
   check('the large view of a wider diagram that the map holds too has the link "on Home", which shows it on Home', onHome === 'on Home' && /›The areas of the member page$/.test(onHomeCrumb), `${onHome}; ${onHomeCrumb}`);
+
+  // A diagram of a part that draws on a repo diagram ("of") links to it: the same diagram on Home, with nothing of the change painted on it.
+  const partView = (view) => `file://${pageFile}?go=${encodeURIComponent(JSON.stringify({ level: 'part', ...view }))}`;
+  const painted = () => home.evaluate(() => document.querySelectorAll('#view tspan.sg.p, #view tspan.sg.m, #view tspan.was, #view g.node.lit').length
+    + [...document.querySelectorAll('#view text.tc')].filter((el) => el.textContent.trim()).length);
+  await home.goto(partView({ part: 'tables', diagram: 'hold-schema' }));
+  await homeDrawn();
+  const ofPart = { link: await home.textContent('#tabs .home-link').catch(() => ''), painted: await painted() };
+  await takePicture(home, 'change-diagram-on-home-link.png');
+  await home.click('#tabs .home-link');
+  await home.waitForURL(/home\.html/, { timeout: 5000 }).catch(() => {});
+  await homeDrawn();
+  const onHomeNow = { at: await home.evaluate(() => Home.at), crumb: await crumbOf(), tables: await home.evaluate(() => document.querySelectorAll('#view g.node').length), painted: await painted() };
+  await takePicture(home, 'repo-diagram-on-home.png');
+  check('a diagram of a part that draws on a repo diagram has "on Home", which shows that diagram on Home with nothing of the change painted on it',
+    ofPart.link === 'on Home' && ofPart.painted > 0 && onHomeNow.at === 'lib-reservations' && /›The tables of reservations$/.test(onHomeNow.crumb) && onHomeNow.tables === 5 && onHomeNow.painted === 0,
+    JSON.stringify({ ofPart, onHomeNow }));
+  await home.goto(partView({ part: 'hold-service', diagram: 'offer-flow' }));
+  await homeDrawn();
+  const isNew = { words: await repoWords(home), link: await home.$('#tabs .home-link') };
+  check('a diagram of code that is all new says "New in this change" and has no link to Home; one whose repo diagram the map no longer holds as it was says that the map was written again',
+    isNew.words.join() === 'New in this change' && !isNew.link && writtenAgain.join() === 'The map was written again since this change was described.', JSON.stringify({ isNew: isNew.words, writtenAgain }));
   await home.close();
 } catch (error) {
   check('the checks ran to the end', false, error.message.split('\n').slice(0, 14).join(' / '));

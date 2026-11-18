@@ -210,7 +210,7 @@ const App = {
       await drawPartView(tabs, view, onlyPart());
     } else if (state.level === 'broad') {
       const broad = broadOf(state);
-      if (page.onHome?.includes(broad.id)) tabs.innerHTML = `<a class="home-link" data-home="${esc(broad.id)}">on Home</a>`;
+      tabs.innerHTML = repoHtml(broad);
       await drawBroad(view, broad);
     } else if (Split.wanted()) {
       // The diagram of the change and the list of its diffs, closed; the keys step through the changes, and the graph follows them.
@@ -464,7 +464,7 @@ document.addEventListener('click', (event) => {
     return App.go({ level: App.state.level === 'part' ? 'part' : App.state.level === 'broad' ? 'broad' : 'change' });
   }
   const home = target.closest('[data-home]');
-  if (home) return Trail.take({ tab: 'home', diagram: home.dataset.home, lit: [], name: broadOf(App.state).title }, true);
+  if (home) return Trail.take({ tab: 'home', diagram: home.dataset.home, lit: [], name: home.dataset.title }, true);
   const diagram = target.closest('[data-diagram]');
   if (diagram) return App.go({ diagram: diagram.dataset.diagram }); // the part stays, or the change of one part
   const folder = target.closest('[data-folder]');

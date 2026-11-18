@@ -91,11 +91,11 @@ The rule: every node and every arrow of a diagram has its code, or one reason wh
 
 A schema diagram is the Mermaid text of an entity-relationship diagram (`erDiagram`): the tables after the change, each with its columns.
 
-- Draw in full each table that the change adds, drops or alters. Draw each table that they point at with its key columns only. Write each column as `type name`, with `PK`, `FK` or `UK` after it when it is a key: `uuid id PK`.
+- Draw in full each table that the change adds, drops or alters. Draw each table that they point at with its key columns only, or as the repo diagram that you draw on has it (below). Write each column as `type name`, with `PK`, `FK` or `UK` after it when it is a key: `uuid id PK`.
 - A dbt model is a table or a view. Its columns come from its select list or from its `.yml` file.
 - A relation goes from the table that holds the reference to the table that it points at: `invoice }o--|| customer : customer_id`. Its label is the column that holds the reference. When the code names no column (a dbt `ref()` or `source()` reads a whole model), the label is empty: `daily_sales }o--|| invoice : ""`.
 - The code of a table is the statement that makes or alters it: the `create table`, the `alter table`, the model file. A table that the change drops has the line that drops it. A table that only stands there for context has the lines that define it, or `"outside"` when no file of the repo defines it. The code of a relation is the line that makes the reference: the `references` clause, the foreign key, the `ref()`.
-- Give `before`: the tables as they were, with the same names, so that the page shows what the change added, dropped and altered. A table or a column that is gone is in `before` only.
+- Give `before` as below: the tables as they were, with the same names, so that the page shows what the change added, dropped and altered. A table or a column that is gone is in `before` only.
 - Take every table, column and type from the lines of the code. Do not add one that the code does not name.
 
 One short example for each kind:
@@ -112,20 +112,17 @@ One short example for each kind:
                "nodeLines": { "invoice": [3, 8], "credit_note": [1, 1], "customer": { "file": "db/migrations/0001_init.sql", "lines": [2, 5] } },
                "edgeLines": [{ "from": "invoice", "to": "customer", "label": "customer_id", "lines": [5, 5] }]
 
-What the change did to a diagram: the page shows new, changed and removed steps, messages, states, transitions, tables, columns and relations.
+What the change did to a diagram: the page shows new, changed and removed steps, messages, states, transitions, tables, columns and relations. The owner also finds each diagram on Home without the change. So draw on the diagrams of the repo. Never draw a new diagram of code that the base had.
 
-- When the code of a diagram was there before the change, also write `before`: the Mermaid text of the same diagram for the code as it was. Read the old code with `git show <base>:<path>`.
-- In `before`, keep the id of each node that is still there. Give a new node a new id. Use the same kind.
-- When the code is all new, write no `before`.
+1. Find the repo diagram of the code first: `apostil diagrams --path <file>`. An entry with `"map": true` is a repo diagram: a diagram of the map, or a drawing of a process (`process:…`).
+2. Read it: `apostil diagram <id>`. For a drawing of a process, `where` says where each box is in the code.
+3. Write your diagram with `"of": "<id>"` and `before`: the `mermaid` text that it prints, exactly. In `mermaid`, draw the same diagram after the change: the same kind, the same id for each node that stays, and only what the change alters changed.
+4. When the base had the code and the repo has no diagram of it: first draw the diagram of the base code (`git show <base>:<path>`), and add it to the map. Write it to `apostil-diagram-<id>.json` with `parent` (the id of the diagram of the area whose `nodePaths` hold the file; `apostil map` prints them), `file`, `symbol` and `covers` (its lines at the base), and run `apostil add-diagram apostil-diagram-<id>.json`. Then draw the change on it, as in step 3.
+5. Code that is all new in the change gets `"new": true`, no `of` and no `before`.
 
-Broader diagrams: the brief names the broader diagrams that this change alters. For each one:
+`apostil save` refuses a `before` that is not the text of its repo diagram, and a diagram with no `of` and no `new`. In a repo with no map, leave out `of` and `new`. Write `before` from the old code, with the id of each node that is still there, or no `before` when the code is all new.
 
-1. Run `apostil diagram <id>` to read it in full.
-2. Write the updated diagram with `broad: true` and the same `id`.
-3. Copy the old Mermaid text into `before`.
-4. Change only what the change alters. Keep the rest as it was.
-
-If the brief names none, write no broader diagram. The diagrams of functions above are still yours to write.
+Broader diagrams: the brief names the broader diagrams that this change alters. Draw each one on its repo diagram in the same way, with `broad: true`. If the brief names none, write no broader diagram. The diagrams of functions above are still yours to write.
 
 ## Step 5: Save and repair
 
@@ -137,7 +134,7 @@ Write the file nowhere else, and do not put the JSON into the command itself: so
 
 When the brief names the session, add `--session-name "<name>"`. It prints `{ "changeId", "saved", "problems", "checks" }`.
 
-- `problems` lists faults in the shape, and each node or arrow of a diagram and each link that has no code and no reason. Nothing is saved while there is one. Repair each listed thing: give its lines, or the one reason that is true. Read the code for it; do not guess.
+- `problems` lists faults in the shape, each node or arrow of a diagram and each link that has no code and no reason, and each diagram that does not draw on its repo diagram. Nothing is saved while there is one. Repair each listed thing: give its lines, or the one reason that is true. Read the code for it; do not guess.
 - `hints` lists changed lines that a diagram covers and that are in no node and no arrow. The save does not fail for them. Put a line that does something into the node or the arrow whose code it is, or leave it out when the diagram has no place for it.
 - `checks` lists `filesInNoPart`, `filesInTwoParts`, `filesNotChanged`, `generated` and `badNotes`. Fix each entry: add the file to a part, remove it from the second part, drop a file that did not change, or correct the note's file or lines. `renamedFiles` lists a part that names the old path of a renamed file: name the new path.
 
@@ -205,6 +202,7 @@ A small, complete change file. Yours will be longer.
       "file": "src/upload/uploader.ts",
       "symbol": "sendWithRetry",
       "covers": [12, 34],
+      "new": true,
       "nodeLines": { "send": [14, 18], "ok": [19, 19], "done": [20, 20], "more": [21, 23], "wait": [24, 28], "fail": [31, 34] }
     }
   ],

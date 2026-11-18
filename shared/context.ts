@@ -2,14 +2,14 @@
 // The command line and the helper both call these functions.
 
 import type { Diagram, Note } from './change-file';
-import { diagramText, keptInChange, keptLines, keptOnMap, mapDrawing } from './comment-lines';
+import { diagramText, drawingPlaces, keptInChange, keptLines, keptOnMap, mapDrawing } from './comment-lines';
 import { inNoThingWords, linksChecked, linkThings, REASON_WORDS, thingsOf, type Place, type ThingCode } from './diagram-code';
 import { cellsIn, inNoThingPlaces, linesInNoThingOf, rangesText } from './checks';
 import { diagramGraph } from './diagram-graph';
 import { changedFiles, currentBranch, fileText, repoId, type ChangedFile } from './git';
 import { cellOfLine, cellsOfText, inCellText, isNotebookPath } from './notebook';
 import { diagramsOf, type RepoMap } from './repo-map';
-import type { ProcessDiagram } from './process-diagrams';
+import { allProcessDrawings, type ProcessDiagram } from './process-diagrams';
 import type { AppState, OpenPoint, Remark, RemarkTarget, Store, StoredChange } from './store';
 
 /** The change of the branch that a folder has checked out. */
@@ -249,24 +249,45 @@ export function reviewContext(store: Store, folder: string, markSent = false): R
   };
 }
 
-export type DiagramTitle = Omit<Diagram, 'mermaid' | 'before'> & { branch: string };
+// A diagram of the repo (`map`): a diagram of the map, or a drawing of a process; else a diagram of a stored change (`branch`).
+export type DiagramTitle = Omit<Diagram, 'mermaid' | 'before'> & { branch?: string; map?: true };
 
-/** One short entry for each diagram of the repo. A path limits the list to diagrams of files under it. */
+/**
+ * One short entry for each diagram of the repo: first the diagrams of the map and the drawings of its processes, which a change draws on, then the
+ * diagrams of stored changes. A path limits the list to diagrams of files under it, and to the diagrams of the map whose nodes hold it.
+ */
 export function diagramTitles(store: Store, folder: string, path = ''): DiagramTitle[] {
-  return store.listChanges(repoId(folder)).flatMap((change) =>
+  const about = (entry: string): boolean => !path || entry.startsWith(path) || (entry.endsWith('/') && path.startsWith(entry));
+  const map = store.getMap(repoId(folder))?.map;
+  const written = (map?.diagrams ?? []).filter((diagram) => [diagram.file ?? '', ...Object.values(diagram.nodePaths ?? {}).flat()].some((entry) => entry && about(entry)))
+    .map(({ id, kind, title, file, symbol, parent }): DiagramTitle => ({ id, kind, title, ...(file ? { file } : {}), ...(symbol ? { symbol } : {}), ...(parent ? { parent } : {}), map: true }));
+  const drawn = (map ? allProcessDrawings(map) : []).filter((one) => Object.values(one.nodes).some((node) => !node.quiet && node.files.some(about)))
+    .map((one): DiagramTitle => ({ id: one.id, kind: 'flow', title: one.title, map: true }));
+  const changes = store.listChanges(repoId(folder)).flatMap((change) =>
     (change.file.diagrams ?? [])
       .filter((diagram) => !path || (diagram.file ?? '').startsWith(path))
       .map(({ mermaid, before, ...title }) => ({ ...title, branch: change.branch })));
+  return [...written, ...drawn, ...changes];
 }
 
 export interface ShownDiagram {
   diagram: Diagram;
-  branch: string;
+  branch?: string; // the branch of the change that holds it
+  map?: true; // a diagram of the map, or a drawing of the map: the repo as it is, which a change draws on
+  where?: Record<string, string>; // a drawing of a process: where each box stands in the code, by its id
   code?: { file: string; lines: [number, number]; text: string }; // the code lines that the diagram is about
 }
 
-/** One diagram in full, with the code lines of its function when the notes name them. */
+/**
+ * One diagram in full. The map first: a diagram of the map or a drawing of the map (`process:<id>`), with the text that Home draws, which a change copies
+ * into "before". Else a diagram of a stored change, with the code lines of its function when the notes name them.
+ */
 export function showDiagram(store: Store, folder: string, id: string): ShownDiagram | undefined {
+  const drawn = mapDrawing(store.getMap(repoId(folder))?.map, id);
+  if (drawn) {
+    const { notes: _notes, ...diagram } = drawn.diagram; // the notes of an area: apostil notes <path> reads them
+    return { diagram, map: true, ...(drawn.process ? { where: drawingPlaces(drawn.process) } : {}) };
+  }
   for (const change of store.listChanges(repoId(folder))) {
     const diagram = (change.file.diagrams ?? []).find((candidate) => candidate.id === id);
     if (!diagram) continue;

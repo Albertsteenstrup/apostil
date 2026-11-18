@@ -70,6 +70,14 @@
     "book_hold": ["db/migrations/0042_holds.sql"],
     "hold_event": ["db/migrations/0042_holds.sql"]
    }
+  },
+  {
+   "id": "lib-reservations",
+   "kind": "schema",
+   "title": "The tables of reservations",
+   "parent": "lib-top",
+   "file": "db/migrations/0041_reservations.sql",
+   "mermaid": "erDiagram\n  member {\n    bigint id UK\n  }\n  book {\n    bigint id UK\n  }\n  book_copy {\n    bigint id UK\n    bigint book_id\n  }\n  reservation\n  reservation_note\n"
   }
  ],
  "fileNotes": [

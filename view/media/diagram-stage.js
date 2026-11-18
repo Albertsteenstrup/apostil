@@ -828,10 +828,24 @@ function ringAt(x, y, slots = {}) {
   return ring;
 }
 
-/** Beside the title of a diagram of a part: what the change did to it, the changed lines in no node and no arrow, and whether a second agent read it. */
+/**
+ * Beside the title of a diagram of a part: what the change did to it, the changed lines in no node and no arrow, whether a second agent read it,
+ * and where it stands in the repo (repoHtml).
+ */
 const diagramFactsHtml = (diagram) => (diagram && !diagram.broad
-  ? `${changeWordsHtml(diagram)}${diagram.inNoThingWords ? `<span class="dfact nothing">${esc(diagram.inNoThingWords)}</span>` : ''}<span class="dfact">${diagram.checked ? 'checked' : 'not checked yet'}</span>`
+  ? `${changeWordsHtml(diagram)}${diagram.inNoThingWords ? `<span class="dfact nothing">${esc(diagram.inNoThingWords)}</span>` : ''}<span class="dfact">${diagram.checked ? 'checked' : 'not checked yet'}</span>${repoHtml(diagram)}`
   : changeWordsHtml(diagram));
+
+/**
+ * Where a diagram of the change stands in the repo: code that is all new says so; a diagram that draws on a repo diagram has the quiet link "on Home",
+ * which shows that diagram without the change, and one quiet line when the map was written again since the change was described.
+ */
+function repoHtml(diagram) {
+  if (diagram.new) return '<span class="drepo">New in this change</span>';
+  const repo = App.page.onHome?.[diagram.id];
+  return (repo?.id ? `<a class="home-link" data-home="${esc(repo.id)}" data-title="${esc(repo.title)}">on Home</a>` : '')
+    + (repo?.again ? '<span class="drepo">The map was written again since this change was described.</span>' : '');
+}
 
 /** The diagram of one part or function: a flow, a sequence, the states or a schema, with what the change did to it. `join` as in wireCode, `stack` as in makeSurface. */
 async function drawPart(into, diagram, join, stack = false) {

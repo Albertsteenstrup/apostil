@@ -2,12 +2,14 @@
 
 import { mergeAgent, type AgentSession } from '../shared/agents';
 import { shapeProblems, type ChangeFile, type Diagram, type Note } from '../shared/change-file';
-import { cellsIn, checkChangeFile, inNoThingHints } from '../shared/checks';
+import { cellsIn, checkChangeFile, fileChange, inNoThingHints, rangesText } from '../shared/checks';
+import { mapDrawing } from '../shared/comment-lines';
 import { missingCode, missingLinkCode } from '../shared/diagram-code';
-import { baseOf, changedFiles, commitExists, currentBranch, fileText, headCommit, repoFiles, repoId, repoRoot, tryGit } from '../shared/git';
+import { baseOf, changedFiles, commitExists, currentBranch, fileText, headCommit, repoFiles, repoId, repoRoot, tryGit, type ChangedFile } from '../shared/git';
 import { fingerprint } from '../shared/note-groups';
 import { rawLineProblems } from '../shared/notebook';
 import { noteCodeOf } from '../shared/notes-beside-code';
+import { sameDiagramText } from '../shared/repo-diagram';
 import { checkMap, fileNotesProblems, fileNotesStyle, FILE_NOTES_PART, mapAsChange, mapNoteProblems, mapProblems, type MapCheck, type RepoMap } from '../shared/repo-map';
 import type { CheckResult, Store } from '../shared/store';
 import { freshNotes, isFileNoteKey, notesWithCode, sortedNotes, withFileNotes, withNoteCode } from './note-code';
@@ -38,19 +40,46 @@ export function baseFor(store: Store, folder: string, named?: string): string {
   return stored && commitExists(folder, stored.base) ? stored.base : baseOf(folder, currentBranch(folder));
 }
 
+/** What a writer does with a diagram of code that the base had (skills/apostil-describe-change/writer-prompt.md says the same). */
+const drawOn = (path = '<path>'): string => `Draw it on the repo diagram of its code: find it with apostil diagrams --path ${path}; "of" is its id and "before" its text (apostil diagram <id>). `
+  + 'When the repo has none, first add the diagram of the base code to the map with apostil add-diagram, under the area that holds the file, with "file", "symbol" and "covers". Code that is all new gets "new": true.';
+
 /**
- * Runs the shape check, the rule that a place in a notebook names a cell, the rule that each node and arrow of a diagram of a part and each link between parts has code or a reason, the file check and the line check. Saves nothing.
- * `leaveOut` is a path that is no file of the change: the untracked draft file that was given.
- * The rule is for a save from now on: a stored description from before still opens.
+ * The rule of the diagrams of a repo with a map: each diagram of a change draws on a repo diagram ("of", with the text of that diagram as "before"),
+ * or its code is all new ("new"; the lines of "covers" are all added lines). In a repo with no map there is nothing to draw on: only "of" is checked.
  */
-export function checkDraft(folder: string, draft: unknown, base = baseOf(folder, currentBranch(folder)), leaveOut?: string): SaveResult {
+function repoDiagramProblems(folder: string, base: string, file: ChangeFile, map: RepoMap | undefined, changed: ChangedFile[]): string[] {
+  return (file.diagrams ?? []).flatMap((diagram) => {
+    const where = `Diagram "${diagram.id}"`;
+    if (diagram.of !== undefined) {
+      const drawn = mapDrawing(map, diagram.of);
+      if (!drawn) return [map ? `${where}: the map has no diagram "${diagram.of}". ${drawOn(diagram.file)}` : `${where}: this repo has no map, so "of" names nothing. Leave it out.`];
+      if (drawn.diagram.kind !== diagram.kind) return [`${where}: its kind is ${diagram.kind}, and the repo diagram "${diagram.of}" is a ${drawn.diagram.kind} diagram. Keep the kind of the repo diagram.`];
+      return sameDiagramText(diagram.before, drawn.diagram.mermaid, drawn.diagram.kind) ? [] : [`${where}: "before" is not the text of the repo diagram "${diagram.of}". Run apostil diagram ${diagram.of} and copy its text into "before".`];
+    }
+    if (!map) return [];
+    if (!diagram.new) return [`${where} names no repo diagram in "of" and is not "new". ${drawOn(diagram.file)}`];
+    if (!diagram.covers || !diagram.file) return [];
+    const { added } = fileChange(folder, base, diagram.file, changed);
+    const old = Array.from({ length: diagram.covers[1] - diagram.covers[0] + 1 }, (_, at) => diagram.covers![0] + at).filter((line) => !added.some(([first, last]) => first <= line && line <= last));
+    return old.length ? [`${where}: lines ${rangesText(old)} of ${diagram.file} were there before the change, so its code is not all new. ${drawOn(diagram.file)}`] : [];
+  });
+}
+
+/**
+ * Runs the shape check, the rule that a place in a notebook names a cell, the rule that each node and arrow of a diagram of a part and each link between parts has code or a reason,
+ * the rule of the repo diagrams (with the stored `map` of the repo), the file check and the line check. Saves nothing.
+ * `leaveOut` is a path that is no file of the change: the untracked draft file that was given.
+ * The rules are for a save from now on: a stored description from before still opens.
+ */
+export function checkDraft(folder: string, draft: unknown, base = baseOf(folder, currentBranch(folder)), leaveOut?: string, map?: RepoMap): SaveResult {
   const shape = shapeProblems(draft);
   if (shape.length > 0) return { saved: false, problems: shape };
   const file = draft as ChangeFile;
   const changed = changedFiles(folder, base).filter((entry) => entry.path !== leaveOut);
   const cells = cellsIn(folder, base, changed);
   // A note or a place in a notebook names a cell and the lines inside it, never lines of the raw file.
-  const problems = [...missingLinkCode(file), ...(file.diagrams ?? []).flatMap(missingCode), ...rawLineProblems(file, (path, removed) => !!cells(path, removed))];
+  const problems = [...missingLinkCode(file), ...(file.diagrams ?? []).flatMap(missingCode), ...rawLineProblems(file, (path, removed) => !!cells(path, removed)), ...repoDiagramProblems(folder, base, file, map, changed)];
   const hints = inNoThingHints(folder, base, file, changed);
   return { saved: false, problems, checks: checkChangeFile(folder, base, file, changed), ...(hints.length ? { hints } : {}) };
 }
@@ -58,7 +87,7 @@ export function checkDraft(folder: string, draft: unknown, base = baseOf(folder,
 /** Checks a draft and stores it as the change of the current branch. The given agent fields go over the stored agent. A draft that fails the shape check or the rule is not stored. */
 export function saveDraft(store: Store, folder: string, draft: unknown, agent: Partial<AgentSession> = {}, leaveOut?: string, named?: string): SaveResult {
   const base = baseFor(store, folder, named);
-  const result = checkDraft(folder, draft, base, leaveOut);
+  const result = checkDraft(folder, draft, base, leaveOut, store.getMap(repoId(folder))?.map);
   if (!result.checks || result.problems.length) return result;
   const stored = store.findChange(repoId(folder), currentBranch(folder));
   // A description of later commits of the branch takes the place of the one before it (a main branch, commit after commit): the notes of that one are

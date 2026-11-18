@@ -86,6 +86,8 @@ export interface Diagram {
   edgeLines?: EdgeLines[]; // the code of an arrow, a message or a transition; a removed one too
   covers?: Lines; // the lines of "file" that the diagram explains: for a function, from its head to its end
   broad?: boolean; // true for a diagram of a wider setup
+  of?: string; // the repo diagram that this diagram changes: the id of a diagram of the map, or of a drawing of the map ("process:<id>"); "before" is its text
+  new?: true; // the code of the diagram is all new in this change: it has no "of" and no "before"
   before?: string; // the Mermaid text of the same diagram for the code as it was at the base; a node that is still there keeps its id
   nodePaths?: Record<string, string[]>; // the folders (ending with "/") and files that a node stands for, by node id
   parent?: string; // the id of the diagram one level up
@@ -168,6 +170,9 @@ export function diagramProblems(diagram: Diagram, partIds: Set<string>): string[
   }
   if (diagram?.covers !== undefined && (!isLines(diagram.covers) || !isText(diagram.file))) problems.push(`${where}: "covers" must be [first, last], in "file".`);
   if (diagram?.parent !== undefined && !isText(diagram.parent)) problems.push(`${where}: "parent" must be a diagram id.`);
+  if (diagram?.of !== undefined && !isText(diagram.of)) problems.push(`${where}: "of" must be the id of a repo diagram.`);
+  if (diagram?.new !== undefined && diagram.new !== true) problems.push(`${where}: "new" must be true, or left out.`);
+  if (diagram?.new && (diagram.of !== undefined || diagram.before !== undefined)) problems.push(`${where}: code that is all new has no "of" and no "before".`);
   if (diagram?.notes !== undefined && !Array.isArray(diagram.notes)) problems.push(`${where}: "notes" must be a list of notes.`);
   for (const note of Array.isArray(diagram?.notes) ? diagram.notes : []) problems.push(...noteProblems(note, where));
   for (const [node, paths] of Object.entries(diagram?.nodePaths ?? {})) {

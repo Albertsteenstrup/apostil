@@ -45,8 +45,8 @@ const USAGE: Record<string, string> = {
   answer: 'apostil answer <remark id> <text>',
   resolve: 'apostil resolve <remark id> [--agent <app>]',
   remarks: 'apostil remarks',
-  diagrams: 'apostil diagrams [--path <prefix>]',
-  diagram: 'apostil diagram <id>',
+  diagrams: 'apostil diagrams [--path <prefix>] (the diagrams of the map, the drawings of its processes, and the diagrams of stored changes)',
+  diagram: 'apostil diagram <id> (a diagram of the map or a drawing of the map first, else of a stored change)',
   tests: 'apostil tests <symbol>',
   list: 'apostil list',
   usage: 'apostil usage',
@@ -105,7 +105,7 @@ function run(store: Store, command: string, [argument = '', ...more]: string[], 
   switch (command) {
     case 'material': return done(changeMaterial(store, folder, base));
     case 'check': {
-      const result = checkDraft(folder, readJson(argument), baseFor(store, folder, base), untrackedInRepo(folder, argument));
+      const result = checkDraft(folder, readJson(argument), baseFor(store, folder, base), untrackedInRepo(folder, argument), store.getMap(repoId(folder))?.map);
       return done(result, result.problems.length === 0);
     }
     case 'save': {

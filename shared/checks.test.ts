@@ -290,7 +290,7 @@ test('a description from before the rule for links still opens; a link with a di
   // A link with a diff has its counts, the sum over its places; the links are checked when each part that a link leaves has its mark.
   {
     const links: ChangeFile['links'] = [{ from: 'app', to: 'tool', lines: { file: 'src/app.py', lines: [4, 6] } }, { from: 'tool', to: 'app', lines: { file: 'src/app.py', lines: [1, 1] } }];
-    const page = examplePage(repo.folder, repo.base, { ...testChangeFile(), links }, [], [], undefined, [], [], 0, [linksMark('app')]);
+    const page = examplePage(repo.folder, repo.base, { ...testChangeFile(), links }, [], [], undefined, [], undefined, 0, [linksMark('app')]);
     assert.deepEqual(page.links.map((link) => link.code?.counts), [{ added: 3, removed: 0 }, undefined]); // line 1 did not change: no counts
     assert.equal(page.linksChecked, false); // the links that leave "tool" are not read yet
     assert.equal(linksChecked(links, [linksMark('app'), linksMark('tool')]), true);

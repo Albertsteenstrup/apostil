@@ -118,7 +118,7 @@ test('the command line saves a draft and prints the result, and a broken draft g
   // A diagram with "before" comes with the code of its file as it was, for the checker to read "before" against.
   const withBefore = join(draftFolder, 'with-before.json');
   const file = testChangeFile();
-  writeFileSync(withBefore, JSON.stringify({ ...file, diagrams: [{ ...file.diagrams![0], symbol: 'start', before: 'flowchart TD\n  ask["Ask to stop"]', edgeLines: [{ from: 'ask', to: 'done', lines: [5, 6] }] }] }));
+  writeFileSync(withBefore, JSON.stringify({ ...file, diagrams: [{ ...file.diagrams![0], new: undefined, symbol: 'start', before: 'flowchart TD\n  ask["Ask to stop"]', edgeLines: [{ from: 'ask', to: 'done', lines: [5, 6] }] }] }));
   apostil('save', withBefore);
   const material = JSON.parse(apostil('for-check', '--part', 'app').stdout);
   const [diagram] = material.diagrams;
