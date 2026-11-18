@@ -4,9 +4,10 @@ The owner asked for the same icons that he knows from GitHub and from the Claude
 
 | File | From | Licence |
 |---|---|---|
-| Every file but `git-merge-conflict.svg` and `filter.svg` | Octicons 19.42.0, `@primer/octicons`, the 16 px form | MIT, Copyright (c) 2026 GitHub Inc. |
+| Every file but `git-merge-conflict.svg`, `filter.svg` and `search.svg` | Octicons 19.42.0, `@primer/octicons`, the 16 px form | MIT, Copyright (c) 2026 GitHub Inc. |
 | `git-merge-conflict.svg` | Lucide 1.72.0, `lucide-static` | ISC, Copyright (c) 2026 Lucide Icons and Contributors |
 | `filter.svg` | Drawn for Apostil: three lines, each shorter than the one above, for "Sort and filter" in the list of the side bar | The licence of Apostil |
+| `search.svg` | Drawn for Apostil: a ring and a handle, for the search of the list of the side bar | The licence of Apostil |
 
 The files are unchanged, apart from the size attributes and the removed class of the Lucide icon. An Octicon is drawn with `fill: currentColor`, the Lucide icon with `stroke: currentColor`.
 

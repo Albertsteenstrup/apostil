@@ -268,13 +268,17 @@ const Conversation = (() => {
   /** The side facts of "Messages": one quiet line under the title, with a fold for the details. Nothing when there is nothing to say. The sections of the look order and leave out its bits. */
   function factsLine(pull) {
     const labels = shownLabels(pull);
+    // Each fact opens its own page on GitHub, as there; the tasks go to their list in the description.
+    const repoPage = (path) => `https://github.com/${pull.repo}/${path}`;
+    const labelLink = (label) => `<a class="flink" data-link="${esc(repoPage(`pulls?q=${encodeURIComponent(`is:pr label:"${label.name}"`)}`))}">${labelPill(label)}</a>`;
+    const personLink = (one) => (/^[\w-]+$/.test(one.login) ? `<a class="flink" data-link="https://github.com/${esc(one.login)}">${esc(one.login)}</a>` : esc(one.login));
     const all = {
-      labels: labels.length ? `<span class="lbls">${labels.map(labelPill).join('')}</span>` : '',
+      labels: labels.length ? `<span class="lbls">${labels.map(labelLink).join('')}</span>` : '',
       reviewers: pull.reviewers.length ? `<span>${ico('eye')}${plural(pull.reviewers.length, 'reviewer')}</span>` : '',
-      assignees: pull.assignees.length ? `<span>${ico('person')}${esc(pull.assignees.map((one) => one.login).join(', '))}</span>` : '',
-      milestone: pull.milestone ? `<span>${ico('milestone')}${esc(milestoneWords(pull.milestone))}</span>` : '',
-      closes: pull.closes.length ? `<span>${ico('issue-opened')}closes ${pull.closes.map((issue) => `#${issue.number}`).join(', ')}</span>` : '',
-      tasks: pull.tasks.total ? `<span>${ico('tasklist')}${esc(tasksWords(pull.tasks))}</span>` : '',
+      assignees: pull.assignees.length ? `<span>${ico('person')}${pull.assignees.map(personLink).join(', ')}</span>` : '',
+      milestone: pull.milestone ? `<span><a class="flink" data-link="${esc(pull.milestone.url)}">${ico('milestone')}${esc(milestoneWords(pull.milestone))}</a></span>` : '',
+      closes: pull.closes.length ? `<span>${ico('issue-opened')}closes ${pull.closes.map((issue) => `<a class="flink" data-link="${esc(issue.url)}" title="${esc(issue.title)}">#${issue.number}</a>`).join(', ')}</span>` : '',
+      tasks: pull.tasks.total ? `<span><a class="flink" data-tasks>${ico('tasklist')}${esc(tasksWords(pull.tasks))}</a></span>` : '',
     };
     const bits = PartLook.sideSections(pageLook(), Object.keys(all)).map((id) => all[id]).filter(Boolean);
     if (!bits.length) return '';
@@ -1136,6 +1140,13 @@ const Conversation = (() => {
   // A file of a thread or of a note of a check opens at its line. A picture opens large on a click.
   document.addEventListener('click', (event) => {
     if (event.target.closest('[data-link]')) return; // tools.js opens links
+    if (event.target.closest('[data-tasks]')) {
+      const about = document.querySelector('.conv .about');
+      about?.classList.add('open');
+      const task = about?.querySelector('input[type="checkbox"]');
+      task?.closest('li')?.scrollIntoView({ block: 'center' });
+      return;
+    }
     const early = event.target.closest('[data-early]');
     if (early) {
       const box = early.closest('[data-box]');

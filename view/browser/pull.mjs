@@ -234,6 +234,17 @@ try {
     document.querySelector('.conv .facts .fmore').click();
     return { text: line.textContent, labels, sections: [...document.querySelectorAll('.conv .facts .fsec h4')].map((el) => el.textContent), team: /made-up\/lending-team/.test(document.querySelector('.conv .facts .fsec').textContent) };
   });
+  // Each fact of the line answers a click as on GitHub: a label lists the pull requests with it, a person and a milestone and an issue open their pages,
+  // and the tasks bring the description open at its first task.
+  const factLinks = await conv.evaluate(() => {
+    const line = document.querySelector('.conv .facts .fline');
+    const links = [...line.querySelectorAll('[data-link]')].map((el) => el.dataset.link);
+    line.querySelector('[data-tasks]')?.click();
+    return { links, openAbout: document.querySelector('.conv .about').classList.contains('open') };
+  });
+  check('each fact of the line of a pull request answers a click: a label lists the pull requests with that label on GitHub, a person, the milestone and a closed issue open their pages, and the tasks open the description',
+    factLinks.links.some((link) => /\/pulls\?q=is%3Apr%20label%3A%22backend%22$/.test(link)) && factLinks.links.some((link) => /^https:\/\/github\.com\/mira-k$/.test(link))
+    && factLinks.links.some((link) => /milestone/.test(link)) && factLinks.links.some((link) => /issues\/24$/.test(link)) && factLinks.openAbout, JSON.stringify(factLinks));
   await conv.click('[data-thread-file][data-lines="245,247"]');
   const fileTold = await conv.evaluate(() => window.apostilSent.filter((message) => message.type === 'openFileTab').at(-1));
   check('the description is folded to about five lines with "Show more" and opens on a click; a large picture is at most 360 px high and never wider than the text, and a click shows it large; a picture that does not load is its text and a link; a Mermaid block is drawn, with no stray word "Loading"',

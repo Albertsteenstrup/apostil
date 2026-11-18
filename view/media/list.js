@@ -179,10 +179,14 @@ function orderedHtml(order) {
 
 // ----- the search field -----
 
-/** The field, built once, so that typing keeps its place: the words "Search changes" while it is empty, a clear mark, and "Sort and filter" (VS Code's own menu, asked for by `askMenu`). */
+/**
+ * The field, built once, so that typing keeps its place: the words "Search changes" while it is empty, a clear mark, and "Sort and filter" (VS Code's own menu,
+ * asked for by `askMenu`). It stays hidden behind the search icon of the row "Home" until a click on that icon, or while a search or a sort is on.
+ */
+let searchOpen = false;
 const findHtml = () => {
   const words = States.WORDS;
-  return `<div class="find"><input class="q" type="text" placeholder="${esc(words.searchChanges)}" aria-label="${esc(words.searchChanges)}" spellcheck="false" autocomplete="off">`
+  return `<div class="find" hidden><input class="q" type="text" placeholder="${esc(words.searchChanges)}" aria-label="${esc(words.searchChanges)}" spellcheck="false" autocomplete="off">`
     + `<span class="ends"><button type="button" class="clear" data-clear title="${esc(words.clearSearch)}" aria-label="${esc(words.clearSearch)}" hidden>${ico('x')}</button>`
     + `<button type="button" class="sf" data-menu title="${esc(words.sortAndFilter)}" aria-label="${esc(words.sortAndFilter)}">${ico('filter')}<i class="on" hidden></i></button></span></div>`;
 };
@@ -195,6 +199,26 @@ function markField(query) {
   find.classList.toggle('typed', !!search.text);
   find.querySelector('.clear').hidden = !search.text;
   find.querySelector('.sf .on').hidden = Search.defaultSort(search) && !query.words.length;
+  find.hidden = !searchOpen && !search.text && find.querySelector('.sf .on').hidden;
+  document.querySelector('.cl .seek')?.classList.toggle('on', !find.hidden);
+}
+
+/** A click on the search icon shows the field with the keyboard in it; with the field shown and nothing in it, the click hides it again. */
+function toggleSearch() {
+  const find = document.querySelector('.find');
+  searchOpen = find.hidden;
+  draw();
+  if (searchOpen) find.querySelector('.q').focus();
+}
+
+/** The field goes back behind its icon when the keyboard leaves it with nothing in it and no sort or filter on; not while VS Code's quick pick of "Sort and filter" has the keyboard. */
+let menuAskedAt = 0;
+function closeSearchIfEmpty() {
+  const find = document.querySelector('.find');
+  if (find.contains(document.activeElement) || search.text || !find.querySelector('.sf .on').hidden) return;
+  if (!document.hasFocus() && Date.now() - menuAskedAt < 60_000) return;
+  searchOpen = false;
+  draw();
 }
 
 /**
@@ -211,7 +235,7 @@ function drawHome(home) {
 
 function draw() {
   const list = document.getElementById('list');
-  if (!list.firstElementChild) list.innerHTML = `<a class="home" data-home></a>${findHtml()}<div class="changes"></div>`;
+  if (!list.firstElementChild) list.innerHTML = `<div class="top-line"><a class="home" data-home></a><button type="button" class="seek" data-seek title="${esc(States.WORDS.searchChanges)}" aria-label="${esc(States.WORDS.searchChanges)}">${ico('search')}</button></div>${findHtml()}<div class="changes"></div>`;
   drawHome(list.querySelector('.home'));
   targets.length = 0;
   const rows = shown.groups.flatMap((group) => group.rows);
@@ -236,6 +260,7 @@ function setSearch(change) {
  * The values are counted here, in search.js, and nowhere else.
  */
 function askMenu() {
+  menuAskedAt = Date.now();
   tell({ type: 'menu', values: Search.menuValues([...shown.groups.flatMap((group) => group.rows), ...pullRows()], pullsOf), search });
 }
 
@@ -263,16 +288,19 @@ window.addEventListener('message', (event) => {
 document.addEventListener('input', (event) => {
   if (event.target.matches?.('.find .q')) setSearch({ text: event.target.value });
 });
+document.addEventListener('focusout', (event) => { if (event.target.closest?.('.find')) setTimeout(closeSearchIfEmpty); });
 
 // Escape in the field empties it. Down in the field opens "Sort and filter".
 document.addEventListener('keydown', (event) => {
   const inField = event.target.matches?.('.find .q');
   if (event.key === 'Escape' && inField && search.text) return setSearch({ text: '' });
+  if (event.key === 'Escape' && inField) { searchOpen = false; event.target.blur(); draw(); return; } // an empty field goes back behind its icon
   if (event.key === 'ArrowDown' && inField) { event.preventDefault(); askMenu(); }
 });
 
 document.addEventListener('click', (event) => {
   if (event.target.closest('[data-link]')) return; // tools.js opens links
+  if (event.target.closest('[data-seek]')) return toggleSearch();
   if (event.target.closest('[data-menu]')) return askMenu();
   if (event.target.closest('[data-clear]')) { setSearch({ text: '' }); document.querySelector('.find .q').focus(); return; }
   const unfold = event.target.closest('[data-unfold]');

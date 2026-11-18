@@ -441,7 +441,14 @@ body.list{--bar:var(--vscode-sideBar-background,var(--paper));background:var(--b
 .cl .home .state{margin-left:auto;flex:none}
 /* the search: one field under "Home", with a clear mark and "Sort and filter" at its right end */
 .cl .find{position:relative;margin:0 6px 6px}
-.cl .find .q{box-sizing:border-box;width:100%;height:26px;padding:0 28px 0 8px;border:1px solid var(--fieldline);border-radius:6px;background:var(--field);color:var(--ink);font:var(--size) var(--sans);outline:none}
+.cl .find[hidden]{display:none}
+.cl .top-line{display:flex;align-items:center;gap:2px;margin:2px 6px 6px 0}
+.cl .top-line .home{flex:1;min-width:0;margin:0}
+.cl .seek{display:grid;place-items:center;flex:none;width:24px;height:24px;padding:0;border:0;border-radius:4px;background:none;color:var(--muted);cursor:pointer}
+.cl .seek:hover,.cl .seek.on{background:var(--seg);color:var(--ink)}
+.cl .seek:focus-visible{outline:1px solid var(--focus);outline-offset:-1px}
+.cl .seek .ico{width:16px;height:16px;margin:0;color:currentColor;-webkit-mask-size:16px 16px;mask-size:16px 16px}
+.cl .find .q{box-sizing:border-box;width:100%;height:26px;padding:0 28px 0 8px;border:1px solid var(--fieldline);border-radius:6px;background:transparent;color:var(--ink);font:var(--size) var(--sans);outline:none}
 .cl .find.typed .q{padding-right:50px}
 .cl .find .q::placeholder{color:var(--muted);opacity:1}
 .cl .find .q:focus{border-color:var(--focus)}
@@ -727,8 +734,12 @@ div.nomap a:hover{text-decoration:underline;text-underline-offset:3px}
 .conv .facts{margin-top:8px;font-size:var(--small);color:var(--muted)}
 .conv .fline{display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px}
 .conv .fline > span{display:inline-flex;align-items:center;min-width:0;max-width:100%}
+.conv .fline .flink{display:inline-flex;align-items:center;color:inherit;cursor:pointer;text-decoration:none}
+.conv .fline .flink:hover{color:var(--ink);text-decoration:underline;text-underline-offset:2px}
+.conv .fline .lbls .flink:hover{text-decoration:none;filter:brightness(.97)}
 .conv .fline > span.lbls,.cside .lbls{display:flex;flex-wrap:wrap}
-.lbls > .lbl{min-width:0}
+.lbls > .lbl,.lbls > .flink{min-width:0;max-width:100%}
+.lbls > .flink > .lbl{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .conv .fmore{color:var(--tealink)}
 .conv .facts:not(.open) > .fsec{display:none}
 .conv .fsec{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:4px 20px;margin-top:8px;padding:10px 12px;border:1px solid var(--line);border-radius:8px}

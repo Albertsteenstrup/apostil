@@ -5,6 +5,8 @@ import { lookOfPage, THEMES, wearTheme } from '../theme-look.mjs';
 import { check, errors, finish, listFile, openPage, takePicture } from './tools.mjs';
 
 /** The list as a file, with the made-up rows of example-data.ts and their pull requests; in the dark default theme when `dark`. */
+/** The search field stands behind its icon until a click on it (and while a search or a sort is on): open it before a step types into it. */
+const openField = async (page) => { if (await page.evaluate(() => document.querySelector('.find').hidden)) await page.click('.cl .seek'); };
 const openList = async (width, height, dark = false) => {
   const one = await openPage({ viewport: { width, height }, deviceScaleFactor: 2 });
   if (dark) await one.addInitScript(wearTheme, THEMES.dark);
@@ -50,7 +52,7 @@ try {
     draw();
     return found;
   });
-  const homeRow = await list.$eval('.home', (el) => ({ first: el === document.getElementById('list').firstElementChild, text: el.textContent, mark: el.querySelector('img.mark')?.naturalWidth > 0 })).catch(() => ({}));
+  const homeRow = await list.$eval('.home', (el) => ({ first: el.parentElement === document.getElementById('list').firstElementChild && !el.previousElementSibling, text: el.textContent, mark: el.querySelector('img.mark')?.naturalWidth > 0 })).catch(() => ({}));
   await list.click('.home');
   const homeSent = await list.evaluate(() => window.apostilSent.some((message) => message.type === 'home'));
   check('the first row of the side bar is "Home" with the logo mark and the name of the repo, and a click asks VS Code for Home; the list of a repo with no map and no saved change shows "Home" and the head "Changes" only: no press, no set-up step and no example',
@@ -161,16 +163,27 @@ try {
   // At 250 px: the empty field under "Home" and above "Changes", as wide as the view, "Search changes" in it and the icon of sort and filter at its right end;
   // the people on a pull request line: the avatar of the author at its left, the reviewers small at its right end (three, then "+1"), one line, inside the row.
   const narrow = await openList(250, 560);
+  const shut = await narrow.evaluate(() => {
+    const home = document.querySelector('.cl .home').getBoundingClientRect(), seek = document.querySelector('.cl .seek').getBoundingClientRect();
+    return { hidden: document.querySelector('.find').hidden, beside: Math.abs((seek.top + seek.height / 2) - (home.top + home.height / 2)) <= 2 && seek.left >= home.right - 1, right: Math.round(innerWidth - seek.right), label: document.querySelector('.cl .seek').getAttribute('aria-label') };
+  });
+  await narrow.click('.cl .seek');
   const field = await narrow.evaluate(() => {
     const box = (selector) => document.querySelector(selector).getBoundingClientRect();
     const [home, find, eyebrow, icon] = [box('.cl .home'), box('.find .q'), box('.cl .eyebrow'), box('.find .sf .ico')];
     return {
       order: home.bottom <= find.top && find.bottom <= eyebrow.top, left: Math.round(find.left), right: Math.round(innerWidth - find.right), words: document.querySelector('.find .q').placeholder,
       icon: Math.round(icon.width), inside: icon.right <= find.right && icon.left >= find.left, label: document.querySelector('.find .sf').getAttribute('aria-label'),
+      focused: document.activeElement === document.querySelector('.find .q'), clear: getComputedStyle(document.querySelector('.find .q')).backgroundColor,
     };
   });
+  await narrow.keyboard.press('Escape');
+  const shutAgain = await narrow.evaluate(() => document.querySelector('.find').hidden);
+  check('the search of the list is one icon at the right end of the row "Home"; a click shows the field with the keyboard in it and a clear background, and Escape in the empty field hides it again',
+    shut.hidden && shut.beside && shut.right <= 12 && shut.label === 'Search changes' && field.focused && field.clear === 'rgba(0, 0, 0, 0)' && shutAgain, JSON.stringify({ shut, field, shutAgain }));
+  await narrow.click('.cl .seek');
   const empty = await narrow.evaluate(readList);
-  check('at 250 px the empty field stands under "Home" and above "Changes", as wide as the view, with "Search changes" in it and the icon of sort and filter, 16 px, inside it at the right; the list is grouped as before, with no dot',
+  check('at 250 px the opened empty field stands under "Home" and above "Changes", as wide as the view, with "Search changes" in it and the icon of sort and filter, 16 px, inside it at the right; the list is grouped as before, with no dot',
     field.order && field.left <= 12 && field.right <= 12 && field.words === 'Search changes' && field.icon === 16 && field.inside && field.label === 'Sort and filter'
     && empty.heads === 1 && empty.flat === 0 && empty.line === 'Changes' && !empty.dot && !empty.sideways, JSON.stringify({ field, empty }));
   const people = await narrow.evaluate(() => [...document.querySelectorAll('.cl .pr')].map((pr) => {
@@ -197,7 +210,7 @@ try {
   const menuAsks = () => one.evaluate(() => window.apostilSent.filter((message) => message.type === 'menu').length);
 
   // The icon asks VS Code for its quick pick and sends the values of the filters with their counts and the search; no menu opens in the view.
-  await one.click('.find .sf');
+  await openField(one); await one.click('.find .sf');
   const asked = await lastMenu();
   const faces = (kind) => (asked?.values[kind] ?? []).map((value) => `${value.value} ${value.count}`).join(', ');
   check('a click on the icon sends VS Code the values of the rows with their counts (authors, reviewers, labels, states, agents, with their people, colours and apps) and the search; the view opens no menu of its own',
@@ -228,7 +241,7 @@ try {
     && turned.rows.join() === 'made-up/without-agent,book-holds,made-up/follow-up' && turned.dot && back.heads === 1 && back.flat === 0 && !back.dot, JSON.stringify({ created, turned, back }));
 
   // No match: the line says so, with a link that clears the field.
-  await one.fill('.find .q', 'nothing-matches');
+  await openField(one); await one.fill('.find .q', 'nothing-matches');
   const none = await read();
   await one.click('.cl .eyebrow [data-clear]');
   const cleared = await read();
@@ -236,14 +249,14 @@ try {
     none.rows.length === 0 && none.line === 'No change matches · Clear' && cleared.field === '' && cleared.heads === 1 && cleared.rows.length === 3, JSON.stringify({ none, cleared }));
 
   // Typing filters at once. Text that only a pull request holds keeps that pull request; text that the branch holds keeps the row as it is.
-  await one.fill('.find .q', 'follow');
+  await openField(one); await one.fill('.find .q', 'follow');
   const typed = await read();
-  await one.fill('.find .q', '#12');
+  await openField(one); await one.fill('.find .q', '#12');
   const byNumber = await read();
-  await one.fill('.find .q', 'book-holds');
+  await openField(one); await one.fill('.find .q', 'book-holds');
   const byBranch = await read();
   const fold = await one.evaluate(() => document.querySelector('.cl .row .more')?.textContent);
-  await one.focus('.find .q');
+  await openField(one); await one.focus('.find .q');
   await one.keyboard.press('Escape');
   const escaped = await read();
   check('typing filters at once ("1 of 3 changes"); "#12" keeps only that pull request in its row; text that the branch holds keeps the row with its pull requests and its fold; Escape in the field empties it',
@@ -252,14 +265,14 @@ try {
 
   // Keys: Enter on the icon and Down in the field ask VS Code for the quick pick; a word that is typed goes with the next ask, so that its quick pick shows the check mark of its value.
   const asks = await menuAsks();
-  await one.focus('.find .sf');
+  await openField(one); await one.focus('.find .sf');
   await one.keyboard.press('Enter');
   const byIcon = await menuAsks();
-  await one.focus('.find .q');
+  await openField(one); await one.focus('.find .q');
   await one.keyboard.press('ArrowDown');
   const byDown = await menuAsks();
-  await one.fill('.find .q', 'state:merged');
-  await one.click('.find .sf');
+  await openField(one); await one.fill('.find .q', 'state:merged');
+  await openField(one); await one.click('.find .sf');
   const typedWord = await lastMenu();
   check('Enter on the icon and Down in the field each ask VS Code for the quick pick; a typed "state:merged" is in the search that the icon sends, and the value "merged" of the states is among the values',
     byIcon === asks + 1 && byDown === asks + 2 && typedWord.search.text === 'state:merged' && typedWord.values.state.some((value) => value.value === 'merged'), JSON.stringify({ asks, byIcon, byDown, search: typedWord.search }));
@@ -292,9 +305,9 @@ try {
   const opened = await prs.evaluate(() => window.apostilSent.filter((message) => message.type === 'openRepoPull').map((message) => message.number));
   await prs.click('.fold[data-unfold="repo-pulls"]');
   const unfolded = await pullSection();
-  await prs.fill('.find .q', 'pull request 17');
+  await openField(prs); await prs.fill('.find .q', 'pull request 17');
   const searched = await prs.evaluate(() => [...document.querySelectorAll('.prow .nm')].map((el) => el.textContent));
-  await prs.fill('.find .q', '');
+  await openField(prs); await prs.fill('.find .q', '');
   const homeAsks = () => prs.evaluate(() => window.apostilSent.filter((message) => message.type === 'home').length);
   const openBranch = async (commits, files) => {
     await prs.evaluate((counts) => { const row = { ...shown.groups[0].rows[0], id: undefined, branch: 'made-up/open-branch', open: true, ...counts }; shown = { ...shown, groups: [{ rows: [row] }] }; draw(); }, { commits, files });

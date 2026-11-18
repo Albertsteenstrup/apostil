@@ -952,6 +952,8 @@ try {
   const listFrame = await frameWith('.cl .find .q');
   const rowsOf = () => listFrame.evaluate(() => ({ field: document.querySelector('.cl .find .q').value, line: document.querySelector('.cl .eyebrow')?.textContent ?? '', rows: document.querySelectorAll('.cl .row').length }));
   await listFrame.locator('.cl .row:not(.prow) .pr').first().waitFor({ timeout: 8000 }); // the pull requests come after the rows
+  const openSearchField = async (frame) => { if (await frame.evaluate(() => document.querySelector('.find').hidden)) await frame.locator('.cl .seek').click(); }; // the field stands behind its icon
+  await openSearchField(listFrame);
   await listFrame.locator('.find .sf').click();
   await quickInput.waitFor({ state: 'visible', timeout: 8000 });
   await page.locator('.quick-input-list .monaco-list-row', { hasText: 'mira-k' }).first().waitFor({ timeout: 8000 });
@@ -1002,6 +1004,7 @@ try {
       && !seen.error && !seen.bright.length && !seen.boxed.length && !seen.dim.length && !seen.normal.low.length && !seen.quiet.low.length, JSON.stringify({ turnedDark, kept, theme: darkSettings['workbench.colorTheme'], seen }));
 
   // The search stays when the view is hidden and shown: VS Code makes the view again, and the search kept for the repo comes back with its rows.
+  await openSearchField(listFrame);
   await listFrame.locator('.find .q').click();
   await page.keyboard.type('second', { delay: 5 });
   await until(async () => (await rowsOf()).rows === 1, 3000);
