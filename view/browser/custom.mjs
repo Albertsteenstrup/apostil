@@ -365,7 +365,7 @@ try {
   await two.goto(`file://${pageFile}?look=change`);
   await drawn(two);
   const firstView = await two.evaluate(() => ({ view: App.state.view, order: [...document.querySelectorAll('.switch a:not([hidden])')].map((link) => `${link.textContent}${link.classList.contains('on') ? '*' : ''}`) }));
-  check('"Diffs" opens first when a rule puts it first, and the switch shows it first', firstView.view === 'diffs' && firstView.order.join() === 'Diffs*,Diagram,Conversation', JSON.stringify(firstView));
+  check('"Diffs" opens first when a rule puts it first, and the switch shows it first', firstView.view === 'diffs' && firstView.order.join() === 'Diffs*,Conversation,Diagram', JSON.stringify(firstView));
 
   // The comments window at the width of the rule, an answered thread in the colour of its state, and the open points in groups by file.
   await two.evaluate(() => document.querySelector('#side .sh.shut [data-group="points"]')?.click());
@@ -440,7 +440,7 @@ try {
   await two.waitForSelector('.mc .nt', { timeout: 15000 });
   const plainFile = await two.evaluate(() => ({ looked: document.querySelectorAll('#view [class*="lk-"], .mg').length, map: !!document.querySelector('.cmap'), head: document.querySelector('.mc .fn')?.textContent }));
   check('with no look the page of a change and the file tab are drawn as before: no colour, icon or group of a look, every file in the list, the views in their order, the counts and the map',
-    plain.looked === 0 && /^Adds holds for books that are out48 files \+[\d,]+ −[\d,]+(checked|not checked yet)$/.test(plain.row) && plain.order === 'diagram,diffs,conversation' && plain.side === 320 && plain.words === 0
+    plain.looked === 0 && /^Adds holds for books that are out48 files \+[\d,]+ −[\d,]+(checked|not checked yet)$/.test(plain.row) && plain.order === 'conversation,diagram,diffs' && plain.side === 320 && plain.words === 0
       && plain.rows >= 30 && plainFile.looked === 0 && plainFile.map && plainFile.head === 'offer_returned_copies · 3 tests', JSON.stringify({ plain, plainFile }));
   await two.close();
 

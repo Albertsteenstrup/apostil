@@ -643,7 +643,11 @@ try {
 
   // ---- 4. The change page and its file tabs ----
   await command('Apostil: Open the newest change');
-  const stage = await frameWith('#view svg');
+  // Its branch has a pull request (the stand-in gh), so it opens at "Conversation"; the diagram is one click away.
+  const atConversation = await frameWith('.switch a.on[data-view="conversation"]');
+  if (!atConversation) throw new Error('The change with a pull request did not open at "Conversation".');
+  await atConversation.locator('.bar .switch a[data-view="diagram"]').click();
+  const stage = await frameWith('#view .nodeLabel');
   if (!stage) throw new Error('No page of the change to drive.');
   const font = await stage.evaluate(() => ({
     family: getComputedStyle(document.body).fontFamily, size: getComputedStyle(document.body).fontSize, vscode: getComputedStyle(document.documentElement).getPropertyValue('--vscode-font-family').trim(),
@@ -652,7 +656,7 @@ try {
   }));
   const workbenchFont = await page.evaluate(() => ({ family: getComputedStyle(document.querySelector('.monaco-workbench')).fontFamily, size: getComputedStyle(document.querySelector('.monaco-workbench')).fontSize }));
   const plain = (text) => text.replace(/["'\s]/g, '');
-  const appState = await until(() => { const read = new Store(storeFolder); const state = read.appState(); read.close(); return state.changeId === changeId && state; }, 4000);
+  const appState = await until(() => { const read = new Store(storeFolder); const state = read.appState(); read.close(); return state.changeId === changeId && state.view === 'diagram' && state; }, 4000);
   check('the page draws the diagram of the change, fills its tab, and its font is the font of VS Code, its code the font of the editor; the state that agents read names the open change and its view',
     appState?.view === 'diagram' && font.left === 0 && !!font.vscode && plain(font.family) === plain(workbenchFont.family) && font.size === workbenchFont.size && !!font.editor && plain(font.code) === plain(font.editor), JSON.stringify(font));
   await shot('3-change-as-diagram');
