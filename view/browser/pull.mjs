@@ -658,22 +658,44 @@ try {
     && /^5e6f7a8/.test(committed.head12) && (await writes()).length === 6,
     JSON.stringify({ offered, inBatch, committing, committed, last: (await writes()).at(-1) }));
 
-  // The comment at the end; the comment key puts the cursor at the end of its field.
+  // The comment key in "Conversation" turns the pointer into the comment icon, as on every view; a click on a message opens the card there,
+  // and "The pull request on GitHub" answers that message on GitHub: a comment that quotes it.
   const end = '.ghend [data-gh]';
   await conv.evaluate(() => { document.activeElement?.blur(); const field = document.querySelector('.ghend textarea'); field.value = 'Thanks'; field.dispatchEvent(new Event('input', { bubbles: true })); scrollTo(0, 0); });
   await conv.mouse.move(700, 400);
   await conv.keyboard.press('Meta+Shift+Period');
-  const keyed = await conv.evaluate(() => { const field = document.activeElement; return { inField: field?.tagName === 'TEXTAREA' && !!field.closest('.ghend'), at: field?.selectionStart, length: field?.value.length, link: !!document.querySelector('.conv .answer') }; });
+  const keyed = await conv.evaluate(() => ({ icon: /^url\("data:image\/svg\+xml/.test(getComputedStyle(document.querySelector('#view')).cursor), inField: document.activeElement?.tagName === 'TEXTAREA', link: !!document.querySelector('.conv .answer') }));
+  const said = await conv.evaluate(() => {
+    // The newest message of another person that is not in a thread on code, in the middle of the window of the conversation.
+    const el = [...document.querySelectorAll('.conv .feed .msg[data-msg][data-remark]')].filter((one) => !one.classList.contains('mine') && !JSON.parse(one.dataset.remark).message.thread).at(-1);
+    el.scrollIntoView({ block: 'center' });
+    const { left, top, width } = el.getBoundingClientRect();
+    return { id: el.dataset.msg, ...JSON.parse(el.dataset.remark).message, x: left + width / 2, y: top + 12 };
+  });
+  await conv.mouse.click(said.x, said.y);
+  await conv.waitForSelector('.cbox.card [data-field="new"]:focus', { timeout: 3000 }).catch(() => {});
+  keyed.head = await conv.textContent('.cbox.card .ch .where').catch(() => '');
+  await conv.click('.cbox.card .pick');
+  keyed.choices = await conv.$$eval('.cbox.card .pmenu .pi', (rows) => rows.map((row) => row.querySelector('span').firstChild.textContent));
+  await convShot('71-the-picker-on-a-message');
+  await conv.click('.cbox.card .pi[data-choice="github"]');
+  await conv.keyboard.type('Looks right to me.');
+  await conv.keyboard.press('Enter');
+  await conv.waitForSelector('.cbox.card', { state: 'detached', timeout: 3000 }).catch(() => {});
+  keyed.sent = (await writes()).at(-1);
+  await conv.evaluate(() => { const field = document.querySelector('.ghend textarea'); field.focus(); field.setSelectionRange(field.value.length, field.value.length); });
   await conv.keyboard.type(' for the fix.');
   const endOpen = await fieldState(end);
   await conv.click(`${end} [data-gh-send]`);
   await conv.waitForFunction(() => /Thanks for the fix\./.test([...document.querySelectorAll('.conv .feed .msg')].at(-1)?.textContent ?? '') && !/sending/.test([...document.querySelectorAll('.conv .feed .msg')].at(-1)?.textContent), null, { timeout: 3000 });
   const commented = await fieldState(end);
   const lastItem = await conv.evaluate(() => [...document.querySelectorAll('.conv .feed .msg')].at(-1)?.textContent);
-  check('the end of the conversation is a field "Write a comment…" with "Comment" in place of the link; the comment key puts the cursor at its end; the button sends it once and it stands last at once, marked as an example when the example answers',
-    !keyed.link && keyed.inField && keyed.at === 6 && keyed.length === 6 && endOpen.placeholder === 'Write a comment…' && endOpen.buttonText === 'Comment'
-    && same((await writes()).at(-1), { kind: 'comment', pullId: 'made-up-pull-12', body: 'Thanks for the fix.' }) && (await writes()).length === 7
-    && /you.*example.*Thanks for the fix\./.test(lastItem) && commented.value === '' && commented.focus, JSON.stringify({ keyed, endOpen, commented, lastItem }));
+  check('the comment key in "Conversation" turns the pointer into the comment icon; a click on a message opens the card there, whose picker has "The pull request on GitHub", which posts a comment that quotes the message; the end of the conversation is still a field "Write a comment…" with "Comment"; the button sends it once and it stands last at once, marked as an example when the example answers',
+    keyed.icon && !keyed.inField && !keyed.link && keyed.head === `${said.author} · message` && keyed.choices.includes('The pull request on GitHub') && keyed.choices.at(-1) === 'No agent: keep it as a note'
+    && same(keyed.sent, { kind: 'comment', pullId: 'made-up-pull-12', body: `> @${said.author}: ${said.words}\n\nLooks right to me.` })
+    && endOpen.placeholder === 'Write a comment…' && endOpen.buttonText === 'Comment'
+    && same((await writes()).at(-1), { kind: 'comment', pullId: 'made-up-pull-12', body: 'Thanks for the fix.' }) && (await writes()).length === 8
+    && /you.*example.*Thanks for the fix\./.test(lastItem) && commented.value === '' && commented.focus, JSON.stringify({ keyed, said, endOpen, commented, lastItem }));
 
   // A send that fails keeps its text and shows GitHub's sentence; nothing is sent again by itself. The text survives a redraw and a change of the view; he sends it again himself.
   await conv.evaluate(() => { window.apostilExampleFailure = 'GitHub says: Resource not accessible by integration (HTTP 403)'; });
@@ -692,8 +714,8 @@ try {
   await conv.waitForFunction(() => /This one fails\./.test([...document.querySelectorAll('.conv .feed .msg')].at(-1)?.textContent ?? ''), null, { timeout: 3000 });
   const resent = await fieldState(end);
   check('a failed send keeps its text and shows GitHub\'s own sentence under the field, and the comment that showed goes; nothing is sent again by itself; the text survives a change of the view and a redraw; he sends it again himself with Cmd+Enter, and it goes once',
-    failedSend.value === 'This one fails.' && failedSend.error === 'GitHub says: Resource not accessible by integration (HTTP 403)' && !/This one fails/.test(failedSend.last) && failedCount === 8
-    && survived.value === 'This one fails.' && resent.value === '' && resent.error === '' && (await writes()).length === 9, JSON.stringify({ failedSend, failedCount, survived, resent }));
+    failedSend.value === 'This one fails.' && failedSend.error === 'GitHub says: Resource not accessible by integration (HTTP 403)' && !/This one fails/.test(failedSend.last) && failedCount === 9
+    && survived.value === 'This one fails.' && resent.value === '' && resent.error === '' && (await writes()).length === 10, JSON.stringify({ failedSend, failedCount, survived, resent }));
 
   // The review: a quiet button in the strip opens a panel with the text, three verdicts and "Send review".
   await conv.evaluate(() => scrollTo(0, 0));
@@ -718,7 +740,7 @@ try {
   check('"Review" in the strip opens a panel with the text, "Comment", "Approve" and "Request changes", and "Send review"; the cursor is in its text; on his own pull request it shows no verdict and one quiet line says that GitHub lets him comment, not approve or ask for changes, and "Send review" sends a comment review once',
     !!reviewPanel && reviewPanel.verdicts.join() === 'Comment,Approve,Request changes' && reviewPanel.chosen === 'COMMENT' && reviewPanel.button === 'Send review' && reviewPanel.focus && reviewPanel.line === ''
     && ownPanel?.verdicts.length === 0 && ownPanel.line === 'This is your pull request: GitHub lets you comment on it, not approve it or ask for changes.' && ownPanel.button === 'Send review'
-    && same(ownSent.write, { kind: 'review', pullId: 'made-up-pull-12', verdict: 'COMMENT', body: 'A note on my own work.' }) && (await writes()).length === 10 && !ownSent.panel && /reviewed.*A note on my own work\./.test(ownSent.last),
+    && same(ownSent.write, { kind: 'review', pullId: 'made-up-pull-12', verdict: 'COMMENT', body: 'A note on my own work.' }) && (await writes()).length === 11 && !ownSent.panel && /reviewed.*A note on my own work\./.test(ownSent.last),
     JSON.stringify({ reviewPanel, ownPanel, ownSent }));
   // The hint of the answer field was added after the trial with real sends.
   const answerHint = () => conv.evaluate(() => document.querySelector('[data-gh^="reply:"] .ghh')?.textContent ?? '');
@@ -737,7 +759,7 @@ try {
   check('his review that is not sent yet: the answer field of a thread says that the answer goes into it (with none it says nothing); the strip says "Your review is not sent: 2 comments"; Cmd+Enter sends that review with the verdict once, the panel closes and the review shows',
     hintBefore === '' && hintWithReview === 'This goes into your review that is not sent yet.'
     && /Your review is not sent: 2 comments/.test(pendingPanel?.strip) && same((await writes()).at(-1), { kind: 'review', pullId: 'made-up-pull-12', verdict: 'APPROVE', body: 'Good to go.', pendingId: 'made-up-review-1' })
-    && (await writes()).length === 11 && !reviewed.panel && !/not sent/.test(reviewed.strip) && reviewed.focus && /approved.*Good to go\./.test(reviewed.last), JSON.stringify({ hintBefore, hintWithReview, pendingPanel, reviewed }));
+    && (await writes()).length === 12 && !reviewed.panel && !/not sent/.test(reviewed.strip) && reviewed.focus && /approved.*Good to go\./.test(reviewed.last), JSON.stringify({ hintBefore, hintWithReview, pendingPanel, reviewed }));
 
   // A merged pull request has no "Review"; a locked conversation has no field and one line; an answer stored before these fields draws with no field.
   const fieldsNow = () => conv.evaluate(() => ({ fields: document.querySelectorAll('.conv textarea').length, review: !!document.querySelector('#status [data-review]'), lock: document.querySelector('.conv .ghlock')?.textContent ?? '' }));
@@ -792,8 +814,8 @@ try {
     for (const selector of ['[data-gh="reply:thread-3"] textarea', '.ghend textarea']) { const field = document.querySelector(selector); field.value = ''; field.dispatchEvent(new Event('input', { bubbles: true })); }
     document.querySelector('#status [data-review]').click();
   });
-  check('at 520 and 1400 px no field or button of writing to GitHub is cut off or overlaps another thing; nothing was written by the page without a send: one write for each send, eleven in all',
-    fits.every((fit) => fit.boxes >= 3 && fit.parts >= 8 && !fit.over.length && !fit.overlaps.length && !fit.sideways) && (await writes()).length === 11, JSON.stringify({ fits, writes: (await writes()).length }));
+  check('at 520 and 1400 px no field or button of writing to GitHub is cut off or overlaps another thing; nothing was written by the page without a send: one write for each send, twelve in all',
+    fits.every((fit) => fit.boxes >= 3 && fit.parts >= 8 && !fit.over.length && !fit.overlaps.length && !fit.sideways) && (await writes()).length === 12, JSON.stringify({ fits, writes: (await writes()).length }));
 
   // A failure says why in one line and offers "Try again", which reads again.
   await conv.evaluate(() => { App.read['https://example.com/made-up/pull/12'] = { problem: 'GitHub cannot be reached. Check the network.' }; return App.render(); });

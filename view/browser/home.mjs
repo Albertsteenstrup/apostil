@@ -408,7 +408,7 @@ try {
       && stoppedOnMap?.text === `${STOPPED} · Open the session · Start again · Another app` && stoppedOnMap.nodes === 8 && stoppedOnMap.lines === 1 && again?.app === 'claude-code',
     JSON.stringify({ stoppedNoMap, stoppedOnMap, again }));
 
-  // Comments on the map of Home: a node and an arrow hold one, as on the change page; "@" offers only new sessions; a card clicked after a level down lights its node.
+  // Comments on the map of Home: a node and an arrow hold one, as on the change page; "@" offers only new sessions; a row of the list after a level down lights its node.
   await homeAt('');
   const homeAim = () => home.evaluate(() => [...new Set([...document.querySelectorAll('.aim')].map((el) => el.dataset.rk))]);
   const homeStick = async (spot) => {
@@ -418,17 +418,18 @@ try {
     const outline = await homeAim();
     await home.mouse.click(spot.x, spot.y);
     const opened = await home.waitForSelector('.cbox [data-field="new"]:focus', { timeout: 3000 }).then(() => true, () => false);
-    return { outline, where: opened ? await home.textContent('.cbox .where') : '' };
+    return { outline, where: opened ? await home.$eval('.cbox .where', (el) => el.title) : '' };
   };
   const centreOf = (selector) => home.$eval(selector, (el) => { const box = el.getBoundingClientRect(); return { x: box.left + box.width / 2, y: box.top + box.height / 2 }; });
   const mapSent = () => home.evaluate(() => window.apostilSent.filter((message) => message.type === 'remark').map((message) => message.target));
   const onMapNode = await homeStick(await centreOf(nodeOf('lending')));
   await home.keyboard.type('What lives in lending?');
   await home.keyboard.press('Enter');
-  await home.locator('#side .thread[data-thread]', { hasText: 'What lives in lending?' }).waitFor({ timeout: 3000 }).catch(() => {});
-  const nodeCard = await home.locator('#side .thread[data-thread]', { hasText: 'What lives in lending?' }).count();
-  const nodeCircle = await home.$$eval(`${nodeOf('lending')} .rk`, (all) => all.length);
+  await home.locator('.cbox.card .cth .msg.mine', { hasText: 'What lives in lending?' }).waitFor({ timeout: 3000 }).catch(() => {});
+  const nodeCard = await home.locator('.cbox.card .cth .msg.mine', { hasText: 'What lives in lending?' }).count(); // the card stays open on its thread
+  const nodeCircle = await home.$$eval(`${nodeOf('lending')} .cb`, (all) => all.length);
   await takePicture(home, '52-comment-on-a-node-of-the-map.png');
+  await home.keyboard.press('Escape');
   const nodeTarget = (await mapSent()).at(-1);
   const arrowSpot = await home.evaluate(() => {
     const hit = document.querySelector('#view path.hit');
@@ -444,7 +445,8 @@ try {
   await home.keyboard.press('Enter');
   await home.waitForFunction(() => window.apostilSent.some((message) => message.type === 'remark' && message.target.kind === 'edge'), null, { timeout: 3000 }).catch(() => {});
   const arrowTarget = (await mapSent()).at(-1);
-  check('under the comment pointer a node and an arrow of the map have the outline, a click sticks the box that names them, and Enter saves the comment: a card and a circle on the node, an arrow named by its two ends; on Home "@" offers only a new session of each installed app',
+  await home.keyboard.press('Escape');
+  check('under the comment pointer a node and an arrow of the map have the outline, a click opens the card that names them, and Enter saves the comment: the card on its thread and a mark on the node, an arrow named by its two ends; on Home "@" offers only a new session of each installed app',
     onMapNode.outline.join() === 'node:lib-top:lending' && /^Node "Lending", diagram "The library app and its parts"$/.test(onMapNode.where) && nodeCard === 1 && nodeCircle === 1 && nodeTarget?.node === 'lending'
       && onMapArrow.outline.join() === arrowSpot.rk && /^Arrow "/.test(onMapArrow.where) && arrowTarget?.kind === 'edge' && arrowTarget.diagram === 'lib-top'
       && mapChoices.join() === 'claude-new,codex-new,opencode-new', JSON.stringify({ onMapNode, nodeCard, nodeCircle, nodeTarget, onMapArrow, arrowTarget, mapChoices }));
@@ -452,14 +454,16 @@ try {
   await home.click(nodeOf('lending'));
   await homeSettled();
   const lowerCrumb = await crumbOf();
-  await home.locator('#side .thread[data-thread]', { hasText: 'What lives in lending?' }).locator('.tx').first().click();
+  await home.click('[data-comments]');
+  await home.locator('.cml .cmr[data-row]', { hasText: 'What lives in lending?' }).click();
   await home.waitForSelector('.paper .flash', { timeout: 3000 }).catch(() => {});
-  const cardLit = await home.evaluate(() => ({ flashed: [...new Set([...document.querySelectorAll('.paper .flash')].map((el) => el.dataset.rk))], crumb: document.getElementById('crumb').textContent }));
+  const cardLit = await home.evaluate(() => ({ flashed: [...new Set([...document.querySelectorAll('.paper .flash')].map((el) => el.dataset.rk))], crumb: document.getElementById('crumb').textContent, card: document.querySelector('.cbox.card .cth .msg.mine')?.textContent }));
+  await home.keyboard.press('Escape');
   await homeAt('?path=src/library/desk/');
   await home.keyboard.press('Meta+Shift+Period');
   const graphsPicking = await home.evaluate(() => document.body.classList.contains('picking'));
-  check('a click on the card of a node after one level down goes back to the top map and lights that node, and the path ends at Home; the small panels of the graphs page hold no comment: the comment key does nothing there',
-    lowerCrumb === 'Home›Lending: holds, requests and mails' && cardLit.flashed.join() === 'node:lib-top:lending' && cardLit.crumb === 'Home' && !graphsPicking, JSON.stringify({ lowerCrumb, cardLit, graphsPicking }));
+  check('a click on the row of a node in the list of the comments after one level down goes back to the top map, lights that node and opens its card, and the path ends at Home; the small panels of the graphs page hold no comment: the comment key does nothing there',
+    lowerCrumb === 'Home›Lending: holds, requests and mails' && cardLit.flashed.join() === 'node:lib-top:lending' && cardLit.crumb === 'Home' && cardLit.card === 'What lives in lending?' && !graphsPicking, JSON.stringify({ lowerCrumb, cardLit, graphsPicking }));
 
   // On the change page, the wider diagram that the map holds too links to Home.
   await home.goto(`file://${pageFile}`);

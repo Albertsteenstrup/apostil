@@ -231,8 +231,7 @@ async function notes() {
   check('a picture shows as a picture, with its size, in a file tab and in the hover window of the file; no line of it is read as text, and its control does not say "no change"',
     inTab.pictures === 1 && inTab.width > 0 && inTab.caption === 'Now · 3 KB' && inTab.rows === 0 && inWindow && /^‹file \d+ of \d+›$/.test(pictureNav), JSON.stringify({ inTab, inWindow, pictureNav }));
 
-  // Many tests that name a function: "many tests", and the list only on demand. The comments window is folded, so it does not lie over the notes.
-  await view.click('#side [data-fold]');
+  // Many tests that name a function: "many tests", and the list only on demand.
   await view.evaluate(async (file) => { App.page.functionTests.lending_night = 216; App.showCode(file, null); await App.drawing; Code.reveal({ lines: [243, 252], removed: true }); }, worker);
   await settle();
   const many = await view.$eval('.cv .mc .fn', (el) => el.textContent);
@@ -278,6 +277,14 @@ async function diagramTab(width = 1400) {
     await wide.mouse.move(700, 880);
   };
   const clickAt = async (selector) => { await pointAt(selector); await wide.mouse.down(); await wide.mouse.up(); };
+  // The name of the first open point under "Open points n" in the list of the comments that starts with `word`; the list closes again.
+  const pointNamed = async (word) => {
+    await wide.click('[data-comments]');
+    await wide.click('.cml [data-show-points]');
+    const name = await wide.evaluate((start) => [...document.querySelectorAll('.cml .cmr.point .where')].map((el) => el.title).find((text) => text.startsWith(start)) ?? '', word);
+    await wide.keyboard.press('Escape');
+    return name;
+  };
   // The two halves: side by side, inside the tab, the page itself not scrolling, and the size of a node label of the diagram on screen.
   const halves = () => wide.evaluate(() => {
     const control = document.querySelector('[data-half="code"]');
@@ -293,7 +300,7 @@ async function diagramTab(width = 1400) {
       split: true, control: control?.textContent ?? '', place, apart: left.right <= right.left, label: label ? +(parseFloat(getComputedStyle(label).fontSize) * scale).toFixed(1) : 0,
       inside: left.left >= 0 && right.right <= innerWidth && left.bottom <= innerHeight + 1 && right.bottom <= innerHeight + 1,
       pageScrolls: document.documentElement.scrollHeight > innerHeight + 1 || document.documentElement.scrollWidth > innerWidth,
-      sideApart: side.hidden || side.getBoundingClientRect().left >= right.right,
+      sideApart: !side, // no comments window lies over the halves (build 80: a comment opens a card at its place)
     };
   });
   // A click on the text of an arrow or a message that starts with `word`; on the middle of the line of a link between two parts.
@@ -314,12 +321,12 @@ async function diagramTab(width = 1400) {
     return { x: middle.x, y: middle.y };
   }, [from, to]);
   const pointAtLink = async (from, to) => { const at = await linkAt(from, to); await wide.mouse.move(at.x, at.y, { steps: 4 }); };
-  return { wide, quiet, when, loaded, open, show, wideShot, pointAt, clickAt, toGutter, away, halves, pointAtLabel, linkAt, pointAtLink };
+  return { wide, quiet, when, loaded, open, show, wideShot, pointAt, clickAt, toGutter, away, halves, pointAtLabel, linkAt, pointAtLink, pointNamed };
 }
 
 /** The change on the diagram page: the code beside the diagram on a wide tab, and the change painted into the diagrams of a part. */
 async function twoHalves() {
-  const { wide, quiet, when, loaded, open, show, wideShot, pointAt, clickAt, toGutter, away, halves, pointAtLabel, linkAt, pointAtLink } = await diagramTab();
+  const { wide, quiet, when, loaded, open, show, wideShot, pointAt, clickAt, toGutter, away, halves, pointAtLabel, linkAt, pointAtLink, pointNamed } = await diagramTab();
   const splitOk = (one) => one.split && one.apart && one.inside && !one.pageScrolls && one.sideApart && one.label >= 11;
 
   // The page of the change: its diagram at the right, every changed file as one closed row at the left, under the name of its part.
@@ -472,19 +479,20 @@ async function twoHalves() {
   const rowBox = await diffRow.boundingBox();
   await wide.mouse.click(rowBox.x + 160, rowBox.y + rowBox.height / 2);
   await wide.waitForSelector('.cbox [data-field="new"]:focus', { timeout: 3000 }).catch(() => {});
-  const commentWhere = await wide.evaluate(() => document.querySelector('.cbox .where')?.textContent ?? '');
+  const commentWhere = await wide.evaluate(() => document.querySelector('.cbox .where')?.title ?? '');
   await wide.keyboard.press('Escape');
   const service = 'src/library/lending/hold_service.py';
   const serviceShut = (await rowState(service))?.open === false;
-  await wide.locator('#side .point', { hasText: 'lines 214' }).first().scrollIntoViewIfNeeded();
-  await wide.locator('#side .point', { hasText: 'lines 214' }).first().click();
+  await wide.click('[data-comments]'); // the list of the comments, with its open points
+  await wide.click('.cml [data-show-points]');
+  await wide.locator('.cml .cmr.point', { hasText: 'lines 214' }).first().click();
   await when((selector) => !!document.querySelector(`${selector} .l.flash[data-line]`), row(service));
   const fromPoint = await wide.evaluate((selector) => {
     const right = document.querySelector('.half.right');
     const flashed = [...document.querySelectorAll(`${selector} .l.flash[data-line]`)];
     return { open: document.querySelector(selector).classList.contains('open'), flashed: flashed.map((one) => Number(one.dataset.line)), shown: flashed.some((one) => { const box = one.getBoundingClientRect(); const half = right.getBoundingClientRect(); return box.top >= half.top && box.bottom <= half.bottom; }) };
   }, row(service));
-  check('a comment works on a row of an open diff in the list, and its box names that file and line; a point on a file whose diff is closed stays in the comments window, and a click on it opens that diff at its lines, lit',
+  check('a comment works on a row of an open diff in the list, and its box names that file and line; a point on a file whose diff is closed stays in the list of the comments, and a click on it opens that diff at its lines, lit',
     commentWhere === `${worker}, line ${rowLine}` && serviceShut && fromPoint.open && fromPoint.flashed[0] === 214 && fromPoint.shown, JSON.stringify({ commentWhere, serviceShut, fromPoint }));
 
   // J and K go to the next and the previous row: it comes to the top and opens, and the one that the keys opened before closes. J once landed 140 px off
@@ -797,7 +805,7 @@ async function twoHalves() {
   await clickAt('#view g.node[id*="-open-"]');
   await when(() => !!document.querySelector('.places-half .pck'));
   const pointAtStep = await placesShown();
-  const sideLabel = await wide.evaluate(() => [...document.querySelectorAll('.point .where')].map((el) => el.textContent).find((text) => text.startsWith('Node')) ?? '');
+  const sideLabel = await pointNamed('Node');
   check('beside the title of the flow chart: "7 changed lines in no step" and "checked", and the head of the function, in no step, has a quiet mark in the code; an open point at a step marks the step, shows at the step with its places, and stands under "Open points"',
     facts.words.join('|') === '7 changed lines in no step|checked' && facts.marked.length >= 1 && facts.marked.every((line) => line >= 197 && line <= 206)
       && facts.point && /^Check: The step asks only whether the library is open/.test(pointAtStep.check) && pointAtStep.heads.length === 1 && sideLabel.startsWith('Node "Library open today?"'),
@@ -910,8 +918,8 @@ async function twoHalves() {
   await toGutter();
   const pointed = await wide.evaluate(() => ({
     checked: [...document.querySelectorAll('.sec .sh .dfact')].map((el) => el.textContent), ring: document.querySelectorAll('.half.left .opt').length,
-    side: [...document.querySelectorAll('.point .where')].map((el) => el.textContent).find((text) => text.startsWith('Arrow')) ?? '',
   }));
+  pointed.side = await pointNamed('Arrow');
   await pointAtLabel('offer_returned_copies');
   await places(1);
   const atPoint = await linkShown();
@@ -1208,7 +1216,11 @@ async function faults() {
 
   // 1. A part with no diagram, and a file of it in a node, open their diff in the list; the diagram half keeps its diagram and no tab opens.
   const noDiagram = 'src/library/web/holds_router.py';
-  await clickAt('#view b[data-part="routes"]');
+  // On its name: the middle of the title row of a short name holds the comment mark of the part, which opens its card.
+  const nameAt = await wide.evaluate(() => { const box = document.querySelector('#view b[data-part="routes"]').getBoundingClientRect(); return { x: box.left + 12, y: box.top + box.height / 2 }; });
+  await wide.mouse.move(nameAt.x, nameAt.y, { steps: 4 });
+  await wide.mouse.down();
+  await wide.mouse.up();
   await when((path) => !!document.querySelector(`.half.right .dfile.open[data-file="${path}"]`), noDiagram);
   const byPart = await state();
   await clickAt('.half.left .f[data-file="tests/test_holds.py"]');
@@ -1261,6 +1273,9 @@ async function faults() {
   await away();
 
   // 5. A diagram larger than its half moves with a scroll, also in the stack of the graph that follows (a sequence), and Cmd+scroll zooms it.
+  // The tab is as wide as the page was beside the comments window (before build 80), so that the sequence is wider than its half.
+  await wide.setViewportSize({ width: 1080, height: 900 });
+  await quiet();
   await wide.evaluate((path) => App.diffs.toPath(path), 'src/library/night_jobs.py');
   await when(() => !!document.querySelector('.half.left .gcard svg'));
   await quiet();

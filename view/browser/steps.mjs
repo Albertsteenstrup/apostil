@@ -434,17 +434,8 @@ try {
       const columns = Math.floor((file.querySelector('.rowsbox .x')?.clientWidth ?? 0) / (char || 7));
       return { ok: !over && !cut && !sideways && columns >= 40, over, cut, sideways, columns };
     });
-    // The file of "Diffs" drawn again for a new width of its half: the file drawn before is marked, and the new one has its rows.
-    const fileRedrawn = async (action) => {
-      await one.evaluate(() => document.querySelector('#view > .file-left .cvw')?.setAttribute('data-was', ''));
-      await action();
-      await one.waitForSelector('#view > .file-left .cvw:not([data-was]) .rowsbox [data-row]', { timeout: 8000 });
-      await frames();
-    };
-
-    // 4. "Diffs" on a wide tab, with the comments window folded: the narrow list of closed rows at the left, the file with its cards at the right.
+    // 4. "Diffs" on a wide tab: the narrow list of closed rows at the left, the file with its cards at the right.
     // A long path is cut at its left end, and whole in the tooltip; the row is one line. The longest path of the example is the removed client type.
-    await (await one.$('#side [data-fold]'))?.click(); // the comments window folded
     await showIn({ view: 'diffs' });
     await toPath(service);
     const wideDiffs = await diffsNow();
@@ -516,11 +507,10 @@ try {
         && cameBack.file === worker2 && Math.abs(cameBack.top - leftAt.top) <= 1 && leftAt.top > 0,
       JSON.stringify({ j: [afterJ.file, afterJ.run], k: [afterK.file, afterK.run], clicked: clicked.file, back: [leftAt.top, cameBack.top] }));
 
-    // 7. With the comments window open; "Hide files" and "Show files"; the narrow tab.
-    await fileRedrawn(() => one.click('#side [data-unfold]'));
+    // 7. "Hide files" and "Show files"; the narrow tab. (Before build 80 this step opened the comments window, which took room of the tab.)
     const withSide = await diffsNow();
     const sideReads = await fileReads();
-    console.log(`NOTE  "Diffs" at 1400 px with the comments window open: the list ${withSide.widths[0]} px, the file ${withSide.widths[1]} px (${withSide.cards ? 'cards' : 'marks'})`);
+    console.log(`NOTE  "Diffs" at 1400 px: the list ${withSide.widths[0]} px, the file ${withSide.widths[1]} px (${withSide.cards ? 'cards' : 'marks'})`);
     await redrawn(() => one.click('.dctl .codeswitch[data-half="files"]'));
     const hidden = await diffsNow();
     await redrawn(() => one.click('#tabs .codeswitch[data-half="files"]'));
@@ -530,7 +520,7 @@ try {
     await redrawn(() => one.setViewportSize({ width: 900, height: 900 }));
     const narrow = await diffsNow();
     await redrawn(() => one.setViewportSize({ width: 1400, height: 900 }));
-    check(`"Diffs" with the comments window open at 1400 px: the list at the left and the file at the right, readable, its notes as ${withSide.cards ? 'cards' : 'marks'}; "Hide files" leaves the file alone with the counter, "Show files" brings the list back, and a narrow tab has the file alone; the file stays the same`,
+    check(`"Diffs" at 1400 px: the list at the left and the file at the right, readable, its notes as ${withSide.cards ? 'cards' : 'marks'}; "Hide files" leaves the file alone with the counter, "Show files" brings the list back, and a narrow tab has the file alone; the file stays the same`,
       withSide.list && withSide.xs[0] < withSide.xs[1] && withSide.file !== '' && (withSide.cards > 0 || withSide.marks > 0) && sideReads.ok
         && hidden.alone && !hidden.list && /Show files/.test(hidden.tabs) && /change/.test(hidden.nav) && hidden.file === withSide.file && shownAgain.list && /Hide files/.test(shownAgain.tabs)
         && narrow.alone && !narrow.list && !/Hide files/.test(narrow.tabs) && /file \d+ of 40/.test(narrow.nav),
@@ -541,7 +531,6 @@ try {
       const [left, right] = ['#view > .half.left', '#view > .half.right'].map((selector) => document.querySelector(selector)?.getBoundingClientRect());
       return left && right ? { code: Math.round(right.left), other: Math.round(left.left), widths: [Math.round(right.width), Math.round(left.width)] } : null;
     });
-    await (await one.$('#side [data-fold]'))?.click();
     await showIn({ view: 'diffs' });
     const diffsSides = await sides();
     await showIn({ level: 'change' });
