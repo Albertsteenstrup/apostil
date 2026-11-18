@@ -3,17 +3,17 @@
 import { spawn } from 'node:child_process';
 import { readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { newRunCommand, resumeCommand, runOptions } from '../shared/agents';
+import { newRunCommand, resumeCommand, runOptions, type RunModels } from '../shared/agents';
 import { changedBetween, workingFiles } from '../shared/git';
 import { storeFolder, type Store } from '../shared/store';
 import { inboxText } from '../store/inbox';
 
-/** The session that a run reports on its output: Claude Code prints JSON with `session_id`, Codex a line `thread.started` with the thread id. */
+/** The session that a run reports on its output: Claude Code prints JSON with `session_id`, Codex a line `thread.started` with the thread id, OpenCode events with `sessionID`. */
 export function sessionFromOutput(output: string): string | undefined {
   for (const line of output.split('\n')) {
     try {
       const record = JSON.parse(line);
-      const session = record?.session_id ?? (record?.type === 'thread.started' ? record.thread_id : undefined);
+      const session = record?.session_id ?? (record?.type === 'thread.started' ? record.thread_id : record?.sessionID);
       if (typeof session === 'string' && session) return session;
     } catch { /* not a line of JSON */ }
   }
@@ -21,8 +21,8 @@ export function sessionFromOutput(output: string): string | undefined {
 }
 
 /**
- * Why a run failed, from its output, or undefined. Codex prints a line `turn.failed` or `error` with a message; Claude Code prints a result with `is_error`.
- * A turn that ends well after an error (Codex tried again) is not a failure.
+ * Why a run failed, from its output, or undefined. Codex prints a line `turn.failed` or `error` with a message, OpenCode a line `error` with `error.message`;
+ * Claude Code prints a result with `is_error`. A turn that ends well after an error (Codex tried again) is not a failure.
  */
 export function problemFromOutput(output: string): string | undefined {
   let problem: string | undefined;
@@ -30,7 +30,7 @@ export function problemFromOutput(output: string): string | undefined {
     try {
       const record = JSON.parse(line);
       if (record?.type === 'turn.completed') problem = undefined;
-      const message = record?.type === 'turn.failed' ? record.error?.message : record?.type === 'error' ? record.message : record?.is_error ? record.result ?? failedWords(record) : undefined;
+      const message = record?.type === 'turn.failed' ? record.error?.message : record?.type === 'error' ? record.message ?? record.error?.message : record?.is_error ? record.result ?? failedWords(record) : undefined;
       if (typeof message === 'string' && message.trim()) problem = message.trim();
     } catch { /* not a line of JSON */ }
   }
@@ -84,15 +84,15 @@ export interface RunFacts {
  * Starts the run for a remark as a child process: the resume command of the change's agent, or with `newApp` a new session of that app.
  * It runs in the folder of the change; a remark on the map has no change and runs in `folder`, the open folder, with a new session only.
  * The session that the run reports is kept on the remark. When the process ends and the remark is still running, the remark is open again,
- * and `ended` gets the reason: what the program said, or that it gave no answer. `codexModel` is the model that the owner set in Apostil for Codex runs;
+ * and `ended` gets the reason: what the program said, or that it gave no answer. `models` are the models that the owner set in Apostil for the runs;
  * `commentRuns` is his setting `apostil.commentRuns`: "read and edit" (the default) or "read only". The files that the run changed are kept on the remark, from Git before and after.
  */
-export function startRun(store: Store, remarkId: number, ended: (problem?: string) => void, newApp?: string, folder?: string, codexModel?: string, commentRuns = 'read and edit'): void {
+export function startRun(store: Store, remarkId: number, ended: (problem?: string) => void, newApp?: string, folder?: string, models: RunModels = {}, commentRuns = 'read and edit'): void {
   const remark = store.getRemark(remarkId);
   const change = remark?.changeId === undefined ? undefined : store.getChange(remark.changeId);
   const prompt = remark && inboxText([remark], store, commentRuns === 'read only');
   const where = change?.folder ?? folder;
-  const options = { ...runOptions(where ?? '', storeFolder(), codexModel), commentRuns }; // the modes that the person set as default for the app go with the run
+  const options = { ...runOptions(where ?? '', storeFolder(), models), commentRuns }; // the modes that the person set as default for the app go with the run
   const command = prompt && (newApp ? newRunCommand(newApp, prompt, options) : change?.agent && resumeCommand(change.agent, prompt, options));
   if (!where || !command) return ended(newApp ? `A new session of ${newApp} cannot be started from here.` : 'This agent cannot be continued from here.');
   const before = workingFiles(where);
@@ -131,8 +131,8 @@ export function mapPrompt(describe = false): string {
  * Starts a new session of an app in a folder that writes the map of the repo, and with `describe` then the description of the change. Returns false when
  * the app cannot be started from here. `found` gets the session that the run reports on its output: Codex at its start, Claude Code with its result.
  */
-export function startMapRun(app: string, folder: string, ended: (problem?: string, facts?: RunFacts) => void, codexModel?: string, describe = false, found: (session: string) => void = () => {}): boolean {
-  const command = newRunCommand(app, mapPrompt(describe), runOptions(folder, storeFolder(), codexModel));
+export function startMapRun(app: string, folder: string, ended: (problem?: string, facts?: RunFacts) => void, models: RunModels = {}, describe = false, found: (session: string) => void = () => {}): boolean {
+  const command = newRunCommand(app, mapPrompt(describe), runOptions(folder, storeFolder(), models));
   if (!command) return false;
   spawnRun(command, folder, found, (problem, facts) => {
     rmSync(join(folder, MAP_DRAFT), { force: true });
@@ -151,7 +151,7 @@ const ERROR_TAIL = 8 * 1024; // the end of the error output: a program that stop
  * Runs an agent command in a folder as a child process. `found` gets the session that the run reports on its output;
  * `ended` is called once, when the process ends, with a problem when it could not start or said that it failed. Returns the pid.
  */
-function spawnRun(command: string[], folder: string, found: (session: string) => void, ended: (problem?: string, facts?: RunFacts) => void): number | undefined {
+export function spawnRun(command: string[], folder: string, found: (session: string) => void, ended: (problem?: string, facts?: RunFacts) => void): number | undefined {
   const [program, ...args] = command;
   const child = spawn(program, args, { cwd: folder, env: runEnvironment(), stdio: ['ignore', 'pipe', 'pipe'] });
   let output = '';

@@ -108,18 +108,43 @@ const MAP_RUN_WORDS = 'A new agent session reads the repo, draws its map and wri
 /** The quiet link under the press that picks another app (VS Code's quick pick); only with two or more installed apps. */
 const anotherAppHtml = (apps) => (apps.length > 1 ? '<a data-other-app>Another app</a>' : '');
 
+/** What "Open the session" does, in its tooltip: the one way of opening a session (sessionOpens in shared/agents.ts), never a page in the browser. */
+const OPENS_TIP = { app: 'Opens the session in its app', terminal: 'Opens a terminal of VS Code that continues the session' };
+
 /**
  * The quiet line of a map run (`run`, a MapRunLine of shared/map-run.ts): which session writes the map and what is saved so far, or that the run stopped.
- * After the words, the link that opens the session in its app; for a session with no link, the command that resumes it, as text to copy (a click selects it).
+ * After the words, "Open the session", which VS Code opens in its app or in a terminal that continues it.
  * `again`: after a run that stopped, on the map, the press "Start again" (it starts `again.app`, the pointer says which) and "Another app". Nothing in the line moves.
  */
 function mapRunHtml(run, again = null) {
   const words = `<span${run.tip ? ` title="${esc(run.tip)}"` : ''}>${esc(run.words)}</span>`;
-  const reach = run.link ? `<a data-link="${esc(run.link)}">Open the session</a>`
-    : run.command ? `<code title="The command that resumes this session in a terminal">${esc(run.command)}</code>` : '';
+  const reach = run.opens ? `<a data-open-run title="${OPENS_TIP[run.opens]}">Open the session</a>` : '';
   const press = again?.app ? `<a data-write="${esc(again.app)}" title="Starts a new ${esc(AGENT_NAMES[again.app] ?? again.app)} session">Start again</a>` : '';
   return `<span class="state maprun" data-run="${esc(run.state)}">${[words, reach, press, again?.app ? anotherAppHtml(again.apps) : ''].filter(Boolean).join(' · ')}</span>`;
 }
+
+/**
+ * Words for an agent with one press that sends them to the session that it names (`ask`, an AskView of shared/ask.ts), in place of a copy.
+ * Before the press: `intro`, the words and the press; with no app that can be started, the words stay as text. After it: the words, the session that got
+ * them, its state ("working", "done", "stopped") and "Open the session"; after a run that stopped, the press once more. Nothing in the line moves.
+ */
+function askHtml(ask, intro) {
+  const words = `<b>${esc(ask.words)}</b>`;
+  const press = ask.press ? `<a data-ask="${esc(ask.words)}" title="${esc(ask.press.tip)}">${esc(ask.press.label)}</a>` : '';
+  const { line } = ask;
+  if (!line) return [`${intro} ${words}`, press].filter(Boolean).join(' · ');
+  const open = line.opens ? `<a data-ask-open="${esc(ask.words)}" title="${OPENS_TIP[line.opens]}">Open the session</a>` : '';
+  const went = `${words} <span${line.tip ? ` title="${esc(line.tip)}"` : ''}>${esc(line.words)}</span>`;
+  return `<span class="state ask" data-run="${esc(line.state)}">${[went, esc(line.state), open, press].filter(Boolean).join(' · ')}</span>`;
+}
+// A click on "Open the session" of a map run, or on the press of words and the link of their run: VS Code does it.
+document.addEventListener('click', (event) => {
+  if (event.target.closest?.('[data-open-run]')) tell({ type: 'openMapSession' });
+  const ask = event.target.closest?.('[data-ask]');
+  if (ask) tell({ type: 'askAgent', words: ask.dataset.ask });
+  const open = event.target.closest?.('[data-ask-open]');
+  if (open) tell({ type: 'openAskSession', words: open.dataset.askOpen });
+});
 
 /**
  * The press that maps a repo, on Home of a repo with no map: one link, "Map this repo", that starts a new session of `app` (the app that Apostil started

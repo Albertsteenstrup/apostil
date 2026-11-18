@@ -5,7 +5,8 @@ import { randomBytes } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { basename, join, relative, sep } from 'node:path';
 import * as vscode from 'vscode';
-import { openSessionCommand, sessionLink, resumeCommand } from '../shared/agents';
+import { openSessionCommand, sessionLink, resumeCommand, type AgentSession } from '../shared/agents';
+import { describeWords } from '../shared/ask';
 import { keptInChange, withKept } from '../shared/comment-lines';
 import { rawFileText } from '../shared/git';
 import type { Target } from '../shared/look';
@@ -14,7 +15,8 @@ import { pullRequestFrom, readPullRequest, runGh, type PullRequestView } from '.
 import { writePullRequest, type Write } from '../shared/write-pull-request';
 import type { AppState, RemarkTarget, RemarkTo, Store } from '../shared/store';
 import { startRun } from './agent-run';
-import { codexModel, commentRuns, showRunProblem } from './run-settings';
+import { askRunOf, askView, startAsk } from './ask-run';
+import { appName, commentRuns, runModels, showRunProblem } from './run-settings';
 import { iconCss } from './state-icons';
 import { blocksAnswer } from './look-blocks';
 import { keptPullRequests, pullRequestsLater } from './change-list';
@@ -23,23 +25,28 @@ import { answer, filePage, isListening, lookOfPage, marksBeside, notesBeside, pa
 import type { ChangeGo, Step, WindowTrail } from './trail';
 
 /**
- * Opens the session that worked on a remark: in its app when it has a link of its own, else in a terminal of VS Code
- * that continues the session, in the folder of the change (a remark on the map: the open folder).
+ * Opens a session where he works with it, the one way for every link of a session (sessionOpens): in its app when it has a link of its own
+ * (the Claude desktop app, Codex), else in a terminal of VS Code in `folder` that continues it. Never a page in the browser.
  */
+export function openAgentSession(agent: AgentSession | undefined, folder: string): void {
+  const link = agent && sessionLink(agent);
+  if (link) return openLink(link);
+  const command = agent?.session && openSessionCommand(agent.app, agent.session);
+  if (!agent || !command) return void vscode.window.showWarningMessage('This session cannot be opened from here.');
+  const terminal = vscode.window.createTerminal({ name: `${agent.app} ${agent.session}`, cwd: folder });
+  terminal.sendText(command.map((word) => (/^[\w./-]+$/.test(word) ? word : `'${word.replace(/'/g, "'\\''")}'`)).join(' '));
+  terminal.show();
+}
+
+/** Opens the session that worked on a remark (openAgentSession), in the folder of the change (a remark on the map: the open folder). */
 export function openRemarkSession(store: Store, id: number, openFolder: string): void {
   const remark = store.getRemark(id);
   const change = remark?.changeId === undefined ? undefined : store.getChange(remark.changeId);
   if (!remark) return;
-  const fresh = remark.to?.kind === 'new';
   const app = remark.to?.app ?? change?.agent?.app;
-  const session = remark.run?.session ?? (fresh ? undefined : change?.agent?.session);
-  const link = fresh ? app && session && sessionLink({ app, session }) : change?.agent && sessionLink(change.agent);
-  if (link) return openLink(link);
-  const command = app && session && openSessionCommand(app, session);
-  if (!command) return void vscode.window.showWarningMessage('This session cannot be opened from here.');
-  const terminal = vscode.window.createTerminal({ name: `${app} ${session}`, cwd: change?.folder ?? openFolder });
-  terminal.sendText(command.map((word) => (/^[\w./-]+$/.test(word) ? word : `'${word.replace(/'/g, "'\\''")}'`)).join(' '));
-  terminal.show();
+  // A new session has only the id that its run reported; the session of the change keeps what the change knows of it (the id in the desktop app).
+  const agent = remark.to?.kind === 'new' ? app && { app, session: remark.run?.session } : change?.agent && { ...change.agent, session: remark.run?.session ?? change.agent.session };
+  openAgentSession(agent || undefined, change?.folder ?? openFolder);
 }
 
 /** Opens a link from a page in its app: a pull request in the browser, a session in the Claude or Codex app. */
@@ -102,7 +109,8 @@ type Message =
   | { type: 'pointer'; on: boolean }
   | { type: 'edit'; line?: number }
   | { type: 'looked'; repo: string; number: number }
-  | { type: 'copy'; text: string }
+  | { type: 'askAgent'; words: string } // the press of words for an agent: they go to the session that it names
+  | { type: 'openAskSession'; words: string } // "Open the session" on the line of their run
   | { type: 'write'; id: number; write: Write };
 
 /**
@@ -323,7 +331,32 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
     const { lines, at } = takeStart(view);
     const pulls = this.page && !this.page.pullOnly ? keptPullRequests(this.page.folder, this.page.branch) : undefined; // known now: the page opens at the right view at once
     if (pulls) this.sentPulls = JSON.stringify(pulls);
-    return { type: 'data', page: this.page, pulls, file: view.file, lines, at, trail: this.trail?.steps, minimap: minimapOn(), ...(view.file && this.pullRead ? { pullRead: this.pullRead } : {}) };
+    return { type: 'data', page: this.page, pulls, file: view.file, lines, at, trail: this.trail?.steps, minimap: minimapOn(), ask: this.askNow(), ...(view.file && this.pullRead ? { pullRead: this.pullRead } : {}) };
+  }
+
+  /** The words for an agent of the page, with the press that sends them and the line of their run: a pull request of this repo with no stored change has them. */
+  private askNow(): ReturnType<typeof askView> | undefined {
+    const bare = this.page?.pullOnly;
+    return bare && !bare.otherRepo ? askView(this.store, this.openFolder(), describeWords(bare.number), this.apps) : undefined;
+  }
+
+  /** The press: the words go to the session that it named (view/ask-run.ts), and the page shows the line of their run as it changes. */
+  private askAgent(words: string): void {
+    if (this.askNow()?.press?.label === undefined) return; // a second click while the run works starts nothing
+    const folder = this.openFolder();
+    const tell = (): void => {
+      const ask = this.askNow();
+      const page = [...this.views].find((one) => one.panel === this.panel);
+      if (page && ask?.words === words) this.post(page, { type: 'asked', ask });
+    };
+    const again = (): void => this.askAgent(words);
+    const started = startAsk(this.store, folder, words, this.apps, runModels(), tell, (problem, facts) => {
+      const app = askRunOf(this.store, folder, words)?.agent.app ?? '';
+      // "codex" stays in small letters at the start: the problem of its model is told by that word (runProblem).
+      if (problem) showRunProblem(`${app === 'codex' ? 'codex' : appName(app)} did not finish "${words}". It said: ${problem}`, { app, again, folder, ...facts });
+    });
+    if (!started) return void vscode.window.showWarningMessage('No agent app can be started from here.');
+    tell();
   }
 
   /** The setting "editor.minimap.enabled" changed: each view shows or hides the small code map beside a whole file, in place. */
@@ -468,7 +501,7 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
     startRun(this.store, id, (problem) => {
       if (problem) showRunProblem(problem, { app: newApp });
       this.reloadIfChanged();
-    }, newApp, undefined, codexModel(), commentRuns());
+    }, newApp, undefined, runModels(), commentRuns());
   }
 
   /**
@@ -503,9 +536,14 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
         else if (message.question.startsWith('blocks:')) this.post(view, { type: 'answer', id: message.id, value: blocksAnswer(this.store, page?.folder ?? this.openFolder(), message.question.slice('blocks:'.length), (file) => view.panel.webview.asWebviewUri(vscode.Uri.file(file)).toString()) });
         else this.post(view, { type: 'answer', id: message.id, value: this.page ? answer(this.page, message.question, (path, lines) => notesBeside(this.store, this.page!, path, lines), (path) => marksBeside(this.store, this.page!, path)) : undefined });
         break;
-      case 'copy':
-        void vscode.env.clipboard.writeText(message.text);
+      case 'askAgent':
+        this.askAgent(message.words);
         break;
+      case 'openAskSession': {
+        const run = askRunOf(this.store, this.openFolder(), message.words);
+        openAgentSession(run?.agent, run?.folder ?? this.openFolder());
+        break;
+      }
       case 'looked':
         this.store.setLooked(message.repo, message.number);
         break;

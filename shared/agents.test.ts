@@ -2,9 +2,9 @@
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
-import { agentFromEnv, BILLING, claudeDefaultMode, claudeRunMode, codexDefaultSandbox, INSTALL, installedApps, isOptionProblem, isSignInProblem, mergeAgent, runFix, runProblem, UPDATE, newestLine, newRunCommand, openSessionCommand, resumeCommand, sessionLink, sessionName, SIGN_IN } from './agents';
+import { agentFromEnv, BILLING, claudeDefaultMode, claudeRunMode, codexDefaultSandbox, INSTALL, installedApps, isOptionProblem, isSignInProblem, mergeAgent, modelWords, opencodeSmallModel, runFix, runProblem, UPDATE, newestLine, newRunCommand, openSessionCommand, resumeCommand, sessionLink, sessionName, sessionOpens, SIGN_IN, SMALL_MODELS } from './agents';
 import { tempFolder } from './test-repo';
 import { pullRequestsFromJson, stateOf, type RawPullRequest } from './pull-requests';
 
@@ -47,7 +47,7 @@ test('the link, the resume command, the command of a new session and the command
   assert.deepEqual(codex, ['codex', 'exec', 'resume', 't1', 'Do it', '--json', '-c', 'sandbox_mode="workspace-write"', '-c', 'sandbox_workspace_write.writable_roots=["/home/me/.apostil"]']);
   assert.ok(!codex.some((word) => word.includes('dangerously')));
   assert.deepEqual(resumeCommand({ app: 'antigravity', session: 'c1' }, 'Do it'), ['agy', '-p', 'Do it', '--conversation', 'c1']);
-  assert.equal(resumeCommand({ app: 'opencode', session: 'o1' }, 'Do it'), undefined);
+  assert.deepEqual(resumeCommand({ app: 'opencode', session: 'o1' }, 'Do it'), ['opencode', 'run', '--session', 'o1', 'Do it', '--format', 'json']);
   assert.equal(resumeCommand({ app: 'claude-code' }, 'Do it'), undefined);
 
   // NewRunCommand starts a new session of each app with a prompt, and edits files without switching all prompts off.
@@ -60,14 +60,60 @@ test('the link, the resume command, the command of a new session and the command
   assert.ok(!newRunCommand('codex', 'Do it')?.some((word) => word.startsWith('model=')));
   assert.deepEqual(newRunCommand('claude-code', 'Do it', { codexModel: 'model-a' }), newRunCommand('claude-code', 'Do it'));
   assert.deepEqual(newRunCommand('antigravity', 'Do it'), ['agy', '-p', 'Do it', '--mode', 'accept-edits']);
-  assert.deepEqual(newRunCommand('opencode', 'Do it'), ['opencode', 'run', 'Do it']);
+  assert.deepEqual(newRunCommand('opencode', 'Do it'), ['opencode', 'run', 'Do it', '--format', 'json']); // its JSON events name the session
   assert.equal(newRunCommand('other', 'Do it'), undefined);
 
   // The command that continues a session in a terminal, for each app.
   assert.deepEqual(openSessionCommand('claude-code', 's1'), ['claude', '--resume', 's1']);
   assert.deepEqual(openSessionCommand('codex', 't1'), ['codex', 'resume', 't1']);
   assert.equal(openSessionCommand('antigravity', 'a1'), undefined);
-  assert.equal(openSessionCommand('opencode', 'o1'), undefined);
+  assert.deepEqual(openSessionCommand('opencode', 'o1'), ['opencode', '--session', 'o1']);
+
+  // One way to open a session: in its app when it has a link of its own, else in a terminal that continues it; never a page in the browser.
+  assert.equal(sessionOpens({ app: 'claude-code', session: 's1', hostSession: 'local_1' }), 'app');
+  assert.equal(sessionOpens({ app: 'codex', session: 't1' }), 'app');
+  assert.equal(sessionOpens({ app: 'claude-code', session: 's1' }), 'terminal');
+  assert.equal(sessionOpens({ app: 'opencode', session: 'o1' }), 'terminal');
+  assert.equal(sessionOpens({ app: 'antigravity', session: 'a1' }), undefined);
+  assert.equal(sessionOpens({ app: 'claude-code' }), undefined);
+});
+
+test('every run takes the small model of its app unless the owner set another: haiku for Claude Code, luna for Codex, the small_model of the OpenCode config; a run that describes a change gets what the skill runs and no Edit', () => {
+  const models = { claudeModel: SMALL_MODELS['claude-code'], codexModel: SMALL_MODELS.codex, opencodeModel: 'made-up-provider/small-one' };
+  assert.deepEqual(SMALL_MODELS, { 'claude-code': 'haiku', codex: 'luna' });
+  // The settings in VS Code start with these models: an empty setting means the model of the app's own settings.
+  const settings = JSON.parse(readFileSync(join(__dirname, '..', '..', 'package.json'), 'utf8')).contributes.configuration.properties;
+  assert.deepEqual([settings['apostil.claudeModel'].default, settings['apostil.codexModel'].default], [SMALL_MODELS['claude-code'], SMALL_MODELS.codex]);
+  // The arguments of each app, for a new session and for one that a run continues.
+  assert.deepEqual(modelWords('claude-code', models), ['--model', 'haiku']);
+  assert.deepEqual(modelWords('codex', models), ['-c', 'model="luna"']);
+  assert.deepEqual(modelWords('opencode', models), ['--model', 'made-up-provider/small-one']);
+  assert.deepEqual(modelWords('antigravity', models), []);
+  assert.deepEqual(modelWords('claude-code', {}), []); // an empty setting: the model of the app's own settings
+  assert.deepEqual(newRunCommand('claude-code', 'Do it', models)?.slice(5, 7), ['--model', 'haiku']);
+  assert.deepEqual(resumeCommand({ app: 'claude-code', session: 's1' }, 'Do it', models)?.slice(7, 9), ['--model', 'haiku']);
+  assert.deepEqual(newRunCommand('codex', 'Do it', models)?.slice(-2), ['-c', 'model="luna"']);
+  assert.deepEqual(resumeCommand({ app: 'codex', session: 't1' }, 'Do it', models)?.slice(-2), ['-c', 'model="luna"']);
+  assert.deepEqual(newRunCommand('opencode', 'Do it', models), ['opencode', 'run', 'Do it', '--format', 'json', '--model', 'made-up-provider/small-one']);
+  assert.deepEqual(resumeCommand({ app: 'opencode', session: 'o1' }, 'Do it', models)?.slice(-2), ['--model', 'made-up-provider/small-one']);
+  assert.deepEqual(newRunCommand('antigravity', 'Do it', models), ['agy', '-p', 'Do it', '--mode', 'accept-edits']);
+
+  // The small model of OpenCode, read and never written: the config of the folder first, then OPENCODE_CONFIG, then the global one; JSONC with comments too.
+  const home = tempFolder('apostil-home-');
+  const folder = tempFolder('apostil-repo-');
+  assert.equal(opencodeSmallModel(folder, home, {}), undefined);
+  mkdirSync(join(home, '.config', 'opencode'), { recursive: true });
+  writeFileSync(join(home, '.config', 'opencode', 'opencode.jsonc'), '{\n  // the small one\n  "$schema": "https://opencode.ai/config.json",\n  "small_model": "made-up/global-small",\n}\n');
+  assert.equal(opencodeSmallModel(folder, home, {}), 'made-up/global-small');
+  writeFileSync(join(folder, 'custom.json'), JSON.stringify({ small_model: 'made-up/custom-small' }));
+  assert.equal(opencodeSmallModel(folder, home, { OPENCODE_CONFIG: join(folder, 'custom.json') }), 'made-up/custom-small');
+  writeFileSync(join(folder, 'opencode.json'), JSON.stringify({ model: 'made-up/large', small_model: 'made-up/repo-small' }));
+  assert.equal(opencodeSmallModel(folder, home, { OPENCODE_CONFIG: join(folder, 'custom.json') }), 'made-up/repo-small');
+
+  // A run that describes a change: it reads, runs git show and git diff, writes its drafts and saves with apostil; it has no Edit.
+  const describe = newRunCommand('claude-code', 'Describe pull request #35 for Apostil', { describe: true, sessionId: '00000000-0000-4000-8000-000000000035' })!;
+  assert.deepEqual(describe.slice(5, 7), ['--session-id', '00000000-0000-4000-8000-000000000035']);
+  assert.deepEqual(describe.slice(describe.indexOf('--allowedTools') + 1), ['Bash(apostil *)', 'Read', 'Grep', 'Glob', 'Write', 'Bash(git show *)', 'Bash(git diff *)', '--disallowedTools', 'Edit', 'NotebookEdit']);
 });
 
 const pr = (changes: Partial<RawPullRequest>): RawPullRequest => ({

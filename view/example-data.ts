@@ -138,8 +138,8 @@ page.look = pageLook && asDefault(pageLook);
 const answers = Object.fromEntries(allQuestions(page).map((question) => [question, answer(page, question, (path, lines) => notesBeside(store, page, path, lines), (path) => marksBeside(store, page, path))]));
 Object.assign(answers, lookAnswers);
 
-// Made-up map runs, read from the store as Home reads them ("?run=<name>"): the run of Home, his own session in the desktop app (a link) and in a
-// terminal (the command that resumes it), and a run that stopped. Each saved the overview, 3 areas and the notes of 40 files.
+// Made-up map runs, read from the store as Home reads them ("?run=<name>"): the run of Home, his own session in the desktop app (it opens there) and in a
+// terminal (it opens in a terminal that continues it), and a run that stopped. Each saved the overview, 3 areas and the notes of 40 files.
 const mapSession = '1a2b3c4d-0000-4000-8000-00000000cafe';
 const savedSoFar = (run: MapRun | undefined, by: AgentSession | undefined): MapRun => {
   const at = minutesAgo(1);

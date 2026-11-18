@@ -8,8 +8,8 @@ import { homeRun, QUIET_MS, withEnd, withSession } from '../shared/map-run';
 import type { Store } from '../shared/store';
 import { startMapRun, startRun } from './agent-run';
 import { agentsNeedSetup, runNextStep } from './change-list';
-import { apostilOnPath, appName, codexModel, commentRuns, showRunProblem } from './run-settings';
-import { openLink, openRemarkSession, webviewHtml, type NewRemark } from './change-page';
+import { apostilOnPath, appName, commentRuns, runModels, showRunProblem } from './run-settings';
+import { openAgentSession, openLink, openRemarkSession, webviewHtml, type NewRemark } from './change-page';
 import { graphsData, homeData, idOf, type GraphsData, type HomeData } from './home-data';
 import { blocksAnswer, lookPages, pageData, type CustomPageData } from './look-blocks';
 import type { Step, WindowTrail } from './trail';
@@ -24,6 +24,7 @@ type Message =
   | NewRemark
   | { type: 'remarkAction'; id: number; action: 'resolve' | 'reopen' | 'start' }
   | { type: 'openSession'; id: number }
+  | { type: 'openMapSession' } // "Open the session" on the line of the map run
   | { type: 'pointer'; on: boolean }
   | { type: 'openLink'; url: string }
   | { type: 'target'; target: Target; diagram?: string }
@@ -169,7 +170,7 @@ export class HomePages {
       startRun(this.store, id, (problem) => {
         if (problem) showRunProblem(problem, { app });
         this.changed();
-      }, app, this.openFolder(), codexModel(), commentRuns());
+      }, app, this.openFolder(), runModels(), commentRuns());
     }
     this.reload();
   }
@@ -203,7 +204,7 @@ export class HomePages {
       // "codex" stays in small letters at the start: the problem of its model is told by that word.
       if (why) showRunProblem(`${app === 'codex' ? 'codex' : appName(app)} did not write the map. It said: ${why}`, { app, again, folder, instead, ...facts });
       this.reload();
-    }, codexModel(), describe, (session) => { record((run) => withSession(run, session)); this.reload(); });
+    }, runModels(), describe, (session) => { record((run) => withSession(run, session)); this.reload(); });
     if (!started) return void vscode.window.showWarningMessage(`A new session of ${app} cannot be started from here.`);
     this.writing = app;
     record(() => homeRun(app, new Date().toISOString()));
@@ -329,6 +330,11 @@ export class HomePages {
       case 'openSession':
         openRemarkSession(this.store, message.id, this.openFolder());
         break;
+      case 'openMapSession': { // the session that writes the map, or wrote it until it stopped: in its app, or in a terminal that continues it
+        const repo = idOf(this.openFolder());
+        openAgentSession(repo ? this.store.mapRun(repo)?.agent : undefined, this.openFolder());
+        break;
+      }
       case 'pointer':
         if (message.on) this.setPointer(tab);
         else if (this.pointerOn === tab) this.setPointer(undefined);
