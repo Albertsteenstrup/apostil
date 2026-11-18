@@ -112,10 +112,10 @@ try {
     return result;
   }, readRows.toString());
   check('a session with four open pull requests shows two rows and "2 more pull requests", which shows the others in their place, and "Show fewer" folds them again; rows with a merged or closed one are under "History · 2", which shows them under that line with a tooltip that says what it holds; a row with no pull request stays; the row that is open now stays in view as a third; no line is cut off',
-    folds.first.rows === '#20,#21,branch-6' && folds.first.folds === '▸2 more pull requests|▸History · 2'
-    && folds.more.rows === '#20,#21,#23,#24,branch-6' && folds.more.folds.startsWith('▾Show fewer') && folds.fewer.rows === folds.first.rows && folds.fewer.folds === folds.first.folds
-    && folds.history.rows === '#20,#21,branch-6,#22,#25' && folds.history.folds.endsWith('▾History · 2') && /merged or closed/.test(folds.tip) && !folds.cut
-    && folds.openRow.rows === '#20,#21,#24,branch-6' && folds.openRow.folds === '▸1 more pull request|▸History · 2', JSON.stringify(folds));
+    folds.first.rows === '#20,#21,branch-6' && folds.first.folds === '2 more pull requests|History · 2'
+    && folds.more.rows === '#20,#21,#23,#24,branch-6' && folds.more.folds.startsWith('Show fewer') && folds.fewer.rows === folds.first.rows && folds.fewer.folds === folds.first.folds
+    && folds.history.rows === '#20,#21,branch-6,#22,#25' && folds.history.folds.endsWith('History · 2') && /merged or closed/.test(folds.tip) && !folds.cut
+    && folds.openRow.rows === '#20,#21,#24,branch-6' && folds.openRow.folds === '1 more pull request|History · 2', JSON.stringify(folds));
   await list.click('.pr >> nth=0');
   const listSent = await list.evaluate(() => window.apostilSent.map((message) => message.type + (message.url ? `:${message.url}` : '')));
   const openPull = await list.evaluate(() => window.apostilSent.find((message) => message.type === 'openPull'));
@@ -134,7 +134,7 @@ try {
     return { mark: mark?.textContent, markTip: mark?.title, first, fold, order: order() };
   });
   check('a quiet "2/3" for the place in a stack, and the rows of one stack stand together, the top first',
-    side.mark === '2/3' && side.markTip === '2 of 3 in a stack' && side.first.join('|') === '#33review needed3/3|#32review needed2/3' && side.fold === '▸2 more pull requests'
+    side.mark === '2/3' && side.markTip === '2 of 3 in a stack' && side.first.join('|') === '#33review needed3/3|#32review needed2/3' && side.fold === '2 more pull requests'
     && side.order.join('|') === '#33review needed3/3|#32review needed2/3|#31review needed1/3|#50review needed', JSON.stringify(side));
   await list.close();
 
@@ -318,7 +318,7 @@ try {
   const emptyBranch = await openBranch(0, 0);
   const changedBranch = await openBranch(2, 3);
   check('every open pull request with no stored change stands under the head "Pull requests", 20 and "3 more" that opens the rest, none twice for a branch that has a row; a click asks for its page, the search finds it by its title; the open branch with no commit and no changed file opens Home, and with changes it does not',
-    before.head === 'Changes|Pull requests' && before.rows === 20 && before.more === '▸3 more' && before.first === 'Made-up pull request 0' && /^#100/.test(before.line) && !before.twice && opened.join() === '100'
+    before.head === 'Changes|Pull requests' && before.rows === 20 && before.more === '3 more' && before.first === 'Made-up pull request 0' && /^#100/.test(before.line) && !before.twice && opened.join() === '100'
     && unfolded.rows === 23 && !unfolded.twice && searched.join() === 'Made-up pull request 17' && emptyBranch === 1 && changedBranch === 0, JSON.stringify({ before, opened, unfolded, searched, emptyBranch, changedBranch }));
 
   // When gh fails the list says why, once, in one quiet line in place of the rows.
