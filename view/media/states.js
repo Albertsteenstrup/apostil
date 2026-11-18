@@ -32,7 +32,27 @@ const States = (() => {
     openPoints: 'Open points',
     goneFromDiagram: 'no longer in the diagram',
     changedFiles: 'changed:',
-    noAgent: 'No agent to send to: this change has no known session, and no agent app is installed.',
+    noAgent: 'No agent to send to: this change has no known session, and no agent app is connected.',
+    // The card of a comment and the picker of where it goes
+    writeComment: 'Write a comment…',
+    writeReply: 'Write a reply…',
+    sendTo: 'Send to',
+    close: 'Close',
+    moreActions: 'More',
+    openTheSession: 'Open the session',
+    choiceThis: 'This session',
+    choiceThisSub: 'made this change',
+    choiceNew: 'New session',
+    choiceGitHub: 'The pull request on GitHub',
+    choiceNone: 'No agent: keep it as a note',
+    keptAsNote: 'Keep it as a note',
+    usedAgo: (ago) => `used ${ago}`,
+    defaultModel: 'default model',
+    noAppConnected: 'No agent app is connected.',
+    setUpAgents: 'Set up for agents',
+    changedCount: (n) => `Changed ${count(n, 'file', 'files')}`,
+    openPoint: 'Open point',
+    noteToNoAgent: 'a note, sent to no agent',
     thisSession: 'the session that made this change',
     namedSession: (name) => `the session ${name}`,
     newSession: 'a new session',
@@ -72,12 +92,15 @@ const States = (() => {
   /** The one word of a mention: "claude-current" or "codex-new". */
   const mentionName = (to) => `${MENTION_WORDS[to.app] ?? to.app}-${to.kind}`;
 
+  /** True when the change has a session of its own in an app that "@" knows. */
+  const hasSession = (agent) => !!(agent && (agent.session || agent.hostSession) && MENTION_WORDS[agent.app]);
+
   /**
-   * What "@" offers: the session that made the change first, when it has one; then a new session of each installed app.
-   * agent: the agent of the change; apps: the apps whose program is on the path.
+   * What "@" offers: the session that made the change first, when it has one in a connected app; then a new session of each connected app.
+   * agent: the agent of the change; apps: the connected apps (on the path, with the skills of Apostil).
    */
   function mentionChoices(agent, apps) {
-    const current = agent && (agent.session || agent.hostSession) && MENTION_WORDS[agent.app] ? [{ app: agent.app, kind: 'current' }] : [];
+    const current = hasSession(agent) && apps.includes(agent.app) ? [{ app: agent.app, kind: 'current' }] : [];
     const fresh = Object.keys(MENTION_WORDS).filter((app) => apps.includes(app)).map((app) => ({ app, kind: 'new' }));
     const named = agent?.name ? WORDS.namedSession(agent.name) : WORDS.thisSession;
     return [...current, ...fresh].map((to) => ({ ...to, name: mentionName(to), does: to.kind === 'current' ? named : WORDS.newSession }));
@@ -85,6 +108,70 @@ const States = (() => {
 
   /** The choices whose name starts with what was typed after "@". */
   const cutChoices = (choices, typed) => choices.filter((choice) => choice.name.startsWith(typed.toLowerCase()));
+
+  const MINUTE = 60_000;
+  /** How long ago a time was, in short words: "just now", "4 min ago", "3 hours ago", "2 days ago". */
+  function agoWords(iso, now = Date.now()) {
+    const minutes = Math.max(0, Math.round((now - new Date(iso).getTime()) / MINUTE));
+    if (minutes < 1) return 'just now';
+    if (minutes < 60) return `${minutes} min ago`;
+    const hours = Math.round(minutes / 60);
+    return hours < 24 ? `${count(hours, 'hour', 'hours')} ago` : `${count(Math.round(hours / 24), 'day', 'days')} ago`;
+  }
+
+  /** The model words of a run: a continued session keeps its own model, so only the effort; a new session the model it gets and the effort. Antigravity takes neither. */
+  const modelWords = (app, fresh, model, effort) => (app === 'antigravity' ? '' : fresh ? `${model || WORDS.defaultModel} · ${effort}` : effort);
+
+  const PICKED_MAX = 3; // the known sessions of one app that the picker offers
+
+  /**
+   * Where a comment can go, for the picker under the box of a card. For each connected app, in the order of `apps`: this session (the session that
+   * made the change, when it is of that app), the other sessions that Apostil knows in this repo and that a run can continue in this folder (newest
+   * first, at most 3), and a new session. Then the pull request on GitHub, when `github` says that it takes this comment. Last, no agent.
+   * A page with no stored change offers only GitHub. Each choice: { key, app, to, words, sub, model }; `to` is what the remark is sent to
+   * ({ app, kind: 'current' | 'new' | 'session', session }), { app: 'github' }, or null for a note.
+   */
+  function sendChoices({ agent, apps = [], sessions = [], models = {}, effort = 'high', github = false, pullOnly = false, now = Date.now() }) {
+    const gitHub = github ? [{ key: 'github', app: 'github', to: { app: 'github' }, words: WORDS.choiceGitHub, sub: '', model: '' }] : [];
+    if (pullOnly) return gitHub;
+    const ofApp = (app) => {
+      const own = hasSession(agent) && agent.app === app;
+      const known = sessions.filter((one) => one.app === app && one.session !== agent?.session).sort((a, b) => b.at.localeCompare(a.at)).slice(0, PICKED_MAX);
+      return [
+        ...(own ? [{ key: `${app}:current`, app, to: { app, kind: 'current' }, words: WORDS.choiceThis, sub: WORDS.choiceThisSub, model: modelWords(app, false, '', effort) }] : []),
+        ...known.map((one) => ({
+          key: `${app}:session:${one.session}`, app, to: { app, kind: 'session', session: one.session, ...(one.name ? { name: one.name } : {}) },
+          words: one.name || one.session.slice(0, 8), sub: WORDS.usedAgo(agoWords(one.at, now)), model: modelWords(app, false, '', effort),
+        })),
+        { key: `${app}:new`, app, to: { app, kind: 'new' }, words: WORDS.choiceNew, sub: '', model: modelWords(app, true, models[app], effort) },
+      ];
+    };
+    return [...apps.filter((app) => MENTION_WORDS[app]).flatMap(ofApp), ...gitHub, { key: 'none', app: '', to: null, words: WORDS.choiceNone, sub: '', model: '' }];
+  }
+
+  /** The key of the choice that a remark was sent to: "claude-code:current", "codex:session:<id>", "github"; "none" for a note. */
+  const choiceKey = (to) => (!to ? 'none' : to.app === 'github' ? 'github' : to.kind === 'session' ? `${to.app}:session:${to.session}` : `${to.app}:${to.kind}`);
+
+  /**
+   * The choice that the picker starts at: `wanted` (the choice of a thread, or the last choice in this repo) when the picker has it, else this session,
+   * else a new session of the first connected app, else the first choice (GitHub on a page with no stored change, else no agent).
+   */
+  function startChoice(choices, wanted) {
+    const has = (key) => choices.find((choice) => choice.key === key);
+    return (wanted !== undefined && has(choiceKey(wanted))) || choices.find((choice) => choice.to?.kind === 'current') || choices.find((choice) => choice.to?.kind === 'new') || choices[0];
+  }
+
+  /** The closed picker in words: "Claude Code · this session · high", "Codex · new session · gpt-6-luna · high", "GitHub · the pull request". */
+  function choiceWords(choice) {
+    if (!choice.to) return WORDS.keptAsNote;
+    if (choice.app === 'github') return 'GitHub · the pull request';
+    const which = choice.to.kind === 'current' ? 'this session' : choice.to.kind === 'new' ? 'new session' : choice.words;
+    return [AGENT_WORDS[choice.app] ?? choice.app, which, choice.model].filter(Boolean).join(' · ');
+  }
+  const AGENT_WORDS = { 'claude-code': 'Claude Code', codex: 'Codex', antigravity: 'Antigravity', opencode: 'OpenCode' };
+
+  /** Who a remark went to, in a few words for its state line: "claude-current", "codex-new", or the name of a known session. */
+  const toName = (to) => (to.kind === 'session' ? to.name || to.session.slice(0, 8) : mentionName(to));
 
   /** The state line of a row, the first that applies. counts: remarks by state; phrase: what the row says without remarks. */
   function rowLine(counts, phrase) {
@@ -108,11 +195,12 @@ const States = (() => {
    */
   function remarkLine(remark, agent, listening) {
     if (remark.state === 'open') return { text: '' };
-    const name = remark.to && mentionName(remark.to);
+    const name = remark.to && toName(remark.to);
     if (remark.state === 'running') return { text: name ? WORDS.isWorking(name) : WORDS.working, dot: 'pulse' };
     if (remark.state === 'done') return { text: WORDS.answered, dot: 'teal' };
     if (remark.state === 'closed') return { text: WORDS.closedOne };
     if (remark.to?.kind === 'new') return { text: WORDS.waitingFor(name) }; // its own run takes it
+    if (remark.to?.kind === 'session') return { text: WORDS.waitingFor(name), way: 'start' }; // a run continues that session
     // A comment that the page sends starts its run at once. One that still waits was sent from elsewhere, or its session cannot be continued.
     const way = listening ? 'listening' : agent?.canResume ? 'start' : agent?.hostSession ? 'connect' : undefined;
     return { text: name ? WORDS.waitingFor(name) : WORDS.sent, way };
@@ -125,8 +213,11 @@ const States = (() => {
   const threadState = (thread) => (thread.every((remark) => remark.state === 'closed') ? 'resolved'
     : ({ open: 'open', sent: 'sent', running: 'working', done: 'answered', closed: 'resolved' })[threadLead(thread).state] ?? 'open');
 
-  /** The look of a circle: the state of the remark. A sent remark still looks open; a closed one is faint. */
-  const circleOf = (remark) => ({ running: 'running', done: 'done', closed: 'closed' })[remark.state] ?? 'open';
+  /**
+   * The state of the mark of a thread, from its lead remark: "note" (sent to no agent), "waiting" (sent), "working", "answered" (not read in its card yet)
+   * and "seen" (answered and read). `read`: its card was open after the answer came.
+   */
+  const markState = (lead, read = false) => ({ open: 'note', sent: 'waiting', running: 'working', done: read ? 'seen' : 'answered' })[lead.state] ?? 'note';
 
   /** A pull request that is not merged and not closed. */
   const isOpen = (pull) => pull.state !== 'merged' && pull.state !== 'closed';
@@ -186,10 +277,21 @@ const States = (() => {
     ? `<span class="state">${line.dot ? `<i class="dot ${line.dot}"></i>` : ''}${esc(line.text)}${more}</span>`
     : '');
 
-  /** The circle with a number, in the look of a state. A thread id makes a click bring up its card. */
-  const circleHtml = (number, look, thread) => `<i class="rk ${look}"${thread ? ` data-thread="${thread}"` : ''}>${number}${look === 'done' ? ' ✓' : ''}</i>`;
+  /** The shape of a comment: a chat bubble. The mark of a thread and the count in the top bar draw it. */
+  const BUBBLE_PATH = 'M14 2.5c6.2 0 11.2 4.1 11.2 9.2S20.2 21 14 21c-1.4 0-2.8-.2-4-.6L4.6 23l1.3-4.4C3.9 16.9 2.8 14.4 2.8 11.7 2.8 6.6 7.8 2.5 14 2.5z';
+  const bubbleSvg = (cls = 'cbs') => `<svg class="${cls}" viewBox="0 0 28 26" aria-hidden="true"><path d="${BUBBLE_PATH}"/></svg>`;
 
-  return { WORDS, MENTION_WORDS, mentionName, mentionChoices, cutChoices, rowLine, rowState, remarkLine, threadLead, threadState, circleOf, isOpen, foldPulls, foldRows, stackOrder, lineHtml, circleHtml, pullTip, pullIcon };
+  /**
+   * The mark of the open threads of a thing: a chat bubble in the state of the newest thread, with the icon of the app that has it (none for a note),
+   * and a small count at its corner for more than one thread. A thread id makes a click open its card.
+   */
+  const markHtml = (state, app, count = 1, thread) => `<i class="cb ${state}"${thread ? ` data-thread="${thread}"` : ''}>${bubbleSvg()}`
+    + `${state !== 'note' && AGENT_WORDS[app] ? `<img src="agents/${app}.svg" alt="${esc(AGENT_WORDS[app])}">` : ''}${count > 1 ? `<b class="n">${count}</b>` : ''}</i>`;
+
+  return {
+    WORDS, MENTION_WORDS, mentionName, mentionChoices, cutChoices, sendChoices, choiceKey, startChoice, choiceWords, agoWords, rowLine, rowState, remarkLine,
+    threadLead, threadState, markState, isOpen, foldPulls, foldRows, stackOrder, lineHtml, markHtml, bubbleSvg, BUBBLE_PATH, pullTip, pullIcon,
+  };
 })();
 
 if (typeof module === 'object') module.exports = States; // for the tests in Node

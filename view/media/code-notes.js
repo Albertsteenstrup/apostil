@@ -441,7 +441,7 @@ function codeWithNotes(holder, options) {
   const column = holder.querySelector('.notes');
   const sizes = rows.map((row) => Wrap.measure(row.text));
   const opened = new Set(); // very long lines that he unfolded
-  const marks = { lit: focus && { lines: focus }, step: null, near: null, flash: null, nothing: null, cur: null, threads: new Map() };
+  const marks = { lit: focus && { lines: focus }, step: null, near: null, flash: null, nothing: null, cur: null, threads: new Map(), bubbles: new Map() };
   let columns = codeColumns(box);
   let width = box.clientWidth;
 
@@ -460,13 +460,14 @@ function codeWithNotes(holder, options) {
       : row.partner !== undefined ? markedWords(row.text, row.partner) : row.plain ? esc(row.text) : colorOf?.(row) ?? colorLine(row.text, null).html;
     const kinds = [row.kind, ...['lit', 'step', 'near', 'flash', 'nothing', 'cur'].filter((name) => hits(row, marks[name]))].join(' ');
     const thread = row.now && marks.threads.get(row.now);
+    const bubble = (row.now && row.kind !== 'del' && marks.bubbles.get(row.now)) || ''; // the mark of the comments that start on this line, at the end of its text
     const mark = row.now && row.kind !== 'del' && looks.margin.get(row.now); // the icon of a mark in the margin, when a rule shows it
     const icon = mark ? `<span class="mg" data-mg="${row.now}" data-tip="${esc(mark.name)}">${mark.icon ? `<img src="${esc(mark.icon)}" alt="">` : esc(mark.name[0] ?? '?')}</span>` : '';
     // A removed row has its line in the file as it was: a comment on it goes on the old side of the diff. A line of the file now tells VS Code its
     // number for the right-click entries of a look in the file tab (data-vscode-context, read by VS Code itself).
     return `<div class="l ${kinds}" data-row="${index}"${row.now ? ` data-line="${row.now}" data-vscode-context='{"webviewSection":"codeLine","line":${row.now}}'` : row.kind === 'del' ? ` data-old="${row.line}"` : ''}${thread ? ` data-thread="${thread}"` : ''}>`
       + `<span class="n">${icon}${row.num ?? row.line}</span><span class="g">${row.kind === 'add' ? '+' : row.kind === 'del' ? '−' : ''}</span>`
-      + `<span class="x" style="padding-left:${hang}ch;text-indent:-${hang}ch">${text}</span></div>`;
+      + `<span class="x" style="padding-left:${hang}ch;text-indent:-${hang}ch">${text}${bubble}</span></div>`;
   };
   const list = virtualRows(scroller, box, rows.length, rowHtml, (index) => (folded(index) ? FOLD_ROWS + 1 : fullRows(index)));
 
@@ -475,7 +476,7 @@ function codeWithNotes(holder, options) {
     get columns() { return columns; }, // the characters in one visual row
     span: (target) => spanOf(rows, target),
     place: () => {},
-    /** Sets a mark (lit, step, near, flash, nothing, cur: lines, a note with `removed`, or { any: [...] }; threads: by line) and draws the rows in view again. */
+    /** Sets a mark (lit, step, near, flash, nothing, cur: lines, a note with `removed`, or { any: [...] }; threads: by line; bubbles: the mark of comments by line) and draws the rows in view again. */
     mark(name, value) {
       marks[name] = Array.isArray(value) ? { lines: value } : value;
       list.refresh();

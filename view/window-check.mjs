@@ -718,7 +718,8 @@ try {
 
   // A second click on a changed file shows its open tab, and no second one; J in a file tab opens the next changed file in the same tab; the control lists every file.
   const pointerToTop = async () => { const crumb = await stage.locator('#crumb').boundingBox(); await page.mouse.move(crumb.x + 4, crumb.y + crumb.height / 2); await stage.waitForSelector('.win', { state: 'detached', timeout: 3000 }).catch(() => {}); };
-  const clickNightJobs = async () => { await pointerToTop(); await stage.locator('.f[data-file="src/library/night_jobs.py"]').click({ timeout: 8000 }); };
+  // As the name of a file in the list does: with no comments window (build 80) the page is wide enough for the two halves, where a click on a file in a node opens its diff.
+  const clickNightJobs = async () => { await pointerToTop(); await stage.evaluate(() => App.showCode('src/library/night_jobs.py', null)); };
   await clickNightJobs();
   const nightJobs = await fileTab('night_jobs.py');
   await nightJobs?.evaluate(() => Code.shown.steps.enter(-1)); // at its last change, which removes and adds lines
@@ -765,8 +766,6 @@ try {
   // The side bar closes first, so that the page has the width of the two halves.
   await command('View: Close Primary Side Bar');
   await changeTab.click();
-  const sideOpen = await stage.locator('#side [data-fold]').isVisible().catch(() => false);
-  if (sideOpen) { await stage.locator('#side [data-fold]').click(); await stage.waitForFunction(() => document.querySelector('#side')?.classList.contains('folded')); }
   const wide = await stage.evaluate(() => Split.wide() && !!document.querySelector('#view > .half.right'));
   if (wide) {
     await stage.locator('#view .dp').first().click();
@@ -788,7 +787,6 @@ try {
     await stage.locator('.codeswitch[data-half="code"]').click(); // "Hide code": the hover windows below belong to the diagram alone
     await stage.waitForFunction(() => !document.querySelector('#view > .half.right'));
   } else check('the window is wide enough for the two halves of the diagram page', false, 'no two halves');
-  if (sideOpen) { await stage.locator('#side .rail').click(); await stage.waitForFunction(() => !document.querySelector('#side')?.classList.contains('folded')); }
 
   // The real editor only on request: "Open" in the hover window of a file opens its diff editor; a folder name reveals the folder in the Explorer.
   await pointerToTop();
@@ -808,8 +806,7 @@ try {
   // ---- 5. Comments: the key, a run of the session, the input box of VS Code, a file tab, a new session and its terminal, a node ----
   const boxField = '.cbox [data-field="new"]';
   const fieldFocused = (frame = stage) => frame.waitForFunction((selector) => document.activeElement?.matches(selector), boxField, { timeout: 8000 }).then(() => true, () => false);
-  const isFolded = (frame = stage) => frame.$eval('#side', (el) => el.classList.contains('folded'));
-  const foldPanel = async (frame = stage) => { if (!(await isFolded(frame))) { await frame.locator('#side [data-fold]').click(); await frame.waitForFunction(() => document.querySelector('#side').classList.contains('folded')); } };
+  const closeCard = (frame = stage) => frame.locator('.cbox.card [data-close]').click({ timeout: 2000 }).catch(() => {});
   const cursorKnown = () => { const read = new Store(storeFolder); const state = read.appState(); read.close(); return JSON.stringify([state.file, state.lines]); };
   /** A click on a line of the diff editor. With `first`, the first click there: it waits until the extension has the place of the cursor, as a click in an editor also tells it that the pointer left the page. */
   const clickInEditor = async (first = false) => {
@@ -837,23 +834,34 @@ try {
     throw new Error('No line of the file in view.');
   });
   await clickInEditor(true);
-  const pointer = await pointAt(stage, 'b[data-part="hold-service"]');
+  await pointAt(stage, 'b[data-part="hold-service"]');
   await page.keyboard.press('Meta+Shift+Period');
   const icon = await stage.waitForFunction(() => /^url\("data:image\/svg\+xml/.test(getComputedStyle(document.querySelector('#view')).cursor), null, { timeout: 4000 }).then(() => true, () => false);
   const noBoxYet = (await stage.locator('.cbox').count()) === 0;
   await stage.locator('b[data-part="hold-service"]').first().click();
   const newCard = await fieldFocused();
-  const placed = newCard ? await stage.$eval('.cbox', (el) => ({ ...el.getBoundingClientRect().toJSON(), room: innerWidth })) : {};
-  // The key once more with the box open: VS Code passes each press on to the extension a moment later, and that copy must not take the keyboard out of the field.
-  if (newCard) { await page.keyboard.press('Meta+Shift+Period'); await page.keyboard.type('Why is the pickup day set before the mail is sent?', { delay: 8 }); await page.keyboard.press('Enter'); }
+  const placed = newCard ? await stage.evaluate(() => {
+    const [card, part] = [document.querySelector('.cbox.card'), document.querySelector('b[data-part="hold-service"]').closest('g.node')].map((el) => el.getBoundingClientRect());
+    return { left: card.left, beside: card.right <= part.left + 1 || card.left >= part.right - 1 || card.bottom <= part.top + 1 || card.top >= part.bottom - 1 };
+  }) : {};
+  // "No agent" in the picker keeps it as a note. The key once more with the box open: VS Code passes each press on to the extension a moment later, and that
+  // copy must not take the keyboard out of the field.
+  if (newCard) {
+    await stage.locator('.cbox.card .pick').click();
+    await stage.locator('.cbox.card .pi[data-choice="none"]').click();
+    await page.keyboard.press('Meta+Shift+Period');
+    await page.keyboard.type('Why is the pickup day set before the mail is sent?', { delay: 8 });
+    await page.keyboard.press('Enter');
+  }
   const onPart = await until(() => remarks().find((remark) => remark.target.kind === 'part' && remark.target.part === 'hold-service'));
-  const inWindow = await until(() => stage.locator('#side .thread[data-thread]', { hasText: 'Why is the pickup day set before the mail is sent?' }).count());
-  check('Cmd+Shift+. with the pointer on a part and the keyboard in a text editor turns the pointer into a comment icon with no box; a click sticks the box at the pointer with the keyboard in its field; the key once more leaves the keyboard there, so all the typed words are saved; Enter saves it as open and it shows in the comments window',
-    icon && noBoxYet && newCard && Math.abs(placed.left - Math.max(8, Math.min(pointer.x, placed.room - placed.width - 8))) <= 4 && Math.abs(placed.top - pointer.y) <= 4 && onPart?.state === 'open' && inWindow === 1,
-    `icon ${icon}; box ${Math.round(placed.left)},${Math.round(placed.top)} at ${Math.round(pointer.x)},${Math.round(pointer.y)}; stored ${onPart?.state}`);
+  const inCard = await until(() => stage.locator('.cbox.card .cth .msg.mine', { hasText: 'Why is the pickup day set before the mail is sent?' }).count());
+  const partMark = await until(() => stage.locator('b[data-part="hold-service"] .cb').count());
+  await closeCard();
+  check('Cmd+Shift+. with the pointer on a part and the keyboard in a text editor turns the pointer into a comment icon with no box; a click opens the card beside the part with the keyboard in its field; the key once more leaves the keyboard there, so all the typed words are saved; Enter with "No agent" saves it as open, the card stays on its thread, and the part has its mark',
+    icon && noBoxYet && newCard && placed.beside && onPart?.state === 'open' && inCard === 1 && partMark === 1,
+    `icon ${icon}; card ${JSON.stringify(placed)}; stored ${onPart?.state}; in the card ${inCard}; mark ${partMark}`);
 
   // A comment with "@cl" lights claude-current, named after its session; the saved comment starts a run in that session at once, and its answer shows as a reply.
-  await foldPanel();
   await pointAt(stage, 'b[data-part="routes"]');
   await page.keyboard.press('Meta+Shift+Period');
   await stage.locator('b[data-part="routes"]').first().click();
@@ -871,17 +879,16 @@ try {
     await page.keyboard.press('Tab');
     await page.keyboard.press('Enter');
   }
-  if (await isFolded()) await stage.locator('#side [data-unfold]').click();
-  const card = stage.locator('#side .thread[data-thread]', { hasText: 'Log the opening hours that the run used.' });
-  const answered = await shown(card.locator('.msg', { hasText: 'Answered by the stand-in.' }), 10000);
+  const card = stage.locator('.cbox.card', { hasText: 'Log the opening hours that the run used.' }); // the card stays open on its thread
+  const answered = await shown(card.locator('.msg.agent', { hasText: 'Answered by the stand-in.' }), 10000);
   const sent = remarks().find((remark) => remark.text.startsWith('Log the opening hours that the run used.'));
-  const who = answered ? await card.locator('.msg .who').last().textContent() : '';
+  const who = answered ? await card.locator('.msg.agent .who').last().textContent() : '';
   check('"@cl" lights claude-current, named after its session; Tab writes it, the saved comment starts a run in that session at once, and its answer shows as a reply of Claude Code without a click',
     option === 'claude-current' && does === `the session ${SESSION_NAME}` && sent?.to?.kind === 'current' && sent.text.endsWith('@claude-current') && answered && /^Claude Code/.test(who), `"${option}" (${does}); ${sent?.state}; ${who}`);
   await shot('4-answer-as-a-reply');
+  await closeCard();
 
   // The key on lines selected in a text editor asks in the input box of VS Code.
-  await foldPanel();
   await clickInEditor();
   await page.keyboard.press('Home');
   for (let i = 0; i < 3; i++) await page.keyboard.press('Shift+ArrowDown');
@@ -892,10 +899,11 @@ try {
   const linesShown = await until(() => stage.evaluate(() => App.page.remarks.some((remark) => remark.text === 'Is this loop covered by a test?')));
   check('the key on lines selected in a text editor asks in the input box of VS Code; Enter stores the comment for those lines and the page has it', inputBox && !!onLines && linesShown, onLines?.target.label ?? 'not stored');
 
-  // The file tab has the key too; a click on a card there shows the change page and lights the part of the comment.
+  // The file tab has the key too; the comment on lines from the input box has its mark at the end of its first line there, and a click on it opens its card.
+  // (Before build 80 a click on a card of the comments window in the tab showed the change page; a file tab has no top bar, so no list of the comments.)
   await tabOf('night_jobs.py').first().click();
   const tabFrame = await fileTab('night_jobs.py');
-  let tabBox = false, cardLit = false;
+  let tabBox = false, cardOfLines = '';
   if (tabFrame) {
     const line = await lineInView(tabFrame);
     await pointAt(tabFrame, line);
@@ -903,28 +911,27 @@ try {
     await tabFrame.locator(line).click();
     tabBox = await fieldFocused(tabFrame);
     await page.keyboard.press('Escape');
-    if (await isFolded(tabFrame)) await tabFrame.locator('#side [data-unfold]').click();
-    await tabFrame.locator('#side .thread[data-thread]', { hasText: 'Why is the pickup day set before the mail is sent?' }).locator('.tx').first().click();
-    cardLit = await stage.waitForFunction(() => !!document.querySelector('.paper .flash[data-rk="part:hold-service"]'), null, { timeout: 4000 }).then(() => true, () => false);
+    await tabFrame.evaluate(() => Code.reveal(App.page.remarks.find((remark) => remark.text === 'Is this loop covered by a test?').target));
+    await tabFrame.locator('.cv .code .l .cb[data-threads] svg').first().click({ timeout: 4000 }).catch(() => {}); // the mark takes no room in the line: its bubble is drawn beside
+    cardOfLines = await tabFrame.locator('.cbox.card .cth .msg.mine').first().textContent({ timeout: 3000 }).catch(() => '');
+    await closeCard(tabFrame);
   }
-  check('in a file tab the key and a click on a code line stick the comment box there; a click on a comment card there shows the change page and lights its part',
-    tabBox && cardLit && /^book-holds/.test(await activeTab() ?? ''), `box ${tabBox}; lit ${cardLit}; tab ${await activeTab()}`);
+  check('in a file tab the key and a click on a code line open the comment card there; the comment on lines from the input box has its mark there, which opens its card',
+    tabBox && cardOfLines === 'Is this loop covered by a test?', `box ${tabBox}; card "${cardOfLines}"`);
 
   // A comment to "@claude-new" in a file tab runs the stand-in claude, which answers; the session link then opens a terminal with "claude --resume <session>".
-  await foldPanel();
+  await changeTab.click();
   await pointerToTop();
   await stage.locator('.f[data-file="src/library/lending/hold_service.py"]').click();
   const big = await fileTab('hold_service.py');
   if (!big) throw new Error('No file tab of hold_service.py.');
   await big.locator('.cv .code').click({ position: { x: 200, y: 100 } }); // the keyboard into the new tab, as a person clicks
-  await foldPanel(big);
   const bigLine = await lineInView(big);
   await pointAt(big, bigLine);
   await page.keyboard.press('Meta+Shift+Period');
   await big.locator(bigLine).click();
   if (await fieldFocused(big)) { await page.keyboard.type('Check the index. @claude-n', { delay: 2 }); await page.keyboard.press('Tab'); await page.keyboard.press('Enter'); }
-  if (await isFolded(big)) await big.locator('#side [data-unfold]').click();
-  const runCard = big.locator('#side .thread[data-thread]', { hasText: 'Check the index.' });
+  const runCard = big.locator('.cbox.card', { hasText: 'Check the index.' }); // the card stays open on its thread
   const answeredRun = await shown(runCard.locator('.msg', { hasText: 'Answered by the stand-in.' }), 15000);
   const stored = await until(() => { const one = remarks().find((remark) => remark.text.startsWith('Check the index.')); return one?.run?.session && one; });
   await runCard.locator('[data-session]').click({ timeout: 5000 }).catch(() => {});
@@ -936,7 +943,6 @@ try {
 
   // A comment on a node of a part's diagram reaches the agent with the lines that say what the node is: the prompt is a contract that the agent reads.
   await changeTab.click();
-  await foldPanel();
   await stage.evaluate(() => App.go({ level: 'part', part: 'hold-service', diagram: 'offer-flow' }));
   const nodeSelector = 'g.node[data-rk="node:offer-flow:open"]';
   await stage.waitForSelector(nodeSelector);
@@ -945,7 +951,7 @@ try {
   await stage.locator(nodeSelector).click();
   let nodeWords = '';
   if (await fieldFocused()) {
-    nodeWords = await stage.locator('.cbox .where').textContent();
+    nodeWords = await stage.locator('.cbox .where').getAttribute('title'); // the head of the card shows the place short, its tooltip in full
     await page.keyboard.type('Explain this. @claude-n', { delay: 2 });
     await page.keyboard.press('Tab');
     await page.keyboard.press('Enter');

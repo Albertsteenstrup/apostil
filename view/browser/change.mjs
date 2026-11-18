@@ -460,7 +460,6 @@ try {
   await reveal([17, 17]);
   const earlier = await noteBeside('Read the test date from the settings', 17);
   await openTab('src/library/lending/hold_models.py');
-  if (await tab.isVisible('#side [data-fold]')) await tab.click('#side [data-fold]'); // the comments window lies over the notes
   await reveal([46, 46]);
   const ofMap = await noteBeside('Refuse an unknown branch', 46);
   check('a file tab shows the note of another saved change and a note of the map beside their lines, found by their text, with no colour of the diff; the first names the change it came from, the second says nothing of where it came from',

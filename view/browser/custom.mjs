@@ -117,8 +117,7 @@ try {
     const el = [...document.querySelectorAll('.mc')].find((mc) => mc.querySelector('.nt')?.textContent === 'Answer the request');
     return { parts: [...el.children].filter((part) => !part.classList.contains('mk-stack')).map((part) => part.className), shownBefore: !!el };
   });
-  // For the picture: the comments window folded, and the card in view.
-  await one.click('#side [data-fold]', { timeout: 3000 }).catch(() => {});
+  // For the picture: the card in view.
   await one.evaluate(() => App.showCode('src/library/lending/requests.py', [43, 43]));
   await one.waitForFunction(() => { const top = [...document.querySelectorAll('.mc')].find((mc) => mc.querySelector('.nt')?.textContent === 'Answer the request')?.getBoundingClientRect().top; return top > 0 && top < innerHeight - 100; }, null, { timeout: 5000 }).catch(() => {});
   await takePicture(one, '573-custom-note-card-fields.png');
@@ -367,29 +366,30 @@ try {
   const firstView = await two.evaluate(() => ({ view: App.state.view, order: [...document.querySelectorAll('.switch a:not([hidden])')].map((link) => `${link.textContent}${link.classList.contains('on') ? '*' : ''}`) }));
   check('"Diffs" opens first when a rule puts it first, and the switch shows it first', firstView.view === 'diffs' && firstView.order.join() === 'Diffs*,Conversation,Diagram', JSON.stringify(firstView));
 
-  // The comments window at the width of the rule, an answered thread in the colour of its state, and the open points in groups by file.
-  await two.evaluate(() => document.querySelector('#side .sh.shut [data-group="points"]')?.click());
+  // The list of the comments from the count in the top bar (the rule of the comments window applies to it) at the width of the rule, an answered thread
+  // in the colour of its state, and the open points in groups by file, still counted.
+  await two.click('[data-comments]');
+  await two.waitForSelector('.cml', { timeout: 3000 });
+  await two.click('.cml [data-show-points]');
   await two.evaluate(`window.contrastOf = (${contrastIn})()`);
   const side = await two.evaluate(() => {
     const contrast = window.contrastOf;
-    const cards = [...document.querySelectorAll('#side .thread[data-thread]')];
-    const answered = cards.find((card) => card.querySelector('.state')?.textContent.includes('answered'));
-    const other = cards.find((card) => card !== answered);
+    const rows = [...document.querySelectorAll('.cml .cmr[data-row]')];
+    const answered = rows.find((row) => row.querySelector('.state')?.textContent.includes('answered'));
+    const other = rows.find((row) => row !== answered);
     return {
-      width: document.getElementById('side').offsetWidth, answered: getComputedStyle(answered).backgroundColor, other: getComputedStyle(other).backgroundColor,
-      reads: contrast(getComputedStyle(answered).backgroundColor, getComputedStyle(answered.querySelector('.tx')).color),
-      groups: [...document.querySelectorAll('#side .pgroup')].map((group) => group.textContent), points: document.querySelector('#side [data-group="points"] .n')?.textContent,
+      width: document.querySelector('.cml').offsetWidth, answered: getComputedStyle(answered).backgroundColor, other: getComputedStyle(other).backgroundColor,
+      reads: contrast(getComputedStyle(answered).backgroundColor, getComputedStyle(answered.querySelector('.rx')).color),
+      groups: [...document.querySelectorAll('.cml .pgroup')].map((group) => group.textContent), points: document.querySelector('.cml [data-show-points]')?.textContent,
     };
   });
-  await two.evaluate(() => document.querySelector('#side .pgroup')?.scrollIntoView({ block: 'center' })); // for the picture: the open points in groups
-  await takePicture(two, '601-custom-comments-window.png');
-  check('the comments window has the width of the rule, an answered thread the colour of the rule with words that read, and the open points stand in groups by file, still counted',
-    side.width === 380 && side.answered !== side.other && side.reads >= 4.5 && side.groups.join() === 'none,src/library/lending/hold_service.py' && side.points === '5', JSON.stringify(side));
+  await takePicture(two, '601-custom-comments-list.png');
+  check('the list of the comments has the width of the rule of the comments window, an answered thread the colour of the rule with words that read, and the open points stand in groups by file, still counted',
+    side.width === 380 && side.answered !== side.other && side.reads >= 4.5 && side.groups.join() === 'none,src/library/lending/hold_service.py' && side.points === 'Open points 5', JSON.stringify(side));
 
   // The file tab: a note with a check in the colour of the rule, the lines to the code dashed, the first line of a function from the words of the rule.
   await two.goto(`file://${pageFile}?file=src/library/lending/hold_service.py&look=change`);
   await two.waitForSelector('.mc .nt', { timeout: 15000 });
-  await two.click('#side [data-fold]', { timeout: 3000 }).catch(() => {});
   await two.evaluate(() => App.showCode('src/library/lending/hold_service.py', [205, 205]));
   await two.waitForSelector('.mc.chk', { timeout: 5000 });
   const notes = await two.evaluate(() => {
@@ -431,16 +431,16 @@ try {
   await two.goto(`file://${pageFile}?go=${diagramView}`);
   await drawn(two);
   const plain = await two.evaluate(() => ({
-    looked: document.querySelectorAll('#view [class*="lk-"], #side [class*="lk-"], .mg, .lk-icon, .pgroup').length,
+    looked: document.querySelectorAll('#view [class*="lk-"], .mg, .lk-icon, .pgroup').length,
     row: document.querySelector('.sec[data-section="change"] .sh').textContent, order: [...document.querySelectorAll('.switch a')].map((link) => link.dataset.view).join(),
-    side: document.getElementById('side').offsetWidth, words: [...document.querySelectorAll('#view g.edgeLabel')].map((label) => label.textContent.trim()).filter(Boolean).length,
+    side: document.querySelectorAll('#side').length, words: [...document.querySelectorAll('#view g.edgeLabel')].map((label) => label.textContent.trim()).filter(Boolean).length,
     rows: document.querySelectorAll('.half.right .dfile').length,
   }));
   await two.goto(`file://${pageFile}?file=src/library/lending/hold_service.py`);
   await two.waitForSelector('.mc .nt', { timeout: 15000 });
   const plainFile = await two.evaluate(() => ({ looked: document.querySelectorAll('#view [class*="lk-"], .mg').length, map: !!document.querySelector('.cmap'), head: document.querySelector('.mc .fn')?.textContent }));
   check('with no look the page of a change and the file tab are drawn as before: no colour, icon or group of a look, every file in the list, the views in their order, the counts and the map',
-    plain.looked === 0 && /^Adds holds for books that are out48 files \+[\d,]+ −[\d,]+(checked|not checked yet)$/.test(plain.row) && plain.order === 'conversation,diagram,diffs' && plain.side === 320 && plain.words === 0
+    plain.looked === 0 && /^Adds holds for books that are out48 files \+[\d,]+ −[\d,]+(checked|not checked yet)$/.test(plain.row) && plain.order === 'conversation,diagram,diffs' && plain.side === 0 && plain.words === 0
       && plain.rows >= 30 && plainFile.looked === 0 && plainFile.map && plainFile.head === 'offer_returned_copies · 3 tests', JSON.stringify({ plain, plainFile }));
   await two.close();
 

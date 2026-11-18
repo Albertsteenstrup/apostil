@@ -9,7 +9,7 @@ export const POLL_SECONDS = 2;
 export function sentRemarks(store: Store, session: string | undefined, folder: string): Remark[] {
   const changes = store.allChanges().filter((change) => session && change.agent?.session === session);
   const wanted = changes.length > 0 ? changes : [ownChange(store, folder)].filter((change) => change !== undefined);
-  return wanted.flatMap((change) => store.remarks(change.id)).filter((remark) => remark.state === 'sent' && remark.to?.kind !== 'new'); // a new session gets its own run
+  return wanted.flatMap((change) => store.remarks(change.id)).filter((remark) => remark.state === 'sent' && (!remark.to || remark.to.kind === 'current')); // another session gets its own run
 }
 
 /** The change of the branch in a folder, or undefined when the folder is not a Git repo. */

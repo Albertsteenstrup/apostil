@@ -16,6 +16,7 @@ import { writePullRequest, type Write } from '../shared/write-pull-request';
 import type { AppState, RemarkTarget, RemarkTo, Store } from '../shared/store';
 import { startRun } from './agent-run';
 import { askRunOf, askView, startAsk } from './ask-run';
+import { connectedApps } from './new-repo-steps';
 import type { PullHead } from './pull-folder';
 import { appName, commentRuns, runModels, showRunProblem } from './run-settings';
 import { iconCss } from './state-icons';
@@ -45,8 +46,10 @@ export function openRemarkSession(store: Store, id: number, openFolder: string):
   const change = remark?.changeId === undefined ? undefined : store.getChange(remark.changeId);
   if (!remark) return;
   const app = remark.to?.app ?? change?.agent?.app;
-  // A new session has only the id that its run reported; the session of the change keeps what the change knows of it (the id in the desktop app).
-  const agent = remark.to?.kind === 'new' ? app && { app, session: remark.run?.session } : change?.agent && { ...change.agent, session: remark.run?.session ?? change.agent.session };
+  // A new session has only the id that its run reported, another known session its own id; the session of the change keeps what the change knows of it (the id in the desktop app).
+  const agent = remark.to?.kind === 'new' ? app && { app, session: remark.run?.session }
+    : remark.to?.kind === 'session' ? { app: remark.to.app, session: remark.run?.session ?? remark.to.session }
+      : change?.agent && { ...change.agent, session: remark.run?.session ?? change.agent.session };
   openAgentSession(agent || undefined, change?.folder ?? openFolder);
 }
 
@@ -102,6 +105,7 @@ type Message =
   | { type: 'target'; target: Target; diagram?: string }
   | { type: 'openSession'; id: number }
   | { type: 'connect' }
+  | { type: 'setUp' }
   | { type: 'walk'; from: Step; to: Step; open: boolean }
   | { type: 'back'; to: Step }
   | { type: 'move'; way: -1 | 1; from?: Step } // Cmd+Left and Cmd+Right: one step back or forward
@@ -120,7 +124,7 @@ type Message =
  */
 export type PullAnswer = { pull: PullRequestView; lastLooked?: string; lines?: PullLines; page?: PageData } | { problem: string };
 
-/** A comment or reply from the page. With `to` it is sent: to the session of the change, or to a new session of an app. */
+/** A comment or reply from the page. With `to` it is sent: to the session of the change, to a new session of an app, or to another known session. */
 export interface NewRemark {
   type: 'remark';
   target: RemarkTarget;
@@ -156,7 +160,7 @@ const MENTION_APPS: Record<string, string> = { claude: 'claude-code', codex: 'co
 /** Whom a comment typed into VS Code's input box goes to, from its first mention. */
 export function mentionIn(text: string): RemarkTo | undefined {
   const match = /(?:^|\s)@(claude|codex|antigravity|opencode)-(current|new)\b/.exec(text);
-  return match ? { app: MENTION_APPS[match[1]], kind: match[2] as RemarkTo['kind'] } : undefined;
+  return match ? { app: MENTION_APPS[match[1]], kind: match[2] as 'current' | 'new' } : undefined;
 }
 
 /** The tab with one change and the tabs of its files. Opening another change reuses the page and closes the file tabs. */
@@ -189,6 +193,11 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
     private apps: string[] = [], // the agent apps whose program is on the path
     private changeOfFolder: () => number | undefined = () => undefined, // for a file tab that VS Code opens by itself
   ) {}
+
+  /** The agent apps that are connected in the open folder: the picker of a card and "@" offer only these. */
+  private connected(): string[] {
+    return connectedApps(this.apps, this.openFolder());
+  }
 
   /** Puts the page into a webview and keeps it in the views. */
   private addView(panel: vscode.WebviewPanel, file?: string, start: { lines?: [number, number]; at?: ChangeAt } = {}, uri?: string): View {
@@ -249,7 +258,7 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
     this.showPanel();
     this.changeId = undefined;
     this.pullOnly = link;
-    this.page = pullOnlyPage(this.openFolder(), placeholderPull(link, number), this.apps);
+    this.page = pullOnlyPage(this.openFolder(), placeholderPull(link, number), this.connected());
     this.page.look = lookOfPage(this.store, this.page); // the look of the repo for the parts of the pull request (build 61)
     this.panel!.title = `#${number}`;
     for (const view of this.views) this.post(view, this.dataFor(view));
@@ -272,7 +281,7 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
     if (this.changeId === undefined && !this.pullOnly) {
       this.changeId = this.changeOfFolder();
       // With no change on the branch, the tab shows the code as it is, with the notes of the other changes of the repo beside it.
-      this.page = this.changeId !== undefined ? pageData(this.store, this.changeId, this.openFolder(), this.apps) : filePage(this.openFolder());
+      this.page = this.changeId !== undefined ? pageData(this.store, this.changeId, this.openFolder(), this.connected(), runModels()) : filePage(this.openFolder());
       if (this.page) this.page.look = lookOfPage(this.store, this.page, lookAddress(panel.webview));
     }
     const folder = this.page?.folder ?? this.openFolder();
@@ -433,7 +442,7 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
       if (this.pullOnly !== link || !this.page?.pullOnly) return;
       if (problem) this.page.pullOnly = { ...this.page.pullOnly, fetching: false, fetchProblem: problem };
       else {
-        this.page = pullOnlyPage(this.openFolder(), pull, this.apps);
+        this.page = pullOnlyPage(this.openFolder(), pull, this.connected());
         this.page.look = lookOfPage(this.store, this.page);
       }
       for (const view of this.views) this.post(view, this.dataFor(view));
@@ -458,7 +467,7 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
     await inlinePictures(pull, ghPictures());
     const lastLooked = this.store.lastLooked(pull.repo, pull.number);
     const pullOnly = this.pullOnly === link;
-    if (pullOnly) this.page = pullOnlyPage(this.openFolder(), pull, this.apps);
+    if (pullOnly) this.page = pullOnlyPage(this.openFolder(), pull, this.connected());
     if (pullOnly && this.page) this.page.look = lookOfPage(this.store, this.page);
     if (pullOnly && this.page?.pullOnly?.remote && !this.fetched.has(link)) this.fetchCommits(link, pull);
     const read: PullAnswer = { pull, lastLooked, lines: this.page && pullLines(this.page, pull), ...(pullOnly ? { page: this.page } : {}) };
@@ -502,7 +511,7 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
     reopenStaleRuns(this.store, this.changeId);
     // The signature is taken first: reading the page takes a moment, and an answer that lands in that moment must still cause the next load.
     this.signature = this.signatureNow();
-    this.page = pageData(this.store, this.changeId, this.openFolder(), this.apps);
+    this.page = pageData(this.store, this.changeId, this.openFolder(), this.connected(), runModels());
     if (!this.page) return;
     this.page.look = lookOfPage(this.store, this.page, lookAddress(this.panel?.webview ?? [...this.views][0]?.panel.webview));
     if (this.panel) this.panel.title = this.page.branch;
@@ -561,6 +570,7 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
     if (message.to) this.store.sendRemark(id, message.to);
     const agent = this.store.getChange(changeId)?.agent;
     if (message.to?.kind === 'new') this.run(id, message.to.app);
+    else if (message.to?.kind === 'session') this.run(id); // another session that Apostil knows: a run continues it in the folder of the change
     else if (message.to && agent && !isListening(this.store, agent) && resumeCommand(agent, '')) this.run(id);
     if (message.point) this.store.markOpenPointUsed(message.point);
     this.reload();
@@ -626,6 +636,9 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
         break;
       case 'connect':
         await vscode.commands.executeCommand('apostil.connectClaudeCode', this.page?.folder);
+        break;
+      case 'setUp': // the line of the picker when no agent app is connected
+        await vscode.commands.executeCommand('apostil.setUp', this.page?.folder);
         break;
       case 'walk':
         this.trail?.walk(message.from, message.to, message.open);

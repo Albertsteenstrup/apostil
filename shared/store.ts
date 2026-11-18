@@ -70,9 +70,10 @@ export type NewOpenPoint = Omit<OpenPoint, 'id' | 'changeId' | 'used' | 'part' |
  * part, file, lines, note, open-point: as the names say. more-files: the line "5 more files" of a part (no part: of the files in no part).
  * no-part: the box of the files in no part. diagram: a diagram as a whole (no `diagram`: the diagram of the change).
  * node: a node, a participant or a state of a diagram. edge: an arrow, a message or a transition. test: a test in the window of tests.
+ * message: a message of a pull request.
  */
 export interface RemarkTarget {
-  kind: 'part' | 'file' | 'lines' | 'note' | 'open-point' | 'more-files' | 'no-part' | 'diagram' | 'node' | 'edge' | 'test';
+  kind: 'part' | 'file' | 'lines' | 'note' | 'open-point' | 'more-files' | 'no-part' | 'diagram' | 'node' | 'edge' | 'test' | 'message';
   part?: string;
   file?: string;
   lines?: [number, number];
@@ -84,6 +85,17 @@ export interface RemarkTarget {
   removed?: boolean; // for a note or code lines: on removed lines, counted in the file as it was
   view?: 'diffs'; // where the owner stuck it, when it is not where its kind shows: a file on the Diffs page
   kept?: Kept; // what the thing was when the comment was saved: its ids can name another thing, or none, when the map or the change is written again
+  message?: PullMessage; // a message of a pull request: what an agent gets with a comment on it
+}
+
+/** A message of a pull request that a comment is on: a comment, a review, or a comment in a thread on code (`thread`). */
+export interface PullMessage {
+  pull: number;
+  id: string;
+  url: string;
+  author: string;
+  words: string; // its words in one short line
+  thread?: string; // the thread on code that it stands in
 }
 
 /** The title, the diagram, the file and the lines of a thing, as they were when a comment was put on it. */
@@ -115,10 +127,12 @@ export interface Remark {
   changed?: string[]; // the files that the run that Apostil started for it changed, by Git before and after the run; missing when it changed none
 }
 
-/** Whom a remark was sent to: the session of an app that made the change ("current"), or a new session of an app. */
+/** Whom a remark was sent to: the session of an app that made the change ("current"), a new session of an app, or another session that Apostil knows in the repo. */
 export interface RemarkTo {
   app: string;
-  kind: 'current' | 'new';
+  kind: 'current' | 'new' | 'session';
+  session?: string; // kind "session": the session that a run continues
+  name?: string; // kind "session": its name, as the picker showed it
 }
 
 /** What the owner has open and selected in the app right now. */
@@ -676,14 +690,22 @@ export class Store {
     const remarks = (this.db.prepare(`select r.run_json, r.to_json, c.agent_json, c.folder from remark r left join change c on c.id = r.change_id
       where coalesce(r.repo_id, c.repo_id) = ? and r.run_json is not null`).all(repoId) as Row[])
       .map((row) => ({ run: JSON.parse(row.run_json) as NonNullable<Remark['run']>, to: row.to_json ? JSON.parse(row.to_json) as RemarkTo : undefined, agent: row.agent_json ? JSON.parse(row.agent_json) as AgentSession : undefined, folder: row.folder as string | null }))
-      .filter(({ run, to, agent }) => run.session && (to?.kind === 'new' || agent))
-      // A run that continued the session of the change keeps what the change knows of it (the id in the desktop app); a new session has only its id.
-      .map(({ run, to, agent, folder: own }): KnownSession => ({ agent: to?.kind === 'new' ? { app: to.app, session: run.session } : { ...agent!, session: run.session }, at: run.startedAt, folder: own ?? folder }));
+      .filter(({ run, to, agent }) => run.session && (to?.kind === 'new' || to?.kind === 'session' || agent))
+      // A run that continued the session of the change keeps what the change knows of it (the id in the desktop app); a new session, or another known one, has only its id.
+      .map(({ run, to, agent, folder: own }): KnownSession => ({ agent: to?.kind === 'new' || to?.kind === 'session' ? { app: to.app, session: run.session, ...(to.name ? { name: to.name } : {}) } : { ...agent!, session: run.session }, at: run.startedAt, folder: own ?? folder }));
     const map = this.mapRun(repoId);
     const maps = map?.agent?.session ? [{ agent: map.agent, at: map.savedAt ?? map.startedAt, folder }] : [];
     // A run of words that failed may have no session behind its id (a new Claude Code session gets its id before it starts): it is left out.
     const asks = this.askRuns(repoId).filter(({ run }) => run.agent.session && !run.problem).map(({ run }): KnownSession => ({ agent: run.agent, at: run.startedAt, folder: run.folder }));
     return [...changes, ...remarks, ...maps, ...asks];
+  }
+
+  /**
+   * Where the newest comment of a repo went: the picker of a card starts there. Undefined when the repo has no comment yet; null when it went to no agent.
+   */
+  lastRemarkTo(repoId: string): RemarkTo | null | undefined {
+    const row = this.db.prepare(`select r.to_json from remark r left join change c on c.id = r.change_id where coalesce(r.repo_id, c.repo_id) = ? order by r.id desc limit 1`).get(repoId) as Row | undefined;
+    return row ? (row.to_json ? JSON.parse(row.to_json) as RemarkTo : null) : undefined;
   }
 
   // ----- the runs of words for an agent (shared/ask.ts) -----

@@ -47,6 +47,7 @@ const Places = (() => {
         return `Note "${note?.title ?? ''}", ${target.file}, ${target.removed ? 'removed ' : ''}${whereText(note ?? target)}`;
       }
       case 'test': return `Test ${target.name}, ${baseName(target.file)}`;
+      case 'message': return `Message of ${target.message?.author ?? '?'}`;
       default: return `${target.file}, ${linesText(target.lines)}`;
     }
   }
@@ -70,6 +71,7 @@ const Places = (() => {
     if (kind === 'edge') return `edge:${diagram}:${target.edge.join('>')}:${target.name ?? ''}`;
     if (kind === 'note') return `note:${file}:${target.removed ? 'removed:' : ''}${target.lines[0]}`;
     if (kind === 'test') return `test:${file}:${target.name}`;
+    if (kind === 'message') return `message:${target.message?.id ?? ''}`;
     return '';
   }
 
@@ -108,8 +110,9 @@ const Places = (() => {
     return { kind: 'diagram' };
   }
 
-  /** The view that shows a target: "code" for code lines, notes and tests, "diffs", or a move for App.go. On Home: the diagram of the map. */
+  /** The view that shows a target: "code" for code lines, notes and tests, "diffs", "conversation" for a message of a pull request, or a move for App.go. On Home: the diagram of the map. */
   function viewOf(target) {
+    if (target.kind === 'message') return 'conversation';
     if (page().map) return { diagram: target.diagram };
     if (['lines', 'note', 'open-point', 'test'].includes(target.kind)) return 'code';
     if (target.view === 'diffs') return 'diffs';

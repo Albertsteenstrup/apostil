@@ -16,7 +16,6 @@ async function notesPage(url) {
   one.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
   await one.goto(url);
   await one.waitForFunction(() => (window.apostilRendered ?? 0) >= 1, null, { timeout: 15000 });
-  await (await one.$('#side [data-fold]'))?.click(); // a file tab with notes starts with it folded
   return one;
 }
 

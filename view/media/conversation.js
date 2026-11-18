@@ -425,7 +425,7 @@ const Conversation = (() => {
     if (item.kind === 'reply') {
       const { comment, thread } = item;
       const { box, shows } = messageLook(item, comment.author);
-      const body = `<div class="msg${box.cls}"${box.style}>${shows('avatar') ? avatar(comment.author) : gap}<div class="body"><div class="top">${shows('name') ? name(comment.author) : ''}${edited(comment.edited)}`
+      const body = `<div class="msg${box.cls}"${box.style} data-msg="${esc(comment.id)}">${shows('avatar') ? avatar(comment.author) : gap}<div class="body"><div class="top">${shows('name') ? name(comment.author) : ''}${edited(comment.edited)}`
         + `<span class="t">answered on ${esc(baseName(thread.path))} ${esc(linesWord(thread))}</span>${shows('time') ? timeAgo(comment.at) : ''}</div>${shows('text') ? textHtml(commentText(comment, thread, pull, false)) : ''}${shows('reactions') ? chips(comment.reactions) : ''}</div></div>`;
       return comment.hidden ? hiddenBox(comment, body) : body;
     }
@@ -441,7 +441,7 @@ const Conversation = (() => {
     const bubble = (inner) => (mine && inner ? `<div class="bub">${inner}</div>` : inner);
     if (item.kind === 'review') {
       const [i, look, verdict] = VERDICTS[item.state] ?? VERDICTS.reviewed;
-      const body = `<div class="msg${mine ? ' mine' : ''}${box.cls}"${box.style}>${mine ? '' : shows('avatar') ? avatar(item.author) : gap}<div class="body"><div class="top">${who}${marksOf(item)}${shows('time') ? timeAgo(item.at) : ''}</div>`
+      const body = `<div class="msg${mine ? ' mine' : ''}${box.cls}"${box.style} data-msg="${esc(item.id)}">${mine ? '' : shows('avatar') ? avatar(item.author) : gap}<div class="body"><div class="top">${who}${marksOf(item)}${shows('time') ? timeAgo(item.at) : ''}</div>`
         + `<div class="card review ${look}"><div class="verdict ${look}">${ico(i, look)}${esc(verdict)}</div>${words}${reactions}${item.threads.map((thread) => threadHtml(thread, pull)).join('')}</div></div></div>`;
       return item.hidden ? hiddenBox(item, body) : body;
     }
@@ -450,7 +450,7 @@ const Conversation = (() => {
     const marks = `${marksOf(item)}${times}`;
     const head = same ? (marks ? `<div class="top">${marks}</div>` : '') : `<div class="top">${who}${marks}${shows('time') ? timeAgo(item.at) : ''}</div>`;
     const left = mine ? '' : same ? '<span class="gut"></span>' : shows('avatar') ? avatar(item.author) : gap;
-    const body = `<div class="msg${same ? ' same' : ''}${mine ? ' mine' : ''}${box.cls}"${box.style}${same ? exactTip(item.at) : ''}>${left}<div class="body">${head}`
+    const body = `<div class="msg${same ? ' same' : ''}${mine ? ' mine' : ''}${box.cls}"${box.style} data-msg="${esc(item.id)}"${same ? exactTip(item.at) : ''}>${left}<div class="body">${head}`
       + `${bubble(words)}${reactions}</div></div>`;
     return item.hidden ? hiddenBox(item, body) : body;
   }
@@ -970,6 +970,7 @@ const Conversation = (() => {
     example: 'example',
     // The comment box on code: the choice "@github", and why it is not offered.
     github: (number) => `a comment on pull request #${number}`,
+    githubThread: 'an answer in its thread on GitHub',
     githubHint: (number) => `Type @github to post it on pull request #${number}.`,
     intoReview: 'This goes into your review that is not sent yet.',
     notAtHead: 'The branch here is not at the commit of the pull request. Pull or push first.',
@@ -1588,13 +1589,31 @@ const Conversation = (() => {
       .then((result) => { if (result.ok && !vscodeApi) App.reread(); return result; });
   }
 
-  /** Cmd+Shift+. in "Conversation": the cursor goes to the end of the comment field, at the bottom of the window, which comes into view. */
-  function focusComment() {
-    const field = document.querySelector('.ghend textarea');
-    if (!field) return;
-    field.focus({ preventScroll: true });
-    field.setSelectionRange(field.value.length, field.value.length);
-    showWindow();
+  // ----- a comment on a message of the conversation (the card of remarks.js): the choice "The pull request on GitHub" -----
+
+  /** The thread on code that a message stands in, when he may answer there; undefined for a message of the conversation itself. */
+  const messageThread = (pull, target) => (target.message?.thread ? threadById(pull, target.message.thread) : undefined);
+
+  /** The choice "@github" for a comment on a message: an answer in its thread on code, else a comment on the pull request. Null when GitHub takes neither. */
+  function messageChoice(target) {
+    const pull = shownRead()?.pull;
+    if (!pull?.open || !pull.id || pull.locked || target?.kind !== 'message') return null;
+    const thread = messageThread(pull, target);
+    if (target.message.thread && !thread?.canReply) return null;
+    return { app: 'github', kind: 'pull', name: 'github', does: thread ? WRITE.githubThread : WRITE.github(pull.number) };
+  }
+
+  /**
+   * Sends a comment on a message to the pull request, as its own fields send: an answer in its thread on code, or a comment at the end that quotes
+   * the message. It shows at once and GitHub answers in the background; a failure gives the words back to that field with GitHub's sentence.
+   */
+  function sendOnMessage(target, body) {
+    const pull = shownRead()?.pull;
+    if (!messageChoice(target)) return Promise.resolve({ problem: 'GitHub does not take a comment here.' });
+    const thread = messageThread(pull, target);
+    if (thread) sendReply({ kind: 'reply', threadId: thread.id, body }, `reply:${thread.id}`);
+    else sendComment({ kind: 'comment', pullId: pull.id, body: `> @${target.message.author}: ${target.message.words}\n\n${body}` }, `comment:${pull.id}`);
+    return Promise.resolve({ ok: true });
   }
 
   // Typing keeps the text; Cmd+Enter sends; a click on a button sends; Resolve and Review take a click, or Enter on the keyboard.
@@ -1875,5 +1894,5 @@ const Conversation = (() => {
     picture.outerHTML = `<a class="nopic" data-link="${esc(picture.src)}">Picture: ${esc(picture.alt || 'a picture')}</a>`;
   }, true);
 
-  return { draw, refresh, writing, writesStarted, stripHtml, bindStrip, icon, problemHtml, ago, entriesOf, checksLine, codeLine, githubChoice, sendCode, focusComment, WRITE };
+  return { draw, refresh, writing, writesStarted, stripHtml, bindStrip, icon, problemHtml, ago, entriesOf, checksLine, codeLine, githubChoice, sendCode, messageChoice, sendOnMessage, WRITE };
 })();
