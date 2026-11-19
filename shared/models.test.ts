@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { mapPrompt } from '../view/agent-run';
 import { newRunCommand, resumeCommand, WRITER_AGENT } from './agents';
-import { catalogOf, claudeCatalog, codexCatalog, menuOf, nearestEffort, secondSmallest, sessionPick, smallest, teamFrom, teamOf, teamRun, teamSentence } from './models';
+import { antigravityCatalog, catalogOf, claudeCatalog, codexCatalog, menuOf, nearestEffort, secondSmallest, sessionPick, smallest, teamFrom, teamOf, teamRun, teamSentence } from './models';
 import { madeUpAgentHome, tempFolder } from './test-repo';
 
 const ids = (catalog: { models: { id: string }[] }): string[] => catalog.models.map((model) => model.id);
@@ -36,11 +36,21 @@ test('the newest models of each app in the order of size, read only from its own
   const noTerra = codexCatalog(lean, JSON.stringify({ models: [{ slug: 'gpt-6-sol', visibility: 'list' }, { slug: 'gpt-6-luna', visibility: 'list' }] }));
   assert.deepEqual([smallest('codex', noTerra)?.id, secondSmallest('codex', noTerra)?.id], ['gpt-6-luna', 'gpt-6-sol']);
 
-  // With no catalog: Claude Code the four aliases with their family names and low to max, not read; Codex its small model only.
+  // With no catalog: Claude Code the four aliases with their family names and low to max, not read; Codex its small model only; Antigravity Hydrogen only.
   const empty = tempFolder('apostil-agents-');
   const fallback = claudeCatalog(empty);
   assert.deepEqual([fallback.read, fallback.models.map((one) => `${one.id} ${one.name}`).join(', '), fallback.models[0].efforts.join()], [false, 'haiku Haiku, sonnet Sonnet, opus Opus, fable Fable', 'low,medium,high,xhigh,max']);
   assert.deepEqual(ids(codexCatalog(empty, undefined)), ['gpt-6-luna']);
+  const agy = antigravityCatalog(home, undefined);
+  assert.deepEqual(agy.models.map((one) => `${one.id} ${one.name} ${one.efforts.join(',')}`), [
+    'gemini-4-hydrogen Gemini 4 Hydrogen low,medium,high,xhigh',
+    'gemini-4-argon Gemini 4 Argon low,medium,high',
+    'gemini-4-neon Gemini 4 Neon low,medium,high,xhigh',
+  ]);
+  assert.deepEqual([agy.ids['gemini-4-hydrogen-high'], agy.names['gemini-4-hydrogen-high']], ['gemini-4-hydrogen', 'Gemini 4 Hydrogen']);
+  const agySpinner = antigravityCatalog(empty, '\r⠋ Fetching...\rgemini-4-hydrogen-medium\tGemini 4 Hydrogen (Medium)\ngemini-4-neon-high  Gemini 4 Neon (High)\n');
+  assert.deepEqual([agySpinner.read, ids(agySpinner), agySpinner.models[0].efforts], [true, ['gemini-4-hydrogen', 'gemini-4-neon'], ['medium']]);
+  assert.deepEqual([antigravityCatalog(empty, undefined).read, ids(antigravityCatalog(empty, undefined))], [false, ['gemini-4-hydrogen']]);
   assert.equal(catalogOf('opencode', empty), undefined); // OpenCode keeps its own models
 });
 
@@ -72,6 +82,15 @@ test('a map run is led by the second smallest model at the most effort and every
   const codexMap = newRunCommand('codex', mapPrompt(false, codex), { codexModel: 'gpt-6-luna', diagrams: true, ...teamRun(codex) })!;
   assert.deepEqual(codexMap.slice(-8), ['-c', 'agents.max_threads=16', '-c', 'agents.max_concurrent_threads_per_session=16', '-c', 'model="gpt-6.1-terra"', '-c', 'model_reasoning_effort="max"']); // 16 writers at once, for this run alone
   assert.match(codexMap[2], /Start every writer and checker subagent on Luna 6 at max effort: start each one with spawn_agent, with model "gpt-6-luna" and reasoning_effort "max"\./);
+  // Antigravity: Gemini 4 Hydrogen leads and writes at xhigh; writers inherit the model via invoke_subagent, or use swarm when lead/effort differs.
+  const agy = teamOf('antigravity', home);
+  assert.deepEqual([agy.lead, agy.writer, agy.effort], ['gemini-4-hydrogen', 'gemini-4-hydrogen', 'xhigh']);
+  const agyMap = newRunCommand('antigravity', mapPrompt(false, agy), { antigravityModel: 'gemini-4-hydrogen', diagrams: true, ...teamRun(agy) })!;
+  assert.deepEqual(agyMap.slice(agyMap.indexOf('--model'), agyMap.indexOf('--model') + 4), ['--model', 'gemini-4-hydrogen', '--effort', 'xhigh']);
+  assert.match(agyMap[2], /You lead on Gemini 4 Hydrogen at xhigh effort:.*Start every writer and checker subagent on Gemini 4 Hydrogen at xhigh effort: start each one with invoke_subagent, with TypeName "self" and Model "inherit"\./);
+  const agyNeon = teamFrom('antigravity', { app: 'antigravity', lead: 'gemini-4-neon', effort: 'high' }, home);
+  assert.deepEqual(teamRun(agyNeon), { model: 'gemini-4-neon', effort: 'high', writers: { model: 'gemini-4-hydrogen', effort: 'xhigh' }, opencodeModel: undefined });
+  assert.match(teamSentence(agyNeon, WRITER_AGENT), /start each one with swarm, action "add" and model "gemini-4-hydrogen-xhigh"\./);
   // OpenCode keeps its own model and small model: no model, and the words of the skill.
   const opencode = teamOf('opencode', home);
   assert.deepEqual([newRunCommand('opencode', 'Map', Object.assign({ opencodeModel: 'made-up/small', diagrams: true as const }, teamRun(opencode)))?.slice(-2), teamSentence(opencode, WRITER_AGENT)], [['--format', 'json'], '']);

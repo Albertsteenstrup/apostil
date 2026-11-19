@@ -97,12 +97,27 @@ const claudeRights = ({ claudeMode, commentRuns, describe, diagrams }: RunOption
   ...(describe ? ['--disallowedTools', 'Edit', 'NotebookEdit'] : commentRuns === 'read only' ? ['--disallowedTools', 'Edit', 'Write', 'NotebookEdit'] : []),
 ];
 
+/** The commands that an Antigravity run that draws diagrams uses to read the repo, in the syntax of agy's permissions.allow. */
+const AGY_READ_COMMANDS = ['git log', 'git show', 'git diff', 'git ls-files', 'git grep', 'git blame', 'git status', 'ls', 'gh pr view', 'gh pr diff']
+  .flatMap((command) => [`command(${command} *)`, `command(${command})`]);
+
 /**
- * The small model of each app, the default of the settings apostil.claudeModel and apostil.codexModel: every new session of a comment takes it unless the
- * person chose another in the picker. A comment run that continues a session gives no model unless he chose one: the session keeps the model that it has.
- * Codex knows its small model by its full name only (its model list has no "luna" alone).
+ * What an Antigravity run may do in headless print mode: save with apostil, write files unless a comment run is "read only", and read the repo
+ * when it draws diagrams. Passed via --settings so the person's own settings.json is never written.
  */
-export const SMALL_MODELS: Record<string, string> = { 'claude-code': 'haiku', codex: 'gpt-6-luna' };
+function agyRights({ commentRuns, describe, diagrams }: RunOptions): string[] {
+  const readOnly = commentRuns === 'read only';
+  const allow = [...(readOnly ? [] : ['write_file(*)']), 'command(apostil *)', 'command(apostil)', ...(describe || diagrams ? AGY_READ_COMMANDS : [])];
+  const permissions = { allow, ...(readOnly ? { deny: ['write_file(*)'] } : {}) };
+  return ['--mode', 'accept-edits', '--settings', JSON.stringify({ permissions })];
+}
+
+/**
+ * The small model of each app, the default of the settings apostil.claudeModel, apostil.codexModel and apostil.antigravityModel: every new session of a
+ * comment takes it unless the person chose another in the picker. A comment run that continues a session gives no model unless he chose one: the session
+ * keeps the model that it has. Codex knows its small model by its full name only (its model list has no "luna" alone).
+ */
+export const SMALL_MODELS: Record<string, string> = { 'claude-code': 'haiku', codex: 'gpt-6-luna', antigravity: 'gemini-4-hydrogen' };
 
 /** A run that draws diagrams: the map of a repo, or the description of a change (whose skill draws the diagrams of the change). */
 const drawsDiagrams = (options: RunOptions): boolean => !!(options.diagrams || options.describe);
@@ -112,10 +127,13 @@ export const runEffort = (options: RunOptions): string => options.effort ?? (dra
 
 /** The model of a run: the one that the person chose (shared/models.ts), else the setting of the app; none: the app takes the model of its own settings. */
 const modelOf = (app: string, options: RunOptions): string | undefined =>
-  options.model ?? (app === 'claude-code' ? options.claudeModel : app === 'codex' ? options.codexModel : app === 'opencode' ? options.opencodeModel : undefined);
+  options.model ?? (app === 'claude-code' ? options.claudeModel : app === 'codex' ? options.codexModel : app === 'antigravity' ? options.antigravityModel : app === 'opencode' ? options.opencodeModel : undefined);
+
+const AGY_EFFORT_SUFFIX = /-(low|medium|high|xhigh|max)$/;
 
 /**
- * The words that choose the model and the reasoning effort of a run, the one place that makes them: `--model` and `--effort` for Claude Code; `-c model=` and
+ * The words that choose the model and the reasoning effort of a run, the one place that makes them: `--model` and `--effort` for Claude Code and
+ * Antigravity (an Antigravity model slug that already ends with an effort takes no `--effort`, which would conflict); `-c model=` and
  * `-c model_reasoning_effort=` for Codex (as it reads its config.toml); for OpenCode `--model provider/model#variant`, where the variant is the effort and
  * needs a model (a model that the person set with a variant keeps it). `withModel` false sets the effort only, so that a session that a run continues keeps
  * its model. With no model, the app takes the model of its own settings.
@@ -125,6 +143,7 @@ export function modelWords(app: string, options: RunOptions, withModel = true): 
   const effort = runEffort(options);
   if (app === 'claude-code') return [...(model ? ['--model', model] : []), '--effort', effort];
   if (app === 'codex') return [...(model ? ['-c', `model=${JSON.stringify(model)}`] : []), '-c', `model_reasoning_effort=${JSON.stringify(effort)}`];
+  if (app === 'antigravity') return model && AGY_EFFORT_SUFFIX.test(model) ? ['--model', model] : [...(model ? ['--model', model] : []), '--effort', effort];
   if (app === 'opencode' && model) return ['--model', model.includes('#') ? model : `${model}#${effort}`];
   return [];
 }
@@ -208,21 +227,22 @@ export interface RunOptions {
   writers?: { model?: string; effort?: string }; // a map or description run: the model and effort of its writer subagents
   claudeModel?: string; // the model of a Claude Code run (setting apostil.claudeModel, "haiku" by default); empty: Claude Code takes the model of its own settings
   codexModel?: string; // the model of a Codex run (setting apostil.codexModel, "gpt-6-luna" by default); empty: Codex takes the model of its own settings
+  antigravityModel?: string; // the model of an Antigravity run (setting apostil.antigravityModel, "gemini-4-hydrogen" by default); empty: Antigravity takes its own
   opencodeModel?: string; // the small model that the person set for OpenCode (opencodeSmallModel); none: OpenCode keeps its own
   claudeMode?: string; // the default permission mode of the person for Claude Code (claudeDefaultMode)
   codexSandbox?: string; // the sandbox of the person for Codex (codexDefaultSandbox)
-  commentRuns?: string; // set for a run that a comment starts: "read and edit" or "read only" (Claude Code); Codex keeps its sandbox
+  commentRuns?: string; // set for a run that a comment starts: "read and edit" or "read only" (Claude Code and Antigravity); Codex keeps its sandbox
   describe?: true; // a run that describes a change (words for an agent): what the skill apostil-describe-change runs, and no Edit; it draws diagrams
   diagrams?: true; // a run that writes the map of a repo: it reads the repo, with the most reasoning effort
   sessionId?: string; // a new Claude Code session takes this id, so that its link is known before the run ends
 }
 
 /** The models of the runs, as the owner set them in VS Code. */
-export interface RunModels { claude?: string; codex?: string }
+export interface RunModels { claude?: string; codex?: string; antigravity?: string }
 
 /** The options of a run in a folder: the store, the models, and the modes that the person set as default for Claude Code and Codex. */
 export const runOptions = (folder: string, store: string, models: RunModels = {}): RunOptions => ({
-  store, claudeModel: models.claude, codexModel: models.codex, opencodeModel: opencodeSmallModel(folder), claudeMode: claudeDefaultMode(folder), codexSandbox: codexDefaultSandbox(),
+  store, claudeModel: models.claude, codexModel: models.codex, antigravityModel: models.antigravity, opencodeModel: opencodeSmallModel(folder), claudeMode: claudeDefaultMode(folder), codexSandbox: codexDefaultSandbox(),
 });
 
 /**
@@ -245,7 +265,7 @@ export function resumeCommand(agent: AgentSession, prompt: string, options: RunO
   const withModel = drawsDiagrams(options) || !!options.model;
   if (agent.app === 'claude-code') return ['claude', '-p', '--resume', session, prompt, '--output-format', 'json', ...modelWords(agent.app, options, withModel), ...writerAgents(options), ...claudeRights(options)];
   if (agent.app === 'codex') return ['codex', 'exec', 'resume', session, prompt, '--json', ...codexWords(options, withModel)];
-  if (agent.app === 'antigravity') return ['agy', '-p', prompt, '--conversation', session];
+  if (agent.app === 'antigravity') return ['agy', '-p', prompt, '--conversation', session, '--output-format', 'json', ...modelWords(agent.app, options, withModel), ...agyRights(options)];
   if (agent.app === 'opencode') return ['opencode', 'run', '--session', session, prompt, '--format', 'json', ...modelWords(agent.app, options, withModel)];
   return undefined;
 }
@@ -254,6 +274,7 @@ export function resumeCommand(agent: AgentSession, prompt: string, options: RunO
 export function openSessionCommand(app: string, session: string): string[] | undefined {
   if (app === 'claude-code') return ['claude', '--resume', session];
   if (app === 'codex') return ['codex', 'resume', session];
+  if (app === 'antigravity') return ['agy', '--conversation', session];
   if (app === 'opencode') return ['opencode', '--session', session];
   return undefined;
 }
@@ -270,6 +291,7 @@ export const APP_NAMES: Record<string, string> = { 'claude-code': 'Claude Code',
 export const SIGN_IN: Record<string, { command: string; say: string }> = {
   'claude-code': { command: 'claude auth login', say: 'Its sign-in is missing or has expired. Sign in, then try again.' },
   codex: { command: 'codex login', say: 'Its sign-in is missing or has expired. Sign in, then try again.' },
+  antigravity: { command: 'agy', say: 'Its sign-in is missing or has expired. Sign in, then try again.' },
 };
 
 /** True when the problem of a run is that the app could not sign in. */
@@ -283,7 +305,7 @@ export const isOptionProblem = (problem: string): boolean => /unknown (option|co
 export type RunFix = { kind: 'set-up' | 'install' | 'sign-in' | 'update' | 'billing' | 'limit' | 'busy' | 'network' | 'locked' | 'allow' | 'none'; say: string };
 
 /** The page that says how to install an app, opened by the fix "Install". */
-export const INSTALL: Record<string, string> = { 'claude-code': 'https://code.claude.com/docs/en/setup', codex: 'https://developers.openai.com/codex/cli' };
+export const INSTALL: Record<string, string> = { 'claude-code': 'https://code.claude.com/docs/en/setup', codex: 'https://developers.openai.com/codex/cli', antigravity: 'https://antigravity.google/docs/cli/reference' };
 /** The page where a person adds credit for an app that runs with an API key, opened by the fix "Open billing". */
 export const BILLING: Record<string, string> = { 'claude-code': 'https://console.anthropic.com/settings/billing' };
 
@@ -308,7 +330,7 @@ export function runFix(app: string, problem: string, denied: string[] = [], noCo
   const kind = FAILURE_WORDS.find(([, words]) => words.test(problem))?.[0];
   if (kind === 'install') return { kind, say: `${name} is not on the path of VS Code. Install it, and try again.${instead}` };
   if (SIGN_IN[app] && isSignInProblem(problem)) return { kind: 'sign-in', say: SIGN_IN[app].say };
-  if (app === 'claude-code' && isOptionProblem(problem)) return { kind: 'update', say: `This ${name} does not know an option that Apostil gives it. Update ${name}, and try again.` };
+  if (UPDATE[app] && isOptionProblem(problem)) return { kind: 'update', say: `This ${name} does not know an option that Apostil gives it. Update ${name}, and try again.` };
   if (kind === 'billing') return { kind, say: `The account of ${name} has no credit left. Add credit, and try again.${instead}` };
   if (kind === 'limit') return { kind, say: `${name} reached its usage limit. Try again when it resets.${instead}` };
   if (kind === 'busy') return { kind, say: `The service of ${name} is busy. Try again in a minute.${instead}` };
@@ -319,7 +341,7 @@ export function runFix(app: string, problem: string, denied: string[] = [], noCo
 }
 
 /** The command that updates an app, run in a terminal; undefined when Apostil does not know one. */
-export const UPDATE: Record<string, string> = { 'claude-code': 'claude update' };
+export const UPDATE: Record<string, string> = { 'claude-code': 'claude update', antigravity: 'agy update' };
 
 /** What a button of a failed run does. The layer in VS Code (view/run-settings.ts) carries it out. */
 export type RunDeed =
@@ -368,7 +390,7 @@ export function runProblem(problem: string, has: { app?: string; again?: boolean
 export function newRunCommand(app: string, prompt: string, options: RunOptions = {}): string[] | undefined {
   if (app === 'claude-code') return ['claude', '-p', prompt, '--output-format', 'json', ...(options.sessionId ? ['--session-id', options.sessionId] : []), ...modelWords(app, options), ...writerAgents(options), ...claudeRights(options)];
   if (app === 'codex') return ['codex', 'exec', prompt, '--json', ...codexWords(options)];
-  if (app === 'antigravity') return ['agy', '-p', prompt, '--mode', 'accept-edits'];
+  if (app === 'antigravity') return ['agy', '-p', prompt, '--output-format', 'json', ...modelWords(app, options), ...agyRights(options)];
   if (app === 'opencode') return ['opencode', 'run', prompt, '--format', 'json', ...modelWords(app, options)]; // its JSON events name the session (sessionID)
   return undefined;
 }
@@ -455,9 +477,26 @@ export function claudeTranscript(session: string, home: string): string | undefi
   return folders.map((folder) => join(projects, folder, `${session}.jsonl`)).find((path) => existsSync(path));
 }
 
+/** The name of a conversation of Antigravity, from ~/.gemini/antigravity-cli/cache/conversation_metadata.json, kept while the file does not change. */
+function agyConversationName(path: string, session: string): string | undefined {
+  let stat;
+  try { stat = statSync(path); } catch { return undefined; }
+  const key = `${path}\n${session}`;
+  const kept = names.get(key);
+  if (kept && kept.size === stat.size && kept.mtime === stat.mtimeMs) return kept.name;
+  let name: string | undefined;
+  try {
+    const summary = JSON.parse(readFileSync(path, 'utf8'))?.conversations?.[session]?.summary;
+    if (typeof summary === 'string' && summary.trim()) name = summary.trim();
+  } catch { /* not JSON */ }
+  names.set(key, { size: stat.size, mtime: stat.mtimeMs, name });
+  return name;
+}
+
 /**
  * The name of a session, from the files of its app, or undefined when the app keeps none.
  * Claude Code: the newest line of type "custom-title" in the transcript. Codex: the newest "thread_name" of the session in ~/.codex/session_index.jsonl.
+ * Antigravity: the summary of the conversation in ~/.gemini/antigravity-cli/cache/conversation_metadata.json.
  */
 export function sessionName(agent: AgentSession, home = homedir()): string | undefined {
   const { session } = agent;
@@ -468,6 +507,9 @@ export function sessionName(agent: AgentSession, home = homedir()): string | und
   }
   if (agent.app === 'codex') {
     return nameIn(join(home, '.codex', 'session_index.jsonl'), session, (line) => field(line, session, (record) => record.id === session, 'thread_name'));
+  }
+  if (agent.app === 'antigravity') {
+    return agyConversationName(join(home, '.gemini', 'antigravity-cli', 'cache', 'conversation_metadata.json'), session);
   }
   return undefined;
 }

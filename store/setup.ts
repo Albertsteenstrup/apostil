@@ -21,12 +21,19 @@ export interface Install {
   version: string;
 }
 
-/** The two agent apps that setup handles, and where each reads skills, relative to a repo or to the home folder. */
-export const SETUP_APPS = [
+/** The agent apps that setup handles, and where each reads skills, relative to a repo or to the home folder. */
+export interface SetupApp {
+  id: string;
+  name: string;
+  own: string;
+  skills: string;
+  globalSkills?: string; // when the global skills folder differs from the per-repo one
+}
+export const SETUP_APPS: SetupApp[] = [
   { id: 'claude-code', name: 'Claude Code', own: '.claude', skills: '.claude/skills' },
   { id: 'codex', name: 'Codex', own: '.codex', skills: '.agents/skills' },
+  { id: 'antigravity', name: 'Antigravity', own: '.gemini/antigravity-cli', skills: '.agents/skills', globalSkills: '.gemini/config/skills' },
 ];
-export type SetupApp = (typeof SETUP_APPS)[number];
 
 /** A skill folder that Apostil put there holds this file, with the version that put it. */
 export const VERSION_FILE = '.apostil-version';
@@ -64,10 +71,10 @@ export function skillThere(folder: string): SkillThere {
 
 /** Where an app finds each skill: for the repo first, then for all repos. A skill that it does not find has no "there". */
 export function skillsSeen(app: SetupApp, install: Install, machine: Machine, repo?: string): { name: string; there?: SkillThere; scope: string }[] {
-  const places = [...(repo ? [{ base: repo, scope: 'this repo' }] : []), { base: machine.home, scope: 'all repos' }];
+  const places = [...(repo ? [{ base: repo, skills: app.skills, scope: 'this repo' }] : []), { base: machine.home, skills: app.globalSkills ?? app.skills, scope: 'all repos' }];
   return skillNames(install).map((name) => {
     for (const place of places) {
-      const there = skillThere(join(place.base, app.skills, name));
+      const there = skillThere(join(place.base, place.skills, name));
       if (there.kind === 'apostil' || (there.kind === 'other' && there.works)) return { name, there, scope: place.scope };
     }
     return { name, scope: '' };
@@ -81,7 +88,7 @@ export const someAppSeesSkills = (install: Install, machine: Machine, repo?: str
 /** True when setup put a skill of another version for the repo (with no repo: for all repos). After an update of the extension it runs setup again. */
 export const hasOlderCopy = (install: Install, machine: Machine, repo?: string): boolean =>
   SETUP_APPS.some((app) => skillNames(install).some((name) => {
-    const there = skillThere(join(repo ?? machine.home, app.skills, name));
+    const there = skillThere(join(repo ?? machine.home, repo ? app.skills : app.globalSkills ?? app.skills, name));
     return there.kind === 'apostil' && there.version !== install.version;
   }));
 
@@ -150,13 +157,17 @@ export function setup({ install, machine, repo, undo, dryRun, store = storeFolde
   const lines: string[] = [];
   const ok = true;
 
+  const seenUndo = new Set<string>();
   for (const app of SETUP_APPS) {
     const here = appIsHere(app, machine);
     if (!here && !undo) {
       lines.push(line('skipped', `${app.name}: not on this machine.`));
       continue;
     }
-    const folder = join(base, app.skills);
+    const skillsDir = repo ? app.skills : app.globalSkills ?? app.skills;
+    const folder = join(base, skillsDir);
+    if (undo && seenUndo.has(folder)) continue;
+    if (undo) seenUndo.add(folder);
     for (const name of undo ? skillsToUndo(install, folder) : skillNames(install)) {
       const target = join(folder, name);
       const there = skillThere(target);
@@ -169,7 +180,7 @@ export function setup({ install, machine, repo, undo, dryRun, store = storeFolde
         if (there.kind === 'none') continue;
         if (write) {
           rmSync(target, { recursive: true, force: true });
-          if (repo) letGitSee(repo, [...new Set([`${app.skills}/${name}/`, `${skillsInRepo(repo, app.skills)}/${name}/`])]);
+          if (repo) letGitSee(repo, [...new Set([`${skillsDir}/${name}/`, `${skillsInRepo(repo, skillsDir)}/${name}/`])]);
         }
         lines.push(line('removed', where));
         continue;
@@ -177,11 +188,11 @@ export function setup({ install, machine, repo, undo, dryRun, store = storeFolde
       rmSync(target, { recursive: true, force: true });
       cpSync(join(install.skills, name), target, { recursive: true });
       writeFileSync(join(target, VERSION_FILE), `${install.version}\n`);
-      if (repo) keepOutOfGit(repo, `${skillsInRepo(repo, app.skills)}/${name}/`);
+      if (repo) keepOutOfGit(repo, `${skillsInRepo(repo, skillsDir)}/${name}/`);
       const word = there.kind === 'none' ? 'added' : there.kind === 'apostil' && there.version === install.version ? 'there' : 'updated';
       lines.push(line(word, `${where}${there.kind === 'apostil' && word === 'updated' ? ` (was ${there.version})` : ''}`));
     }
-    if (undo && write) removeIfEmpty(folder, 2); // the skills folder, then .claude or .agents, when setup left them empty
+    if (undo && write) removeIfEmpty(folder, skillsDir.split('/').length);
   }
 
   if (repo) {
@@ -206,7 +217,7 @@ export function setup({ install, machine, repo, undo, dryRun, store = storeFolde
     return { lines, ok };
   }
   if (!SETUP_APPS.some((app) => appIsHere(app, machine))) {
-    lines.push(line('missing', 'No agent app on this machine. Install Claude Code or Codex, then run apostil setup again.'));
+    lines.push(line('missing', 'No agent app on this machine. Install Claude Code, Codex or Antigravity, then run apostil setup again.'));
     return { lines, ok: false };
   }
   lines.push('', NEXT_STEP);

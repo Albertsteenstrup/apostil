@@ -1,6 +1,6 @@
 // The check in a real VS Code window: one start of VS Code, one part after the other, only what needs VS Code itself (what a page alone can show
 // is in the browser check). It drives the window like a person over the Chrome DevTools protocol and prints PASS or FAIL for each check.
-// The window has its own settings, store and stand-ins for gh, claude and codex: nothing calls GitHub or starts a real agent. It closes at the end.
+// The window has its own settings, store and stand-ins for gh, claude, codex and agy: nothing calls GitHub or starts a real agent. It closes at the end.
 // Playwright is not a dependency of Apostil: set APOSTIL_PLAYWRIGHT to a folder that has node_modules/playwright. Build first (npm run build).
 //   node view/window-check.mjs [--pictures] [<folder for pictures>]
 // Only one check window at a time: npm run check takes the window lock before it starts this.
@@ -43,7 +43,7 @@ const example = makeCheckExample();
 const repo = example.folder;
 const notebookRepo = makeNotebookRepo();
 
-// The skills of Apostil for Claude Code and Codex in the repo, as "apostil setup" for this repo gives them, out of Git's list: both apps are connected.
+// The skills of Apostil for Claude Code, Codex and Antigravity in the repo, as "apostil setup" for this repo gives them, out of Git's list: all three apps are connected.
 for (const skills of ['.claude/skills', '.agents/skills']) {
   for (const entry of readdirSync(path.join(apostil, 'skills'), { withFileTypes: true })) {
     if (entry.isDirectory()) cpSync(path.join(apostil, 'skills', entry.name), path.join(repo, skills, entry.name), { recursive: true });
@@ -145,7 +145,8 @@ writeFileSync(path.join(bin, 'claude'), [
   `'${process.execPath}' '${path.join(apostil, 'out/store/cli.js')}' answer "$id" "Answered by the stand-in." > /dev/null`, 'echo \'{"type":"result","session_id":"stand-in-run-0001"}\'', '',
 ].join('\n'));
 writeFileSync(path.join(bin, 'codex'), '#!/bin/sh\nexit 0\n');
-for (const program of ['gh', 'claude', 'codex']) chmodSync(path.join(bin, program), 0o755);
+writeFileSync(path.join(bin, 'agy'), '#!/bin/sh\nexit 0\n');
+for (const program of ['gh', 'claude', 'codex', 'agy']) chmodSync(path.join(bin, program), 0o755);
 
 // The window's own settings: Home in place of the empty editor area (the first part checks it), a terminal that only echoes what it gets, drawn as text,
 // no chat panel at the right, and the answer that a person gives before a link opens the first time.
@@ -325,7 +326,7 @@ try {
   await until(() => runsNow().length === 1);
   const [mapRun = ''] = runsNow();
   check('in a repo with no map whose apps are connected, one question follows, Claude Code first; its action starts one run of the map, which also describes the change of the branch',
-    questionButtons.join() === 'New Claude Code session,New Codex session,Not now' && mapRun.startsWith('-p\nWrite the map of this repo for Apostil Home') && mapRun.includes('Then describe the change of this branch'),
+    questionButtons.join() === 'New Claude Code session,New Codex session,New Antigravity session,Not now' && mapRun.startsWith('-p\nWrite the map of this repo for Apostil Home') && mapRun.includes('Then describe the change of this branch'),
     `${questionButtons.join()}; ${mapRun.slice(0, 120).replace(/\n/g, ' | ')}`);
 
   // The first run was refused a command and saved no map: "Allow and try again" puts the rule into the settings of Claude Code for the repo and starts the run again,

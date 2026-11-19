@@ -10,12 +10,12 @@ import { WRITERS_AT_ONCE } from '../shared/map-estimate';
 import { storeFolder, type Store } from '../shared/store';
 import { inboxText } from '../store/inbox';
 
-/** The session that a run reports on its output: Claude Code prints JSON with `session_id`, Codex a line `thread.started` with the thread id, OpenCode events with `sessionID`. */
+/** The session that a run reports on its output: Claude Code prints JSON with `session_id`, Codex `thread.started` with `thread_id`, Antigravity `conversation_id`, OpenCode `sessionID`. */
 export function sessionFromOutput(output: string): string | undefined {
   for (const line of output.split('\n')) {
     try {
       const record = JSON.parse(line);
-      const session = record?.session_id ?? (record?.type === 'thread.started' ? record.thread_id : record?.sessionID);
+      const session = record?.session_id ?? record?.conversation_id ?? (record?.type === 'thread.started' ? record.thread_id : record?.sessionID);
       if (typeof session === 'string' && session) return session;
     } catch { /* not a line of JSON */ }
   }
@@ -24,7 +24,7 @@ export function sessionFromOutput(output: string): string | undefined {
 
 /**
  * Why a run failed, from its output, or undefined. Codex prints a line `turn.failed` or `error` with a message, OpenCode a line `error` with `error.message`;
- * Claude Code prints a result with `is_error`. A turn that ends well after an error (Codex tried again) is not a failure.
+ * Claude Code prints a result with `is_error`; Antigravity prints JSON with `status: "ERROR"` and `error`. A turn that ends well after an error (Codex tried again) is not a failure.
  */
 export function problemFromOutput(output: string): string | undefined {
   let problem: string | undefined;
@@ -32,7 +32,10 @@ export function problemFromOutput(output: string): string | undefined {
     try {
       const record = JSON.parse(line);
       if (record?.type === 'turn.completed') problem = undefined;
-      const message = record?.type === 'turn.failed' ? record.error?.message : record?.type === 'error' ? record.message ?? record.error?.message : record?.is_error ? record.result ?? failedWords(record) : undefined;
+      const message = record?.type === 'turn.failed' ? record.error?.message
+        : record?.type === 'error' ? record.message ?? record.error?.message
+          : record?.status === 'ERROR' ? record.error ?? 'It stopped with an error.'
+            : record?.is_error ? record.result ?? failedWords(record) : undefined;
       if (typeof message === 'string' && message.trim()) problem = message.trim();
     } catch { /* not a line of JSON */ }
   }
@@ -62,16 +65,20 @@ export function allowRule(command: string): string {
   return `Bash(${program}${word && /^[a-z][\w-]*$/i.test(word) ? ` ${word}` : ''} *)`;
 }
 
-/** The rules for the commands and tools that a run of Claude Code was not allowed to use, from its result (`permission_denials`), each once. */
+/** The rules for the commands and tools that a run was not allowed to use: Claude Code (`permission_denials`) and Antigravity (`denied_actions`), each once. */
 export function deniedRules(output: string): string[] {
   const rules = new Set<string>();
   for (const line of output.split('\n')) {
     try {
       const record = JSON.parse(line);
-      if (record?.type !== 'result' || !Array.isArray(record.permission_denials)) continue;
-      for (const denial of record.permission_denials) {
-        if (denial?.tool_name === 'Bash' && typeof denial.tool_input?.command === 'string') rules.add(allowRule(denial.tool_input.command));
-        else if (typeof denial?.tool_name === 'string') rules.add(denial.tool_name);
+      if (record?.type === 'result' && Array.isArray(record.permission_denials)) {
+        for (const denial of record.permission_denials) {
+          if (denial?.tool_name === 'Bash' && typeof denial.tool_input?.command === 'string') rules.add(allowRule(denial.tool_input.command));
+          else if (typeof denial?.tool_name === 'string') rules.add(denial.tool_name);
+        }
+      }
+      if (Array.isArray(record?.denied_actions)) {
+        for (const denial of record.denied_actions) if (typeof denial?.action === 'string' && denial.action) rules.add(denial.action);
       }
     } catch { /* not a line of JSON */ }
   }

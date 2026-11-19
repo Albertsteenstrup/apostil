@@ -9,7 +9,7 @@ import { baseOf, currentBranch, headCommit, repoId } from '../shared/git';
 import { Store } from '../shared/store';
 import { makeTestRepo, tempFolder, testChangeFile } from '../shared/test-repo';
 import { sentRemarks } from '../store/inbox';
-import { startRun } from './agent-run';
+import { deniedRules, problemFromOutput, sessionFromOutput, startRun } from './agent-run';
 
 test('a run of the session of a change keeps the permission mode that the person set as default for Claude Code; when it ends with no answer, the comment is open again and the reason says so', async () => {
   const repo = makeTestRepo();
@@ -75,4 +75,11 @@ test('a comment sent to another session that Apostil knows in the repo continues
     if (kept.APOSTIL_HOME === undefined) delete process.env.APOSTIL_HOME;
     repo.remove();
   }
+});
+
+test('Antigravity JSON output gives its conversation id, error message, and denied actions', () => {
+  assert.equal(sessionFromOutput('{"conversation_id":"agy-conv-1","status":"SUCCESS","response":"OK"}'), 'agy-conv-1');
+  assert.equal(problemFromOutput('{"conversation_id":"","status":"ERROR","error":"invalid model selection"}'), 'invalid model selection');
+  assert.equal(problemFromOutput('{"conversation_id":"agy-conv-1","status":"SUCCESS","response":"OK"}'), undefined);
+  assert.deepEqual(deniedRules('{"conversation_id":"agy-conv-1","status":"SUCCESS","denied_actions":[{"action":"write_file","display_name":"Edit"},{"action":"command","display_name":"Bash"}]}'), ['write_file', 'command']);
 });

@@ -136,8 +136,8 @@ export interface SendTo {
   last?: RemarkTo | null; // where the newest comment of the repo went (null: to no agent); missing when the repo has none
 }
 
-/** The model settings of the runs by app: Claude Code and Codex from VS Code, OpenCode its small model of its own config. */
-const settingsOf = (models: RunModels, folder: string): Record<string, string | undefined> => ({ 'claude-code': models.claude, codex: models.codex, opencode: opencodeSmallModel(folder) });
+/** The model settings of the runs by app: Claude Code, Codex and Antigravity from VS Code, OpenCode its small model of its own config. */
+const settingsOf = (models: RunModels, folder: string): Record<string, string | undefined> => ({ 'claude-code': models.claude, codex: models.codex, antigravity: models.antigravity, opencode: opencodeSmallModel(folder) });
 
 /** The menus of the models of each connected app (shared/models.ts), for the picker of a comment on a change and on Home. */
 export const menusOf = (apps: string[], models: RunModels, folder: string): Record<string, ModelMenu> => {

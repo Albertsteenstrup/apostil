@@ -34,7 +34,7 @@ const lineOf = (lines: string[], text: string): string => lines.find((line) => l
 
 test('doctor on a machine with everything: each line is ok, it lists the repos of the record and names uninstall, the exit is 0, and nothing is written', () => {
   const repo = makeTestRepo();
-  const machine = testMachine({ claude: 'command', codex: 'command' });
+  const machine = testMachine({ claude: 'command', codex: 'command', agy: 'command' });
   chmodSync(cli, 0o755); // as installCommand() does
   symlinkSync(cli, join(machine.path, 'apostil'));
   program(machine, 'gh', 'echo "Logged in to github.com account someone (keyring)"; echo "Token: gho_secret"; exit 0');
@@ -50,7 +50,7 @@ test('doctor on a machine with everything: each line is ok, it lists the repos o
   const before = [snapshot(repo.folder), snapshot(machine.home), snapshot(store)];
   const { lines, ok } = doctor({ folder: repo.folder, machine, install, cli, store, node: '24.1.0' });
   assert.equal(ok, true, lines.join('\n'));
-  assert.deepEqual(lines.slice(0, -1).map((line) => line.split(' ')[0]), Array(9).fill('ok'), lines.join('\n'));
+  assert.deepEqual(lines.slice(0, -1).map((line) => line.split(' ')[0]), Array(10).fill('ok'), lines.join('\n'));
   assert.equal(lineOf(lines, 'Set up in'), `ok       Set up in 1 repo: ${repo.folder}.`);
   assert.match(lines.at(-1)!, /^To remove Apostil: apostil uninstall\./);
   assert.match(lineOf(lines, 'Node'), /^ok +Node 24 or newer \(the command runs on 24\.1\.0, the Node of this machine\)\.$/);
@@ -58,6 +58,7 @@ test('doctor on a machine with everything: each line is ok, it lists the repos o
   assert.match(lineOf(lines, 'Git repo'), /1 saved change, no map/);
   assert.match(lineOf(lines, 'Claude Code sees'), new RegExp(`for this repo\\), of version ${version}`));
   assert.match(lineOf(lines, 'Codex sees'), /for this repo/);
+  assert.match(lineOf(lines, 'Antigravity sees'), /for this repo/);
   assert.match(lineOf(lines, 'hook'), /^ok +The hook of Claude Code: added \(for this repo\)/);
   assert.match(lineOf(lines, 'gh is there'), /signed in/);
   assert.match(lineOf(lines, 'VS Code extension'), /^ok/);
@@ -73,12 +74,13 @@ test('doctor with things missing: each line says what corrects it, and the exit 
   const store = join(tempFolder('apostil-store-'), 'none');
   const empty = doctor({ folder, machine, install, cli, store, node: '22.4.0' });
   assert.equal(empty.ok, false);
-  assert.deepEqual(empty.lines.slice(0, -1).map((line) => line.split(' ')[0]), Array(6).fill('missing'), empty.lines.join('\n'));
+  assert.deepEqual(empty.lines.slice(0, -1).map((line) => line.split(' ')[0]), Array(7).fill('missing'), empty.lines.join('\n'));
   assert.match(lineOf(empty.lines, 'Node'), /runs on 22\.4\.0, the Node of this machine\)\. Fix: install Node 24/);
   assert.match(lineOf(empty.lines, 'command apostil'), /Fix: "Apostil: Install the apostil command"/);
   assert.match(lineOf(empty.lines, 'Git repo'), /^missing .*Fix: run apostil in a Git repo/);
   assert.match(lineOf(empty.lines, 'Claude Code is on'), /Fix: install Claude Code if you use it/);
   assert.match(lineOf(empty.lines, 'Codex is on'), /Fix: install Codex/);
+  assert.match(lineOf(empty.lines, 'Antigravity is on'), /Fix: install Antigravity/);
   assert.match(lineOf(empty.lines, 'gh is there'), /^missing .*Only pull requests need it\. Fix: install the GitHub CLI/);
   assert.equal(empty.lines.some((line) => line.includes('VS Code extension')), false); // no "code" command: no line about the extension
   assert.deepEqual(readdirSync(machine.home), []);

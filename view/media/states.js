@@ -127,8 +127,8 @@ const States = (() => {
 
   /** Every effort, lowest first; a model that does not take an effort takes the nearest lower one. */
   const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'];
-  /** The words of an effort as each app names it: Claude Code says "Extra", Codex "Extra high"; the others start with a capital. */
-  const EFFORT_WORDS = { 'claude-code': { xhigh: 'Extra' }, codex: { xhigh: 'Extra high' } };
+  /** The words of an effort as each app names it: Claude Code says "Extra", Codex "Extra high", Antigravity "XHigh"; the others start with a capital. */
+  const EFFORT_WORDS = { 'claude-code': { xhigh: 'Extra' }, codex: { xhigh: 'Extra high' }, antigravity: { xhigh: 'XHigh' } };
   const effortWord = (app, effort) => EFFORT_WORDS[app]?.[effort] ?? (effort ? `${effort.charAt(0).toUpperCase()}${effort.slice(1)}` : '');
 
   /** The effort that a model takes for a wanted one: the same, else the nearest lower one, else its lowest (nearestEffort in shared/models.ts). */
@@ -151,7 +151,7 @@ const States = (() => {
    * a new session; a new session the model of the setting (`menu.fresh`). The effort: the session's last one, else high, as the model takes it.
    */
   function choiceRun(app, menu, known) {
-    if (app === 'antigravity' || !menu) return null;
+    if (!menu) return null;
     const base = known?.model ? known : menu.fresh ?? {};
     const effort = nearestEffort(modelIn(menu.list, base.model)?.efforts, known?.effort ?? 'high');
     return { ...(base.model ? { model: base.model } : {}), ...(base.name ? { name: base.name } : {}), ...(app === 'opencode' && !base.model ? {} : { effort }) };

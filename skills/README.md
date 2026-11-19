@@ -106,6 +106,6 @@ Each app reads skills from fixed folders. Link the skill folders there. A link k
 - Third-party pages give other global folders for Antigravity. Only the folders on the official page are listed above.
 - The three docs pages were read on 10 November 2026 and may change.
 - Nobody has checked that each app loads them.
-- Setup handles Claude Code and Codex. For Antigravity and OpenCode, use the manual way.
+- Setup handles Claude Code, Codex and Antigravity. For OpenCode, use the manual way.
 - How each app starts the Apostil helper (MCP) is not covered here. The skills also work with the `apostil` command alone.
 - The band of the Claude mod was checked with `claude plugin test` only, not yet in a real session. A press on its link is not seen by the mod, so the band stays until ×; it does not come back for that pull request.

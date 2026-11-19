@@ -32,6 +32,21 @@ export function madeUpAgentHome(sessions: { claude?: Record<string, [string, str
   const codex = (slug: string, more: string[] = [], visibility = 'list') => ({ slug, visibility, supported_reasoning_levels: [...efforts, ...more].map((effort) => ({ effort })) });
   mkdirSync(join(home, '.codex'), { recursive: true });
   writeFileSync(join(home, '.codex', 'models_cache.json'), JSON.stringify({ models: [codex('gpt-6.1-sol', ['ultra']), codex('gpt-6-astra', ['ultra']), codex('gpt-6.1-terra', ['ultra']), codex('gpt-6-luna'), codex('gpt-5.6-luna'), codex('gpt-made-up-hidden', [], 'hide')] }));
+  mkdirSync(join(home, '.gemini', 'antigravity-cli'), { recursive: true });
+  writeFileSync(join(home, '.gemini', 'antigravity-cli', 'models.txt'), [
+    'gemini-4-neon-high              Gemini 4 Neon (High)',
+    'gemini-4-neon-xhigh             Gemini 4 Neon (XHigh)',
+    'gemini-4-neon-medium            Gemini 4 Neon (Medium)',
+    'gemini-4-neon-low               Gemini 4 Neon (Low)',
+    'gemini-4-argon-high             Gemini 4 Argon (High)',
+    'gemini-4-argon-medium           Gemini 4 Argon (Medium)',
+    'gemini-4-argon-low              Gemini 4 Argon (Low)',
+    'gemini-4-hydrogen-high          Gemini 4 Hydrogen (High)',
+    'gemini-4-hydrogen-xhigh         Gemini 4 Hydrogen (XHigh)',
+    'gemini-4-hydrogen-medium        Gemini 4 Hydrogen (Medium)',
+    'gemini-4-hydrogen-low           Gemini 4 Hydrogen (Low)',
+    'gemini-pro-orchestrator-neon    Orchestrator (Neon)',
+  ].join('\n'));
   for (const [session, [model, effort]] of Object.entries(sessions.claude ?? {})) {
     mkdirSync(join(home, '.claude', 'projects', 'made-up-project'), { recursive: true });
     writeFileSync(join(home, '.claude', 'projects', 'made-up-project', `${session}.jsonl`), `${JSON.stringify({ type: 'user', message: { content: 'Hi' } })}\n${JSON.stringify({ type: 'assistant', message: { model }, ...(effort ? { effort } : {}) })}\n`);
@@ -92,12 +107,12 @@ export const testChangeFile = (): ChangeFile => ({
   generated: ['generated/'],
 });
 
-/** A home folder and a path with stand-ins for the apps: "claude" as a command, "codex" as the folder ~/.codex. */
-export function testMachine(apps: { claude?: 'command' | 'folder'; codex?: 'command' | 'folder' } = {}): { home: string; path: string } {
+/** A home folder and a path with stand-ins for the apps: "claude" as a command, "codex" as ~/.codex, "agy" as ~/.gemini/antigravity-cli. */
+export function testMachine(apps: { claude?: 'command' | 'folder'; codex?: 'command' | 'folder'; agy?: 'command' | 'folder' } = {}): { home: string; path: string } {
   const home = tempFolder('apostil-home-');
   const bin = tempFolder('apostil-bin-');
   for (const [program, how] of Object.entries(apps)) {
-    if (how === 'folder') mkdirSync(join(home, `.${program}`));
+    if (how === 'folder') mkdirSync(join(home, program === 'agy' ? join('.gemini', 'antigravity-cli') : `.${program}`), { recursive: true });
     if (how === 'command') {
       writeFileSync(join(bin, program), '#!/bin/sh\nexit 0\n');
       chmodSync(join(bin, program), 0o755);

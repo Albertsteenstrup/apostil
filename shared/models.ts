@@ -26,7 +26,11 @@ export interface RunPick { model?: string; name?: string; effort?: string }
 export interface Team { app: string; lead?: string; writer?: string; effort: string; list: ModelInfo[] }
 
 /** The order of the families, smallest first. The catalogs name each model's family, not its size, so the order is fixed here. */
-export const SIZES: Record<string, string[]> = { 'claude-code': ['haiku', 'sonnet', 'opus', 'fable'], codex: ['luna', 'terra', 'sol', 'astra'] };
+export const SIZES: Record<string, string[]> = {
+  'claude-code': ['haiku', 'sonnet', 'opus', 'fable'],
+  codex: ['luna', 'terra', 'sol', 'astra'],
+  antigravity: ['gemini-4-hydrogen', 'gemini-4-argon', 'gemini-4-neon', 'gemini-3.8-flash', 'claude-sonnet-5-5', 'claude-opus-5-5'],
+};
 
 /** Every effort that an app knows, lowest first. A model that does not take an effort takes the nearest lower one. */
 export const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'];
@@ -156,20 +160,71 @@ export function codexCatalog(home: string, bundled: string | undefined): Catalog
   return { models: bySize('codex', [...newest.values()].map((one) => one.model)), names, ids: {}, read: true };
 }
 
+// ----- Antigravity -----
+
+const ANTIGRAVITY_SMALL = 'gemini-4-hydrogen';
+const ANTIGRAVITY_EFFORTS = ['low', 'medium', 'high', 'xhigh'];
+const antigravityFallback = (): Catalog => ({
+  models: [{ id: ANTIGRAVITY_SMALL, name: 'Gemini 4 Hydrogen', efforts: ANTIGRAVITY_EFFORTS }],
+  names: { [ANTIGRAVITY_SMALL]: 'Gemini 4 Hydrogen' }, ids: {}, read: false,
+});
+
+/** The models that Antigravity lists: `agy models` prints `<slug>  <name>` lines. */
+export function antigravityBundled(): string | undefined {
+  const run = spawnSync('agy', ['models'], { encoding: 'utf8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'] });
+  return run.status === 0 ? run.stdout : undefined;
+}
+
+/**
+ * The models of Antigravity, grouped by base id from `agy models` (or a test fixture in `~/.gemini/antigravity-cli/models.txt`):
+ * slugs `gemini-4-hydrogen-low`..`gemini-4-hydrogen-xhigh` become one menu item `gemini-4-hydrogen` ("Gemini 4 Hydrogen") with its efforts.
+ */
+export function antigravityCatalog(home: string, listed: string | undefined): Catalog {
+  let text = listed;
+  try { text = readFileSync(join(home, '.gemini', 'antigravity-cli', 'models.txt'), 'utf8'); } catch { /* use listed */ }
+  if (!text) return antigravityFallback();
+  const grouped = new Map<string, { name: string; efforts: Set<string> }>();
+  const names: Record<string, string> = {};
+  const ids: Record<string, string> = {};
+  for (const raw of text.split('\n')) {
+    const clean = raw.slice(raw.lastIndexOf('\r') + 1).trim();
+    const pair = /^([a-z0-9._-]+)\s+(.+)$/.exec(clean);
+    if (!pair) continue;
+    const [, slug, rawName] = pair;
+    const split = /^(.+)-(low|medium|high|xhigh|max)$/.exec(slug);
+    if (!split) continue;
+    const [, id, effort] = split;
+    const name = rawName.replace(/\s*\((?:Low|Medium|High|XHigh|Max)\)\s*$/i, '').trim();
+    names[slug] = name;
+    names[id] = name;
+    ids[slug] = id;
+    const entry = grouped.get(id) ?? { name, efforts: new Set<string>() };
+    entry.efforts.add(effort);
+    grouped.set(id, entry);
+  }
+  if (!grouped.size) return antigravityFallback();
+  const models = [...grouped.entries()].map(([id, { name, efforts }]) => ({
+    id, name, family: id, efforts: EFFORTS.filter((one) => efforts.has(one)),
+  }));
+  return { models: bySize('antigravity', models), names, ids, read: true };
+}
+
 // ----- the lists, once for each start of VS Code or after a day -----
 
 const DAY = 24 * 60 * 60 * 1000;
 const kept = new Map<string, { at: number; catalog: Catalog }>();
 
-/** The catalog of an app, read at most once a day; undefined for an app with no catalog (OpenCode keeps its own models, Antigravity takes none). */
+/** The catalog of an app, read at most once a day; undefined for an app with no catalog (OpenCode keeps its own models). */
 export function catalogOf(app: string, home = agentHome()): Catalog | undefined {
-  if (app !== 'claude-code' && app !== 'codex') return undefined;
+  if (app !== 'claude-code' && app !== 'codex' && app !== 'antigravity') return undefined;
   const key = `${app}\n${home}`;
   const now = Date.now();
   const old = kept.get(key);
   if (old && now - old.at < DAY) return old.catalog;
   // The bundled catalog belongs to the program on the path; a made-up home of the checks has its own catalogs only.
-  const catalog = app === 'claude-code' ? claudeCatalog(home) : codexCatalog(home, home === homedir() ? codexBundled() : undefined);
+  const catalog = app === 'claude-code' ? claudeCatalog(home)
+    : app === 'codex' ? codexCatalog(home, home === homedir() ? codexBundled() : undefined)
+      : antigravityCatalog(home, home === homedir() ? antigravityBundled() : undefined);
   kept.set(key, { at: now, catalog });
   return catalog;
 }
@@ -189,12 +244,16 @@ export function pickOf(catalog: Catalog | undefined, model: string | undefined, 
 const mostEffort = (model: ModelInfo | undefined): string => (!model || model.efforts.includes('max') ? 'max' : model.efforts.at(-1) ?? 'max');
 
 /**
- * The choice of a map run or a description run (the owner, 18 November): the second smallest model leads at its most effort, and every writer runs on
- * the smallest. OpenCode has no order: it keeps its own model and small model.
+ * The choice of a map run or a description run: for Claude Code and Codex, the second smallest model leads at its most effort and every writer runs on
+ * the smallest; for Antigravity, Gemini 4 Hydrogen leads and writes. OpenCode has no order: it keeps its own model and small model.
  */
 export function teamOf(app: string, home = agentHome()): Team {
   const catalog = catalogOf(app, home);
   if (!catalog) return { app, effort: 'max', list: [] };
+  if (app === 'antigravity') {
+    const hydrogen = catalog.models.find((one) => one.id === ANTIGRAVITY_SMALL) ?? smallest(app, catalog);
+    return { app, lead: hydrogen?.id, writer: hydrogen?.id, effort: mostEffort(hydrogen), list: catalog.models };
+  }
   const lead = secondSmallest(app, catalog);
   return { app, lead: lead?.id, writer: smallest(app, catalog)?.id, effort: mostEffort(lead), list: catalog.models };
 }
@@ -323,14 +382,19 @@ export const teamRun = (team: Team): { model?: string; effort: string; writers?:
 /**
  * The sentence of the prompt of a map run or a description run that names its models in plain words, so that the lead starts its writers on them:
  * Claude Code starts them as the agent of `--agents` (`writerAgent`), which has that model and effort; Codex gives them with spawn_agent, whose tool takes
- * `model` and `reasoning_effort`. OpenCode keeps its own models: no sentence, and the words of the skill hold.
+ * `model` and `reasoning_effort`; Antigravity uses invoke_subagent with TypeName "self" and Model "inherit" when lead and writer share model and effort,
+ * else swarm with the writer's model and effort slug. OpenCode keeps its own models: no sentence, and the words of the skill hold.
  */
 export function teamSentence(team: Team, writerAgent: string): string {
   const run = teamRun(team);
   if (!team.lead || !run.writers) return '';
   const name = (id: string): string => team.list.find((model) => model.id === id)?.name ?? id;
+  const agyHow = run.writers.model === team.lead && run.writers.effort === run.effort
+    ? 'start each one with invoke_subagent, with TypeName "self" and Model "inherit"'
+    : `start each one with swarm, action "add" and model "${/-(low|medium|high|xhigh|max)$/.test(run.writers.model) ? run.writers.model : `${run.writers.model}-${run.writers.effort}`}"`;
   const how = team.app === 'claude-code' ? `start each one as the agent ${writerAgent}, which runs on that model at that effort, and give it no model of your own`
-    : team.app === 'codex' ? `start each one with spawn_agent, with model "${run.writers.model}" and reasoning_effort "${run.writers.effort}"` : '';
+    : team.app === 'codex' ? `start each one with spawn_agent, with model "${run.writers.model}" and reasoning_effort "${run.writers.effort}"`
+      : team.app === 'antigravity' ? agyHow : '';
   return `You lead on ${name(team.lead)} at ${run.effort} effort: you start, check and correct the writers, and you write no part yourself. `
     + `Start every writer and checker subagent on ${name(run.writers.model)} at ${run.writers.effort} effort${how ? `: ${how}` : ''}.`;
 }

@@ -24,7 +24,7 @@ test('setup for a repo: the skills that ship with the install for each app that 
   const before = status(repo.folder);
   const { lines, ok } = setup({ install, machine, repo: repo.folder });
   assert.equal(ok, true);
-  assert.deepEqual(words(lines), [...Array(names.length * 2).fill('added'), 'Now']);
+  assert.deepEqual(words(lines), [...Array(names.length * 2).fill('added'), 'skipped', 'Now']);
   assert.equal(lines.at(-1), NEXT_STEP);
   for (const folder of ['.claude/skills', '.agents/skills']) {
     for (const name of names) {
@@ -40,25 +40,30 @@ test('setup for a repo: the skills that ship with the install for each app that 
   // A second run does no harm: everything is there, and the exclude file gets no line twice.
   const kept = exclude(repo.folder);
   const again = setup({ install, machine, repo: repo.folder });
-  assert.deepEqual(words(again.lines), [...Array(names.length * 2).fill('there'), 'Now']);
+  assert.deepEqual(words(again.lines), [...Array(names.length * 2).fill('there'), 'skipped', 'Now']);
   assert.equal(exclude(repo.folder), kept);
   assert.equal(status(repo.folder), before);
 
-  // With Claude Code only, Codex only, or no app.
+  // With Claude Code only, Codex only, Antigravity only, or no app.
   const claudeOnly = makeTestRepo();
   const claude = setup({ install, machine: testMachine({ claude: 'folder' }), repo: claudeOnly.folder });
-  assert.deepEqual(words(claude.lines), [...Array(names.length).fill('added'), 'skipped', 'Now']);
+  assert.deepEqual(words(claude.lines), [...Array(names.length).fill('added'), 'skipped', 'skipped', 'Now']);
   assert.equal(existsSync(join(claudeOnly.folder, '.agents')), false);
   const codexOnly = makeTestRepo();
   const codex = setup({ install, machine: testMachine({ codex: 'command' }), repo: codexOnly.folder });
-  assert.deepEqual(words(codex.lines), ['skipped', ...Array(names.length).fill('added'), 'Now']);
+  assert.deepEqual(words(codex.lines), ['skipped', ...Array(names.length).fill('added'), 'skipped', 'Now']);
   assert.equal(existsSync(join(codexOnly.folder, '.claude')), false); // no skills and no hook for Claude Code
+  const agyOnly = makeTestRepo();
+  const agy = setup({ install, machine: testMachine({ agy: 'command' }), repo: agyOnly.folder });
+  assert.deepEqual(words(agy.lines), ['skipped', 'skipped', ...Array(names.length).fill('added'), 'Now']);
+  assert.equal(existsSync(join(agyOnly.folder, '.agents', 'skills', 'apostil-map-repo', 'SKILL.md')), true);
+  assert.equal(status(agyOnly.folder), '');
   const none = makeTestRepo();
   const nothing = setup({ install, machine: testMachine(), repo: none.folder });
   assert.equal(nothing.ok, false);
-  assert.deepEqual(words(nothing.lines), ['skipped', 'skipped', 'missing']);
+  assert.deepEqual(words(nothing.lines), ['skipped', 'skipped', 'skipped', 'missing']);
   assert.equal(status(none.folder), '');
-  for (const one of [repo, claudeOnly, codexOnly, none]) one.remove();
+  for (const one of [repo, claudeOnly, codexOnly, agyOnly, none]) one.remove();
 });
 
 test('setup for a repo keeps the draft files out of the list of new files, and --undo takes away what setup added and nothing else', () => {
@@ -136,19 +141,20 @@ test('an older copy is brought up to date, a folder that Apostil did not put the
 });
 
 test('setup --all puts the skills, and no hook, into the home folder and leaves the repo alone', () => {
-  const machine = testMachine({ claude: 'command', codex: 'command' });
+  const machine = testMachine({ claude: 'command', codex: 'command', agy: 'command' });
   mkdirSync(join(machine.home, '.claude'));
   writeFileSync(join(machine.home, '.claude', 'settings.json'), '{ "model": "made-up" }');
   const { lines, ok } = setup({ install, machine });
   assert.equal(ok, true);
   assert.ok(lines.includes(`added    Claude Code: the skill apostil-map-repo in ~/.claude/skills`), lines.join('\n'));
   assert.ok(lines.includes(`added    Codex: the skill apostil-map-repo in ~/.agents/skills`));
+  assert.ok(lines.includes(`added    Antigravity: the skill apostil-map-repo in ~/.gemini/config/skills`));
   assert.equal(lines.some((one) => one.includes('hook')), false);
   assert.deepEqual(JSON.parse(readFileSync(join(machine.home, '.claude', 'settings.json'), 'utf8')), { model: 'made-up' });
   connectClaudeCode(undefined, machine.home); // a hook from an earlier version, or from the step of its own
 
   const undone = setup({ install, machine, undo: true });
-  assert.deepEqual(words(undone.lines), Array(names.length * 2 + 1).fill('removed')); // the skills of both apps and the hook
+  assert.deepEqual(words(undone.lines), Array(names.length * 3 + 1).fill('removed')); // the skills of all three apps and the hook
   assert.deepEqual(JSON.parse(readFileSync(join(machine.home, '.claude', 'settings.json'), 'utf8')), { model: 'made-up' });
   assert.deepEqual(readdirSync(machine.home).sort(), ['.claude']);
   assert.deepEqual(readdirSync(join(machine.home, '.claude')), ['settings.json']);

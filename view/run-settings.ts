@@ -7,13 +7,14 @@ import { addAllowRules, keepOutOfGit, settingsFile } from '../store/connect-clau
 
 const CLAUDE_MODEL = 'apostil.claudeModel';
 const CODEX_MODEL = 'apostil.codexModel';
+const ANTIGRAVITY_MODEL = 'apostil.antigravityModel';
 const COMMENT_RUNS = 'apostil.commentRuns';
 
-/** A model setting: its value ("haiku" and "gpt-6-luna" by default, the small models of SMALL_MODELS), or undefined when the owner emptied it: the app then takes the model of its own settings. */
+/** A model setting: its value ("haiku", "gpt-6-luna" and "gemini-4-hydrogen" by default, the small models of SMALL_MODELS), or undefined when the owner emptied it: the app then takes the model of its own settings. */
 const modelSetting = (name: string): string | undefined => vscode.workspace.getConfiguration().get<string>(name)?.trim() || undefined;
 
-/** The models of every run that Apostil starts, for Claude Code and for Codex; OpenCode takes the small model of its own config (opencodeSmallModel). */
-export const runModels = (): RunModels => ({ claude: modelSetting(CLAUDE_MODEL), codex: modelSetting(CODEX_MODEL) });
+/** The models of every run that Apostil starts, for Claude Code, Codex and Antigravity; OpenCode takes the small model of its own config (opencodeSmallModel). */
+export const runModels = (): RunModels => ({ claude: modelSetting(CLAUDE_MODEL), codex: modelSetting(CODEX_MODEL), antigravity: modelSetting(ANTIGRAVITY_MODEL) });
 
 /** What a run that a comment starts may do in the repo: "read and edit" (the default) or "read only". */
 export const commentRuns = (): string => (vscode.workspace.getConfiguration().get<string>(COMMENT_RUNS) === 'read only' ? 'read only' : 'read and edit');

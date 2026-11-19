@@ -46,7 +46,11 @@ test('the link, the resume command, the command of a new session and the command
   const codex = resumeCommand({ app: 'codex', session: 't1' }, 'Do it', { store: '/home/me/.apostil' })!;
   assert.deepEqual(codex, ['codex', 'exec', 'resume', 't1', 'Do it', '--json', '-c', 'sandbox_mode="workspace-write"', '-c', 'sandbox_workspace_write.writable_roots=["/home/me/.apostil"]', '-c', 'model_reasoning_effort="high"']);
   assert.ok(!codex.some((word) => word.includes('dangerously')));
-  assert.deepEqual(resumeCommand({ app: 'antigravity', session: 'c1' }, 'Do it'), ['agy', '-p', 'Do it', '--conversation', 'c1']);
+  const agy = resumeCommand({ app: 'antigravity', session: 'c1' }, 'Do it')!;
+  assert.deepEqual(agy.slice(0, 9), ['agy', '-p', 'Do it', '--conversation', 'c1', '--output-format', 'json', '--effort', 'high']);
+  assert.deepEqual(agy.slice(9, 12), ['--mode', 'accept-edits', '--settings']);
+  assert.deepEqual(JSON.parse(agy[12]), { permissions: { allow: ['write_file(*)', 'command(apostil *)', 'command(apostil)'] } });
+  assert.ok(!agy.some((word) => word.includes('dangerously')));
   assert.deepEqual(resumeCommand({ app: 'opencode', session: 'o1' }, 'Do it'), ['opencode', 'run', '--session', 'o1', 'Do it', '--format', 'json']);
   assert.equal(resumeCommand({ app: 'claude-code' }, 'Do it'), undefined);
 
@@ -59,57 +63,69 @@ test('the link, the resume command, the command of a new session and the command
   assert.ok(!resumeCommand({ app: 'codex', session: 't1' }, 'Do it', { codexModel: 'model-a' })?.some((word) => word.startsWith('model=')));
   assert.ok(!newRunCommand('codex', 'Do it')?.some((word) => word.startsWith('model=')));
   assert.deepEqual(newRunCommand('claude-code', 'Do it', { codexModel: 'model-a' }), newRunCommand('claude-code', 'Do it'));
-  assert.deepEqual(newRunCommand('antigravity', 'Do it'), ['agy', '-p', 'Do it', '--mode', 'accept-edits']);
+  const agyNew = newRunCommand('antigravity', 'Do it')!;
+  assert.deepEqual(agyNew.slice(0, 7), ['agy', '-p', 'Do it', '--output-format', 'json', '--effort', 'high']);
+  assert.deepEqual(agyNew.slice(7, 10), ['--mode', 'accept-edits', '--settings']);
+  assert.deepEqual(JSON.parse(agyNew[10]), { permissions: { allow: ['write_file(*)', 'command(apostil *)', 'command(apostil)'] } });
+  const agyReadOnly = newRunCommand('antigravity', 'Do it', { commentRuns: 'read only' })!;
+  assert.deepEqual(JSON.parse(agyReadOnly[agyReadOnly.indexOf('--settings') + 1]), { permissions: { allow: ['command(apostil *)', 'command(apostil)'], deny: ['write_file(*)'] } });
   assert.deepEqual(newRunCommand('opencode', 'Do it'), ['opencode', 'run', 'Do it', '--format', 'json']); // its JSON events name the session
   assert.equal(newRunCommand('other', 'Do it'), undefined);
 
   // The command that continues a session in a terminal, for each app.
   assert.deepEqual(openSessionCommand('claude-code', 's1'), ['claude', '--resume', 's1']);
   assert.deepEqual(openSessionCommand('codex', 't1'), ['codex', 'resume', 't1']);
-  assert.equal(openSessionCommand('antigravity', 'a1'), undefined);
+  assert.deepEqual(openSessionCommand('antigravity', 'a1'), ['agy', '--conversation', 'a1']);
   assert.deepEqual(openSessionCommand('opencode', 'o1'), ['opencode', '--session', 'o1']);
 
   // One way to open a session: in its app when it has a link of its own, else in a terminal that continues it; never a page in the browser.
   assert.equal(sessionOpens({ app: 'claude-code', session: 's1', hostSession: 'local_1' }), 'app');
   assert.equal(sessionOpens({ app: 'codex', session: 't1' }), 'app');
   assert.equal(sessionOpens({ app: 'claude-code', session: 's1' }), 'terminal');
+  assert.equal(sessionOpens({ app: 'antigravity', session: 'a1' }), 'terminal');
   assert.equal(sessionOpens({ app: 'opencode', session: 'o1' }), 'terminal');
-  assert.equal(sessionOpens({ app: 'antigravity', session: 'a1' }), undefined);
   assert.equal(sessionOpens({ app: 'claude-code' }), undefined);
 });
 
 test('every new session takes the small model of its app unless the owner set another, and a comment run that continues a session keeps its own model: haiku for Claude Code, gpt-6-luna for Codex, the small_model of the OpenCode config; a run that draws diagrams thinks at max and takes the small model also in a session that it continues, other runs at high; a run that describes a change or writes the map reads the repo, and the description has no Edit', () => {
-  const models = { claudeModel: SMALL_MODELS['claude-code'], codexModel: SMALL_MODELS.codex, opencodeModel: 'made-up-provider/small-one' };
-  assert.deepEqual(SMALL_MODELS, { 'claude-code': 'haiku', codex: 'gpt-6-luna' });
+  const models = { claudeModel: SMALL_MODELS['claude-code'], codexModel: SMALL_MODELS.codex, antigravityModel: SMALL_MODELS.antigravity, opencodeModel: 'made-up-provider/small-one' };
+  assert.deepEqual(SMALL_MODELS, { 'claude-code': 'haiku', codex: 'gpt-6-luna', antigravity: 'gemini-4-hydrogen' });
   // The settings in VS Code start with these models: an empty setting means the model of the app's own settings.
   const settings = JSON.parse(readFileSync(join(__dirname, '..', '..', 'package.json'), 'utf8')).contributes.configuration.properties;
-  assert.deepEqual([settings['apostil.claudeModel'].default, settings['apostil.codexModel'].default], [SMALL_MODELS['claude-code'], SMALL_MODELS.codex]);
+  assert.deepEqual([settings['apostil.claudeModel'].default, settings['apostil.codexModel'].default, settings['apostil.antigravityModel'].default],
+    [SMALL_MODELS['claude-code'], SMALL_MODELS.codex, SMALL_MODELS.antigravity]);
   // The model and the effort of each app: a run that is not about diagrams thinks at high; a comment run that continues a session gives no model.
   assert.deepEqual(modelWords('claude-code', models), ['--model', 'haiku', '--effort', 'high']);
   assert.deepEqual(modelWords('codex', models), ['-c', 'model="gpt-6-luna"', '-c', 'model_reasoning_effort="high"']);
+  assert.deepEqual(modelWords('antigravity', models), ['--model', 'gemini-4-hydrogen', '--effort', 'high']);
+  assert.deepEqual(modelWords('antigravity', { antigravityModel: 'gemini-4-hydrogen-medium', effort: 'high' }), ['--model', 'gemini-4-hydrogen-medium']); // a slug with an effort keeps it
   assert.deepEqual(modelWords('opencode', models), ['--model', 'made-up-provider/small-one#high']); // OpenCode: the variant of the model is its effort
   assert.deepEqual(modelWords('opencode', { opencodeModel: 'made-up-provider/small-one#fast' }), ['--model', 'made-up-provider/small-one#fast']); // a variant that the person set stays
-  assert.deepEqual(modelWords('antigravity', models), []);
   assert.deepEqual(modelWords('claude-code', {}), ['--effort', 'high']); // an empty setting: the model of the app's own settings, at the effort of the run
   assert.deepEqual(newRunCommand('claude-code', 'Do it', models)?.slice(5, 9), ['--model', 'haiku', '--effort', 'high']);
   assert.ok(!resumeCommand({ app: 'claude-code', session: 's1' }, 'Do it', models)?.includes('--model'));
   assert.deepEqual(newRunCommand('codex', 'Do it', models)?.slice(-4), ['-c', 'model="gpt-6-luna"', '-c', 'model_reasoning_effort="high"']);
   assert.ok(!resumeCommand({ app: 'codex', session: 't1' }, 'Do it', models)?.some((word) => word.startsWith('model=')));
+  assert.deepEqual(newRunCommand('antigravity', 'Do it', models)?.slice(5, 9), ['--model', 'gemini-4-hydrogen', '--effort', 'high']);
+  assert.ok(!resumeCommand({ app: 'antigravity', session: 'c1' }, 'Do it', models)?.includes('--model'));
   assert.deepEqual(newRunCommand('opencode', 'Do it', models), ['opencode', 'run', 'Do it', '--format', 'json', '--model', 'made-up-provider/small-one#high']);
   assert.deepEqual(resumeCommand({ app: 'opencode', session: 'o1' }, 'Do it', models), ['opencode', 'run', '--session', 'o1', 'Do it', '--format', 'json']);
-  assert.deepEqual(newRunCommand('antigravity', 'Do it', models), ['agy', '-p', 'Do it', '--mode', 'accept-edits']);
   // A run that draws diagrams (the map, a description) with no model of its own: the model of the setting at the most effort, also in a session that it
   // continues (the owner, 18 November). Apostil gives these runs the model of their lead (shared/models.test.ts checks that).
   for (const kind of [{ diagrams: true as const }, { describe: true as const }]) {
     const drawing = { ...models, ...kind };
     assert.deepEqual(modelWords('claude-code', drawing), ['--model', 'haiku', '--effort', 'max']);
     assert.deepEqual(modelWords('codex', drawing), ['-c', 'model="gpt-6-luna"', '-c', 'model_reasoning_effort="max"']);
+    assert.deepEqual(modelWords('antigravity', drawing), ['--model', 'gemini-4-hydrogen', '--effort', 'max']);
     assert.deepEqual(modelWords('opencode', drawing), ['--model', 'made-up-provider/small-one#max']);
     const resumed = resumeCommand({ app: 'claude-code', session: 's1' }, 'Do it', drawing)!;
     assert.deepEqual(resumed.slice(7, 11), ['--model', 'haiku', '--effort', 'max']);
     assert.deepEqual(resumeCommand({ app: 'codex', session: 't1' }, 'Do it', drawing)?.slice(-4), ['-c', 'model="gpt-6-luna"', '-c', 'model_reasoning_effort="max"']);
+    assert.deepEqual(resumeCommand({ app: 'antigravity', session: 'c1' }, 'Do it', drawing)?.slice(7, 11), ['--model', 'gemini-4-hydrogen', '--effort', 'max']);
     assert.deepEqual(resumeCommand({ app: 'opencode', session: 'o1' }, 'Do it', drawing)?.slice(-2), ['--model', 'made-up-provider/small-one#max']);
   }
+  const agyMap = newRunCommand('antigravity', 'Write the map', { ...models, diagrams: true })!;
+  assert.ok(JSON.parse(agyMap[agyMap.indexOf('--settings') + 1]).permissions.allow.includes('command(git log *)'));
   // The map run reads the repo: the read tools and the commands of git and gh that only read.
   const map = newRunCommand('claude-code', 'Write the map', { ...models, diagrams: true })!;
   assert.deepEqual(map.slice(map.indexOf('--allowedTools') + 1), ['Bash(apostil *)', 'Read', 'Grep', 'Glob', 'Bash(git log *)', 'Bash(git show *)', 'Bash(git diff *)', 'Bash(git ls-files *)',
@@ -194,6 +210,9 @@ test('sessionName reads the newest title near the end of a large Claude Code tra
     + line({ id: 'c2', thread_name: 'Other', updated_at: '2' }) + line({ id: 'c1', thread_name: 'New name', updated_at: '3' }));
   assert.equal(sessionName({ app: 'codex', session: 'c1' }, home), 'New name');
   assert.equal(sessionName({ app: 'codex', session: 'c2' }, home), 'Other');
+  mkdirSync(join(home, '.gemini', 'antigravity-cli', 'cache'), { recursive: true });
+  writeFileSync(join(home, '.gemini', 'antigravity-cli', 'cache', 'conversation_metadata.json'), JSON.stringify({ conversations: { a1: { summary: 'Map the library repo' } } }));
+  assert.equal(sessionName({ app: 'antigravity', session: 'a1' }, home), 'Map the library repo');
   assert.equal(sessionName({ app: 'antigravity', session: 'c1' }, home), undefined);
 
   // NewestLine reads the lines of a file from its end in pieces.
@@ -256,8 +275,10 @@ test('a failed run gets the fix that fits it: set up, sign in, install, update, 
   for (const problem of ['The model gpt-9 does not exist.', 'You have hit your usage limit.', 'apostil save: Line 40 is after the end of src/app.py, which has 6 lines.', 'Request timed out after 401 seconds']) {
     assert.equal(isSignInProblem(problem), problem === 'Request timed out after 401 seconds', problem); // a bare 401 counts: the apps name the status of the refusal that way
   }
-  assert.deepEqual(Object.keys(SIGN_IN).sort(), ['claude-code', 'codex']);
+  assert.deepEqual(Object.keys(SIGN_IN).sort(), ['antigravity', 'claude-code', 'codex']);
   assert.equal(SIGN_IN['claude-code'].command, 'claude auth login'); // the command that Claude Code names when its session expired
+  assert.equal(SIGN_IN.antigravity.command, 'agy');
+  assert.equal(UPDATE.antigravity, 'agy update');
 
   // A failed run gets the fix that fits it: set up, sign in, update, allow, or none.
   assert.equal(runFix('claude-code', 'It ended with code 1.', [], true).kind, 'set-up');
