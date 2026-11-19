@@ -1,6 +1,6 @@
-// Tests for the look on the page of a change and in the file tab (build 60): the look of a repo with no map, the list of diffs in the order of a
+// Tests for the look on the page of a change and in the file tab: the look of a repo with no map, the list of diffs in the order of a
 // rule, the view that opens first, the order of the open points, "where" on the state of a thread and on the check of a note, the marks in the
-// margin, what set-look says it picks on the page, and the new parts of the one list with the sentences of the check. On the made-up example.
+// margin, what set-look says it picks on the page, and the parts of the page in the one list with the sentences of the check. On the made-up example.
 
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -96,7 +96,7 @@ test('the margin of the code: one thing for each line with marks, the first 200 
   assert.deepEqual(['code-map', 'notes-column', 'note-line', 'function-line', 'note-order'].map((kind) => kinds.filter((one: string) => one === kind).length), [1, 1, 3, 1, 1]);
 });
 
-// ----- the icons of the services on the diagrams of a change (build 63) -----
+// ----- the icons of the services on the diagrams of a change -----
 
 // Made-up marks of the services: `line` at the save of the map, `at` in the file as the change has it.
 const serviceMark = (value: string, file: string, line: number, at = line) => ({ set: 'services', value, file, line, at, name: 'call' });

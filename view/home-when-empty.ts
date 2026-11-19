@@ -1,5 +1,5 @@
 // What opens by itself: Home in place of the empty editor area, where VS Code shows its own logo, in a window on a Git repo with no tab, and again
-// when the last tab closes. Home that the person closed stays closed. With a first page in the look of the repo (build 62), that view opens once when
+// when the last tab closes. Home that the person closed stays closed. With a first page in the look of the repo, that view opens once when
 // the window starts, beside the tabs that VS Code brought back, and in an empty editor area in place of Home. The setting apostil.homeWhenEmpty turns
 // all of it off. The rule of what opens is whatOpens() in look-of-vscode.ts.
 

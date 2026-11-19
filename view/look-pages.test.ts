@@ -1,6 +1,6 @@
-// Tests for the parts of Home, the drawn processes and the graphs page that a look reaches (build 59), on the made-up example "library-app": a folded
+// Tests for the parts of Home, the drawn processes and the graphs page that a look reaches, on the made-up example "library-app": a folded
 // area box and a folded file box, a step opened in place, the direction of each level, the head of an arrow, the fields "is" of an arrow and "quiet" of
-// a step, the order of panels, and the check of the new parts with the note of set-look for a rule that picks nothing.
+// a step, the order of panels, and the check of these parts with the note of set-look for a rule that picks nothing.
 
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -71,7 +71,7 @@ test('the direction of each level; a branch arrow of an opened step that a rule 
   const place = diagrams.find((one) => one.id.startsWith('processes:'))!.id;
   const turned = (id: string, level: string, direction: string) => drawn(id, [{ pick: { kind: 'process-drawing', where: { level } }, layout: { direction } }]).shown.text.split('\n')[0];
   assert.deepEqual([turned(place, 'processes', 'down'), turned('process:answer-request', 'process', 'down'), turned('process:answer-request/2', 'step', 'right')], ['flowchart TB', 'flowchart TB', 'flowchart LR']);
-  assert.equal(turned('process:answer-request/2', 'process', 'right'), 'flowchart TB'); // another level: as it was
+  assert.equal(turned('process:answer-request/2', 'process', 'right'), 'flowchart TB'); // another level: not turned
   const { shown } = drawn('process:answer-request/2', [{ pick: { kind: 'arrow', diagram: 'process:answer-request', where: { is: 'branch' } }, show: { shown: false } }]);
   assert.doesNotMatch(shown.text, /-\.->|s5 .*s11/);
   assert.match(shown.text, /^ {2}s8 --> s9$/m);
@@ -103,7 +103,7 @@ test('the panels: those of a level are left out, and an order puts the ids of "f
   assert.deepEqual(Marks.orderRows(rows, order)[0].rows.map((row: { id: string }) => row.id), ['lib-tables', 'offer-flow', 'lib-top']);
 });
 
-test('the made-up look of this build passes the check; a fault of a new part has its sentence; set-look notes a rule that picks nothing now', () => {
+test('the made-up look look-home.json passes the check; a fault of one of its parts has its sentence; set-look notes a rule that picks nothing', () => {
   assert.deepEqual(lookProblems(JSON.parse(readFileSync(join(EXAMPLE_LOOK, 'look-home.json'), 'utf8')), context), []);
   const problems = (...rules: unknown[]): string[] => lookProblems({ rules }, context);
   assert.match(problems({ pick: { kind: 'trail' }, text: { color: '#2b6cb0' } })[0], /^Rule 1: "pick" must name a "kind": one of .*trail-step.*\. The nearest is "trail-step"\.$/);

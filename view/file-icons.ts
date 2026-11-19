@@ -1,4 +1,4 @@
-// The icons of files and folders as the Explorer of VS Code shows them, in the file icon theme that he uses (build 85): a theme is read from its JSON,
+// The icons of files and folders as the Explorer of VS Code shows them, in the file icon theme that he uses: a theme is read from its JSON,
 // a path is resolved as VS Code resolves it, and the page gets only the icons of the rows that it shows, as CSS. No `vscode` import: the tests read it.
 
 import { readFileSync } from 'node:fs';

@@ -17,7 +17,7 @@ export type Step =
   | { tab: 'graphs'; path: string; name: string }
   | { tab: 'change'; change: number; go: ChangeGo; name: string }
   | { tab: 'pull'; link: string; name: string } // a pull request with no stored change
-  | { tab: 'page'; page: string; name: string }; // a page of the look of the repo (build 58)
+  | { tab: 'page'; page: string; name: string }; // a page of the look of the repo
 
 interface Rules {
   HOME: Step;

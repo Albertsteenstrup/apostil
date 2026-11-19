@@ -461,7 +461,7 @@ export type OtherNotes = (path: string, lines: string[]) => PageNote[];
 /**
  * The look of the repo of a page, for the whole page of a change and its file tabs; also for a repo with no map, whose look then has no marks.
  * `address` turns a kept file of the look into an address that the page may load (a picture in place of a step). Its marks are those of the files of
- * the parts and of the places of their diagrams (build 63): the parts and the steps of their flow charts roll them up. A file tab gets the marks of
+ * the parts and of the places of their diagrams: the parts and the steps of their flow charts roll them up. A file tab gets the marks of
  * its file with its code.
  */
 export function lookOfPage(store: Store, page: PageData, address: (file: string) => string = (file) => file): LookData | undefined {

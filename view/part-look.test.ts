@@ -1,5 +1,5 @@
-// Tests for the look of a repo on the side bar and on the page of a pull request (build 61): the rows of the list in the order of a rule, the search at
-// the start, the rows of the tree "Files", the bits of the status strip, the checks, the side column, and the sentences of the check for the new parts.
+// Tests for the look of a repo on the side bar and on the page of a pull request: the rows of the list in the order of a rule, the search at
+// the start, the rows of the tree "Files", the bits of the status strip, the checks, the side column, and the sentences of the check for these parts.
 
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -22,7 +22,7 @@ const map: RepoMap = JSON.parse(readFileSync(join(__dirname, '../../view/example
 const context: LookContext = { folder: example.folder, map, commands: apostilCommands() };
 /** A look as a page gets it, with these rules and marks. */
 const lookOf = (rules: unknown[], marks: unknown[] = []): LookData => ({ custom: true, rules, one: ['content', 'click'], sets: [], values: {}, marks, files: {} }) as unknown as LookData;
-const NEW_KINDS = Object.entries(LOOK_PARTS.components).filter(([, part]) => ['side-bar', 'pull-lines', 'files', 'pull-request', 'conversation'].includes(part.area)).map(([kind]) => kind);
+const SIDE_AND_PULL_KINDS = Object.entries(LOOK_PARTS.components).filter(([, part]) => ['side-bar', 'pull-lines', 'files', 'pull-request', 'conversation'].includes(part.area)).map(([kind]) => kind);
 
 // Three made-up rows: two of one session, one with no agent.
 const row = (branch: string, added: number, more: Record<string, unknown> = {}) => ({ branch, added, removed: 1, commits: 1, files: 2, savedAt: new Date().toISOString(), phrase: '', remarks: { sent: 0, running: 0, done: 0 }, ...more });
@@ -68,7 +68,7 @@ test('the rows of the tree "Files": a folder that a rule leaves out is gone, fol
   const counts = new Map([['db/', 1], ['src/', 5], ['web/', 3], ['web/src/api/', 2], ['web/src/api/generated/', 1]]);
   assert.deepEqual(treeChildren(['db/', 'src/', 'web/', 'README.md'], '', look, counts), ['src/', 'web/', 'db/', 'README.md']);
   assert.deepEqual(treeChildren(['web/src/api/generated/', 'web/src/api/client.ts'], 'web/src/api/', look, counts), ['web/src/api/client.ts']);
-  assert.deepEqual(treeChildren(['db/', 'src/', 'web/', 'README.md'], '', undefined, counts), ['db/', 'src/', 'web/', 'README.md']); // no look: as before
+  assert.deepEqual(treeChildren(['db/', 'src/', 'web/', 'README.md'], '', undefined, counts), ['db/', 'src/', 'web/', 'README.md']); // no look: the rows as they come
   assert.deepEqual(fileRow(look, 'src/a.py'), { icon: undefined, words: '2 errors', click: undefined });
   assert.deepEqual(fileRow(look, 'src/b.py'), { icon: 'kept.svg', words: undefined, click: { file: 'src/b.py', line: 3 } });
   assert.deepEqual([graphsIconClick(look, 'src/b.py'), graphsIconClick(look, 'web/x.ts'), graphsIconClick(undefined, 'src/b.py')], [{ folder: 'src/' }, undefined, undefined]);
@@ -102,11 +102,11 @@ test('the sections of the side column: the ones of the rule first, a section tha
   assert.deepEqual(PartLook.sideSections(undefined, ids), ids);
 });
 
-test('each new part has an area with an index line, other words, and an example that passes the check; the look of the example passes too', () => {
+test('each part of the side bar and of a pull request has an area with an index line, other words, and an example that passes the check; the look of the example passes too', () => {
   const fill = (rule: unknown): unknown => JSON.parse(JSON.stringify(rule).replaceAll('<folder>/', 'src/library/jobs/').replaceAll('<file>', 'src/library/night_jobs.py')
     .replaceAll('<set>:<value>', 'services:postgresql').replaceAll('<branch>', 'book-holds'));
-  assert.equal(NEW_KINDS.length, 26);
-  for (const kind of NEW_KINDS) {
+  assert.equal(SIDE_AND_PULL_KINDS.length, 26);
+  for (const kind of SIDE_AND_PULL_KINDS) {
     const part = LOOK_PARTS.components[kind as keyof typeof LOOK_PARTS.components] as { area: string; words?: readonly string[]; example: unknown };
     assert.ok(part.area in LOOK_PARTS.areas && part.words?.length, kind);
     assert.deepEqual(lookProblems({ rules: [fill(part.example)] }, context), [], kind);
@@ -118,7 +118,7 @@ test('each new part has an area with an index line, other words, and an example 
     .every((kind) => (EVENT_KINDS as readonly string[]).includes(kind)));
 });
 
-test('the sentences of the check for the main faults of the new parts, each with the nearest right name', () => {
+test('the sentences of the check for the main faults of these parts, each with the nearest right name', () => {
   const rules = [
     { pick: { kind: 'home-row' }, content: { words: 'Home · {repo}' } },
     { pick: { kind: 'list-search' }, content: { words: 'author:mira-k' } },

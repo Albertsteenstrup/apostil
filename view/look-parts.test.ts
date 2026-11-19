@@ -17,12 +17,12 @@ const problems = (...rules: unknown[]): string[] => lookProblems({ rules }, cont
 const jobs = { kind: 'node', diagram: 'lib-top', nodes: ['jobs'] };
 const readLook = (name: string): unknown => JSON.parse(readFileSync(join(EXAMPLE_LOOK, name), 'utf8'));
 
-test('a look saved by build 51 still passes the check, and so does the shared look of the example', () => {
+test('the example looks look.json and look-shared.json pass the check', () => {
   assert.deepEqual(lookProblems(readLook('look.json'), context), []);
   assert.deepEqual(lookProblems(readLook('look-shared.json'), context), []);
 });
 
-test('each new part has an area, other words and an example that passes the check on the made-up example', () => {
+test('each part of the one list has an area, other words and an example that passes the check on the made-up example', () => {
   const fill = (rule: unknown): unknown => JSON.parse(JSON.stringify(rule).replaceAll('<diagram>', 'lib-top').replaceAll('<node>', 'jobs')
     .replaceAll('<folder>/', 'src/library/jobs/').replaceAll('<file>', 'src/library/night_jobs.py').replaceAll('<set>:<value>', 'services:postgresql'));
   const all: Record<string, unknown> = { ...LOOK_PARTS.slots, ...LOOK_PARTS.picks, ...LOOK_PARTS.targets };
@@ -60,7 +60,7 @@ test('the slot "order" is checked against the fields of its component: one funct
   assert.deepEqual(at('field', 'sise', 'by'), ['Rule 1, "order": a node has no field "sise". Its fields are "title", "size". The nearest is "size".']);
 });
 
-test('each new target passes, and each fault of a target has its sentence', () => {
+test('the targets graphs, folder, change, pull and comment pass, and each fault of a target has its sentence', () => {
   for (const target of [{ graphs: 'src/library/night_jobs.py' }, { graphs: 'src/library/' }, { folder: 'src/library/jobs/' }, { change: 'book-holds', part: 'hold-service' }, { pull: 12 }, { comment: true }]) {
     assert.deepEqual(problems({ pick: jobs, click: target }), [], JSON.stringify(target));
   }
@@ -72,7 +72,7 @@ test('each new target passes, and each fault of a target has its sentence', () =
   assert.equal(one({ comment: 'yes' }), 'Rule 1, "click": "comment" must be true.');
   assert.equal(one({ change: 'main', line: 3 }), 'Rule 1, "click": "line" goes with "file".');
   assert.match(one({ file: 'README.md', url: 'https://example.com' }), /a target holds exactly one of "file", "url"/);
-  // A target is the same everywhere: a key, a menu entry and the button of build 51.
+  // A target is the same everywhere: a key, a menu entry and a button.
   assert.match(problems({ pick: jobs, input: { key: { g: { pul: 3 } } } }).join(), /Rule 1, "input", the key "g": "pul" is no target\. .* The nearest is "pull"\./);
   assert.match(problems({ pick: jobs, input: { menu: [{ name: 'Go', target: { folder: 'nowhere/' } }] } }).join(), /Rule 1, "input", entry 1: The path nowhere\/ does not exist\./);
 });
@@ -95,7 +95,7 @@ test('a key that a page of Apostil uses is refused, with the keys that are free'
   assert.deepEqual(problems({ pick: jobs, input: { key: { gg: { comment: true } } } }), ['Rule 1, "input": the key "gg" is no letter or digit. A key of a look is one letter or one digit.']);
 });
 
-test('the sections of a window: the ids of the component, an unknown one names the nearest, and a section of its own holds blocks (build 58)', () => {
+test('the sections of a window: the ids of the component, an unknown one names the nearest, and a section of its own holds blocks', () => {
   assert.deepEqual(problems({ pick: jobs, window: { width: 440, sections: ['changes', 'files'] } }), []);
   assert.deepEqual(problems({ pick: { kind: 'step' }, window: { sections: ['marks', 'note'] } }), []);
   assert.deepEqual(problems({ pick: jobs, window: { sections: ['file'] } }), ['Rule 1, "window": "file" is no section of the window of a node. Its sections are "files", "changes", "marks". The nearest is "files".']);

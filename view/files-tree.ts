@@ -68,7 +68,7 @@ export class FilesTree implements vscode.TreeDataProvider<string> {
     return item;
   }
 
-  // ----- the look of the repo (build 61) -----
+  // ----- the look of the repo -----
 
   /** Reads the look of the repo, when one is saved, and counts the files under each folder for it. */
   private loadLook(folder: string): void {

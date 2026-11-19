@@ -195,7 +195,7 @@ export function homeData(store: Store, folder: string, apps: string[] = [], addr
   const mapApp = appToStart(store.startedRuns(), id, apps, connected);
   const base: HomeData = { kind: 'home', repo: repoName(folder), folder, apps, ...(mapApp ? { mapApp, team: teamOf(mapApp) } : {}), remarks: id ? store.repoRemarks(id) : [], ...(mapRun ? { mapRun } : {}) };
   if (!id || !stored) return base;
-  // While a run of the whole map writes (build 84): the areas of the top diagram with work left, for the states of its nodes and cards.
+  // While a run of the whole map writes: the areas of the top diagram with work left, for the states of its nodes and cards.
   const run = store.mapRun(id);
   if (mapRun?.time && run) mapRun.areas = areaWork(store, folder, stored, run);
   const files = repoFiles(folder);

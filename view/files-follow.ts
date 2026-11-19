@@ -40,7 +40,7 @@ export function rowOfFileInFront(): (file: string | undefined, folder: string, v
   };
 }
 
-// ----- the look of the repo on the rows of the tree (build 61): VS Code draws them, so a rule changes only what a row of a tree has -----
+// ----- the look of the repo on the rows of the tree: VS Code draws them, so a rule changes only what a row of a tree has -----
 
 type Slots = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 const nameOf = (path: string): string => path.replace(/\/$/, '').split('/').pop() ?? path;
@@ -55,7 +55,7 @@ function rowSlots(look: LookData | undefined, path: string, files = 0): Slots {
 
 /**
  * The rows under a folder in the look: without the folders that a rule leaves out (with all under them), the folders in the order that a rule of the
- * folder itself gives ("order.by" a field, "down"; a rule of the kind alone also orders the top of the tree), then the files as before. `counts`: the
+ * folder itself gives ("order.by" a field, "down"; a rule of the kind alone also orders the top of the tree), then the files in their own order. `counts`: the
  * number of files under each folder.
  */
 export function treeChildren(rows: string[], parent: string, look: LookData | undefined, counts: Map<string, number>): string[] {
@@ -77,6 +77,6 @@ export function fileRow(look: LookData | undefined, path: string): { icon?: stri
   return { icon: own['text.icon'], words: words === undefined ? undefined : Marks.fillText(words, { name: nameOf(path), path, marks }), click: own.click };
 }
 
-/** The target of a click on the graphs icon of a row in the look, or undefined: then it opens the graphs as before. */
+/** The target of a click on the graphs icon of a row in the look, or undefined: then it opens the graphs of the path. */
 export const graphsIconClick = (look: LookData | undefined, path: string): Target | undefined =>
   (look ? Marks.resolve(look.rules, { kind: 'graphs-icon', paths: [path], fields: { path } }, look.one).click : undefined);

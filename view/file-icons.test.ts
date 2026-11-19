@@ -1,4 +1,4 @@
-// Tests for the icons of files and folders as the Explorer shows them (build 85, view/file-icons.ts): a theme with font icons and language ids, shaped as
+// Tests for the icons of files and folders as the Explorer shows them (view/file-icons.ts): a theme with font icons and language ids, shaped as
 // the default theme of VS Code, and a theme of SVG pictures with compound extensions, names and folder names. Made-up themes; no VS Code.
 
 import assert from 'node:assert/strict';

@@ -117,13 +117,13 @@ put?.clean(); // the files of the writers leave the repo before the page of the 
 // Made up: a second agent read the flow chart; the other diagrams are not checked yet.
 const page = examplePage(folder, base, file, points, remarks, agent, apps, map, changeId, ['offer-flow'], sendTo); // the id of the stored change, so that the graphs pages open this page
 
-// Each made-up look of the example (view/check-example/look/look*.json), saved as a writer saves it, one after the other: "look.json" (build 51,
-// with its second set and its marks) is "?look=1", "look-<name>.json" is "?look=<name>". Home and the note cards are read after each save.
+// Each made-up look of the example (view/check-example/look/look*.json), saved as a writer saves it, one after the other: "look.json" (with
+// its second set and its marks) is "?look=1", "look-<name>.json" is "?look=<name>". Home and the note cards are read after each save.
 const homeLooks: Record<string, HomeData> = {};
 const pageLooks: Record<string, LookData | undefined> = {};
 const graphsLooks: Record<string, Record<string, GraphsData>> = {}; // the graphs pages of a few paths in each look, for the browser checks
 const LOOK_GRAPHS = ['db/migrations/0042_holds.sql', 'src/library/lending/requests.py'];
-// The pages of each look (build 58), as "?look=<name>&page=<id>", and the blocks of each section of its own and window of a target, as the page asks for them.
+// The pages of each look, as "?look=<name>&page=<id>", and the blocks of each section of its own and window of a target, as the page asks for them.
 const lookPages: Record<string, Record<string, CustomPageData>> = {};
 const lookAnswers: Record<string, unknown> = {};
 for (const name of put ? readdirSync(EXAMPLE_LOOK).filter((one) => /^look(-[a-z-]+)?\.json$/.test(one)).sort() : []) {
@@ -161,7 +161,7 @@ const savedSoFar = (run: MapRun | undefined, by: AgentSession | undefined): MapR
 };
 const desktopRun = savedSoFar(undefined, { app: 'claude-code', session: mapSession, hostSession: 'made-up-host-0002', name: 'Map of library-app' });
 const lineOf = (run: MapRun): MapRunLine | undefined => { store.changeMapRun(repoId(folder), () => run); return mapRunOf(store, repoId(folder)); };
-// Made up (build 84): a run of Home that writes the whole map, with its plan of the work, in three states: before the overview ("reading", with
+// Made up: a run of Home that writes the whole map, with its plan of the work, in three states: before the overview ("reading", with
 // "&nomap=1"), while the areas load ("areas": the areas of the top map done, two worked on now and two that wait), and the same run after one more save
 // ("later"), with a new time left. The saves are made up; the time left and the bar come from the plan, as on Home.
 const plan: MapPlan = { at: 0, done: 0, lines: 6400, overview: 1, areas: 3, notes: 16, noteFiles: 48, processes: 8, services: 8, again: 1, fit: 1 };
@@ -224,7 +224,7 @@ answers['pull:https://example.com/made-up/pull/11'] = { pull: pullRequestFrom(ex
 const pagePulls = pulls[page.branch].slice(0, 2); // the page knows the two that have a made-up conversation
 const readyPull = pullRequestFrom(exampleReadyPullRequest()); // #12 as a read gives it once it can merge: the browser check puts it in place of #12
 
-// The icons of the rows of Home and of the page in the made-up file icon theme (view/check-example/file-icons/, build 85), resolved as in VS Code
+// The icons of the rows of Home and of the page in the made-up file icon theme (view/check-example/file-icons/), resolved as in VS Code
 // with a dark colour theme; its files are copied next to the page.
 const iconFiles = join(__dirname, '../../view/media/example-icons');
 rmSync(iconFiles, { recursive: true, force: true });

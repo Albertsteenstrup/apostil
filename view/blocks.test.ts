@@ -1,4 +1,4 @@
-// Tests for the blocks of a look (build 58): the check of a page, a section of its own and the window of a target (shared/look.ts), a file of the
+// Tests for the blocks of a look: the check of a page, a section of its own and the window of a target (shared/look.ts), a file of the
 // repo as the data of a block (shared/repo-data.ts), and the data of the blocks when their page or window opens (view/look-blocks.ts).
 // On the made-up example (the repo "library-app", with its file data/branches.csv) and on a small test repo.
 
@@ -170,7 +170,7 @@ test('a file that changed since the save gives one quiet line in place of its bl
   store.close();
 });
 
-test('each new part has an area with an index line, other words and an example that passes the check', () => {
+test('each block, the targets "window" and "page", and the pages have an area with an index line, other words and an example that passes the check', () => {
   const fill = (value: unknown): unknown => JSON.parse(JSON.stringify(value).replaceAll('<diagram>', 'lib-top').replaceAll('<node>', 'jobs').replaceAll('<file>', 'src/library/night_jobs.py').replaceAll('<page>', 'opening-hours'));
   for (const [name, block] of Object.entries(LOOK_PARTS.blocks)) {
     assert.ok(Object.keys(LOOK_PARTS.areas).includes(block.area) && block.words.length, name);

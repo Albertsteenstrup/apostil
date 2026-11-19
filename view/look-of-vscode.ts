@@ -1,4 +1,4 @@
-// What the look of a repo turns on in VS Code's own editor and frame (build 62): the marks in the margin, the answers of the search with #, the
+// What the look of a repo turns on in VS Code's own editor and frame: the marks in the margin, the answers of the search with #, the
 // right-click entries and keys with the line facts they need, the first page, and the rows of the list "Look". Each part is off until a rule of the
 // look says "show": { "shown": true } (the first page: a "click"). The pick logic is the pages' own: the first part of view/media/marks.js, read in
 // Node. No `vscode` import: the extension (look-in-vscode.ts) and the tests use it.

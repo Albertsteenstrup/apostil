@@ -199,10 +199,10 @@ test('the difference of a broad diagram finds a new node and a removed node, and
   assert.deepEqual([total('first'), total('second'), total('kept')], [{ added: 1, removed: 0 }, { added: 1, removed: 1 }, undefined]); // "kept" has no diff: no card
 });
 
-test('the page of a part has the code of each thing, the changed lines in no step, "checked" until the next save, its change and its removed steps from "before"; an old description opens as the page of today', () => {
+test('the page of a part has the code of each thing, the changed lines in no step, "checked" until the next save, its change and its removed steps from "before"; a diagram with no code lines and no "before" opens as it is', () => {
   const file = testChangeFile();
   const [flow] = file.diagrams!;
-  // From before the rule: a step with no code and no reason, and no "covers". It is stored as it was and opens.
+  // A step with no code and no reason, and no "covers": it is stored as it is and opens.
   const old = { ...flow, id: 'old-flow', nodeLines: { done: [6, 6] as [number, number] }, covers: undefined };
   const now = { ...flow, nodeLines: { ask: [{ file: 'src/new_tool.py', lines: [1, 2] as [number, number] }, [5, 5] as [number, number]], done: 'no-line' as const } };
   const id = store.saveChange({
@@ -220,7 +220,7 @@ test('the page of a part has the code of each thing, the changed lines in no ste
   store.saveChange({ repoId: repoId(repo.folder), folder: repo.folder, branch: 'feature', base: repo.base, head: headCommit(repo.folder), file, checks: checkChangeFile(repo.folder, repo.base, file) });
   assert.equal(pageData(store, id, repo.folder)!.diagrams[0].checked, false);
 
-  // A diagram with "before" shows its change and its removed steps; an old change file with no "before" and no code lines gives the page of today.
+  // A diagram with "before" shows its change and its removed steps; a diagram with no "before" and no code lines is drawn as it is.
   {
     const file = testChangeFile();
     const [flow] = file.diagrams!;
@@ -231,15 +231,15 @@ test('the page of a part has the code of each thing, the changed lines in no ste
       file: { ...file, diagrams: [changed, old] }, checks: checkChangeFile(repo.folder, repo.base, file),
     });
     const page = pageData(store, id, repo.folder)!;
-    const [withChange, today] = page.diagrams;
+    const [withChange, noBefore] = page.diagrams;
     assert.deepEqual(withChange.change?.nodes, { wait: 'removed' });
     assert.equal(withChange.plain, flow.mermaid); // drawn when the text with the removed step does not draw
     assert.match(withChange.draw, /wait\["Wait"\]\n  ask -\.-> wait\n  wait -\.-> done$/);
     assert.match(page.parts[0].drillUp!, /wait\["Wait"\]/); // the part kept whole after drill up has its removed step too
     assert.doesNotMatch(page.parts[0].drillUpPlain!, /Wait/);
-    assert.equal(today.change, undefined);
-    assert.equal(today.plain, undefined);
-    assert.equal(today.draw, flow.mermaid);
+    assert.equal(noBefore.change, undefined);
+    assert.equal(noBefore.plain, undefined);
+    assert.equal(noBefore.draw, flow.mermaid);
   }
 });
 
@@ -576,7 +576,7 @@ test('the map run gets the skills as text, says in its first words when it also 
 });
 
 test('every Claude Code run that Apostil starts waits up to 60 minutes after the last turn of its lead for writers that still run, and may run 16 subagents at once', () => {
-  // Print mode stops writers 10 minutes after the last turn by default: a real map run lost its last process writers so. 0 would wait for ever.
+  // Print mode stops writers 10 minutes after the last turn by default, which cuts off the last writers of a long map run. 0 would wait for ever.
   assert.equal(runEnvironment({ PATH: '/bin' }).CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS, '3600000');
   assert.equal(runEnvironment({ CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS: '0' }).CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS, '3600000');
   // Claude Code runs 20 subagents at once unless the person set fewer: a lower setting is raised to 16 for the run, and a higher one or none stays.

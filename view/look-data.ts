@@ -31,7 +31,7 @@ export interface LookData {
 
 /**
  * The rules of a look in the order that they apply. The corner of each set is a rule for its kinds, after the default and before the rules of the look.
- * A part of the page of a change and a step of the flow chart of a part (build 63) have the corner of each set on a node, the services too: no rule of a
+ * A part of the page of a change and a step of the flow chart of a part have the corner of each set on a node, the services too: no rule of a
  * look sets their corners.
  */
 export function lookRules(sets: MarkSet[], rules: LookRule[] = []): LookRule[] {
@@ -79,7 +79,7 @@ export function lookData(store: Store, repo: string, folder: string, address: (f
 export const asDefault = (data: LookData): LookData => ({ ...data, custom: false, rules: lookRules([SERVICES]), sets: data.sets.filter((set) => set.id === SERVICES.id) });
 
 /**
- * The look of a repo for a part that shows only a saved look (the list "Repo" and the tree "Files", build 61): undefined while no look is saved, so
+ * The look of a repo for a part that shows only a saved look (the list "Repo" and the tree "Files"): undefined while no look is saved, so
  * that the part costs nothing then. A file of the look keeps its own name, which the part finds in the folder of the look.
  */
 export const savedLook = (store: Store, repo: string, folder: string, withMarks = false): LookData | undefined =>
