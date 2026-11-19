@@ -395,6 +395,7 @@ async function twoHalves() {
   const behindMore = 'web/src/member/index.ts';
   await pointRow(behindMore);
   await hereIs('holds-tab');
+  await when(() => [...document.querySelectorAll('.half.left .f.lit')].some((line) => !line.dataset.file)); // the line of the hidden file, not of a row of the same part that the pointer crossed
   await quiet();
   const onHidden = await marks();
   await toGutter();
