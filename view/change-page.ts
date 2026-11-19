@@ -22,6 +22,8 @@ import type { PullHead } from './pull-folder';
 import { appName, commentRuns, runModels, showRunProblem } from './run-settings';
 import { iconCss } from './state-icons';
 import { blocksAnswer } from './look-blocks';
+import { changePaths } from './file-icons';
+import { fileIcons, pageOptions } from './icon-theme';
 import type { DiagramLayout } from './home-page';
 import { keptPullRequests, pullRequestsLater } from './change-list';
 import { reopenStaleRuns } from './list-rows';
@@ -206,7 +208,7 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
   /** Puts the page into a webview and keeps it in the views. */
   private addView(panel: vscode.WebviewPanel, file?: string, start: { lines?: [number, number]; at?: ChangeAt } = {}, uri?: string): View {
     const view: View = { panel, file, uri, ...start, ready: false, waiting: [] };
-    panel.webview.options = { enableScripts: true, localResourceRoots: [this.media, vscode.Uri.file(join(this.store.folder, 'looks'))] }; // the kept files of a look
+    pageOptions(panel.webview, this.roots()); // the kept files of a look, and the icons of the file icon theme
     panel.webview.html = webviewHtml(panel.webview, this.media, 'page.html');
     panel.webview.onDidReceiveMessage((message: Message) => this.receive(message, view));
     panel.onDidChangeViewState(() => {
@@ -355,7 +357,27 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
     const { lines, at } = takeStart(view);
     const pulls = this.page && !this.page.pullOnly ? keptPullRequests(this.page.folder, this.page.branch) : undefined; // known now: the page opens at the right view at once
     if (pulls) this.sentPulls = JSON.stringify(pulls);
-    return { type: 'data', page: this.page, pulls, file: view.file, lines, at, trail: this.trail?.steps, full: this.layout.full(), minimap: minimapOn(), ask: this.askNow(), ...(view.file && this.pullRead ? { pullRead: this.pullRead } : {}) };
+    return { type: 'data', page: this.page, pulls, file: view.file, lines, at, trail: this.trail?.steps, full: this.layout.full(), minimap: minimapOn(), ask: this.askNow(), icons: this.iconsOf(view), ...(view.file && this.pullRead ? { pullRead: this.pullRead } : {}) };
+  }
+
+  /** The icons of the changed files, which the cards of the parts show (build 85); a file tab has no cards. */
+  private iconsOf(view: View): unknown {
+    const page = this.page;
+    if (view.file || !page) return undefined;
+    return fileIcons.iconsFor(changePaths(page), view.panel.webview);
+  }
+
+  /** He changed the icon theme or the colour theme (build 85): the page shows the new icons; new roots load it again, and it asks for its data. */
+  iconsChanged(): void {
+    for (const view of this.views) {
+      if (pageOptions(view.panel.webview, this.roots())) { view.ready = false; view.waiting = []; }
+      else if (!view.file) this.post(view, { type: 'icons', icons: this.iconsOf(view) });
+    }
+  }
+
+  /** The folders that a page may load files from: its own, and the kept files of the looks (and the folder of the icon theme, pageOptions). */
+  private roots(): vscode.Uri[] {
+    return [this.media, vscode.Uri.file(join(this.store.folder, 'looks'))];
   }
 
   /**

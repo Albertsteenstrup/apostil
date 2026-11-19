@@ -18,6 +18,7 @@ import { rowOfFileInFront, treeSteps } from './files-follow';
 import { FilesTree } from './files-tree';
 import { idOf } from './home-data';
 import { HomePages } from './home-page';
+import { fileIcons } from './icon-theme';
 import { lookPages } from './look-blocks';
 import { answerTarget, type TargetPlaces } from './look-targets';
 import { LookInVsCode } from './look-in-vscode';
@@ -81,6 +82,9 @@ export function activate(context: vscode.ExtensionContext) {
     full: () => context.globalState.get<boolean>(LAYOUT_KEY, false),
     set: (full) => void context.globalState.update(LAYOUT_KEY, full).then(() => { home.postLayout(); page.postLayout(); }),
   };
+  // The icons of files and folders in the rows of the cards and the windows (build 85): from the file icon theme that he uses, again when he changes it.
+  fileIcons.start(context);
+  context.subscriptions.push(fileIcons.onChange(() => { home.iconsChanged(); page.iconsChanged(); }));
   // From outside a page (the side bar, the Files tree, the Explorer, a title bar, a command) a view starts a new path.
   const openHome = (quiet = false): void => { trail.start(TrailRules.HOME); home.openHome(undefined, quiet); };
   const openChange = (id: number): void => {

@@ -16,6 +16,8 @@ import { openAgentSession, openLink, openRemarkSession, webviewHtml, type NewRem
 import { menusOf } from './page-data';
 import { graphsData, homeData, idOf, type GraphsData, type HomeData } from './home-data';
 import { blocksAnswer, lookPages, pageData, type CustomPageData } from './look-blocks';
+import { homePaths } from './file-icons';
+import { fileIcons, pageOptions } from './icon-theme';
 import type { Step, WindowTrail } from './trail';
 
 type Message =
@@ -257,7 +259,29 @@ export class HomePages {
     if (data.mapRun?.time && startedAt) data.mapRun.time = this.held(startedAt, data.mapRun.time);
     clearInterval(this.ticker);
     if (data.mapRun?.time) this.ticker = setInterval(() => this.tick(), 30_000);
-    return { type: 'data', data: this.homeShown, trail: this.trail.steps, full: this.layout.full() };
+    return { type: 'data', data: this.homeShown, trail: this.trail.steps, full: this.layout.full(), icons: this.homeIcons() };
+  }
+
+  /** The icons of the folders and files of the map, which the cards and the windows of the nodes of Home show (build 85). */
+  private homeIcons(): unknown {
+    return this.home && fileIcons.iconsFor(homePaths(this.homeShown?.map), this.home.panel.webview);
+  }
+
+  /**
+   * He changed the icon theme or the colour theme (build 85): Home shows the new icons. A theme of another extension needs another folder among the
+   * roots of each tab, and new roots load a page again: it then asks for its data, with the icons.
+   */
+  iconsChanged(): void {
+    for (const tab of [this.home, ...this.graphs.values(), ...this.pages.values()]) {
+      if (!tab) continue;
+      if (pageOptions(tab.panel.webview, this.roots())) { tab.ready = false; tab.waiting = []; }
+      else if (tab === this.home) this.post(tab, { type: 'icons', icons: this.homeIcons() });
+    }
+  }
+
+  /** The folders that a tab may load files from: its own, and the kept files of the looks (and the folder of the icon theme, pageOptions). */
+  private roots(): vscode.Uri[] {
+    return [this.media, vscode.Uri.file(join(this.store.folder, 'looks'))];
   }
 
   /** The start of the map run of the open repo: the key of the minutes that Home shows. */
@@ -326,8 +350,8 @@ export class HomePages {
   private addTab(panel: vscode.WebviewPanel, path?: string, page?: string): Tab {
     const tab: Tab = { panel, path, page, ready: false, waiting: [] };
     panel.iconPath = vscode.Uri.joinPath(this.media, 'apostil-icon.svg');
-    // The page may load its own files, and the pictures and films of the looks that Apostil keeps.
-    panel.webview.options = { enableScripts: true, localResourceRoots: [this.media, vscode.Uri.file(join(this.store.folder, 'looks'))] };
+    // The page may load its own files, the pictures and films of the looks that Apostil keeps, and the icons of the file icon theme.
+    pageOptions(panel.webview, this.roots());
     panel.webview.html = webviewHtml(panel.webview, this.media, 'home.html');
     panel.webview.onDidReceiveMessage((message: Message) => this.receive(message, tab));
     panel.onDidChangeViewState(() => {
