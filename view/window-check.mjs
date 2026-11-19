@@ -529,9 +529,15 @@ try {
     whole.querySelector('[data-unfold]')?.replaceWith(whole.querySelector('[data-unfold]').title.replaceAll(' › ', '›'));
     return whole.textContent;
   });
+  /** The way into a node of Home where cards show (build 85): a click on its card, or on the one row of its card of files. */
+  const intoNode = async (frame, key) => {
+    const card = frame?.locator(`#cards .ovc[data-node="${key}"]`);
+    const rows = card?.locator('.ovf a');
+    await ((await rows?.count().catch(() => 0)) === 1 ? rows.click({ timeout: 8000 }) : card?.click({ timeout: 8000 }));
+  };
   await list?.locator('.home').click();
   const walkHome = await homeFrame();
-  await walkHome?.locator('#view g.node[id*="flowchart-lending-"]').dblclick();
+  await intoNode(walkHome, 'lending');
   const walkLower = await until(() => lineIn(walkHome).then((line) => line.includes('›') && line, () => ''));
   // The tree "Files" follows the map: the folder of the area is marked and open. Then it marks the file of the tab in front, and keeps it while a tab with no file is in front.
   const marked = () => filesPane.locator('.monaco-list-row.selected').first().evaluate((row) => `${row.querySelector('.label-name')?.textContent ?? row.textContent.trim()}${row.getAttribute('aria-expanded') === 'true' ? ' (open)' : ''}`).catch(() => '');
@@ -544,7 +550,8 @@ try {
     window.apostilWatch = new MutationObserver(look);
     window.apostilWatch.observe(document.querySelector('.part.editor'), { subtree: true, childList: true, attributes: true });
   });
-  await walkHome?.locator('#view g.node[id*="flowchart-service-"]').dblclick();
+  await walkHome?.locator('#cards .ovc[data-node="service"]').waitFor({ timeout: 8000 }).catch(() => {});
+  await intoNode(walkHome, 'service');
   const fileTabShown = await until(async () => { const now = await activeTab(); return /^hold_service\.py/.test(now ?? '') && await frameWhere(() => typeof App === 'object' && !!App.tab?.endsWith('hold_service.py'), undefined, 300) && now; });
   const textEditorSeen = await page.evaluate(() => { window.apostilWatch.disconnect(); return window.apostilTextEditorSeen; });
   const treeAtFile = await markedIs('hold_service.py');
@@ -563,10 +570,10 @@ try {
   const homeTabShown = await until(async () => { const now = await activeTab(); return /^Home/.test(now ?? '') && now; });
   const homeLine = walkHome ? await until(() => lineIn(walkHome).then((line) => line === 'Home' && line, () => '')) : '';
   const treeAtHome = await marked();
-  check('across real tabs: a node that is one file opens the file, in the file tab of Apostil at once; from its graphs to the change page the line lists Home, the graphs and the change; a click on a step shows the tab of that step',
+  check('across real tabs: the card of a node that is one file opens the file, in the file tab of Apostil at once; from its graphs to the change page the line lists Home, the graphs and the change; a click on a step shows the tab of that step',
     walkLower === 'Home›Lending: holds, requests and mails' && !!fileTabShown && !textEditorSeen && walkLine === ['Home', servicePath, walkTitle].join('›') && !!graphsTabShown && homeLine === 'Home',
     `${walkLower} | ${fileTabShown}, text editor seen ${textEditorSeen} | ${walkLine} | ${graphsTabShown} | ${homeTabShown}: ${homeLine}`);
-  check('the tree "Files" follows the map: a click on an area marks and opens its folder; the tree marks the file of the tab in front, and keeps it marked when a tab with no file comes to the front',
+  check('the tree "Files" follows the map: a click on the card of an area marks and opens its folder; the tree marks the file of the tab in front, and keeps it marked when a tab with no file comes to the front',
     treeAtArea === 'lending (open)' && treeAtFile === 'hold_service.py' && treeAtHome === 'hold_service.py', `${treeAtArea} | ${treeAtFile} | ${treeAtHome}`);
 
   // The icons of the services on a node of Home: the pointer on them opens their window, and a click on a service with one place opens its file at that line.
@@ -580,15 +587,15 @@ try {
   // From Home down to a process: a click on a step with no inner steps opens its file at its first line, in the file tab with its notes.
   await list?.locator('.home').click();
   const processHome = await homeFrame();
-  for (const key of ['routes', 'q0', 's2', 's7']) await processHome?.locator(`#view g.node[id*="flowchart-${key}-"]`).dblclick({ timeout: 8000 });
+  for (const key of ['routes', 'q0', 's2', 's7']) await intoNode(processHome, key).catch(() => {});
   const inStepTab = () => frameWhere(() => typeof App === 'object' && App.tab?.endsWith('lending/requests.py') && App.state?.lines?.join() === '62,62' && !!document.querySelector('.cv [data-line="62"]'), undefined, 8000);
   let stepTab = await inStepTab();
   if (!stepTab && /^Home/.test(await activeTab() ?? '')) { // under load the last click can land while Home draws the step again
     console.log('NOTE  the click on the step left Home in front; once more');
-    await processHome?.locator('#view g.node[id*="flowchart-s7-"]').dblclick({ timeout: 8000 }).catch(() => {});
+    await intoNode(processHome, 's7').catch(() => {});
     stepTab = await inStepTab();
   }
-  check('from Home a click on a node goes down to its processes, and a click on a step opens its file at its first line, in the file tab with its notes', !!stepTab && /^requests\.py/.test(await activeTab() ?? ''), `tab ${await activeTab()}`);
+  check('from Home the card of a node goes down to its processes, and the card of a step opens its file at its first line, in the file tab with its notes', !!stepTab && /^requests\.py/.test(await activeTab() ?? ''), `tab ${await activeTab()}`);
 
   // A click whose target is a prompt (a look of the repo, build 57): VS Code asks with the whole words and "Send". With no "Send" the stand-in claude
   // gets no run; with "Send" it gets one, with the words. A browser cannot show VS Code's question.

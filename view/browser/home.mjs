@@ -17,6 +17,12 @@ try {
   const panelsDrawn = () => home.waitForFunction(() => document.querySelectorAll('.pnl .pd[data-lit]').length === Home.data.panels.length, null, { timeout: 15000 });
   const crumbOf = () => home.textContent('#crumb');
   const nodeOf = (key) => `#view g.node[id*="flowchart-${key}-"]`;
+  /** The way into a node where cards show (build 85): a click on its card, or on the one row of its card of files (a folder, or a file at its line). */
+  const into = async (key) => {
+    const card = `#cards .ovc[data-node="${key}"]`;
+    const rows = await home.locator(`${card} .ovf a`).count();
+    await (rows === 1 ? home.click(`${card} .ovf a`) : home.click(card));
+  };
   const sentCount = () => home.evaluate(() => window.apostilSent.length);
   /** The messages sent since `count` that lead somewhere: a step of the path, the tree "Files", a file. */
   const ledSince = (count) => home.evaluate((from) => window.apostilSent.slice(from).map((one) => one.type).filter((type) => /^(walk|showInTree|openFile)$/.test(type)), count);
@@ -64,7 +70,7 @@ try {
 
   // A click on a node goes down and "Home" goes up; a node with no diagram under it asks for its folder in the tree "Files" and never opens the graphs
   // of the folder; the window of a node of an area lists its files, and a click on a file asks VS Code to open it (build prompt 43).
-  await home.dblclick(nodeOf('lending'));
+  await into('lending');
   await homeSettled();
   const downCrumb = await crumbOf();
   const downNodes = await home.$$eval('#view g.node.go', (all) => all.length);
@@ -72,7 +78,7 @@ try {
   await homeSettled();
   const upCrumb = await crumbOf();
   let sentBefore = await sentCount();
-  await home.dblclick(nodeOf('desk'));
+  await into('desk');
   const toTree = await home.evaluate(() => window.apostilSent.at(-1));
   const deskLed = await ledSince(sentBefore);
   const stillHome = await home.evaluate(() => Home.data.kind === 'home' && !/path=/.test(location.search) && document.getElementById('crumb').textContent === 'Home');
@@ -85,7 +91,7 @@ try {
   await home.click('.win .rows a[data-open="src/library/lending/queue.py"]');
   const openFile = await home.evaluate(() => window.apostilSent.at(-1));
   const stayed = await home.evaluate(() => Home.data.kind === 'home' && Home.at);
-  check('a click on a node goes one level down ("Home › that diagram") and "Home" goes back up; a node with no diagram under it stays on the map and asks for its folder in the tree "Files", never the graphs of the folder; the window of a node of an area lists its files, and a click on one asks VS Code to open it',
+  check('the card of a node goes one level down ("Home › that diagram") and "Home" goes back up; a node with no diagram under it stays on the map and its card asks for its folder in the tree "Files", never the graphs of the folder; the window of a node of an area lists its files, and a click on one asks VS Code to open it',
     downCrumb === 'Home›Lending: holds, requests and mails' && downNodes === 7 && upCrumb === 'Home'
       && stillHome && deskLed.join() === 'showInTree' && toTree?.type === 'showInTree' && toTree.paths.join() === 'src/library/desk/' && toTree.open === true
       && areaWin.title === 'Queue and notices' && areaWin.group === 'Folders and files' && areaWin.files?.join() === 'src/library/lending/notices.py,src/library/lending/queue.py' && areaWin.folders === 0
@@ -103,14 +109,14 @@ try {
   }));
   await homeAt('');
   sentBefore = await sentCount();
-  await home.dblclick(nodeOf('routes'));
+  await into('routes');
   await homeSettled();
   const placeDrawn = await drawing();
   const placeSent = await ledSince(sentBefore);
   const processWin = await windowOf('q0');
   await away();
   sentBefore = await sentCount();
-  await home.dblclick(nodeOf('q0'));
+  await into('q0');
   await homeSettled();
   const oneProcess = await drawing();
   const processSent = (await ledSince(sentBefore)).filter((type) => type !== 'walk');
@@ -122,12 +128,12 @@ try {
       && oneProcess.crumb === 'Home›Processes of Web routes›Answer a book request' && oneProcess.boxes === 3 && oneProcess.names.length === 6 && oneProcess.names.includes('Answer the request9 steps')
       && oneProcess.quiet.join() === 'json' && oneProcess.arrows.join() === '1 make the service,1 write the details,2 pass the answer,2 send the mail,3 shape the request' && processSent.join() === '',
     JSON.stringify({ placeDrawn, placeSent, processWin, oneProcess, processSent }));
-  await home.dblclick(nodeOf('s2'));
+  await into('s2');
   await homeSettled();
   const stepOpened = await drawing();
   const stepWin = await windowOf('s7');
   await away();
-  await home.dblclick(nodeOf('s7'));
+  await into('s7');
   const leafSent = await home.evaluate(() => window.apostilSent.at(-1));
   const leafAt = await home.evaluate(() => Home.at);
   await home.click('#crumb a[data-trail="2"]');
@@ -141,7 +147,7 @@ try {
   const backHome = await crumbOf();
   // A node of an area that holds the first step of one process opens that process at once.
   await homeAt('?diagram=lib-lending');
-  await home.dblclick(nodeOf('requests'));
+  await into('requests');
   await homeSettled();
   const single = await drawing();
   check('a click on a step that holds steps opens its 9 inner steps, two branches dotted with their labels and the steps of other places quiet; the pointer on a step shows its note with its file and lines; a step with no inner steps opens its file at its line; the line leads back up each level; a node that holds the first step of one process opens it at once',
@@ -214,7 +220,7 @@ try {
   });
   const litNow = () => home.evaluate(() => [...document.querySelectorAll('#view g.node.lit')].map((g) => g.querySelector('[data-part]')?.dataset.part ?? nodeKey(g)).sort().join());
   await homeAt('');
-  await home.dblclick(nodeOf('lending'));
+  await into('lending');
   await homeSettled();
   await home.evaluate(() => walkTo(graphsStep('src/library/lending/hold_service.py'))); // as the icon of a file in the tree "Files" does; a click on a node no longer leads there
   await home.waitForURL(/path=/, { timeout: 5000 }).catch(() => {});
@@ -230,7 +236,7 @@ try {
   const changeTitle = await home.evaluate(() => App.page.title);
   const changeBold = await home.textContent('#crumb b');
   const walked = ['Home', 'Lending: holds, requests and mails', servicePath, changeTitle];
-  await home.dblclick('#view b[data-part="hold-service"]');
+  await home.locator('.ovc', { has: home.locator('.ovn', { hasText: /^Hold service$/ }) }).click(); // the card of the part goes in (build 85)
   await pageSettled();
   const walkPart = await lineOf();
   await home.click('.switch a[data-view="diffs"]');
@@ -554,7 +560,7 @@ try {
       && onMapArrow.outline.join() === arrowSpot.rk && /^Arrow "/.test(onMapArrow.where) && arrowTarget?.kind === 'edge' && arrowTarget.diagram === 'lib-top'
       && mapChoices.join() === 'claude-new,codex-new,opencode-new', JSON.stringify({ onMapNode, nodeCard, nodeCircle, nodeTarget, onMapArrow, arrowTarget, mapChoices }));
   await home.mouse.move(2, 2);
-  await home.dblclick(nodeOf('lending'));
+  await into('lending');
   await homeSettled();
   const lowerCrumb = await crumbOf();
   await home.click('[data-comments]');

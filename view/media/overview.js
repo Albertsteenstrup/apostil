@@ -361,6 +361,7 @@ const Overview = {
       return `<div class="ovc${item.open ? ' go' : ''}${state ? ` run-${state}` : ''}" data-card="${at}"${item.node ? ` data-node="${esc(item.node)}"` : ''}>${head}<div class="ovb"></div></div>`;
     }).join('');
     holder.hidden = !items.length;
+    holder.classList.remove('focus'); // new cards: none has the focus until focusOn says so
     this.held = { holder, items };
     this.openedAt = performance.now();
     // A drawing drawn before on this page keeps the shape that it came out in (drawnShape).
@@ -513,9 +514,25 @@ const Overview = {
     return this.peeked;
   },
 
-  /** The card of the node that has the focus gets a quiet accent edge (build 84); no card has it when no node has the focus. */
-  focused(node) {
-    for (const card of document.querySelectorAll('.ovc[data-node]')) card.classList.toggle('focused', !!node && card.dataset.node === node);
+  /**
+   * The card of the node that has the focus is focused too (build 85): its accent edge, and the other cards fade as the other nodes do; no card has it
+   * when no node has the focus. With `reveal`, the page scrolls smoothly, by the least amount, when no part of the card is in view.
+   */
+  focused(node, reveal = false) {
+    let own = null;
+    for (const card of document.querySelectorAll('.ovc[data-node]')) {
+      const on = !!node && card.dataset.node === node;
+      card.classList.toggle('focused', on);
+      if (on) own = card;
+    }
+    for (const holder of document.querySelectorAll('.ovcards')) holder.classList.toggle('focus', !!own && holder.contains(own));
+    if (!own || !reveal) return;
+    // In view: the part of the tab that shows, and beside the code the half that scrolls.
+    const box = own.getBoundingClientRect();
+    const half = own.closest('.half')?.getBoundingClientRect();
+    const [top, bottom] = [Math.max(0, half?.top ?? 0), Math.min(innerHeight, half?.bottom ?? innerHeight)];
+    if (box.bottom > top && box.top < bottom) return;
+    own.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
   },
 };
 

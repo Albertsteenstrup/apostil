@@ -304,25 +304,28 @@ async function drawHome() {
       // While the map is written: a node with work left is quiet, and the node of an area that writers work on now has a quiet accent edge.
       const work = areas?.[nodeKey(g)];
       if (work) g.classList.add(`rn-${work.state}`);
-      // The window of the node, with a quiet link that focuses it as a click does, and the click beside it as a small clue.
-      const content = node.note ? noteWindow(node, thing) : nodeWindow(g, node, thing);
-      const focusIt = () => focusOn(view, joined, nodeKey(g), diagram.id);
-      Hover.attach(g, async () => {
-        const on = hasFocus(view, nodeKey(g));
-        return { ...(await content()), act: { words: on ? 'End the focus' : 'Focus on this node', keys: on ? 'Esc' : 'Click', run: focusIt } };
-      });
       const paths = node.paths.map(({ path }) => path);
       // A click on an area with a diagram of its own goes into it, and the tree "Files" of the side bar follows when it shows. An area with none
       // stays on the map and leads to its code: one file opens, and folders open in the tree. A click never opens the graphs of a folder.
       // In a drawn process a step that holds steps goes one level down, and a step with none opens its file at its first line.
       // A call out of the repo leads nowhere: it is a quiet box with its window only. A click of the look goes to its target instead.
-      // Since build 84 this is what two clicks do (focusClicks): one click focuses the node, and the card of the overview does it at once.
+      // Since build 84 this is what two clicks do (focusClicks): one click focuses the node, and the card of the overview does it at once. Where the
+      // cards show, only the card and "Open" in the window do it (build 85).
       const today = paths.length ? () => {
         if (node.down) { if (!node.note) tell({ type: 'showInTree', paths }); walkTo(mapStep(node.down)); }
         else if (node.line) tell({ type: 'openFile', path: paths[0], line: node.line });
         else if (paths.length === 1 && !paths[0].endsWith('/')) tell({ type: 'openFile', path: paths[0] });
         else tell({ type: 'showInTree', paths, open: true });
       } : null;
+      // The window of the node, with a quiet link that focuses it as a click does, and "Open" for a node with a way in (build 85), each with its click
+      // beside it as a small clue: where cards stand under the map, the card is the way in, so "Open" names no click.
+      const content = node.note ? noteWindow(node, thing) : nodeWindow(g, node, thing);
+      const focusIt = () => focusOn(view, joined, nodeKey(g), diagram.id);
+      Hover.attach(g, async () => {
+        const on = hasFocus(view, nodeKey(g));
+        const opens = today ? { open: today, openKeys: cardsShow(view) ? '' : on ? 'Click' : 'Double click' } : {};
+        return { ...(await content()), act: { words: on ? 'End the focus' : 'Focus on this node', keys: on ? 'Esc' : 'Click', run: focusIt }, ...opens };
+      });
       focusClicks(g, { stage: view, graph: joined, slots: thing?.slots, into: today, diagram: diagram.id }); // before the click of the node (Marks.bind)
       if (Marks.bind(g, thing?.slots ?? {}, today, Marks.nameOf(g))) g.classList.add('go');
       opens.set(g, today);
@@ -335,7 +338,7 @@ async function drawHome() {
     const focused = focus?.diagram === diagram.id ? focus.node : null;
     focus = null;
     endFocusLine();
-    if (focused) focusOn(view, joined, focused, diagram.id);
+    if (focused) focusOn(view, joined, focused, diagram.id, true);
     Remarks.paint(view);
   }
   if (!diagram) { focus = null; endFocusLine(); }
@@ -520,7 +523,7 @@ document.addEventListener('click', (event) => {
   if (target.closest('[data-clear-filter]')) return walkTo(mapStep(Home.at)); // the same diagram, with nothing lit and no line of a mark
   const folder = target.closest('[data-tree]');
   if (folder) return tell({ type: 'showInTree', paths: [folder.dataset.tree], open: true });
-  const file = target.closest('[data-open]');
+  const file = target.closest('[data-open]:not([data-open=""])'); // "Open" in the title bar of a window has no path: the window opens its thing
   if (file) return tell({ type: 'openFile', path: file.dataset.open, ...(file.dataset.line ? { line: Number(file.dataset.line) } : {}) });
   const change = target.closest('[data-change-id]');
   if (change) return walkTo({ tab: 'change', change: Number(change.dataset.changeId), go: { level: 'change' }, name: change.dataset.title });
