@@ -333,12 +333,20 @@ const FileIcons = {
   paths: {},
   /** The icons of a page; undefined with no theme. The rows that show keep their place and get their new icons. */
   set(icons) {
-    let style = document.getElementById('file-icons');
-    if (!style) { style = document.createElement('style'); style.id = 'file-icons'; document.head.append(style); }
-    style.textContent = icons?.css ?? '';
+    // The fonts of the theme stand in a style of their own, written again only when they change: a new @font-face loads its font again, and the
+    // font icons would blink when only their colours change (a new colour theme).
+    const lines = (icons?.css ?? '').split('\n');
+    this.style('file-icon-fonts', lines.filter((line) => line.startsWith('@font-face')).join('\n'));
+    this.style('file-icons', lines.filter((line) => !line.startsWith('@font-face')).join('\n'));
     this.paths = icons?.paths ?? {};
     document.body.classList.toggle('fi-on', !!icons);
     for (const row of document.querySelectorAll('.fi[data-fi]')) row.className = this.classOf(row.dataset.fi);
+  },
+  /** Writes a style element of the page, made at its first use; the same text is not written again. */
+  style(id, text) {
+    let el = document.getElementById(id);
+    if (!el) { el = document.createElement('style'); el.id = id; document.head.append(el); }
+    if (el.textContent !== text) el.textContent = text;
   },
   classOf(path) {
     return this.paths[path] ? `fi ${this.paths[path]}` : 'fi';

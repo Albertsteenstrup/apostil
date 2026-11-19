@@ -1058,7 +1058,7 @@ try {
   await stage.evaluate(async () => { await App.go({ level: 'change' }); await App.drawing; });
   await shot('5b-vscode-default-change');
   // Build 85: the colour theme changed while the page shows, so its rows take the icons of the dark part of the theme, with no new load of the page.
-  const darkRow = await until(async () => { const now = await rowIconNow(stage, 'web/src/member/holdsApi.ts'); return now && !now.light && now.color === setiIcon('typescript', false)?.color && now; }, 8000) || await rowIconNow(stage, 'web/src/member/holdsApi.ts');
+  const darkRow = await until(async () => { const now = await rowIconNow(stage, 'web/src/member/holdsApi.ts'); return !now?.light && setiRow(now, 'typescript') && now; }, 8000) || await rowIconNow(stage, 'web/src/member/holdsApi.ts');
   check('when the colour theme turns dark while the page shows, the icons of its rows follow at once: the TypeScript icon of Seti takes the colour of its dark part, in the same page',
     setiRow(darkRow, 'typescript') && tsRow?.light && darkRow.color !== tsRow.color && kept.same, JSON.stringify({ before: tsRow, darkRow }));
   const seen = await stage.evaluate(lookOfPage, true).catch((error) => ({ error: String(error) }));
