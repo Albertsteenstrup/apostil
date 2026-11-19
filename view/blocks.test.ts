@@ -130,7 +130,7 @@ test('Home carries no blocks: lookData() gives a ref for each list of blocks and
   const store = new Store(tempFolder('apostil-store-'));
   assert.deepEqual(saveMapDraft(store, example.folder, map).problems, []);
   const repoKey = repoId(example.folder);
-  assert.equal('pages' in lookData(store, repoKey, example.folder, (file) => file), false, 'with no look, the data of Home is as it was');
+  assert.equal('pages' in lookData(store, repoKey, example.folder, (file) => file), false, 'with no look, the data of Home has no pages');
   const put = putLookFiles(example.folder);
   assert.deepEqual(setLook(store, example.folder, blocksLook).problems, []);
   put.clean();

@@ -106,7 +106,7 @@ test('a change whose commit this clone does not have says so in one quiet line a
   store.close();
 });
 
-test('a change that is checked out is counted in the folder as before, with no quiet line', () => {
+test('a change that is checked out is counted in its folder, with no quiet line', () => {
   const store = new Store(tempFolder());
   const file = testChangeFile();
   const id = store.saveChange({ repoId: git(repo.folder, 'rev-list', '--max-parents=0', 'HEAD'), folder: repo.folder, branch: 'feature', base: repo.base, head: git(repo.folder, 'rev-parse', 'HEAD'), file, checks: checkChangeFile(repo.folder, repo.base, file) });
