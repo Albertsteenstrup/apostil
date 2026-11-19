@@ -19,7 +19,7 @@ A process is made of notes, so the notes come first. `apostil map` says how many
 
 ## The look and the marks
 
-Apostil draws every repo in the default look: today's look, with the icons of the services at the upper right of each node and step whose code reaches a service, and at the left of each service line of a note. Keep the default unless the owner asks for another look. When he asks, in his own words, to change how the diagrams, nodes, arrows or notes of this repo look, write the look yourself with `apostil set-look`, as `look-writer-prompt.md` says. A look is kept for the repo, and every later map run keeps it: never write a look that the owner did not ask for, and never drop one that he asked for. `apostil look` prints the look of the repo, or says that the default applies. When the owner asks only for a look, keep the map and do only that, then Step 7 when the look adds a set of marks.
+Apostil draws every repo in the default look, with the icons of the services at the upper right of each node and step whose code reaches a service, and at the left of each service line of a note. Keep the default unless the owner asks for another look. When he asks, in his own words, to change how the diagrams, nodes, arrows or notes of this repo look, write the look yourself with `apostil set-look`, as `look-writer-prompt.md` says. A look is kept for the repo, and every later map run keeps it: never write a look that the owner did not ask for, and never drop one that he asked for. `apostil look` prints the look of the repo, or says that the default applies. When the owner asks only for a look, keep the map and do only that, then Step 7 when the look adds a set of marks.
 
 Marks are written at lines of code by writers, as notes are. The services are marked on every map run (Step 7). A set that the look adds is marked too. A second run is small: `apostil mark-groups` lists only the files that no writer of the set has read, and the files whose lines changed since. `apostil marks` prints the counts.
 
@@ -27,7 +27,7 @@ Marks are written at lines of code by writers, as notes are. The services are ma
 
 The top diagram is drawn first, from folders and a few files, so the owner sees it soon. Step 6 corrects it when the notes and the processes show that it is wrong. A run that stops can go on: `apostil note-groups`, `apostil process-groups` and `apostil mark-groups` list only what is left, so a new session starts at Step 3 and does the groups that they list. Apostil keeps the plan of the work of a run and shows the owner on Home how much is done and about how long the rest takes.
 
-## Why four kinds of writer, and which model
+## Why several kinds of writer, and which model
 
 You are the lead. You start the writers, check what they save, and correct them by starting a writer again. You never write a part of the map yourself.
 

@@ -11,7 +11,7 @@ These skills tell coding agents how to use Apostil. Each skill is a folder with 
 | `apostil-map-repo` | When the owner asks for the map of a repo, or Home has none: the session leads and never writes the map itself: an overview writer draws the top diagram, and a writer draws the diagram of each large area, each on the model that Apostil names (else the overview on a medium or large model and the others on a small one), and then notes writers, one for each group of about 400 lines of whole files (a long file is a group of its own and its writer saves it in parts), write the notes of every code file; up to 16 writers of all kinds run at once. These notes show beside the code also when no change is described. Then process writers, one for each area, as soon as its notes are saved, write the processes of the repo: each job of the code from its start to its result, whose steps are those notes, across files. They correct wrong notes and add missing ones in the same save, and a last round puts each note that is left into a process or sets it aside with a reason. Then `apostil map --fit` lists where the notes and the processes do not fit the diagrams, and the overview writer corrects the top diagram once from those facts. A map of more than 80 note groups asks the owner first, and a run that stops goes on where it stopped. When all notes are saved, small-model service writers mark each line where the code reaches a service, and get its own icon with `apostil icon` (Apostil downloads it from the service's own site), so its icon stands on the nodes and notes that hold the line. The default look applies unless the owner asks for another one; then the main agent writes the look of the repo (`look-writer-prompt.md`; colours, words, what shows, the windows of the pointer, where a click or a key goes, and blocks of its own in a window or on a page of the look that opens as a tab): it reads the options of a look in layers (`apostil look-slots` gives the core and an index, then one area or a search) and checks the look before it saves it (`apostil set-look --check`), and a set of marks that the look adds gets its own mark writers (`mark-writer-prompt.md`). Later runs keep the look. A second run writes only the files that need notes or marks and the groups with work left. |
 | `apostil-uninstall` | When the owner asks to uninstall, remove or get rid of Apostil: it runs `apostil uninstall` at once (with `--delete-data` only when he asked to delete his data too) and reports what it removed and what is left. With no `apostil` command, it uninstalls the extension, whose cleanup runs at the editor's next start. |
 
-The skills use the command `apostil` and the helper tools. The `apostil` command must be on the path of the agent's shell. Section 4 of `docs/change-file-format.md` lists the commands.
+The skills use the command `apostil` and the helper tools. The `apostil` command must be on the path of the agent's shell. `apostil help` lists the commands.
 
 ## Set up in one step
 
@@ -51,7 +51,7 @@ When a command of the agent opens or edits a pull request, the mod shows one ban
 
     /plugin install apostil --marketplace Albertsteenstrup/apostil
 
-Answer `y` to add the marketplace, then pick a scope. From a shell: `claude plugin install apostil --marketplace Albertsteenstrup/apostil`. In the desktop app: click + next to the prompt, then Plugins, Add marketplace with `Albertsteenstrup/apostil`, then Add plugin. This works once the repo is public. The mod is in `claude-mod/`.
+Answer `y` to add the marketplace, then pick a scope. From a shell: `claude plugin install apostil --marketplace Albertsteenstrup/apostil`. In the desktop app: click + next to the prompt, then Plugins, Add marketplace with `Albertsteenstrup/apostil`, then Add plugin. The mod is in `claude-mod/`.
 ## Uninstall
 
     apostil uninstall --dry-run      # lists what it would remove, and changes nothing
@@ -91,7 +91,7 @@ Each app reads skills from fixed folders. Link the skill folders there. A link k
 - Repository folder: `.agents/skills`, read from the launch folder up to the repository root.
 - User folder: `$HOME/.agents/skills`.
 - Codex follows symlinked skill folders.
-- Source: https://learn.chatgpt.com/docs/build-skills (the old address, https://developers.openai.com/codex/skills, redirects there).
+- Source: https://learn.chatgpt.com/docs/build-skills
 
 #### Antigravity
 
@@ -105,7 +105,7 @@ Each app reads skills from fixed folders. Link the skill folders there. A link k
 - Antigravity: its page does not mention symlinks. Copy the folders instead of linking them, or test a link first.
 - Third-party pages give other global folders for Antigravity. Only the folders on the official page are listed above.
 - The three docs pages were read on 10 November 2026 and may change.
-- No app was tested with these skills. Nobody has checked yet that each app loads them.
+- Nobody has checked that each app loads them.
 - Setup handles Claude Code and Codex. For Antigravity and OpenCode, use the manual way.
 - How each app starts the Apostil helper (MCP) is not covered here. The skills also work with the `apostil` command alone.
 - The band of the Claude mod was checked with `claude plugin test` only, not yet in a real session. A press on its link is not seen by the mod, so the band stays until ×; it does not come back for that pull request.
