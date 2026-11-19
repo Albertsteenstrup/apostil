@@ -168,8 +168,7 @@ g.node foreignObject{overflow:visible}
 .win .tb .sub{overflow:hidden;text-overflow:ellipsis}
 .win .tb .sub a:hover,.win .tb .act a:hover{color:var(--ink)}
 .win .tb .act{margin-left:auto;padding-left:14px}
-.win .tb .act a + a,.win .tb .act .ak + a{margin-left:12px}
-.win .tb .act .ak{margin-left:6px;color:var(--faint);font-size:var(--small)}
+.win .tb .act a + a{margin-left:12px}
 .win .wc{padding:8px 0;overflow:auto;min-height:0;overscroll-behavior:contain}
 .win .wc.pad{padding:12px}
 .win .stage svg{max-width:100%;max-height:460px;width:auto}
