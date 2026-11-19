@@ -89,8 +89,8 @@ writeFileSync(path.join(temp, 'pulls.json'), JSON.stringify([
 // The open pull requests of the repo (gh pr list --state open): one with no stored change, whose branch has no row.
 writeFileSync(path.join(temp, 'open-pulls.json'), JSON.stringify([pr(35, 'OPEN', 'REVIEW_REQUIRED', false, { author: JONAS, headRefName: 'made-up/reminders' })]));
 writeFileSync(path.join(temp, 'conversation.json'), JSON.stringify({ data: { repository: { pullRequest: examplePullRequest().raw.pr } } }));
-// The read of #35 answers as #35: with the conversation of #12 the page of #35 said "#12" as soon as the answer came. Its branch is the one of the list, at
-// commits that the example has, so that its press checks that branch out for the run with no network (build 77).
+// The read of #35 answers as #35, so that its page shows #35 and not the conversation of #12. Its branch is the one of the list, at commits that the
+// example has, so that its press checks that branch out for the run with no network.
 writeFileSync(path.join(temp, 'conversation-35.json'), JSON.stringify({ data: { repository: { pullRequest: {
   ...examplePullRequest().raw.pr, number: 35, title: 'Made-up pull request 35', url: 'https://github.com/made-up/example/pull/35',
   headRefName: 'made-up/reminders', baseRefName: 'main', headRefOid: example.head, baseRefOid: example.base,
@@ -275,7 +275,7 @@ try {
     return undefined;
   }, ms);
   const frameWith = (selector, ms) => frameWhere((wanted) => !!document.querySelector(wanted), selector, ms);
-  // Build 85: the default file icon theme of VS Code (Seti), read from its own JSON, and what a row of a card shows before its name: the character
+  // The default file icon theme of VS Code (Seti), read from its own JSON, and what a row of a card shows before its name: the character
   // and the colour of its font icon, whether the font of the theme came, and the room of the icon.
   const seti = readIconTheme(path.join(path.dirname(CODE), '../Resources/app/extensions/theme-seti/icons/vs-seti-icon-theme.json'));
   /** The font icon of Seti for a language, as CSS gives it: its character and its colour; its light part in a light theme. */
@@ -550,7 +550,7 @@ try {
     whole.querySelector('[data-unfold]')?.replaceWith(whole.querySelector('[data-unfold]').title.replaceAll(' › ', '›'));
     return whole.textContent;
   });
-  /** The way into a node of Home where cards show (build 85): a click on its card, or on the one row of its card of files. */
+  /** The way into a node of Home where cards show: a click on its card, or on the one row of its card of files. */
   const intoNode = async (frame, key) => {
     const card = frame?.locator(`#cards .ovc[data-node="${key}"]`);
     const rows = card?.locator('.ovf a');
@@ -618,7 +618,7 @@ try {
   }
   check('from Home the card of a node goes down to its processes, and the card of a step opens its file at its first line, in the file tab with its notes', !!stepTab && /^requests\.py/.test(await activeTab() ?? ''), `tab ${await activeTab()}`);
 
-  // A click whose target is a prompt (a look of the repo, build 57): VS Code asks with the whole words and "Send". With no "Send" the stand-in claude
+  // A click whose target is a prompt (a look of the repo): VS Code asks with the whole words and "Send". With no "Send" the stand-in claude
   // gets no run; with "Send" it gets one, with the words. A browser cannot show VS Code's question.
   const PROMPT = 'Explain how the night jobs wake the lending code, in three short sentences.';
   const lookNow = (look) => { const write = new Store(storeFolder); const saved = setLook(write, repo, look); write.close(); return saved.saved; };
@@ -651,7 +651,7 @@ try {
       && promptSent.words.includes(PROMPT) && runAfterSend?.length === runsBeforeAsk + 1 && runAfterSend.at(-1).includes(PROMPT),
     JSON.stringify({ promptLook, home: !!promptHome, notSent, sent: promptSent.buttons, runs: `${runsBeforeAsk} -> ${runsNow().length}` }));
 
-  // The tree "Files" in a look of the repo (build 61): a folder that a rule leaves out is not there; a file that a rule picks has the icon of the look and
+  // The tree "Files" in a look of the repo: a folder that a rule leaves out is not there; a file that a rule picks has the icon of the look and
   // quiet words after its name, and a click on it goes to the target of the rule. A browser cannot show VS Code's own tree.
   const fileRowOf = (name) => filesPane.locator('.monaco-list-row', { has: page.locator('.label-name', { hasText: new RegExp(`^${name.replace('.', '\\.')}$`) }) });
   const jobsBefore = await fileRowOf('jobs').count();
@@ -662,7 +662,7 @@ try {
   ] });
   lookFiles.clean();
   // Home reads the store again at once, before the watch of the store sees the new look, as when a run of the step before ends just then: the tree
-  // still follows the look (it once kept the rows of before, build 85).
+  // follows the look all the same.
   await promptHome?.evaluate(() => tell({ type: 'remarkAction', id: 0, action: 'none' })).catch(() => {});
   const treeRow = await until(() => fileRowOf('hold_service.py').first().evaluate((row) => {
     const icon = row.querySelector('.custom-view-tree-node-item-icon');
@@ -677,7 +677,7 @@ try {
     treeLook && jobsBefore === 1 && jobsAfter === 0 && !!treeRow && /^url\(/.test(treeRow.icon) && !!treeTarget && /night_jobs\.py/.test(await activeTab() ?? ''),
     JSON.stringify({ treeLook, jobsBefore, jobsAfter, treeRow, treeTarget, tab: await activeTab() }));
 
-  // A click whose target is a page of the look (build 58) opens the page as a tab named by its title; its table has the rows of the file, and after the
+  // A click whose target is a page of the look opens the page as a tab named by its title; its table has the rows of the file, and after the
   // file changes on disk the table shows the new row. A browser cannot show a tab of VS Code or a file that changes.
   const branches = path.join(repo, 'data/branches.csv');
   const branchesText = readFileSync(branches, 'utf8');
@@ -724,7 +724,7 @@ try {
   check('the page draws the diagram of the change, fills its tab, and its font is the font of VS Code, its code the font of the editor; the state that agents read names the open change and its view',
     appState?.view === 'diagram' && font.left === 0 && !!font.vscode && plain(font.family) === plain(workbenchFont.family) && font.size === workbenchFont.size && !!font.editor && plain(font.code) === plain(font.editor), JSON.stringify(font));
   await shot('3-change-as-diagram');
-  // Build 85: each row of a card starts with the icon that the Explorer shows in the default file icon theme (Seti): for a .ts file and a .py file the
+  // Each row of a card starts with the icon that the Explorer shows in the default file icon theme (Seti): for a .ts file and a .py file the
   // font icon of its language in its colour, from the font of the theme; Seti has no icon for a folder, so a folder row keeps the room of one, empty.
   const tsRow = await iconOfRow(stage, 'web/src/member/holdsApi.ts');
   check('the rows of the cards show the icons of the Explorer in the default file icon theme (Seti, read from its own JSON): the font icon of TypeScript on the change page and of Python on Home, each in its colour and in the font of the theme; a folder row of Home has no icon, as in the Explorer, and keeps its room',
@@ -749,14 +749,14 @@ try {
   const gotWhileHidden = await until(() => stage.evaluate(() => App.page.remarks.some((remark) => remark.text.startsWith('Is the index'))), 6000);
   await changeTab.click();
   const back = await until(() => stage.evaluate(() => {
-    const nodes = [...document.querySelectorAll('#view g.node:not(.ovcards g.node)')]; // the diagram of the change, not the small diagrams of the cards under it (build 83)
+    const nodes = [...document.querySelectorAll('#view g.node:not(.ovcards g.node)')]; // the diagram of the change, not the small diagrams of the cards under it
     return document.visibilityState === 'visible' && nodes.length >= 7 && nodes.every((node) => node.getBoundingClientRect().width > 40) && { parts: document.querySelectorAll('#view b[data-part]').length, nodes: nodes.length };
   }));
   check('the change page gets new data while another tab shows, and shows the diagram with its parts when he comes back', gotWhileHidden && back?.parts === 6, JSON.stringify({ gotWhileHidden, back }));
 
   // A second click on a changed file shows its open tab, and no second one; J in a file tab opens the next changed file in the same tab; the control lists every file.
   const pointerToTop = async () => { const crumb = await stage.locator('#crumb').boundingBox(); await page.mouse.move(crumb.x + 4, crumb.y + crumb.height / 2); await stage.waitForSelector('.win', { state: 'detached', timeout: 3000 }).catch(() => {}); };
-  // As the name of a file in the list does: with no comments window (build 80) the page is wide enough for the two halves, where a click on a file in a node opens its diff.
+  // As the name of a file in the list does: the page is wide enough for the two halves, where a click on a file in a node opens its diff.
   const clickNightJobs = async () => { await pointerToTop(); await stage.evaluate(() => App.showCode('src/library/night_jobs.py', null)); };
   await clickNightJobs();
   const nightJobs = await fileTab('night_jobs.py');
@@ -778,7 +778,7 @@ try {
   check('a second click on a changed file shows its tab and opens no second one and no diff editor; J in the file tab opens the next changed file in the same tab, and the list of the control opens night_jobs.py in it',
     changedRows.removed > 0 && oneTab && !!nextTab && !!pickedTab && (await tabOf('ready_shelf.py').count()) === 0, `${JSON.stringify(changedRows)}; one tab ${oneTab}; next ${!!nextTab}; picked ${!!pickedTab}`);
 
-  // Cmd+B (build 64): with the views of Apostil in the side bar and a page of Apostil in front that has the keyboard, the key hides the side bar, it stays
+  // Cmd+B: with the views of Apostil in the side bar and a page of Apostil in front that has the keyboard, the key hides the side bar, it stays
   // hidden for a second, and the key shows it again. Shown and hidden at once (one press that ran twice did this), it stays hidden too: the tree "Files"
   // marks the file in front only when it still shows.
   const sideBarShows = () => page.evaluate(() => { const part = document.querySelector('.part.sidebar'); return !!part && part.getBoundingClientRect().width > 0 && getComputedStyle(part).display !== 'none'; });
@@ -938,7 +938,6 @@ try {
   check('the key on lines selected in a text editor asks in the input box of VS Code; Enter stores the comment for those lines and the page has it', inputBox && !!onLines && linesShown, onLines?.target.label ?? 'not stored');
 
   // The file tab has the key too; the comment on lines from the input box has its mark at the end of its first line there, and a click on it opens its card.
-  // (Before build 80 a click on a card of the comments window in the tab showed the change page; a file tab has no top bar, so no list of the comments.)
   await tabOf('night_jobs.py').first().click();
   const tabFrame = await fileTab('night_jobs.py');
   let tabBox = false, cardOfLines = '';
@@ -1057,7 +1056,7 @@ try {
   const darkSettings = settingsNow();
   await stage.evaluate(async () => { await App.go({ level: 'change' }); await App.drawing; });
   await shot('5b-vscode-default-change');
-  // Build 85: the colour theme changed while the page shows, so its rows take the icons of the dark part of the theme, with no new load of the page.
+  // The colour theme changed while the page shows, so its rows take the icons of the dark part of the theme, with no new load of the page.
   const darkRow = await until(async () => { const now = await rowIconNow(stage, 'web/src/member/holdsApi.ts'); return !now?.light && setiRow(now, 'typescript') && now; }, 8000) || await rowIconNow(stage, 'web/src/member/holdsApi.ts');
   check('when the colour theme turns dark while the page shows, the icons of its rows follow at once: the TypeScript icon of Seti takes the colour of its dark part, in the same page',
     setiRow(darkRow, 'typescript') && tsRow?.light && darkRow.color !== tsRow.color && kept.same, JSON.stringify({ before: tsRow, darkRow }));
@@ -1078,7 +1077,7 @@ try {
   check('the search stays after the view is hidden and shown: the field holds "second", with its one row', !!shownAgain);
   await shownAgain?.locator('.find .clear').click();
 
-  // A link from outside (build prompt 54): "code --open-url" with the link of the pull request 12 brings up its page at "Conversation".
+  // A link from outside: "code --open-url" with the link of the pull request 12 brings up its page at "Conversation".
   // The repo gets its remote on GitHub only now. The link holds the field "url" that vscode.dev adds.
   execFileSync('git', ['remote', 'add', 'origin', 'https://github.com/made-up/example.git'], { cwd: repo });
   const onBefore = await stage.evaluate(() => document.querySelector('.switch a.on')?.textContent ?? '').catch(() => '');
@@ -1087,8 +1086,8 @@ try {
   const opened = await frameWhere(() => document.querySelector('.switch a.on')?.textContent === 'Conversation' && document.querySelector('.conv .ptitle')?.textContent === 'Holds for books that are out #12');
   check('a link opened with "code --open-url" brings up the pull request 12 of the example at "Conversation", from another view of its page', onBefore !== 'Conversation' && !!opened, JSON.stringify({ onBefore, opened: !!opened }));
 
-  // ---- 6b. A look in VS Code itself (build 62): the margin, the search with #, the right-click menu and keys, the first page, the list "Look" ----
-  // The look of the example for this build, saved as a writer saves it, and taken away at the end. Its files open in VS Code's editor ("editor").
+  // ---- 6b. A look in VS Code itself: the margin, the search with #, the right-click menu and keys, the first page, the list "Look" ----
+  // The look of the example for VS Code (look-vscode.json), saved as a writer saves it, and taken away at the end. Its files open in VS Code's editor ("editor").
   await setSetting('apostil.notesBesideCode', 'editor');
   await setSetting('window.menuStyle', 'custom'); // VS Code draws its menus in the window, where the check reads them, not macOS
   const vscodeLook = lookNow(JSON.parse(readFileSync(path.join(apostil, 'view/check-example/look/look-vscode.json'), 'utf8')));
@@ -1270,8 +1269,8 @@ try {
   check('the open pull request of the stand-in gh with no stored change stands in the list under "Pull requests" with its title, number and state, and a click opens its page, which says that it has no description of Apostil yet, with one link that describes it and no words to give an agent',
     /^Made-up pull request 35#35review needed$/.test(bareRow ?? '') && /no description of Apostil yet\. Describe it with /.test(bareLine ?? '') && !/Describe pull request #35/.test(bareLine ?? ''), JSON.stringify({ bareRow, bareLine }));
   await shot('2b-an-open-pull-request-with-no-change');
-  // Its press (build 75) names the session that gets the words; a click starts a run of the stand-in claude with the words and the lead of the control after the
-  // press (build 81: the second smallest model at max, the writers on the smallest), and the line
+  // Its press names the session that gets the words; a click starts a run of the stand-in claude with the words and the lead of the control after the
+  // press (the second smallest model at max, the writers on the smallest), and the line
   // then says where the words went, with the link that opens that session.
   const runsBeforePress = runsNow().length;
   const pressLabel = await barePage?.evaluate(() => document.querySelector('#summary [data-ask]')?.textContent);
@@ -1279,7 +1278,7 @@ try {
   const pressRun = await until(() => runsNow().length > runsBeforePress && runsNow().at(-1));
   const wentLine = await until(() => barePage?.evaluate(() => (document.querySelector('#summary [data-ask-open]') ? document.getElementById('summary').textContent : '')), 8000);
   await shot('2c-the-words-went-to-a-session');
-  // Build 77: the sessions that Apostil knows here are on the branch of the example, and a session cannot continue in another folder, so the link names a new
+  // The sessions that Apostil knows here are on the branch of the example, and a session cannot continue in another folder, so the link names a new
   // session; Apostil checks the branch of #35 out for it, and its words say so.
   check('the link names the Claude Code session that will describe the pull request, a new one since no known session has its branch; a click starts one run of the stand-in claude with the words and that the branch is checked out, the rights of a description (it reads the repo, gh pr view too), the lead on the second smallest model at the most effort and the writers on the smallest, and the line names the session, with "Open the session"',
     pressLabel === 'Describe it with a new Claude Code session' && !!pressRun && pressRun.includes('Describe pull request #35 for Apostil. The branch of the pull request is checked out in this folder. You lead on Sonnet at max effort:')

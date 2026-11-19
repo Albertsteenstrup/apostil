@@ -1,4 +1,4 @@
-// The browser check of the drawn processes (build prompt 67): the numbers on the arrows of a box, a box that many boxes call, and a long chain in columns.
+// The browser check of the drawn processes: the numbers on the arrows of a box, a box that many boxes call, and a long chain in columns.
 // A group of view/browser-check.mjs; alone:
 //   node view/browser/drawings.mjs [--pictures] [<folder for pictures>]
 
@@ -60,7 +60,7 @@ try {
   check('a drawing of 30 steps with a shared box is in 3 columns (each from top to bottom, left to right) with one arrow between them, its titles read at 11 px or more at 1400 by 900, and the shared box stands once with one arrow and its count',
     drawn.steps === 30 && drawn.ordered && drawn.links === 2 && drawn.font >= 11 && drawn.shared === 1 && drawn.words.join() === 'filter current rows · 8 steps' && drawn.dots === 7, JSON.stringify(drawn));
 
-  // A focus on a node (build prompt 64) counts the calls that have no arrow of Mermaid: a dot, and the arrow of the page from one column to the next.
+  // A focus on a node counts the calls that have no arrow of Mermaid: a dot, and the arrow of the page from one column to the next.
   const tiedNow = () => home.evaluate(() => ({ boxes: document.querySelectorAll('#view g.node.tied').length, links: [...document.querySelectorAll('#view path.colink')].map((path) => path.classList.contains('tied')).join() }));
   await home.click('#view g.node:has-text("Filter the current rows")', { modifiers: ['Alt'] });
   const onShared = await tiedNow();
@@ -73,15 +73,15 @@ try {
   check('a focus on a node of a drawn process counts the calls with no arrow: on the shared box its 8 callers stay lit, and on the last step of a column the first step of the next with the arrow of the page between them',
     onShared.boxes === 9 && onShared.links === 'false,false' && onEnd.boxes === 3 && onEnd.links === 'true,false' && (await tiedNow()).boxes === 0, JSON.stringify({ onShared, onEnd }));
 
-  // The pointer on the shared box lights its eight callers; a dot says which box it calls; "One column" draws the drawing of before.
+  // The pointer on the shared box lights its eight callers; a dot says which box it calls; "One column" draws the drawing in one column.
   await home.hover('#view g.node:has-text("Filter the current rows")');
   const lit = await home.evaluate(() => document.querySelectorAll('#view g.node.lit').length);
   await home.mouse.move(2, 2);
   const unlit = await home.evaluate(() => document.querySelectorAll('#view g.node.lit').length);
-  // A dot inside the frame: in the overview the frame is the upper part of the tab, and the drawing opens at its top (build 83).
+  // A dot inside the frame: in the overview the frame is the upper part of the tab, and the drawing opens at its top.
   const inFrame = await home.evaluate(() => { const frame = document.getElementById('view').getBoundingClientRect(); return [...document.querySelectorAll('#view circle.calldot')].findIndex((dot) => { const box = dot.getBoundingClientRect(); return box.top >= frame.top && box.bottom <= frame.bottom && box.left >= frame.left && box.right <= frame.right; }); });
   // The tip comes 0.4 s after the pointer enters the dot, and a scroll or a window that comes over the dot takes it away; under the load of the other
-  // parts that once took more than 3 s. So the pointer rests on the dot until the tip shows, and enters it again if no tip came (build 85).
+  // parts that can take more than 3 s. So the pointer rests on the dot until the tip shows, and enters it again if no tip came.
   const tipOf = async (target) => {
     for (let turn = 0; turn < 3; turn += 1) {
       await home.mouse.move(2, 2);

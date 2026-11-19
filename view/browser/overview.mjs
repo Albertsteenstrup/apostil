@@ -1,4 +1,4 @@
-// The browser check of the overview of a diagram (build 83): Home and "Diagram" of a change open with the diagram of a level on top and, under it, a
+// The browser check of the overview of a diagram: Home and "Diagram" of a change open with the diagram of a level on top and, under it, a
 // card for each node that leads somewhere; the icon at the top right of the frame shows the diagram alone, and that choice holds. A group of
 // view/browser-check.mjs, which runs every group at the same time; alone:
 //   node view/browser/overview.mjs [--pictures] [<folder for pictures>]
@@ -33,7 +33,7 @@ try {
     };
   });
 
-  /** The frame of the diagram, the drawing in it, and the head of the first card under it (build 85). */
+  /** The frame of the diagram, the drawing in it, and the head of the first card under it. */
   const frameNow = () => home.evaluate(() => {
     const view = document.getElementById('view').getBoundingClientRect();
     const drawn = (document.querySelector('#view svg g.root') ?? document.querySelector('#view svg > g'))?.getBoundingClientRect();
@@ -57,7 +57,7 @@ try {
       && top.files['Guides and notes']?.join() === 'docs/+26 −9 · 4 files,README.md' && top.files.Tests?.join() === 'tests/+105 −67 · 4 files' && Object.keys(top.files).length === 4
       && top.shows && top.under >= 16 && top.well !== top.paper, JSON.stringify(top));
 
-  // 1b. Build 84: each card takes the size of its content, from half of the card of build 83 to half again each way, and the cards are packed with no
+  // 1b. Each card takes the size of its content, from one unit to three units each way, and the cards are packed with no
   // hole: the card of the first node at the top left, and each point of the block inside a card or in a gap of 12 px; again after the tab gets narrower.
   // No card is narrower than its content (no file row is cut), no card of files is more than one unit (100 px and a gap) taller than its rows need, and
   // each drawing fills its card: the tall drawing of "Database" gets a card higher than wide, and every drawing fills at least 60% of its card in its
@@ -66,13 +66,13 @@ try {
     const cards = [...document.querySelectorAll('#cards .ovc')].map((card) => { const box = card.getBoundingClientRect(); return { card, title: card.querySelector('.ovn').textContent, units: card.dataset.units, left: box.left, top: box.top, right: box.right, bottom: box.bottom }; });
     const [left, top, right, bottom] = [Math.min(...cards.map((one) => one.left)), Math.min(...cards.map((one) => one.top)), Math.max(...cards.map((one) => one.right)), Math.max(...cards.map((one) => one.bottom))];
     const near = (x, y) => Math.min(...cards.map((one) => Math.hypot(Math.max(one.left - x, 0, x - one.right), Math.max(one.top - y, 0, y - one.bottom)))); // 0 inside a card
-    // A hole has a card under it in its column: the room under the bottom edge of a column is none (build 86: with the rows of the changes no placing
+    // A hole has a card under it in its column: the room under the bottom edge of a column is none (with the rows of the changes no placing
     // of the top map ends flush, and the last row gives way first, as placeCards says).
     const over = (x, y) => cards.some((one) => one.left <= x && x <= one.right && one.top > y);
     const holes = [];
     for (let y = top + 1; y < bottom; y += 3) for (let x = left + 1; x < right; x += 3) if (near(x, y) > 12.5 && over(x, y)) holes.push([Math.round(x), Math.round(y)]);
     const cut = cards.flatMap(({ card, title }) => [...card.querySelectorAll('.ovf .dir, .ovf .nm, .ovx .nm')].filter((part) => part.scrollWidth > part.clientWidth + 1).map((part) => `${title}: ${part.textContent}`));
-    // The room under the last file row, down to the rows of the changes (build 86) or the bottom of the card.
+    // The room under the last file row, down to the rows of the changes or the bottom of the card.
     const tall = cards.filter(({ card }) => card.querySelector('.ovf a')).map(({ card, title, bottom: to }) => ({ title, empty: Math.round((card.querySelector('.ovx')?.getBoundingClientRect().top ?? to) - card.querySelector('.ovf a:last-child').getBoundingClientRect().bottom) })).filter((one) => one.empty > 100 + 12 + 12);
     const fills = Object.fromEntries(cards.filter(({ card }) => card.querySelector('.ovb svg')).map(({ card, title }) => {
       const svg = card.querySelector('.ovb svg');
@@ -102,7 +102,7 @@ try {
   check('no card of the overview is narrower than its content (no folder, file name or branch of a row is cut), no card of files is more than one unit taller than its rows need, and each drawing fills its card: the tall drawing of "Database" gets a card higher than wide, and each drawing fills at least 60% of its card both ways; also when the tab gets narrower',
     sized(packed) && sized(narrower), JSON.stringify({ packed, narrower }));
 
-  // 1c. Build 85: the frame takes the height of the drawing at the scale that the surface draws it at, and a tall drawing fills the tab down to the peek
+  // 1c. The frame takes the height of the drawing at the scale that the surface draws it at, and a tall drawing fills the tab down to the peek
   // of the cards: the head of their first row and a little of their content. A wide map that opens readable (900 px) is not cut.
   const tallAt = async (width, height) => { await home.setViewportSize({ width, height }); await homeAt('?diagram=process:answer-request/2'); return frameNow(); };
   const tall1400 = await tallAt(1400, 900);
@@ -201,7 +201,7 @@ try {
       && part.level === 'part' && part.part === 'hold-service' && /›Hold service$/.test(part.crumb) && file.view === 'code' && file.file === 'web/src/member/HoldDialog.tsx'
       && beside.cards === 7 && beside.under && beside.list, JSON.stringify({ change, part, file, beside }));
 
-  // 6. Build 85: each file row and folder row of a card, and of the window of a node, starts with the icon that the Explorer shows for it in his file
+  // 6. Each file row and folder row of a card, and of the window of a node, starts with the icon that the Explorer shows for it in his file
   // icon theme (here the made-up theme of the example): before the name, at the size of the text, centred on the line. With no theme, no row has an
   // icon or its room; a new theme gives the rows that show their new icons in place.
   /** The icons of the rows of `selector`: the picture of each, its size against the size of the text, and its place against the name. */
@@ -219,7 +219,7 @@ try {
   await cardsFilled();
   const homeIcons = await iconRows('#cards .ovf a');
   await takePicture(home, 'overview-7-icons.png');
-  // The window of a node, alone: where its card shows it has none (build 86).
+  // The window of a node, alone: where its card shows it has none.
   await home.click('#view > .ovt', { timeout: 3000 }).catch(() => {});
   await settled();
   await home.locator('#view g.node[id*="flowchart-lending-"]').hover();
@@ -268,7 +268,7 @@ try {
       && Object.keys(noTheme).length > 0 && Object.values(noTheme).every((one) => one === 'no icon') && noRoom,
     JSON.stringify({ homeIcons, windowIcons, changeIcons, changeCut, swapped, noTheme, noRoom }));
 
-  // 7. Build 86: the cards show the diff of the changes that touch their node: a file row its counts, a folder row the sum of its changed files before
+  // 7. The cards show the diff of the changes that touch their node: a file row its counts, a folder row the sum of its changed files before
   // its count of files, and one row for each change at the bottom of the card, of a card of files and of a card with a drawing. A click on that row
   // opens the change and does not go into the card.
   await homeAt();
@@ -291,7 +291,7 @@ try {
       && diffCards.Tests?.rows.join() === 'tests/+105 −67 · 4 files' && diffCards.Lending?.changes.join() === 'book-holds|9 files changed' && diffCards.Lending?.rows.length === 0
       && !!changeTitle && fromRow === `Home›${changeTitle}`, JSON.stringify({ diffCards, changeTitle, fromRow }));
 
-  // Build 86: where cards show, a node with a card has no window of the pointer, unless the look gives it the rule "window" or its window has marks
+  // Where cards show, a node with a card has no window of the pointer, unless the look gives it the rule "window" or its window has marks
   // in no corner; a part of "Diagram" of a change with a card has none either. Alone, the window of a node shows the rows and counts of its card.
   /** The groups of the window that the pointer on `selector` opens ("none" when none opens), else its title. */
   const windowOn = async (selector) => {

@@ -66,7 +66,7 @@ try {
   await list.waitForSelector('.tip', { timeout: 3000 }); // it shows after a short moment
   const listTip = await list.evaluate(() => { const tip = document.querySelector('.tip'); const box = tip?.getBoundingClientRect(); return tip && { text: tip.textContent, inside: box.left >= 0 && box.right <= innerWidth }; });
   await list.mouse.move(2, 2);
-  // The count of checks in the side bar once took all statuses of other products for one check: a corrected fault.
+  // The count of checks counts each status of another product as one check.
   check('each row shows its own open pull requests, two at most, with the check counts; its merged and closed ones are behind the fold of that row; each line starts with the icon of its state, 16 pixels, in the colour of the state, with the tooltip of the page, inside the side bar',
     pullLines.join() === '#12checks failing · 1 of 8 checks failed2/3,#14checks failing · 2 of 9 checks failed' && fold === '2 more pull requests' && foldInRow === '0'
     && listIcons.length === 2 && listIcons[0][0] === 'pri git-pull-request red' && listIcons.every(([, colour, masked, width]) => masked && width === 16 && colour !== 'rgb(0, 0, 0)')
@@ -138,7 +138,7 @@ try {
     && side.order.join('|') === '#33review needed3/3|#32review needed2/3|#31review needed1/3|#50review needed', JSON.stringify(side));
   await list.close();
 
-  // ----- the search of the list (build prompts 47 and 48): the field, the icon that asks VS Code for its quick pick, a filter, a sort, no match, and the people on a pull request line -----
+  // ----- the search of the list: the field, the icon that asks VS Code for its quick pick, a filter, a sort, no match, and the people on a pull request line -----
   // The layout at 250 px, the narrowest side bar; the behaviour once, at 400 px, in the look "Apostil"; the colours of a filtered list in the dark default theme.
   // The made-up rows of example-data.ts have made-up people whose pictures are data addresses. The rules of the search, the sorts and the values are unit tests (view/search.test.ts).
   {
@@ -179,7 +179,7 @@ try {
   });
   await narrow.keyboard.press('Escape');
   const shutAgain = await narrow.evaluate(() => document.querySelector('.find').hidden);
-  // A click on the icon while the field shows hides it (the owner: "when I click on search icon when it is shown then hide"): the empty field with the keyboard
+  // A click on the icon while the field shows hides it: the empty field with the keyboard
   // in it, and a field with text, whose search then ends so that no hidden text keeps rows away.
   await narrow.click('.cl .seek');
   await narrow.click('.cl .seek');
@@ -193,7 +193,7 @@ try {
       && emptyHidden && typedHidden.hidden && typedHidden.text === '', JSON.stringify({ shut, field, shutAgain, emptyHidden, typedHidden }));
   await narrow.click('.cl .seek');
   const empty = await narrow.evaluate(readList);
-  check('at 250 px the opened empty field stands under "Home" and above "Changes", as wide as the view, with "Search changes" in it and the icon of sort and filter, 16 px, inside it at the right; the list is grouped as before, with no dot',
+  check('at 250 px the opened empty field stands under "Home" and above "Changes", as wide as the view, with "Search changes" in it and the icon of sort and filter, 16 px, inside it at the right; the list keeps its groups, with no dot',
     field.order && field.left <= 12 && field.right <= 12 && field.words === 'Search changes' && field.icon === 16 && field.inside && field.label === 'Sort and filter'
     && empty.heads === 1 && empty.flat === 0 && empty.line === 'Changes' && !empty.dot && !empty.sideways, JSON.stringify({ field, empty }));
   const people = await narrow.evaluate(() => [...document.querySelectorAll('.cl .pr')].map((pr) => {
@@ -203,7 +203,7 @@ try {
     return {
       number: pr.querySelector('.pn').textContent, author: author.matches('img.av.xs') && author.naturalWidth > 0, size: Math.round(author.getBoundingClientRect().width),
       faces: faces?.querySelectorAll('.rv:not(.rest)').length ?? 0, more: faces?.querySelector('.rv.rest')?.textContent ?? '', letters: [...(faces?.querySelectorAll('.rv:not(.rest) span.av:not(.prodav)') ?? [])].map((av) => av.textContent).join(),
-      // "+n" is one more face, behind the last face, with its count clear of it (the owner: "+x should not be in front instead behind 3rd")
+      // "+n" is one more face, behind the last face, with its count clear of it.
       restBehind: (() => {
         const rest = faces?.querySelector('.rv.rest'), last = rest?.previousElementSibling;
         if (!rest || !last) return null;
@@ -331,7 +331,7 @@ try {
   const openBranch = async (commits, files) => {
     await prs.evaluate((counts) => { const row = { ...shown.groups[0].rows[0], id: undefined, branch: 'made-up/open-branch', open: true, ...counts }; shown = { ...shown, groups: [{ rows: [row] }] }; draw(); }, { commits, files });
     const asked = await homeAsks();
-    // A press as a person makes it, with time between the press and the release: the empty search field closes after the click (build 85).
+    // A press as a person makes it, with time between the press and the release: the empty search field closes after the click.
     await prs.click('.row.sel .nm', { delay: 100 });
     return (await homeAsks()) - asked;
   };

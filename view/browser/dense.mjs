@@ -8,7 +8,7 @@ import { denseFile } from '../dense-notes.mjs';
 import { THEMES, wearTheme } from '../theme-look.mjs';
 import { check, errors, FILES_HIDDEN_KEY, finish, HIDDEN_KEY, openPage, pageFile, takePicture } from './tools.mjs';
 
-/** A page, 1400 by 900, with the comments window folded: it lies over the cards; folded, the cards show. */
+/** A page, 1400 by 900, with the code and the files shown. */
 async function notesPage(url) {
   const one = await openPage({ viewport: { width: 1400, height: 900 }, deviceScaleFactor: 2 });
   await one.addInitScript((keys) => { try { for (const key of keys) localStorage.setItem(key, '0'); } catch { /* no storage */ } }, [HIDDEN_KEY, FILES_HIDDEN_KEY]);
@@ -34,7 +34,7 @@ const redrawnOf = (one) => async (action) => {
 
 try {
 
-  // ----- many notes beside the code (build prompt 45): made-up dense notes of the map, a note for each function and for each step inside it -----
+  // ----- many notes beside the code: made-up dense notes of the map, a note for each function and for each step inside it -----
   // The file is made up in the check (dense-notes.mjs); it is in no change.
   const denseRound = async () => {
     const one = await notesPage(`file://${pageFile}`);
@@ -180,7 +180,7 @@ try {
     await one.close();
   };
 
-  // ----- the small code map in the file tab (build prompt 46): a map of the whole file at the right, under the cards; and "Edit" -----
+  // ----- the small code map in the file tab: a map of the whole file at the right, under the cards; and "Edit" -----
   // In a file tab. The files are made up in the check (dense-notes.mjs).
   const mapRound = async () => {
     const one = await notesPage(`file://${pageFile}?file=src/library/night_jobs.py`);
@@ -223,7 +223,7 @@ try {
     }, { row, x });
 
     // 1. 450 lines with 40 notes: the map at the right of the box, left of its scroll bar, at the right end of the column of the notes, which keeps its width.
-    // The code is as wide as with no map (the map takes its room before the code is measured, build 46). The cards lie over the map, whole, each with its line to its rows.
+    // The code is as wide as with no map (the map takes its room before the code is measured). The cards lie over the map, whole, each with its line to its rows.
     const forty = denseFile({ path: 'src/forty_notes.py', lines: 450, every: 15, fn: 45 });
     await open(forty, 46);
     const withMap = await mapNow();
@@ -250,7 +250,7 @@ try {
         && over.cards >= 3 && over.onCards && over.free === 'map' && over.joins === over.notes && over.notes === 40,
       JSON.stringify({ withMap: { ...withMap, geometry: undefined }, noMap: { code: noMap.code, column: noMap.column }, over }));
 
-    // 2. The box of the part in view: it moves when the file scrolls; a click on the map shows that place; a drag of the box scrolls; it is softer at rest (build 46).
+    // 2. The box of the part in view: it moves when the file scrolls; a click on the map shows that place; a drag of the box scrolls; it is softer at rest.
     await scrollTo(0);
     const atTop = await mapNow();
     await scrollTo(1500);

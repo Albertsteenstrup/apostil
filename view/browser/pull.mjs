@@ -114,7 +114,7 @@ try {
   await conv.click('#status [data-checks]');
   await conv.mouse.move(2, 2);
   await conversationAfter(() => conv.click('.switch a[data-view="conversation"]'));
-  // The owner (18 November): "always show top of pr", and the rule of the unseen "should just apply to already seen messages. make it it's own inline window".
+  // The page always opens at its top; only a conversation that he opened before marks unseen messages, inside its own window.
   // He looked 26 hours ago, so messages are unseen: the page is at its top, and the window of the conversation, under the description, is at the line.
   const opened = await conv.evaluate(() => {
     const room = document.getElementById('cscroll');
@@ -149,7 +149,7 @@ try {
     const short = document.querySelector('#short');
     return { on: short?.classList.contains('on'), views: [...(short?.querySelectorAll('.switch a:not([hidden])') ?? [])].map((a) => a.textContent), marked: short?.querySelector('.switch a.on')?.textContent };
   });
-  // The slim bar carries the switch of views, so that "Diagram" and "Diffs" are never scrolled away (a fault of a walk with fresh eyes).
+  // The slim bar carries the switch of views, so that "Diagram" and "Diffs" are never scrolled away.
   check('a pull request opened before, with unseen messages: the page opens at its top with the state card in view, and its window of the conversation is scrolled so that "New since you last looked" stands at its top edge; "↓ Newest" shows in the middle of the lower edge of the window and takes the window to its newest message, the page stays; the slim bar carries the switch of views; the page tells VS Code once that he looked now, and the line at the top ends with the pull request',
     /^New since you last looked · \d+$/.test(opened.line) && opened.inWindow && opened.edge >= 0 && opened.edge <= 12 && opened.page === 0 && opened.card && !opened.short
     && newest.on && newest.middle && newest.atEnd && newest.off && newest.pageStays
@@ -245,7 +245,7 @@ try {
     const first = document.querySelector('.conv .meta .fact');
     return title && first ? { indent: Math.round(first.getBoundingClientRect().left - title.left), padding: getComputedStyle(first).paddingLeft } : null;
   });
-  // "Messages" is a timeline (the owner chose it on 18 November): commits, events and the comments of a product are rows on a line down the avatar
+  // "Messages" is a timeline: commits, events and the comments of a product are rows on a line down the avatar
   // column, each its icon on the line and a short faint word, with no time and no box; a click opens its details in place.
   /** The line of "Messages" and what stands on it: how it lies, where it starts and ends against the first and the last row, the avatars and icons on it. */
   const lineOf = () => conv.evaluate(() => {
@@ -360,20 +360,17 @@ try {
   check('the description is folded to about five lines with "Show more" and opens on a click; a large picture is at most 360 px high and never wider than the text, and a click shows it large; a picture that does not load is its text and a link; a Mermaid block is drawn, with no stray word "Loading"',
     about.lines >= 4 && about.lines <= 5.5 && about.more === 'Show more' && about.openHeight > about.closedHeight
     && extras.picture.height <= 361 && extras.picture.width <= extras.picture.text && extras.picture.large && extras.broken === 'Picture: the old panel' && extras.mermaid && !extras.loading, JSON.stringify({ about, extras }));
-  // The row of a hidden comment was a corrected fault.
   check('a resolved thread is one folded, faded row with who resolved it, and a click unfolds it; a hidden comment is one quiet row with the reason, and a click shows it; an outdated thread says "Outdated"; the folded code lines of a thread are drawn only when he opens them; a click on the file of a thread asks for the file tab at its lines',
     /resolved by mira-k.*hold_service\.py 230.*2 messages/.test(feed.before.text) && !feed.before.shown && feed.before.faded < 1 && feed.unfolded
     && /Hidden by GitHub as off topic/.test(feed.hiddenText) && !feed.hiddenShown && feed.hiddenOpen && feed.outdated === 'Outdated'
     && extras.early.length >= 2 && extras.early.every((count) => count === 0) && extras.drawn > 0
     && fileTold?.path === 'src/library/lending/hold_service.py' && fileTold.lines?.join() === '245,247', JSON.stringify({ feed, early: extras.early, drawn: extras.drawn, fileTold }));
-  // Messages of one author that share an avatar and the count of earlier commits and events were corrected faults.
   check('"Messages": earlier messages are one row, drawn when he opens it; messages of one author within minutes share one avatar; commits in a row are one row "4 commits" that unfolds to the short hashes; a long message shows its first lines and "Show all"; day lines, review cards with their verdict, chips for reactions, a heading as the title line; comments of one product are one row with a count; equal messages are one row with a count; a run of force pushes is one row',
     /^2 earlier messages · 2 commits · 1 event/.test(feed.earlier) && feed.messagesAfter === feed.messagesBefore + 2 && feed.same >= 1
     && feed.commitText === '4 commits' && feed.commitRows.join() === '9e2d4b7,5d0a3e1,8a1d2e3,2c3d4e5' && feed.longAfter > feed.longBefore + 50
     && modern.days.length >= 2 && modern.days.includes('Yesterday') && modern.verdict.includes('asked for changes') && modern.verdict.includes('approved') && modern.chips >= 2 && modern.title.includes('Pre-merge review')
     && modern.products.length === 1 && modern.products[0] === 'GitHub Actions · 2 comments' && modern.productInner === 0 && modern.repeat.some((one) => /^posted 2 times/.test(one))
     && modern.runs.includes('3 force pushes'), JSON.stringify({ feed, modern }));
-  // Only events of an unknown kind are counted: a corrected fault of the survey of public pull requests.
   check('a deployment is a quiet row with its state and "View deployment"; a comment on a removed file says "file removed"; commits say "Verified", a bot and an author with no account; a bot has a quiet mark; only events of an unknown kind are counted',
     modern.deploy.some((row) => /deployed to preview ready View deployment/.test(row)) && modern.deploy.some((row) => /deployed to staging failed/.test(row))
     && modern.whole.some((head) => /file removed/.test(head)) && modern.verified === 1 && modern.people.includes('Dependabot (bot)') && modern.people.includes('Ana Pereira')
@@ -410,16 +407,15 @@ try {
   await conv.click('[data-mode="messages"]');
   await frames(conv, 8);
   const backMode = await conv.evaluate(() => ({ on: document.querySelector('[data-mode].on').textContent, line: !!document.getElementById('new-line') }));
-  // The facts at the left edge of the title: a style rule of the code views gave them its padding, a corrected fault; a long label once broke the row.
+  // The facts start at the left edge of the title, with no padding from a style rule of the code views; a long label does not break the row.
   check('the line of facts under the title starts at the left edge of the title; the side facts are one quiet line with labels, reviewers, assignee, milestone, the issue it closes and tasks, "Details" opens them, a long label does not break the row; "Classic" has them as a column at the right at 1400 px and under the title at 760 px',
     !!factsLine && Math.abs(factsLine.indent) <= 1 && factsLine.padding === '0px'
     && /backend.*4 reviewers.*mira-k.*Version 0\.5, due .*closes #24.*1 of 2 tasks/.test(facts.text) && facts.labels.every((one) => one.fits && one.lines <= 1)
     && facts.sections.join() === 'Reviewers,Assignees,Labels,Milestone,Closes,Tasks' && facts.team && classic.side && narrowSide.under && narrowSide.title, JSON.stringify({ factsLine, facts, side: classic.side, narrowSide }));
 
-  // The window opens as a chat app opens a conversation; the page always opens at its top (the owner, 18 November: "always show top of pr", which ends
-  // "if I already been to pr then show messages"). The window: at the same first unseen message also after a later read knows the look of now (a write reads
-  // the pull request again); at its newest message when nothing is unseen; at its first message when he never opened it. The tasks in "Details" go to their
-  // list in the description ("I should be able to click tasks in details").
+  // The window opens as a chat app opens a conversation; the page always opens at its top. The window opens at the same first unseen message also after
+  // a later read that knows the newer time he looked (a write reads the pull request again); at its newest message when nothing is unseen; at its first
+  // message when he never opened it. The tasks in "Details" go to their list in the description.
   const placeOf = () => conv.evaluate(async () => {
     await App.render();
     await new Promise((done) => setTimeout(done, 400)); // the place is set again for a few frames until it holds
@@ -464,9 +460,9 @@ try {
     && classic.days === 0 && classic.products === 0 && classic.reports === 2 && classic.runs === 0 && classic.shownResolved === 'Show resolved' && /^Blocked.*Waits for #9 below it in the stack · 2 checks failed · An approving review is needed/.test(classic.card) && !classic.box
     && classic.verified === 1 && classic.marks.includes('Author') && classic.marks.includes('bot'), JSON.stringify({ classicOpen }) + JSON.stringify({ classic, keptMode, backMode }));
 
-  // "Messages" more like a chat (the owner: "make it feel even more like chat"): three messages of one person a minute apart are one group, with one avatar
+  // "Messages" as a chat: three messages of one person a minute apart are one group, with one avatar
   // and one name; his own message stands at the right in a tinted bubble, with no avatar. Made-up messages are added at the end of the example for this.
-  // (Build 79: the time of a group and the rows on the line have checks of their own above.)
+  // (The time of a group and the rows on the line have checks of their own above.)
   await conversationAfter(() => conv.evaluate(() => {
     const link = App.pullLink();
     window.keptPull = App.read[link];
@@ -727,7 +723,7 @@ try {
       strip: document.querySelector('#status .status').textContent };
   });
   const reviewPanel = await panelOf();
-  // His own pull request (the owner: "why can't I review"): the send worked, but two greyed verdicts with the reason only in a tooltip looked broken.
+  // His own pull request: the panel shows no verdict and says why in one quiet line.
   await conversationAfter(() => conv.evaluate((link) => { App.read[link].pull.mine = true; App.render(); }, LINK12));
   const ownPanel = await panelOf();
   await conv.click('#status .review-panel textarea');
@@ -742,7 +738,7 @@ try {
     && ownPanel?.verdicts.length === 0 && ownPanel.line === 'This is your pull request: GitHub lets you comment on it, not approve it or ask for changes.' && ownPanel.button === 'Send review'
     && same(ownSent.write, { kind: 'review', pullId: 'made-up-pull-12', verdict: 'COMMENT', body: 'A note on my own work.' }) && (await writes()).length === 11 && !ownSent.panel && /reviewed.*A note on my own work\./.test(ownSent.last),
     JSON.stringify({ reviewPanel, ownPanel, ownSent }));
-  // The hint of the answer field was added after the trial with real sends.
+  // The hint of the answer field: with a review that is not sent yet, an answer goes into it.
   const answerHint = () => conv.evaluate(() => document.querySelector('[data-gh^="reply:"] .ghh')?.textContent ?? '');
   const hintBefore = await answerHint();
   await conversationAfter(() => conv.evaluate((link) => { Object.assign(App.read[link].pull, { mine: false, pending: { id: 'made-up-review-1', comments: 2 } }); App.render(); }, LINK12));
@@ -824,8 +820,8 @@ try {
   const retried = await conv.evaluate(() => !!document.querySelector('.conv .ptitle') && !document.querySelector('.conv-problem'));
   check('a failure is one plain line with "Try again", and "Try again" reads the pull request again', problem === 'GitHub cannot be reached. Check the network.Try again' && retried, `${problem}; ${retried}`);
 
-  // ----- the state card (build 76): the state, three meters and the actions, under the facts line and above the description -----
-  /** What the card and the strip show, and every filled button of the page in the colour of "Merge" (the brief: "Merge" is the only one, and only while it can merge). */
+  // ----- the state card: the state, three meters and the actions, under the facts line and above the description -----
+  /** What the card and the strip show, and every filled button of the page in the colour of "Merge" ("Merge" is the only one, and only while it can merge). */
   const cardOf = () => conv.evaluate(() => {
     const card = document.getElementById('pcard');
     const probe = document.body.appendChild(Object.assign(document.createElement('i'), { style: 'background:var(--button)' }));
@@ -1023,7 +1019,7 @@ try {
     await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
     const paintMs = performance.now() - t0;
     // Scroll through the whole window of the conversation in 40 steps, one frame each, and take the longest frame. The other parts of npm run check
-    // run at the same time and can hold the computer for one frame (967 ms once): over the limit, the pass is made once more, and the second counts.
+    // run at the same time and can hold the computer for one frame (close to a second): over the limit, the pass is made once more, and the second counts.
     // A slow page is slow in both passes.
     const room = document.getElementById('cscroll');
     const height = room.scrollHeight;
@@ -1047,8 +1043,8 @@ try {
     return { drawMs: Math.round(drawMs), paintMs: Math.round(paintMs), longestFrameMs: Math.round(longest), firstPassMs: Math.round(first), unfoldMs: Math.round(performance.now() - t1), entries: document.querySelectorAll('.conv .feed > *').length, line: document.getElementById('new-line')?.textContent };
   });
   console.log(`      500 items: ${JSON.stringify(big)}`);
-  // The longest frame is 40 to 60 ms alone; npm run check runs every group at the same time with a real VS Code window, where it reached 155 ms (and
-  // once 967 ms in a first pass, scrollPass).
+  // The longest frame is 40 to 60 ms alone; npm run check runs every group at the same time with a real VS Code window, where it can reach 155 ms (and
+  // close to a second in a first pass, scrollPass).
   check('a conversation of 500 items opens in under a second and scrolls with no frame over 250 ms', big.paintMs < 1000 && big.longestFrameMs < 250 && /New since you last looked/.test(big.line), JSON.stringify(big));
   await conv.close();
 
@@ -1105,7 +1101,7 @@ try {
     && /^Apostil could not get the commits of this pull request: fatal: could not read from the remote\. Get them with git fetch origin pull\/35\/head, then open it again\.$/.test(fetchLines.failed), JSON.stringify(fetchLines));
   await pullOnly.close();
 
-  // ----- "@github" in the comment box on code: in the open diffs of the list of "Diagram" (since build prompt 42 "Diffs" opens no diff), on an added line,
+  // ----- "@github" in the comment box on code: in the open diffs of the list of "Diagram" ("Diffs" opens no diff), on an added line,
   // a removed line and a range; in a file tab; and where it is not offered -----
   const code = await newPage({ viewport: { width: 1400, height: 900 }, deviceScaleFactor: 2 });
   code.on('pageerror', (error) => errors.push(error.message));
@@ -1275,7 +1271,7 @@ try {
   await tab.close();
   }
 
-  // ----- a stack of pull requests: the made-up #12 is the middle of a stack of three, #9 below it and #13 on top (build prompt 21) -----
+  // ----- a stack of pull requests: the made-up #12 is the middle of a stack of three, #9 below it and #13 on top -----
   // The strip that says each fact once, and the rows of the stack inside at 370 px, are checked with the conversation above.
   {
   const stack = await newPage({ viewport: { width: 1400, height: 900 } });
@@ -1342,7 +1338,7 @@ try {
   await stack.close();
   }
 
-  // ----- a change whose branch has a pull request opens at "Conversation" (build 72) -----
+  // ----- a change whose branch has a pull request opens at "Conversation" -----
   {
     const first = await newPage({ viewport: { width: 1280, height: 900 } });
     await first.goto(`file://${pageFile}?pulls=kept`);
