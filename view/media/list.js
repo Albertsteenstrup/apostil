@@ -7,7 +7,7 @@ const pulls = {}; // the pull requests of each branch, as they arrive after the 
 const unfolded = new Set(); // what the owner unfolded: a branch (its pull requests), and for the session at place n "more:n" and "history:n"
 let search = { ...Search.DEFAULT }; // the text of the field and the sort; VS Code keeps them for the repo
 let searchOf; // the repo whose kept search the page took
-let look; // the look of the repo when one is saved (VS Code sends it with the rows); with none the list is drawn as before
+let look; // the look of the repo when one is saved (VS Code sends it with the rows); with none the list keeps its default look
 const targets = []; // the click targets of the look on the parts drawn last, by their data-lk
 let repoPulls = { pulls: [] }; // the open pull requests of the repo and why there are none, as they arrive; `problem` is the failure of gh in a sentence
 const SHOWN_PULLS = 20; // pull requests with no change that show before the line "n more"
@@ -304,7 +304,7 @@ document.addEventListener('input', (event) => {
   if (event.target.matches?.('.find .q')) setSearch({ text: event.target.value });
 });
 // An empty field closes when the keyboard leaves it. When a press of the pointer took the keyboard, it closes after the click of that press: closed
-// between the press and the release, the list would move up under the pointer and the click would be lost (build 85).
+// between the press and the release, the list would move up under the pointer and the click would be lost.
 let pressing = false;
 document.addEventListener('pointerdown', () => { pressing = true; }, true);
 document.addEventListener('pointerup', () => { pressing = false; }, true);

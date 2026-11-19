@@ -153,8 +153,8 @@ const leftAt = { page: null, views: new Map() };
  * With `stack` (one of several diagrams one under the other in a half that scrolls), the card takes the height of the diagram fit to its width, or at the size
  * where its words read, and at most most of the half; a scroll that the drawing cannot take (all of it shows that way) scrolls the half.
  * With `key` (the name of the diagram in its view), the same diagram drawn again keeps the zoom and the place that he left it at (leftAt); a fit forgets them.
- * With `overview` (build 83: cards stand under it), the card takes the height of the drawing at the scale that it is drawn at, at most the tab down to the
- * peek of the cards (keepOverview, build 85), and a small diagram is drawn larger, up to GROW, to fill its width.
+ * With `overview` (cards stand under it), the card takes the height of the drawing at the scale that it is drawn at, at most the tab down to the
+ * peek of the cards (keepOverview), and a small diagram is drawn larger, up to GROW, to fill its width.
  */
 function makeSurface(stage, readable = false, stack = false, key = undefined, overview = false) {
   const page = typeof Trail === 'object' ? Trail.ownKey() : null;
@@ -311,7 +311,7 @@ function nodeAt(stage, event) {
 }
 
 /**
- * Focus on a node (build 64): the node, its arrows and the nodes at their other ends stay as they are, and the rest of the drawing grows faint
+ * Focus on a node: the node, its arrows and the nodes at their other ends stay as they are, and the rest of the drawing grows faint
  * (look.css), as the rest around lit nodes does. `graph` is the graph of the drawing. With no node, the focus ends. Returns the name of the node,
  * or null when the drawing has no such node. A drawn process also joins two boxes without an arrow of Mermaid: a dot at the box that calls
  * (`graph.dots`) and the arrow of the page from one column to the next (path.colink); both count as arrows of the node.
@@ -340,15 +340,15 @@ function focusNode(stage, graph, node) {
   return plainName(graph, node);
 }
 
-// ----- one click focuses a node, two clicks go into it (build 84; on Home, the graphs page and "Diagram" of a change) -----
-// Build 85: where cards stand under the diagram, one click focuses the node and its card, and the card is the way in.
+// ----- one click focuses a node, two clicks go into it (on Home, the graphs page and "Diagram" of a change) -----
+// Where cards stand under the diagram, one click focuses the node and its card, and the card is the way in.
 
 let focus = null; // { stage, graph, node, diagram }: the drawing with its graph, the node that the focus is on, and on Home the diagram
 
 /**
  * Focuses a node of a drawing, with its arrows and the nodes at their other ends (focusNode); the same node again, or no node, ends the focus.
  * One quiet line in the head, after the path, names the node, with a × that ends it; it stands on the line of the path, so nothing under the pointer
- * moves when it comes (build 84). The card of the node in the overview is focused too, and comes into view when none of it shows (build 85);
+ * moves when it comes. The card of the node in the overview is focused too, and comes into view when none of it shows;
  * `quiet`: the same diagram drawn again keeps its focus, and the page does not move.
  */
 function focusOn(stage, graph, node, diagram, quiet = false) {
@@ -361,7 +361,7 @@ function focusOn(stage, graph, node, diagram, quiet = false) {
   if (typeof Overview === 'object') Overview.focused(focus?.node ?? null, !quiet);
 }
 
-/** True when cards stand under this drawing (the overview, build 83): there a click on a node does not go in, the card does (build 85). */
+/** True when cards stand under this drawing (the overview): there a click on a node does not go in, the card does. */
 const cardsShow = (stage) => stage.dataset.height !== undefined;
 
 /** The line of the focus goes: the focus ended, or the page draws another view (a new drawing starts with no focus). */
@@ -377,7 +377,7 @@ let wentInAt = 0; // the time of the last click that went into a node: the doubl
 
 /**
  * The clicks of a node: one click focuses it (focusOn), as Option+click does; a click on the node that has the focus, or a double click, goes into it
- * (`into`: one level down, or its code). Where cards stand under the drawing (build 85), they do not: a second click keeps the focus, and the card or
+ * (`into`: one level down, or its code). Where cards stand under the drawing, they do not: a second click keeps the focus, and the card or
  * "Open" in the window of the node goes in. A double click on a node never fits the drawing. The look wins where it gives the click, Option+click,
  * Shift+click or the double click of the node a target (Marks.bind, whose listeners come after these). `el` takes the clicks; `find(event)` is the
  * node that a click is on, or null (a panel of the graphs page finds it by the place of the click). Call it before Marks.bind.
@@ -650,7 +650,7 @@ function placesWindow(name, code, check, slots = {}) {
 function partWindow(part, slots = {}) {
   const diagram = App.page.diagrams.find((candidate) => candidate.id === part.diagrams[0]);
   const files = filesWindow(part.name, part.files);
-  // "Open" goes where two clicks on the part went before the cards (build 85): its diagram, or its first file.
+  // "Open" goes into the part: its diagram, or its first file.
   const open = diagram ? () => App.go({ level: 'part', part: part.id }) : () => App.openPart(part.id);
   if (!diagram && !Object.keys(slots).length) return () => ({ ...files(), open });
   return () => {
@@ -668,7 +668,7 @@ function partWindow(part, slots = {}) {
   };
 }
 
-// ----- a click on a mark of a part or a step (build 63), as on Home (pickMark in home.js) -----
+// ----- a click on a mark of a part or a step, as on Home (pickMark in home.js) -----
 
 /** Opens a place of a mark: its file at its line. */
 const openMark = (file, line) => App.showCode(file, [line, line]);
@@ -708,14 +708,14 @@ async function drawChange(into, fromPart, tie) {
   const links = inLook ? looked.edges : written;
   if (inLook) {
     const drawn = edgeElements(svg, links).map(({ path, label }, at) => ({ ...links[at], path, label })); // decorate reads the drawn line and label of each
-    // With the marks of the parts at their corners (build 63); a drawing that the look does not touch keeps its frame, as on Home.
+    // With the marks of the parts at their corners; a drawing that the look does not touch keeps its frame, as on Home.
     if (Marks.decorate(svg, looked.things, drawn, page.look, looked.filled, { nodeKey, open: openMark, pick: pickPart })) fitToContent(svg);
   }
   const fileSlotsOf = fileSlots(page);
   if (svg) Places.mark(svg, { kind: 'diagram' });
-  // The graph of the drawing for a focus (build 84): the parts by the ids of their nodes, and the links in the order of their drawn arrows.
+  // The graph of the drawing for a focus: the parts by the ids of their nodes, and the links in the order of their drawn arrows.
   const graph = { nodes: Object.fromEntries(page.parts.map((one, at) => [`ap${at}`, one.name])), edges: links };
-  const carded = !Overview.isFull(); // each part has a card of the overview (changeCards): its window only with the rule "window" (build 86)
+  const carded = !Overview.isFull(); // each part has a card of the overview (changeCards): its window only with the rule "window"
   for (const title of into.querySelectorAll('b[data-part]')) {
     const node = title.closest('g.node');
     const id = title.dataset.part;
@@ -779,7 +779,7 @@ async function drawChange(into, fromPart, tie) {
 }
 
 /**
- * The diagram of the change in the look (build 60): the parts, the box of the files in no part and the links between parts as things of the look,
+ * The diagram of the change in the look: the parts, the box of the files in no part and the links between parts as things of the look,
  * by their node ids in the text of change-diagram.ts. The fields of a part that a rule shows, and the box in no part folded or left out, are written
  * into the labels; then marks.js adds the shapes, the icons and the words of the links before Mermaid draws, as on Home (lookText).
  * Returns the text, the things by node id and the arrows for decorate; with no look, the text as it is.
@@ -956,8 +956,8 @@ function repoHtml(diagram) {
 }
 
 /**
- * Draws a diagram of a part in the look of its steps (build 60): a colour, or a picture in place of a step, by the same code as a node on Home
- * (marks.js); and on a flow chart the marks inside the lines of each step at its corners (build 63). Returns the SVG.
+ * Draws a diagram of a part in the look of its steps: a colour, or a picture in place of a step, by the same code as a node on Home
+ * (marks.js); and on a flow chart the marks inside the lines of each step at its corners. Returns the SVG.
  */
 async function drawInLook(into, diagram) {
   const { look } = App.page;
@@ -977,7 +977,7 @@ async function drawPart(into, diagram, join, stack = false) {
   makeSurface(into, false, stack, `part:${diagram.id}`);
 }
 
-/** A diagram of a part drawn small and read only, for a card of the overview (build 83): in the look, with what the change did to it, filling its card. */
+/** A diagram of a part drawn small and read only, for a card of the overview: in the look, with what the change did to it, filling its card. */
 async function drawSmall(into, diagram) {
   const svg = await drawInLook(into, diagram);
   paintChange(into, diagram);
@@ -1012,7 +1012,7 @@ async function drawSections(into, fromPart, tie) {
   Marks.paintBox(into.firstChild, slots);
   const body = into.querySelector('.sb');
   await drawChange(body, fromPart, tie);
-  // The overview (build 83): under the card, a card for each part and for the files in no part, unless he chose the diagram alone.
+  // The overview: under the card, a card for each part and for the files in no part, unless he chose the diagram alone.
   const items = changeCards(body);
   const overview = items.length > 0 && !Overview.isFull();
   makeSurface(body, false, false, `change:${fromPart ?? ''}`, overview);

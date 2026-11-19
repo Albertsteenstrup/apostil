@@ -107,7 +107,7 @@ function lookOfNote(card, note, marks = []) {
   const thing = noteThing(note, marks);
   Marks.decorateNote(card, look, thing, (file, line) => App.showCode(file, [line, line]));
   const slots = noteSlots(note, marks);
-  // The first line of a function (build 60): words from its fields, or left out.
+  // The first line of a function: words from its fields, or left out.
   const head = card.querySelector(':scope > .fn');
   if (head) {
     const line = Marks.lineThing('function-line', note.file, note.lines, marks, { function: note.symbol, tests: App.page.functionTests?.[note.symbol] ?? 0 });
@@ -127,7 +127,7 @@ function lookOfNote(card, note, marks = []) {
 }
 
 /**
- * The look of the parts of a file tab around its notes (build 60), from the rules on the line to the code, the order of the notes, the notes column,
+ * The look of the parts of a file tab around its notes, from the rules on the line to the code, the order of the notes, the notes column,
  * the code map and the margin: their slots for the notes of a file and its marks with their lines now; `rank(note)` is the place of a note in the
  * order of a rule on the notes, or null with no such rule.
  */
@@ -431,7 +431,7 @@ const isNarrow = (into) => into.clientWidth < NARROW;
 function codeWithNotes(holder, options) {
   const { rows, notes: written = [], scroller, path, colorOf, narrow = false, focus = null, top = () => -8 } = options;
   const notes = written.filter((note) => noteSlots(note, options.marks)['show.shown'] !== false); // a note that the look leaves out is not drawn; counts elsewhere keep it
-  const looks = fileLook(path, notes, options.marks); // the margin, the code map and the lines beside the notes in the look (build 60)
+  const looks = fileLook(path, notes, options.marks); // the margin, the code map and the lines beside the notes in the look
   const map = looks.map['show.shown'] === false ? null : options.map ?? null;
   // The map lies under the column of the notes; a file with no notes has it in a column of its own.
   const side = notes.length ? `<div class="notes${narrow ? ' narrow' : ''}"></div>` : map ? `<div class="mside" style="width:${narrow ? MAP_NARROW : MAP_WIDTH}px"></div>` : '';
@@ -1022,7 +1022,7 @@ function narrowestAt(things, placesOf, rows, index) {
 /**
  * The diagrams that the code of a file belongs to, as [{ id, lit }]: each diagram of a part with a thing that has a place in the file, or whose own file it is.
  * `lit` are the keys of its things with a place that holds a row of `run` ([first, last] of `rows`, or null).
- * The order: the schema of a file that builds one first (the owner asked for the schema beside such a file), then the diagrams with a lit thing, then the others.
+ * The order: the schema of a file that builds one first, so that the schema stands beside such a file, then the diagrams with a lit thing, then the others.
  * A way out of a decision has the code of its decision: it lights with the decision only, not by itself.
  */
 function thingsAt(diagrams, path, rows, run) {

@@ -1,6 +1,6 @@
 // The pages on a wide tab, in two halves that each scroll by itself. One list of diffs (drawDiffs), one stepper (changeSteps), one file view (fileView)
-// and one graph that follows (graphThatFollows) stand in them. The code or the list stands at the left, the diagram or the file at the right
-// (the owner, 13 November). In the code, the half `left` is the diagram or the file and the half `right` the code or the list; look.css puts
+// and one graph that follows (graphThatFollows) stand in them. The code or the list stands at the left, the diagram or the file at the right.
+// In the code, the half `left` is the diagram or the file and the half `right` the code or the list; look.css puts
 // `right` in the left column. Each page:
 // - "Diagram" of the change: the list of diffs closed at the left, its diagram at the right; the keys step through it, and the graph follows (changeWithDiffs).
 // - The page of a part: the file of the diagram at the left, its diagram at the right, each step joined to its rows (showFile, joinOf).
@@ -321,7 +321,7 @@ function diffList(right, list, change) {
       one.els.forEach((el) => el.classList.remove('joined'));
       shown.section?.view?.mark('step', null);
       shown.panel?.remove();
-      if (shown.section) { focus = null; refresh(); } // its node no longer stays marked
+      if (shown.section) { focus = null; refresh(); } // the mark of its node goes
     };
   });
 
@@ -597,7 +597,7 @@ function graphThatFollows(left, right, change, steps) {
  * Alt+Down and Alt+Up step through the changes of the list by the one rule of a step (diffSteps); a step opens the diff of the file that it goes into,
  * and the graph at the right follows the current change (graphThatFollows). It follows a key, and a scroll that rests with an open diff at the reading
  * line; not a scroll that the list made for the pointer on a node, a file name or a link. "Close all" brings the diagram of the change back.
- * Returns the steps, with the list, for the keys and the controls; J and K open the next and the previous row, as before.
+ * Returns the steps, with the list, for the keys and the controls; J and K open the next and the previous row, as in diffList.
  */
 async function changeWithDiffs(left, right, from) {
   Split.controls(left.parentElement, true);

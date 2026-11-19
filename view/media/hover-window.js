@@ -1,5 +1,5 @@
 // The one window of the page: a frame with a title bar, and the hover window that uses it.
-// The file picker uses the same frame.
+// The list of files, the choice of a pull request and a large picture use the same frame.
 'use strict';
 
 /** A window frame: title, a quiet sub title (HTML), actions at the right (HTML), and a body. */
@@ -151,7 +151,7 @@ const Hover = (() => {
   }
 
   const close = () => { stopWait(); turn++; stale = point; hide(); };
-  // Escape closes the window that is open (build 58), unless he types in a field.
+  // Escape closes the window that is open, unless he types in a field.
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && shown && !event.target.closest?.('[data-field], textarea, input')) close();
   });

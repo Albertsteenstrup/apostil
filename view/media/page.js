@@ -372,7 +372,7 @@ function pullChoice(anchor) {
 }
 
 /**
- * The views of the switch in the look of the repo (build 60): in the order of a rule on "change-view" ("order.first" comes first), without the views
+ * The views of the switch in the look of the repo: in the order of a rule on "change-view" ("order.first" comes first), without the views
  * that a rule leaves out. With no look: diagram, diffs, conversation.
  */
 function lookViews() {
@@ -385,7 +385,7 @@ function firstView() {
 }
 
 /**
- * The diagrams of a part in the look (build 60): without those that a rule on "part-diagram" leaves out, those of its "order.first" first, each with the
+ * The diagrams of a part in the look: without those that a rule on "part-diagram" leaves out, those of its "order.first" first, each with the
  * name that a rule gives it in the switch ("content.words", as `named`). With no look, the diagrams of the part as they are.
  */
 function partDiagrams(part) {
@@ -568,10 +568,10 @@ window.addEventListener('message', (event) => {
     if (message.lines) App.state.lines = message.lines;
     if (message.at) App.state.at = message.at;
     if (message.trail) Trail.set(message.trail);
-    Overview.heard(message.full); // the overview of a diagram or the diagram alone, as he chose last (build 83)
+    Overview.heard(message.full); // the overview of a diagram or the diagram alone, as he chose last
     if (message.pullRead) takePullRead(message.pullRead);
     App.ask = message.ask ?? null; // the words for an agent of the page, with their press and the line of their run
-    FileIcons.set(message.icons); // the icons of the rows of the cards, in his file icon theme (build 85)
+    FileIcons.set(message.icons); // the icons of the rows of the cards, in his file icon theme
     App.render();
   }
   if (message?.type === 'icons') { FileIcons.set(message.icons); Overview.relayout(); } // he changed the icon theme or the colour theme

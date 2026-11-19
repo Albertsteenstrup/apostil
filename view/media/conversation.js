@@ -21,7 +21,7 @@ const Conversation = (() => {
   let checksOpen = false; // the list of checks under the strip
   const earlyRows = new Map(); // the folded code lines of each thread, drawn when he opens them
 
-  // The look of the repo on the parts of a pull request (PartLook in part-look.js, LOOK_PARTS in shared/look.ts). With no rule for a part, it is as before.
+  // The look of the repo on the parts of a pull request (PartLook in part-look.js, LOOK_PARTS in shared/look.ts). With no rule for a part, it keeps its default look.
   const pageLook = () => App.page?.look;
   const own = (kind, fields) => PartLook.slotsOf(pageLook(), kind, fields);
   const lookIcon = (name) => PartLook.iconHtml(pageLook(), name);
@@ -1034,7 +1034,7 @@ const Conversation = (() => {
 
   /**
    * The review panel under the strip: the text, the three verdicts, "Send review". On his own pull request GitHub takes only a comment: the panel
-   * says so in one quiet line and shows no verdict, since a choice of one is none and greyed verdicts looked broken.
+   * says so in one quiet line and shows no verdict, since a choice of one is none and greyed verdicts look broken.
    */
   function reviewHtml(pull) {
     if (!reviewOpen || !canWrite(pull) || !pull.open) return '';
