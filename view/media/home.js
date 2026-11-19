@@ -102,8 +102,10 @@ function diffOf(node) {
 function nodeWindow(g, node, thing) {
   return () => {
     const diff = diffOf(node);
-    const paths = node.paths.map(({ path, files }) => { const folder = path.endsWith('/');
-      return `<a ${folder ? 'data-tree' : 'data-open'}="${esc(path)}">${FileIcons.html(path)}<span>${esc(path)}</span><i class="c">${mapCountHtml(diff(path), folder && files)}</i></a>`; }).join('');
+    const paths = node.paths.map(({ path, files }) => {
+      const folder = path.endsWith('/');
+      return `<a ${folder ? 'data-tree' : 'data-open'}="${esc(path)}">${FileIcons.html(path)}<span>${esc(path)}</span><i class="c">${mapCountHtml(diff(path), folder && files)}</i></a>`;
+    }).join('');
     const changes = changeRowsHtml(node.changes);
     const look = Home.data.look;
     const hidden = hiddenMarks(thing);
@@ -336,11 +338,9 @@ async function drawHome() {
         else if (paths.length === 1 && !paths[0].endsWith('/')) tell({ type: 'openFile', path: paths[0] });
         else tell({ type: 'showInTree', paths, open: true });
       } : null;
-      // The window of the node, with "Open" for a node with a way in (build 85): it goes where the card goes. No link of the focus and no clue of a
-      // key in its title bar: a click on the node focuses it.
+      // The window of the node, with "Open" for a node with a way in (build 85): it goes where the card goes. Where its card shows, the node has it only
+      // with the rule "window" of the look or marks in no corner (build 86); else, as a note card, only the lines of what a click of the look does.
       const content = node.note ? noteWindow(node, thing) : nodeWindow(g, node, thing);
-      // Where its card shows, a node has its window only with the rule "window" of the look or marks in no corner (build 86); else, as a note card,
-      // only the lines of what a click of the look does.
       const carded = overview && leading.includes(g) && !node.note && !Marks.hasWindow(thing?.slots) && !hiddenMarks(thing).length;
       if (carded) Marks.inputWindow(g, thing?.slots ?? {}, Marks.nameOf(g));
       else Hover.attach(g, async () => ({ ...(await content()), ...(today ? { open: today } : {}) }));
