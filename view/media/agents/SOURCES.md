@@ -1,6 +1,6 @@
 # Where the agent icons come from
 
-Each file is the icon that the maker's own site serves, taken on 10 November 2026 and not changed. The marks belong to their makers. Read the maker's brand terms before this repo is given to other people.
+Each file is the icon that the maker's own site served on 10 November 2026, with no edit. The marks belong to their makers, and their brand terms apply.
 
 | File | Product | Source |
 |---|---|---|
@@ -9,4 +9,4 @@ Each file is the icon that the maker's own site serves, taken on 10 November 202
 | `antigravity.svg` | Antigravity (Google) | https://antigravity.google/favicon.svg |
 | `opencode.svg` | OpenCode | https://opencode.ai/favicon-v3.svg |
 
-Each file was checked: no script, no event attribute, and no reference to anything outside the file.
+No file holds a script, an event attribute or a reference to anything outside the file.
