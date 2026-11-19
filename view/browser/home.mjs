@@ -142,6 +142,17 @@ try {
   const stepOpened = await drawing();
   const stepWin = await windowOf('s7');
   await away();
+  // Focusing a step node that maps to a note emits focusNote for an open side code tab and offers "Open code beside" in the focus line.
+  await home.click(nodeOf('s7'));
+  const focusNoteSent = await home.evaluate(() => window.apostilSent.filter((m) => m.type === 'focusNote').at(-1));
+  const besideLink = await home.locator('.bar > .fc [data-open-beside]').textContent();
+  await home.click('.bar > .fc [data-open-beside]');
+  const besideSent = await home.evaluate(() => window.apostilSent.filter((m) => m.type === 'openFile').at(-1));
+  check('focusing a process step node sends focusNote with its file and note lines, and "Open code beside" in the focus bar opens that file beside without stealing focus',
+    focusNoteSent?.path === tasksPath && focusNoteSent?.lines?.join(',') === '62,67'
+      && besideLink === 'Open code beside'
+      && besideSent?.path === tasksPath && besideSent?.beside === true && besideSent?.preserveFocus === true && besideSent?.lines?.join(',') === '62,67',
+    JSON.stringify({ focusNoteSent, besideLink, besideSent }));
   await into('s7');
   const leafSent = await home.evaluate(() => window.apostilSent.at(-1));
   const leafAt = await home.evaluate(() => Home.at);

@@ -119,7 +119,12 @@ export function activate(context: vscode.ExtensionContext) {
   const sortAndFilter = new SortAndFilter(media, context.globalStorageUri, (search) => list.setSearch(search));
   list.onMenu = (menu) => void sortAndFilter.show(menu);
   // The notes of every saved change beside the code of a file that opens the normal way.
-  const notes = new NotesBesideCode(theStore, (uri, lines) => page.openFileAt(uri, lines), (uri, lines) => void page.showLines(uri, lines));
+  const notes = new NotesBesideCode(
+    theStore,
+    (uri, lines, options) => page.openFileAt(uri, lines, options),
+    (uri, lines) => void page.showLines(uri, lines),
+    (uri, lines, preserveFocus) => page.revealLines(uri, lines, preserveFocus),
+  );
   notes.register(context);
   const files = new FilesTree(theStore, openFolder);
 

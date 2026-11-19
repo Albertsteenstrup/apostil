@@ -14,6 +14,7 @@ import { cellsOfText, isNotebookPath, notebookText, readNotebook, type Cell } fr
 import { codeFromGit, fromWords, notesInRepo, type NoteHere, type NotesOfFile, type OldCode } from '../shared/notes-beside-code';
 import type { Store } from '../shared/store';
 import { notesAtLine, titledNotes } from './note-lines';
+import { chooseBesideColumn, chooseFollowTarget, type OpenTab } from './tab-sync';
 
 /** The setting "apostil.notesBesideCode": in the editor of VS Code, in the file tab of Apostil, or off. */
 export type NotesWay = 'editor' | 'tab' | 'off';
@@ -98,7 +99,12 @@ export class NotesBesideCode {
   shown = new Map<string, NotesShown>(); // what each editor shows, by repo path: for the checks
   statusText = ''; // what the status bar says now: for the checks
 
-  constructor(private store: Store, private openFileTab: (uri: vscode.Uri, lines?: [number, number]) => Promise<void>, private showLines: (uri: vscode.Uri, lines: [number, number]) => void) {
+  constructor(
+    private store: Store,
+    private openFileTab: (uri: vscode.Uri, lines?: [number, number], options?: { viewColumn?: vscode.ViewColumn; preserveFocus?: boolean; preview?: boolean }) => Promise<void>,
+    private showLines: (uri: vscode.Uri, lines: [number, number]) => void,
+    private revealLines: (uri: vscode.Uri, lines: [number, number], preserveFocus?: boolean) => boolean = () => false,
+  ) {
     this.status.name = 'Apostil notes';
     this.status.command = 'apostil.toggleNotes';
   }
@@ -108,7 +114,8 @@ export class NotesBesideCode {
     context.subscriptions.push(
       this.status, this.lineMark, this.titleMark,
       vscode.commands.registerCommand('apostil.toggleNotes', (uri?: string, line?: number) => this.toggle(uri, line)),
-      vscode.commands.registerCommand('apostil.openFile', (uri: vscode.Uri, line?: number) => this.open(uri, line)),
+      vscode.commands.registerCommand('apostil.openFile', (uri: vscode.Uri, at?: number | [number, number], options?: { beside?: boolean; preserveFocus?: boolean; fromColumn?: vscode.ViewColumn }) => this.open(uri, at, options)),
+      vscode.commands.registerCommand('apostil.followNote', (uri: vscode.Uri, lines: [number, number], fromColumn?: vscode.ViewColumn) => this.followNote(uri, lines, fromColumn)),
       vscode.commands.registerCommand('apostil.openNoteInTab', (uri: string, lines: [number, number]) => this.openFileTab(vscode.Uri.parse(uri), lines)),
       vscode.languages.registerHoverProvider([{ scheme: 'file' }, { scheme: CELL_SCHEME }], { provideHover: (document, position) => this.hover(document, position) }),
       vscode.workspace.onDidChangeNotebookDocument((event) => {
@@ -300,17 +307,55 @@ export class NotesBesideCode {
     this.refresh();
   }
 
-  /**
-   * Opens a file from a place of Apostil (the tree "Files", the map on Home), with `line` at that line (a step of a process). With the way "tab", a file that has notes opens in the file tab at once:
-   * the editor does not show for a moment first. Any other file, one that he switched to the editor, and one with edits that are not saved open the normal way.
-   */
-  async open(uri: vscode.Uri, line?: number): Promise<void> {
+  /** True when a file should open in Apostil's file tab rather than VS Code's text editor. */
+  private usesFileTab(uri: vscode.Uri): boolean {
     const key = uri.toString();
     const dirty = vscode.workspace.textDocuments.some((one) => one.uri.toString() === key && one.isDirty);
-    const inTab = wayOf(uri) === 'tab' && !this.plain.has(key) && !dirty && !!this.notesOf(uri)?.result.notes.length;
-    if (inTab && line) await this.openFileTab(uri, [line, line]);
-    else if (inTab) await vscode.commands.executeCommand('vscode.openWith', uri, FILE_TAB, { preview: true });
-    else await vscode.commands.executeCommand('vscode.open', uri, line ? { selection: new vscode.Range(line - 1, 0, line - 1, 0) } : undefined);
+    return wayOf(uri) === 'tab' && !this.plain.has(key) && !dirty && !!this.notesOf(uri)?.result.notes.length;
+  }
+
+  /** Snapshot of all open tabs across VS Code's tab groups, for side-tab sync (view/tab-sync.ts). */
+  private openTabs(): OpenTab[] {
+    return vscode.window.tabGroups.all.flatMap((group) => group.tabs.map((tab): OpenTab => ({
+      viewColumn: group.viewColumn,
+      uri: fileOfTab(tab)?.toString(),
+      isFileTab: tab.input instanceof vscode.TabInputCustom && tab.input.viewType === FILE_TAB,
+      isTextEditor: tab.input instanceof vscode.TabInputText,
+      isActive: tab.isActive,
+    })));
+  }
+
+  /**
+   * Opens a file from a place of Apostil (the tree "Files", the map on Home), at `at` (one line or `[first, last]`). With `beside`, opens in a side
+   * group (reusing an open code group if one exists, else Beside). With the way "tab", a file that has notes opens in the file tab at once.
+   */
+  async open(uri: vscode.Uri, at?: number | [number, number], options?: { beside?: boolean; preserveFocus?: boolean; fromColumn?: vscode.ViewColumn }): Promise<void> {
+    const lines: [number, number] | undefined = Array.isArray(at) ? at : typeof at === 'number' ? [at, at] : undefined;
+    const viewColumn = options?.beside ? chooseBesideColumn(this.openTabs(), options.fromColumn, uri.toString()) ?? vscode.ViewColumn.Beside : undefined;
+    const preserveFocus = options?.preserveFocus;
+    const inTab = this.usesFileTab(uri);
+    if (inTab && lines) await this.openFileTab(uri, lines, { viewColumn, preserveFocus });
+    else if (inTab) await vscode.commands.executeCommand('vscode.openWith', uri, FILE_TAB, { preview: true, ...(viewColumn !== undefined ? { viewColumn } : {}), ...(preserveFocus !== undefined ? { preserveFocus } : {}) });
+    else {
+      const selection = lines ? new vscode.Range(lines[0] - 1, 0, lines[1] - 1, 0) : undefined;
+      await vscode.commands.executeCommand('vscode.open', uri, { ...(selection ? { selection } : {}), ...(viewColumn !== undefined ? { viewColumn } : {}), ...(preserveFocus !== undefined ? { preserveFocus } : {}) });
+    }
+  }
+
+  /**
+   * Scrolls an open side code tab to `lines` when a node that maps to a note is focused in a diagram tab (`fromColumn`), keeping focus on the diagram.
+   * When no code tab is open in another group, does nothing.
+   */
+  async followNote(uri: vscode.Uri, lines: [number, number], fromColumn?: vscode.ViewColumn): Promise<void> {
+    const target = chooseFollowTarget(this.openTabs(), fromColumn, uri.toString());
+    if (!target) return;
+    if (target.alreadyOpen) {
+      if (target.isFileTab && this.revealLines(uri, lines, true)) return;
+      await vscode.window.showTextDocument(uri, { viewColumn: target.viewColumn, preserveFocus: true, selection: new vscode.Range(lines[0] - 1, 0, lines[1] - 1, 0) });
+      return;
+    }
+    if (this.usesFileTab(uri)) await this.openFileTab(uri, lines, { viewColumn: target.viewColumn, preserveFocus: true, preview: true });
+    else await vscode.window.showTextDocument(uri, { viewColumn: target.viewColumn, preserveFocus: true, preview: true, selection: new vscode.Range(lines[0] - 1, 0, lines[1] - 1, 0) });
   }
 
   /** With the way "tab": a file that has notes and opens the normal way (the Explorer, Go to File, a search result) changes to the file tab of Apostil by itself, unless he switched it to the editor or has edits that are not saved. */

@@ -30,6 +30,25 @@ const Home = {
 const diagramOf = (id) => Home.data.map.diagrams.find((diagram) => diagram.id === id);
 
 // The focus on a node, by one click: focusOn() and focusClicks() in diagram-stage.js.
+/** The code location of a node on Home: a process step's note span, a single-line target, or a single-file node. */
+function nodeCodePlace(diagramId, nodeId) {
+  const node = diagramId ? diagramOf(diagramId)?.nodes?.[nodeId] : null;
+  if (!node) return null;
+  const isNote = node.kind === 'step' && !!node.note;
+  if (isNote && node.at?.length) return { path: node.at[0].file, lines: [node.at[0].from, node.at[0].to], isNote: true };
+  if (node.line && node.paths?.length) return { path: node.paths[0].path, lines: [node.line, node.line], isNote };
+  const paths = (node.paths ?? []).map(({ path }) => path);
+  if (paths.length === 1 && !paths[0].endsWith('/')) return { path: paths[0], isNote: false };
+  return null;
+}
+
+onFocusChange((focused, quiet) => {
+  if (!focused) return '';
+  const place = nodeCodePlace(focused.diagram, focused.node);
+  if (!place) return '';
+  if (!quiet && place.isNote && place.lines) tell({ type: 'focusNote', path: place.path, lines: place.lines });
+  return `<a data-open-beside="${esc(place.path)}"${place.lines ? ` data-lines="${place.lines[0]},${place.lines[1]}"` : ''} title="Open code in a tab beside this diagram">Open code beside</a>`;
+});
 
 // ----- the steps of the path: a diagram of the map, the graphs of a path, a change -----
 
@@ -332,10 +351,12 @@ async function drawHome() {
       // A call out of the repo leads nowhere: it is a quiet box with its window only. A click of the look goes to its target instead.
       // Two clicks do this (focusClicks): one click focuses the node, and the card of the overview does it at once. Where the cards show, only the
       // card and "Open" in the window do it.
-      const open = paths.length ? () => {
+      const open = paths.length ? (event) => {
+        const beside = !!(event && (event.metaKey || event.ctrlKey));
+        const span = node.at?.[0];
         if (node.down) { if (!node.note) tell({ type: 'showInTree', paths }); walkTo(mapStep(node.down)); }
-        else if (node.line) tell({ type: 'openFile', path: paths[0], line: node.line });
-        else if (paths.length === 1 && !paths[0].endsWith('/')) tell({ type: 'openFile', path: paths[0] });
+        else if (node.line) tell({ type: 'openFile', path: paths[0], line: node.line, ...(span ? { lines: [span.from, span.to] } : {}), ...(beside ? { beside: true } : {}) });
+        else if (paths.length === 1 && !paths[0].endsWith('/')) tell({ type: 'openFile', path: paths[0], ...(beside ? { beside: true } : {}) });
         else tell({ type: 'showInTree', paths, open: true });
       } : null;
       // The window of the node, with "Open" for a node with a way in: it goes where the card goes. Where its card shows, the node has it only
@@ -541,8 +562,16 @@ document.addEventListener('click', (event) => {
   if (target.closest('[data-clear-filter]')) return walkTo(mapStep(Home.at)); // the same diagram, with nothing lit and no line of a mark
   const folder = target.closest('[data-tree]');
   if (folder) return tell({ type: 'showInTree', paths: [folder.dataset.tree], open: true });
+  const beside = target.closest('[data-open-beside]');
+  if (beside) {
+    const lines = beside.dataset.lines ? beside.dataset.lines.split(',').map(Number) : undefined;
+    return tell({ type: 'openFile', path: beside.dataset.openBeside, ...(lines ? { line: lines[0], lines } : {}), beside: true, preserveFocus: true });
+  }
   const file = target.closest('[data-open]:not([data-open=""])'); // "Open" in the title bar of a window has no path: the window opens its thing
-  if (file) return tell({ type: 'openFile', path: file.dataset.open, ...(file.dataset.line ? { line: Number(file.dataset.line) } : {}) });
+  if (file) {
+    const side = event.metaKey || event.ctrlKey;
+    return tell({ type: 'openFile', path: file.dataset.open, ...(file.dataset.line ? { line: Number(file.dataset.line) } : {}), ...(side ? { beside: true } : {}) });
+  }
   const change = target.closest('[data-change-id]');
   if (change) return walkTo({ tab: 'change', change: Number(change.dataset.changeId), go: { level: 'change' }, name: change.dataset.title });
 });

@@ -344,6 +344,10 @@ function focusNode(stage, graph, node) {
 // Where cards stand under the diagram, one click focuses the node and its card, and the card is the way in.
 
 let focus = null; // { stage, graph, node, diagram }: the drawing with its graph, the node that the focus is on, and on Home the diagram
+let focusListener = null; // optional hook called when focus changes; may return extra HTML for the focus bar
+
+/** Registers a listener called when a diagram node gains or loses focus. */
+function onFocusChange(fn) { focusListener = fn; }
 
 /**
  * Focuses a node of a drawing, with its arrows and the nodes at their other ends (focusNode); the same node again, or no node, ends the focus.
@@ -357,7 +361,8 @@ function focusOn(stage, graph, node, diagram, quiet = false) {
   const name = node && !again ? focusNode(stage, graph, node) : null;
   focus = name ? { stage, graph, node, diagram } : null;
   endFocusLine();
-  if (name) document.getElementById('crumb')?.insertAdjacentHTML('afterend', `<span class="mk-filter fc">Focus: ${esc(name)} · <a data-end-focus title="End the focus (Escape)">×</a></span>`);
+  const extra = focusListener ? focusListener(focus, quiet) : '';
+  if (name) document.getElementById('crumb')?.insertAdjacentHTML('afterend', `<span class="mk-filter fc">Focus: ${esc(name)}${extra ? ` · ${extra}` : ''} · <a data-end-focus title="End the focus (Escape)">×</a></span>`);
   if (typeof Overview === 'object') Overview.focused(focus?.node ?? null, !quiet);
 }
 

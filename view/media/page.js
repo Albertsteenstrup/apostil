@@ -582,7 +582,13 @@ window.addEventListener('message', (event) => {
   if (message?.type === 'pullRead') takePullRead(message);
   if (message?.type === 'minimap') { CodeMap.set(message.on); if (App.rendered) tell({ ...App.rendered, map: CodeMap.shown() }); }
   if (message?.type === 'reread') App.reread();
-  if (message?.type === 'lines') App.showCode(App.tab, message.lines ?? null, message.at ?? null);
+  if (message?.type === 'lines') {
+    if (App.tab && Code.shown?.path === App.tab && !message.at) {
+      App.state.lines = message.lines ?? null;
+      Code.shown.view?.focusNote?.(App.state.lines);
+      if (App.state.lines) Code.reveal(App.state.lines);
+    } else App.showCode(App.tab, message.lines ?? null, message.at ?? null);
+  }
   if (message?.type === 'trail') Trail.set(message.steps);
   if (message?.type === 'layout' && Overview.heard(message.full) && !App.tab && App.state.view === 'diagram') App.render(); // he chose on another page
   // A large pull request while it is read: the head and what is read so far, with how far the read is.

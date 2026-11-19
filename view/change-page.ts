@@ -297,9 +297,13 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
     this.wanted.delete(key);
   }
 
-  /** Opens the file tab of a file at its lines, from a note beside the code in the editor of VS Code; a tab that is open already shows the lines. */
-  async openFileAt(uri: vscode.Uri, lines?: [number, number]): Promise<void> {
-    await vscode.commands.executeCommand('vscode.openWith', uri, ChangePage.fileEditor, { viewColumn: this.showLines(uri, lines) ?? vscode.ViewColumn.Active });
+  /** Opens the file tab of a file at its lines; a tab that is open already shows the lines. */
+  async openFileAt(uri: vscode.Uri, lines?: [number, number], options?: { viewColumn?: vscode.ViewColumn; preserveFocus?: boolean; preview?: boolean }): Promise<void> {
+    const viewColumn = options?.viewColumn ?? this.showLines(uri, lines) ?? vscode.ViewColumn.Active;
+    if (options?.viewColumn !== undefined) this.showLines(uri, lines);
+    await vscode.commands.executeCommand('vscode.openWith', uri, ChangePage.fileEditor, {
+      viewColumn, ...(options?.preserveFocus !== undefined ? { preserveFocus: options.preserveFocus } : {}), ...(options?.preview !== undefined ? { preview: options.preview } : {}),
+    });
   }
 
   /** Tells the file tab of a file where to be: a tab that is open shows the lines, and one that VS Code is opening starts there. Returns the column of the open tab. */
@@ -308,6 +312,15 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
     if (open) this.post(open, { type: 'lines', lines });
     else this.wanted.set(uri.toString(), { lines });
     return open?.panel.viewColumn;
+  }
+
+  /** Scrolls an already-open file tab to `lines` and reveals it in its own group without stealing focus. Returns false if no tab for `uri` is open. */
+  revealLines(uri: vscode.Uri, lines: [number, number], preserveFocus = true): boolean {
+    const open = [...this.views].find((view) => view.uri === uri.toString());
+    if (!open) return false;
+    this.post(open, { type: 'lines', lines });
+    open.panel.reveal(open.panel.viewColumn, preserveFocus);
+    return true;
   }
 
   /**

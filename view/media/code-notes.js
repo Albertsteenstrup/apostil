@@ -518,7 +518,11 @@ function codeWithNotes(holder, options) {
     const placeCards = view.place;
     view.place = () => { placeCards(); drawn.soon(); };
   };
-  if (!notes.length) { addMap([]); return view; }
+  if (!notes.length) {
+    addMap([]);
+    view.focusNote = (lines) => view.mark('lit', lines && { lines });
+    return view;
+  }
 
   // The rows of each note, from the row of its first line to the row of its last; a note with no row here stands at the top.
   // In the order of the first rows; of two notes that start on one row, the wider first (a function before its first step).
@@ -535,7 +539,14 @@ function codeWithNotes(holder, options) {
   cards.forEach((card, index) => lookOfNote(card, sorted[index], options.marks));
   // The note under the pointer: the narrowest note that holds the row, so a row of a step lights the step and not its function.
   const noteAt = (row, among = sorted) => { const note = narrowestAt(among, (one) => [one], rows, row); return note ? sorted.indexOf(note) : -1; };
-  const resting = focus ? noteAt(rows.findIndex((row) => row.now === focus[0]), sorted.filter((note) => !note.removed)) : -1;
+  let currentFocus = focus;
+  const findNote = (lines) => {
+    if (!lines) return -1;
+    const live = sorted.filter((note) => !note.removed);
+    const exact = live.find((note) => note.lines?.[0] === lines[0] && note.lines?.[1] === lines[1]);
+    return exact ? sorted.indexOf(exact) : noteAt(rows.findIndex((row) => row.now === lines[0]), live);
+  };
+  let resting = findNote(focus);
   let lit = null;
   const light = (index) => {
     if (index === lit) return;
@@ -543,8 +554,9 @@ function codeWithNotes(holder, options) {
     // A card that shows its title only opens to its whole text while it is lit; it lies over the cards below it and moves none of them.
     cards.forEach((card, at) => { card.classList.toggle('cur', at === index); card.classList.toggle('open', at === index && card.classList.contains('brief')); });
     column.querySelectorAll('.mk, [data-join]').forEach((mark, at) => mark.classList.toggle('cur', at === index));
-    view.mark('lit', index >= 0 ? sorted[index] : focus && { lines: focus });
+    view.mark('lit', index >= 0 ? sorted[index] : currentFocus && { lines: currentFocus });
   };
+  view.focusNote = (lines) => { currentFocus = lines; resting = findNote(lines); lit = null; light(resting); };
   // The cards stand in the column; the rows start lower than the column when something stands above them (the control of a file tab).
   const shift = () => box.getBoundingClientRect().top - column.getBoundingClientRect().top;
   if (narrow) {

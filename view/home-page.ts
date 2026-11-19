@@ -34,7 +34,8 @@ type Message =
   | { type: 'pointer'; on: boolean }
   | { type: 'openLink'; url: string }
   | { type: 'target'; target: Target; diagram?: string }
-  | { type: 'openFile'; path: string; line?: number }
+  | { type: 'openFile'; path: string; line?: number; lines?: [number, number]; beside?: boolean; preserveFocus?: boolean }
+  | { type: 'focusNote'; path: string; lines: [number, number] }
   | { type: 'showInTree'; paths: string[]; open?: boolean }
   | { type: 'setUp' }
   | { type: 'rendered'; kind: string; nodes: number; panels: number; drawn: number }
@@ -434,7 +435,12 @@ export class HomePages {
         this.onTarget(message.target, message.diagram);
         break;
       case 'openFile': // a file in the window of a node, or a step of a process at its line: it opens as the setting of the notes says, a file with notes in the file tab at once
-        void vscode.commands.executeCommand('apostil.openFile', vscode.Uri.file(join(this.openFolder(), message.path)), message.line);
+        void vscode.commands.executeCommand('apostil.openFile', vscode.Uri.file(join(this.openFolder(), message.path)), message.lines ?? message.line, {
+          beside: message.beside, preserveFocus: message.preserveFocus, fromColumn: tab.panel.viewColumn,
+        });
+        break;
+      case 'focusNote': // a focused diagram node that maps to a note in code: scroll an open side code tab to that note without stealing focus
+        void vscode.commands.executeCommand('apostil.followNote', vscode.Uri.file(join(this.openFolder(), message.path)), message.lines, tab.panel.viewColumn);
         break;
       case 'showInTree': // he went into an area of the map: the tree "Files" follows
         this.showInTree(message.paths, !!message.open);
