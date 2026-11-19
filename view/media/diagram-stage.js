@@ -1019,7 +1019,7 @@ function changeCards(body) {
     if (!id) return { title: 'In no part', files: page.checks.filesInNoPart.map(fileOf), node: nodeKey(g) };
     const part = page.parts.find((one) => one.id === id);
     const [diagram] = partDiagrams(part);
-    return diagram ? { title: part.name, open: () => App.openPart(id), draw: (box) => drawSmall(box, diagram), shape: drawingShape(diagram.graph, diagram.draw, diagram.schema), node: nodeKey(g) }
+    return diagram ? { title: part.name, open: () => App.openPart(id), draw: (box) => drawSmall(box, diagram), shape: { ...drawingShape(diagram.graph, diagram.draw, diagram.schema), key: diagram.id }, node: nodeKey(g) }
       : { title: part.name, files: part.files.map(fileOf), node: nodeKey(g) };
   });
 }

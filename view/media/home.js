@@ -208,7 +208,7 @@ function homeCard(g, node, open, graph, run) {
   const title = plainName(graph, nodeKey(g));
   const below = diagramOf(node.down);
   const own = { title, node: nodeKey(g), ...(run ? { run, areaFiles: node.paths } : {}) };
-  if (below) return { ...own, open, draw: (box) => drawPanel(box, { ...below, lit: [] }, true), shape: drawingShape(below.graph, below.mermaid, below.schema) };
+  if (below) return { ...own, open, draw: (box) => drawPanel(box, { ...below, lit: [] }, true), shape: { ...drawingShape(below.graph, below.mermaid, below.schema), key: below.id } };
   const files = node.paths.map(({ path, files }) => ({ path, count: files, line: node.line }));
   return run ? own : { ...own, files };
 }
