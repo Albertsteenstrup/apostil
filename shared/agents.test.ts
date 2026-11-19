@@ -125,7 +125,7 @@ test('every new session takes the small model of its app unless the owner set an
     assert.deepEqual(resumeCommand({ app: 'opencode', session: 'o1' }, 'Do it', drawing)?.slice(-2), ['--model', 'made-up-provider/small-one#max']);
   }
   const agyMap = newRunCommand('antigravity', 'Write the map', { ...models, diagrams: true })!;
-  assert.ok(JSON.parse(agyMap[agyMap.indexOf('--settings') + 1]).permissions.allow.includes('command(git log *)'));
+  assert.deepEqual(JSON.parse(agyMap[agyMap.indexOf('--settings') + 1]), { permissions: { allow: ['write_file(*)', 'command(*)'], deny: ['command(git push *)', 'command(git push)', 'command(rm -rf *)'] } });
   // The map run reads the repo: the read tools and the commands of git and gh that only read.
   const map = newRunCommand('claude-code', 'Write the map', { ...models, diagrams: true })!;
   assert.deepEqual(map.slice(map.indexOf('--allowedTools') + 1), ['Bash(apostil *)', 'Read', 'Grep', 'Glob', 'Bash(git log *)', 'Bash(git show *)', 'Bash(git diff *)', 'Bash(git ls-files *)',

@@ -97,18 +97,19 @@ const claudeRights = ({ claudeMode, commentRuns, describe, diagrams }: RunOption
   ...(describe ? ['--disallowedTools', 'Edit', 'NotebookEdit'] : commentRuns === 'read only' ? ['--disallowedTools', 'Edit', 'Write', 'NotebookEdit'] : []),
 ];
 
-/** The commands that an Antigravity run that draws diagrams uses to read the repo, in the syntax of agy's permissions.allow. */
-const AGY_READ_COMMANDS = ['git log', 'git show', 'git diff', 'git ls-files', 'git grep', 'git blame', 'git status', 'ls', 'gh pr view', 'gh pr diff']
-  .flatMap((command) => [`command(${command} *)`, `command(${command})`]);
+/** Commands that an Antigravity run may never run without a person. */
+const AGY_DENY_COMMANDS = ['command(git push *)', 'command(git push)', 'command(rm -rf *)'];
 
 /**
- * What an Antigravity run may do in headless print mode: save with apostil, write files unless a comment run is "read only", and read the repo
- * when it draws diagrams. Passed via --settings so the person's own settings.json is never written.
+ * What an Antigravity run may do in headless print mode: save with apostil, write files unless a comment run is "read only", and run shell commands
+ * (agy has no separate Grep/Glob tool and checks whole compound commands against command() rules) when drawing diagrams or describing a change.
+ * Passed via --settings so the person's own settings.json is never written.
  */
 function agyRights({ commentRuns, describe, diagrams }: RunOptions): string[] {
   const readOnly = commentRuns === 'read only';
-  const allow = [...(readOnly ? [] : ['write_file(*)']), 'command(apostil *)', 'command(apostil)', ...(describe || diagrams ? AGY_READ_COMMANDS : [])];
-  const permissions = { allow, ...(readOnly ? { deny: ['write_file(*)'] } : {}) };
+  const allow = [...(readOnly ? [] : ['write_file(*)']), ...(describe || diagrams ? ['command(*)'] : ['command(apostil *)', 'command(apostil)'])];
+  const deny = [...(readOnly ? ['write_file(*)'] : []), ...(describe || diagrams ? AGY_DENY_COMMANDS : [])];
+  const permissions = { allow, ...(deny.length ? { deny } : {}) };
   return ['--mode', 'accept-edits', '--settings', JSON.stringify({ permissions })];
 }
 
