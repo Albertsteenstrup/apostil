@@ -4,13 +4,14 @@ import { mergeAgent, type AgentSession } from '../shared/agents';
 import { shapeProblems, type ChangeFile, type Diagram, type Note } from '../shared/change-file';
 import { cellsIn, checkChangeFile, fileChange, inNoThingHints, rangesText } from '../shared/checks';
 import { mapDrawing } from '../shared/comment-lines';
+import { definitionsOf, gapsIn, type Gap, type Skip } from '../shared/definitions';
 import { missingCode, missingLinkCode } from '../shared/diagram-code';
 import { baseOf, changedFiles, commitExists, currentBranch, fileText, headCommit, repoFiles, repoId, repoRoot, tryGit, type ChangedFile } from '../shared/git';
-import { fingerprint } from '../shared/note-groups';
+import { codeFiles, fingerprint } from '../shared/note-groups';
 import { rawLineProblems } from '../shared/notebook';
 import { noteCodeOf } from '../shared/notes-beside-code';
 import { sameDiagramText } from '../shared/repo-diagram';
-import { checkMap, fileNotesProblems, fileNotesStyle, mapAsChange, mapNoteProblems, mapProblems, type MapCheck, type RepoMap } from '../shared/repo-map';
+import { checkMap, fileNotesProblems, fileNotesStyle, mapAsChange, mapNoteProblems, mapProblems, textWording, type MapCheck, type RepoMap } from '../shared/repo-map';
 import type { CheckResult, Store } from '../shared/store';
 import { freshNotes, isFileNoteKey, notesWithCode, sortedNotes, withFileNotes, withNoteCode } from './note-code';
 import { mapProcessProblems } from './processes-save';
@@ -133,15 +134,16 @@ export function saveMapDraft(store: Store, folder: string, draft: unknown): Save
     const kept = own ? {} : Object.fromEntries(Object.entries(stored?.noteCode ?? {}).filter(([key]) => isFileNoteKey(key)));
     const fileNotes = own ? map.fileNotes : stored?.fileNotes;
     const noNotes = map.noNotes ?? stored?.noNotes;
+    const skips = map.skips ?? stored?.skips;
     // The processes stay, unless the draft holds its own (the made-up example): those are checked as the processes of a writer are.
     const flow: Partial<RepoMap> = map.processes !== undefined ? map : stored ?? {};
     if (map.processes !== undefined) problems = mapProcessProblems(folder, { ...map, fileNotes });
     if (problems.length) return undefined;
     // The marks stay too, with the files that their writers read: the writers of marks save them, not the map.
     const marked: Partial<RepoMap> = map.marks !== undefined ? map : stored ?? {};
-    const { fileNotes: _notes, noNotes: _none, processes: _processes, handoffs: _handoffs, notInProcess: _aside, marks: _marks, markedFiles: _read, iconRefused: _refused, ...rest } = map;
+    const { fileNotes: _notes, noNotes: _none, skips: _skips, processes: _processes, handoffs: _handoffs, notInProcess: _aside, marks: _marks, markedFiles: _read, iconRefused: _refused, ...rest } = map;
     const full: RepoMap = {
-      ...rest, ...(fileNotes?.length ? { fileNotes } : {}), ...(noNotes ? { noNotes } : {}),
+      ...rest, ...(fileNotes?.length ? { fileNotes } : {}), ...(noNotes ? { noNotes } : {}), ...(skips ? { skips } : {}),
       ...(flow.processes ? { processes: flow.processes } : {}), ...(flow.handoffs ? { handoffs: flow.handoffs } : {}), ...(flow.notInProcess ? { notInProcess: flow.notInProcess } : {}),
       ...(marked.marks ? { marks: marked.marks } : {}), ...(marked.markedFiles ? { markedFiles: marked.markedFiles } : {}), ...(marked.iconRefused ? { iconRefused: marked.iconRefused } : {}),
     };
@@ -183,6 +185,7 @@ export interface AddNotesResult {
   notes?: number; // the notes of this JSON that were saved
   files?: number; // the files that this JSON replaced the notes of
   style?: string[]; // words of the saved notes that may break the rules (fileNotesStyle): a warning, the notes are saved
+  gaps?: Gap[]; // the code of the saved files that has no note and no skip: at most 30, the most used first
 }
 
 /** What `apostil add-notes` is given. */
@@ -190,23 +193,38 @@ interface NotesDraft {
   notes?: Note[];
   files?: string[]; // files with no code worth a note
   ranges?: { file: string; from: number; to: number }[]; // the writer wrote only these lines of a long file
+  skip?: Skip[]; // code that needs no note, each with why
 }
+
+const MOST_GAPS = 30;
 
 const isList = (value: unknown, each: (one: unknown) => boolean): boolean => Array.isArray(value) && value.every(each);
 const isRange = (one: any): boolean => typeof one?.file === 'string' && Number.isInteger(one.from) && Number.isInteger(one.to) && one.from >= 1 && one.from <= one.to;
+const isSkip = (one: any): boolean => typeof one?.file === 'string' && Array.isArray(one.lines) && one.lines.length === 2 && one.lines.every(Number.isInteger);
 
 /** The problems of the JSON itself, before the notes are read: its shape, and a file or a range that is no file of the repo. */
 function notesDraftProblems(folder: string, draft: unknown): string[] {
-  if (!draft || typeof draft !== 'object' || Array.isArray(draft)) return ['The JSON must be an object: { "notes": [ ... ], "files": [ ... ]?, "ranges": [ ... ]? }.'];
-  const { notes, files, ranges } = draft as Record<string, unknown>;
+  if (!draft || typeof draft !== 'object' || Array.isArray(draft)) return ['The JSON must be an object: { "notes": [ ... ], "files": [ ... ]?, "ranges": [ ... ]?, "skip": [ ... ]? }.'];
+  const { notes, files, ranges, skip } = draft as Record<string, unknown>;
   const problems: string[] = [];
   if (!Array.isArray(notes)) problems.push('"notes" must be a list of notes. Write an empty list when no file has a note.');
   if (files !== undefined && !isList(files, (one) => typeof one === 'string')) problems.push('"files" must be a list of paths: the files that have no code worth a note.');
   if (ranges !== undefined && !isList(ranges, isRange)) problems.push('"ranges" must be a list of { "file", "from", "to" }, with "from" and "to" counted from 1.');
+  if (skip !== undefined && !isList(skip, isSkip)) problems.push('"skip" must be a list of { "file", "lines": [first, last], "why" }, with "file" and "lines" from an item of "gaps".');
   if (problems.length) return problems;
   const known = new Set(repoFiles(folder) ?? []);
-  const named = [...((files as string[] | undefined) ?? []), ...((ranges as { file: string }[] | undefined) ?? []).map((range) => range.file)];
+  const named = [...((files as string[] | undefined) ?? []), ...((ranges as { file: string }[] | undefined) ?? []).map((range) => range.file), ...((skip as Skip[] | undefined) ?? []).map((one) => one.file)];
   return [...new Set(named.filter((path) => !known.has(path)))].map((path) => `The file ${path} is no file of the repo: Git ignores it, or it does not exist. Name a file that Git tracks, or a new file that Git does not ignore.`);
+}
+
+/** A skip needs a why of one short sentence, and lines that are a function, method or class of its file. */
+function skipProblems(folder: string, skips: Skip[]): string[] {
+  return skips.flatMap((skip) => {
+    const at = `Skip of ${skip.file} ${skip.lines[0]}-${skip.lines[1]}`;
+    if (typeof skip.why !== 'string' || !skip.why.trim()) return [`${at}: give "why", one short sentence that says why this code needs no note.`];
+    const known = definitionsOf(skip.file, fileText(folder, skip.file) ?? '').some(({ lines }) => lines[0] === skip.lines[0] && lines[1] === skip.lines[1]);
+    return [...textWording(skip.why, at, 'why'), ...(known ? [] : [`${at}: these lines are no function, method or class of the file. Copy "file" and "lines" from an item of "gaps".`])];
+  });
 }
 
 /** A note of a file with ranges must lie inside one of them. */
@@ -224,22 +242,24 @@ function outsideRanges(notes: Note[], ranges: NonNullable<NotesDraft['ranges']>)
  */
 export function addNotesToMap(store: Store, folder: string, draft: unknown): AddNotesResult {
   let result: AddNotesResult = { saved: false, problems: [] };
+  let check = (): Gap[] => [];
   store.updateMap(repoId(folder), headCommit(folder), (stored) => {
     if (!stored) {
       result = { saved: false, problems: ['This repo has no saved map. Save one with apostil save-map.'] };
       return undefined;
     }
     const shape = notesDraftProblems(folder, draft);
-    const { notes = [], files = [], ranges = [] } = (shape.length ? {} : draft) as NotesDraft;
+    const { notes = [], files = [], ranges = [], skip = [] } = (shape.length ? {} : draft) as NotesDraft;
     // Each note is checked as the note of a diagram is, and the JSON alone must keep the rules of the notes of files.
     const sound = shape.length ? shape : fileNotesProblems(notes, 'The notes'); // a note with a wrong shape is not read further
-    const problems = sound.length ? sound : [...mapNoteProblems(folder, [], notes), ...outsideRanges(notes, ranges)];
+    const problems = sound.length ? sound : [...mapNoteProblems(folder, [], notes), ...outsideRanges(notes, ranges), ...skipProblems(folder, skip)];
     if (problems.length) {
       result = { saved: false, problems };
       return undefined;
     }
     const named = new Set([...notes.map((note) => note.file), ...files, ...ranges.map((range) => range.file)]);
-    const replaced = (note: Note): boolean => named.has(note.file) && (!ranges.some((range) => range.file === note.file) || ranges.some((range) => range.file === note.file && note.lines[0] >= range.from && note.lines[0] <= range.to));
+    const inRanges = (file: string, line: number): boolean => !ranges.some((range) => range.file === file) || ranges.some((range) => range.file === file && line >= range.from && line <= range.to);
+    const replaced = (note: Pick<Note, 'file' | 'lines'>): boolean => named.has(note.file) && inRanges(note.file, note.lines[0]);
     const all = sortedNotes([...notesWithCode(stored).filter((one) => !replaced(one.note)), ...freshNotes(folder, notes)]);
     const total = fileNotesProblems(all.map((one) => one.note), 'The notes of the file', false); // the notes of other files stay as they were written
     if (total.length) {
@@ -251,10 +271,18 @@ export function addNotesToMap(store: Store, folder: string, draft: unknown): Add
       ...Object.entries(stored.noNotes ?? {}).filter(([path]) => !named.has(path)),
       ...files.filter((path) => !notes.some((note) => note.file === path) && !ranges.some((range) => range.file === path)).map((path) => [path, fingerprint(fileText(folder, path) ?? '')]),
     ]);
-    const { noNotes: _oldNone, ...rest } = stored;
+    // A skip stays with the notes of its file: a save that names the file replaces it, as it replaces the notes.
+    const skips = [...(stored.skips ?? []).filter((one) => !replaced(one) && !skip.some((other) => other.file === one.file && other.lines.join() === one.lines.join())),
+      ...skip.map(({ file, lines, why }) => ({ file, lines, why }))];
+    const { noNotes: _oldNone, skips: _oldSkips, ...rest } = stored;
     const style = fileNotesStyle(notes);
     result = { saved: true, problems: [], notes: notes.length, files: named.size, ...(style.length ? { style } : {}) };
-    return withFileNotes({ ...rest, ...(Object.keys(noNotes).length ? { noNotes } : {}) }, all);
+    // The gaps are found after the store is written, so that other writers do not wait for them. A set-aside file has none.
+    const saved = all.map((one) => one.note);
+    const paths = [...new Set([...named, ...skip.map((one) => one.file)])].filter((path) => !noNotes[path]);
+    check = () => gapsIn(paths.map((path) => ({ path, text: fileText(folder, path) ?? '' })), saved, skips, () => codeFiles(folder).files, inRanges).slice(0, MOST_GAPS);
+    return withFileNotes({ ...rest, ...(Object.keys(noNotes).length ? { noNotes } : {}), ...(skips.length ? { skips } : {}) }, all);
   });
-  return result;
+  const gaps = result.saved ? check() : [];
+  return gaps.length ? { ...result, gaps } : result;
 }
