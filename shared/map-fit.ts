@@ -1,5 +1,6 @@
-// `apostil map --fit`: where the notes and the processes do not fit the diagrams of the map. Three short lists of facts, for the overview writer to weigh (skill apostil-map-repo, Step 6).
+// `apostil map --fit`: where the notes and the processes do not fit the diagrams, and the used code with no note. Four short lists of facts (skill apostil-map-repo, Step 6).
 
+import { gapsIn } from './definitions';
 import { diagramGraph } from './diagram-graph';
 import { areaOf } from './note-groups';
 import { parseKey, type Process } from './processes';
@@ -12,7 +13,8 @@ const cut = <T>(all: T[]): { count: number; items: T[]; more?: number } => ({ co
 
 const holds = (paths: string[], file: string): boolean => paths.some((entry) => entry === file || (entry.endsWith('/') && file.startsWith(entry)));
 
-export function mapFit(map: RepoMap) {
+/** The four lists. With no code files given, the fourth list is empty. */
+export function mapFit(map: RepoMap, files: { path: string; text: string }[] = []) {
   const withNodes = map.diagrams.filter((diagram) => diagram.nodePaths);
   const allPaths = withNodes.flatMap((diagram) => Object.values(diagram.nodePaths!).flat());
   const steps = (process: Process): string[] => process.steps.flatMap((key) => parseKey(key)?.file ?? []);
@@ -43,5 +45,8 @@ export function mapFit(map: RepoMap) {
       else crossing.set(key, { from: a, to: b, calls: 1, example: `${process.id}: ${from}:${arrow.fromLine} calls ${to}${arrow.name ? ` (${arrow.name})` : ''}` });
     }
   }
-  return { filesInNoNode: cut(outside), nodesWithNoFile: cut(empty), callsWithNoArrow: cut([...crossing.values()]) };
+
+  // 4. Functions, methods and classes that other code files name and that have no note, the most used first. A set-aside file has none.
+  const unnoted = gapsIn(files.filter((file) => !map.noNotes?.[file.path]), map.fileNotes ?? [], map.skips ?? [], () => files).filter((gap) => gap.used > 0);
+  return { filesInNoNode: cut(outside), nodesWithNoFile: cut(empty), callsWithNoArrow: cut([...crossing.values()]), usedWithNoNote: cut(unnoted) };
 }

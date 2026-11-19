@@ -32,6 +32,21 @@ test('map --fit lists the files that stand in no node, the nodes with no file wi
   assert.match(call.example, /^answer-request: src\/library\/web\/requests_router\.py:35 calls src\/library\/lending\/requests\.py/);
 });
 
+test('map --fit lists the functions that other code files use and that have no note, the most used first, and none of a set-aside file', () => {
+  const map = example();
+  const fn = (name: string): string => `def ${name}(x):\n    y = x\n    y = y + 1\n    return y\n\n\n`;
+  const files = [
+    { path: 'src/shop.py', text: fn('total') + fn('label') + fn('noted') + fn('unused') }, // lines 1-4, 7-10, 13-16, 19-22
+    { path: 'src/a.py', text: 'from shop import total, label, noted\n' },
+    { path: 'src/b.py', text: 'from shop import label, hidden\n' },
+    { path: 'src/aside.py', text: fn('hidden') },
+  ];
+  map.fileNotes = [...(map.fileNotes ?? []), { file: 'src/shop.py', lines: [13, 16], title: 'Add one', text: 'It adds one.' }];
+  map.noNotes = { 'src/aside.py': 'x' };
+  assert.deepEqual(mapFit(map, files).usedWithNoNote, { count: 2, items: [{ file: 'src/shop.py', lines: [7, 10], name: 'label', used: 2 }, { file: 'src/shop.py', lines: [1, 4], name: 'total', used: 1 }] });
+  assert.equal(mapFit(map).usedWithNoNote.count, 0); // with no code files given
+});
+
 test('map --fit cuts each list at 20 entries and counts the rest', () => {
   const many = example();
   many.fileNotes = Array.from({ length: 25 }, (_, at) => ({ file: `stray/file${String(at).padStart(2, '0')}.py`, lines: [1, 2] as [number, number], title: 'Do it', text: 'It does it.' }));

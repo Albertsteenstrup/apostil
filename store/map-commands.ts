@@ -3,7 +3,7 @@
 
 import { afterSave, readJson } from './read-input';
 import { fileText, repoId } from '../shared/git';
-import { fileNotesSource, filesNeedingNotes, groupProcessFacts, noteGroups, notesOf, readyProcessGroups } from '../shared/note-groups';
+import { codeFiles, fileNotesSource, filesNeedingNotes, groupProcessFacts, noteGroups, notesOf, readyProcessGroups } from '../shared/note-groups';
 import { notesOfFile } from '../shared/notes-beside-code';
 import { processFacts, processWithHandoffs, stepKey } from '../shared/processes';
 import { diagramsOf, noteCount } from '../shared/repo-map';
@@ -35,7 +35,7 @@ export const MAP_USAGE: Record<string, string> = {
   'process-groups': 'apostil process-groups [--all]',
   processes: 'apostil processes [--group <name>] (--group: only the files and the processes of that group of process-groups)',
   process: 'apostil process <id>',
-  map: 'apostil map [--fit] (--fit: where the notes and the processes do not fit the diagrams)',
+  map: 'apostil map [--fit] (--fit: where the notes and the processes do not fit the diagrams, and the used code with no note)',
   'diagrams-of': 'apostil diagrams-of <path> [--full]',
   'add-marks': 'apostil add-marks <marks.json> (or - for standard input)',
   'mark-groups': 'apostil mark-groups --set <id> [--all]',
@@ -118,7 +118,7 @@ export function runMapCommand(store: Store, command: string, argument: string, f
     case 'map': {
       const stored = store.getMap(repoId(folder));
       if (!stored) return NO_MAP;
-      if (flags.fit) return { output: mapFit(stored.map), ok: true };
+      if (flags.fit) return { output: mapFit(stored.map, codeFiles(folder).files), ok: true };
       // How many notes the map holds and in how many files, and what to do when code files lack notes: an agent that is asked for notes reads this, and does not ask for a commit.
       // The notes of files are not printed: an area writer reads this, and it must stay short.
       const notes = noteCount(stored.map);
