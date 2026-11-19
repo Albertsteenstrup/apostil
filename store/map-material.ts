@@ -44,7 +44,7 @@ export function folderFacts(folder: string): { rootFiles: string[]; folders: Fol
 }
 
 /** The stored map as a writer reads it: the kept text of the lines of the notes is for Apostil, and the notes of files and the processes are for their own writers, so they stay out. */
-export const mapForWriters = (stored: StoredMap) => ({ ...stored, map: { ...stored.map, noteCode: undefined, fileNotes: undefined, noNotes: undefined, processes: undefined, handoffs: undefined, notInProcess: undefined } });
+export const mapForWriters = (stored: StoredMap) => ({ ...stored, map: { ...stored.map, noteCode: undefined, fileNotes: undefined, noNotes: undefined, skips: undefined, processes: undefined, handoffs: undefined, notInProcess: undefined } });
 
 /** What a map writer needs: the folders, the diagrams that exist already with their titles, and the stored map. */
 export function mapMaterial(store: Store, folder: string) {

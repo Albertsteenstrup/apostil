@@ -5,6 +5,7 @@ import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
 import { diagramProblems, noteProblems, type ChangeFile, type Diagram, type Note } from './change-file';
 import { cellsIn, checkLines, pathProblem } from './checks';
+import type { Skip } from './definitions';
 import { thingsOf } from './diagram-code';
 import { diagramGraph, nodeIdProblems } from './diagram-graph';
 import { repoFiles, repoId } from './git';
@@ -20,6 +21,7 @@ export interface RepoMap {
   diagrams: Diagram[]; // exactly one has no "parent": the top map
   fileNotes?: Note[]; // the notes of files, written by notes writers: one list for the repo, each note with its own `file`; no limit of 12
   noNotes?: Record<string, string>; // a file that a writer found to have no code worth a note: its path, and a fingerprint of its text then, so that a changed file is asked for again
+  skips?: Skip[]; // a function, method or class that a writer found to need no note, with why: kept with the notes of its file
   noteCode?: NoteCode; // set by the save, never written: the text of the lines of each note, by "<diagram id>/<index>", as for a change
   processes?: Process[]; // the jobs of the code, whose steps are the keys of notes of files (shared/processes.ts); saved by process writers, one group at a time
   handoffs?: Handoff[]; // a file or a value that one process makes and another reads

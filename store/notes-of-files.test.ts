@@ -111,6 +111,29 @@ test('add-notes refuses each fault with a sentence and saves nothing, keeps at m
   done();
 });
 
+test('add-notes lists the gaps of its files, the most used first; a skip answers a gap until a new save of its file, and a skip with no why or with no function is refused', () => {
+  const { repo, store, id, done } = setup();
+  repo.write('src/shop.py', 'def total(items):\n    sum = 0\n    for item in items:\n        sum += item\n    return sum\n\n\ndef unused(x):\n    y = x + 1\n    y = y * 2\n    return y\n\n\ndef label(name):\n    text = name.strip()\n    text = text.title()\n    return text\n');
+  repo.write('src/a.py', 'from shop import label, total\nprint(label("x"), total([1]))\n');
+  repo.write('src/b.py', 'from shop import label\n');
+  repo.commit('shop');
+  const first = addNotesToMap(store, repo.folder, { notes: [note('src/shop.py', [1, 5], 'Add the items')] });
+  assert.deepEqual(first.gaps, [{ file: 'src/shop.py', lines: [14, 17], name: 'label', used: 2 }, { file: 'src/shop.py', lines: [8, 11], name: 'unused', used: 0 }]);
+
+  // Each gap answered once: a note, and a skip with why. Then nothing is missing, and the save prints no gaps.
+  const skip = { file: 'src/shop.py', lines: [8, 11], why: 'Nothing calls it yet.' };
+  const answered = addNotesToMap(store, repo.folder, { notes: [note('src/shop.py', [1, 5], 'Add the items'), note('src/shop.py', [14, 17], 'Tidy the name')], skip: [skip] });
+  assert.deepEqual(answered, { saved: true, problems: [], notes: 2, files: 1 });
+  assert.deepEqual(store.getMap(id)?.map.skips, [skip]);
+  // A new save of the file replaces its skips, as it replaces its notes.
+  assert.deepEqual(addNotesToMap(store, repo.folder, { notes: [note('src/shop.py', [1, 5], 'Add the items'), note('src/shop.py', [14, 17], 'Tidy the name')] }).gaps?.map((gap) => gap.name), ['unused']);
+  assert.equal(store.getMap(id)?.map.skips, undefined);
+
+  assert.match(addNotesToMap(store, repo.folder, { notes: [], skip: [{ file: 'src/shop.py', lines: [8, 11] }] }).problems.join(' '), /Skip of src\/shop\.py 8-11: give "why"/);
+  assert.match(addNotesToMap(store, repo.folder, { notes: [], skip: [{ ...skip, lines: [6, 9] }] }).problems.join(' '), /Skip of src\/shop\.py 6-9: these lines are no function, method or class of the file/);
+  done();
+});
+
 test('the notes of files stand beside the code: in place of the notes of the diagrams of an older map, through save-map and add-diagram, after their lines moved, and not after their lines changed', () => {
   const { repo, store, done } = setup();
   const oldMap = topMap();
