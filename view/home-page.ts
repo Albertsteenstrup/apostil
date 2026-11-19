@@ -141,6 +141,13 @@ export class HomePages {
     return lookPages(this.store, this.openFolder()).find((page) => page.id === id)?.title;
   }
 
+  private readonly seenNew = new vscode.EventEmitter<void>();
+  /**
+   * The map, the look, a change or a comment of the repo is new, whoever saw it first: the watch of the store, a run that ended, or a message of a
+   * tab. The tree "Files" and the pages of the look follow it (build 85: a run that ended just after a new look took the news from the watch).
+   */
+  readonly onNew = this.seenNew.event;
+
   /** Loads Home and the graphs tabs again when the map or the changes in the store are new. True when they were new. */
   changed(): boolean {
     if (this.signatureNow() === this.signature) return false;
@@ -149,10 +156,13 @@ export class HomePages {
   }
 
   reload(): void {
-    this.signature = this.signatureNow();
+    const now = this.signatureNow();
+    const seen = now !== this.signature;
+    this.signature = now;
     if (this.home) this.post(this.home, this.homeMessage());
     for (const [path, tab] of this.graphs) this.post(tab, this.graphsMessage(path));
     for (const [id, tab] of this.pages) this.post(tab, this.pageMessage(id, tab));
+    if (seen) this.seenNew.fire();
   }
 
   /**

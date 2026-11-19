@@ -660,6 +660,9 @@ try {
     { pick: { kind: 'tree-file', paths: ['src/library/lending/hold_service.py'] }, text: { icon: 'apostil-look-open.svg' }, content: { words: 'in the look' }, click: { file: 'src/library/night_jobs.py', line: 516 } },
   ] });
   lookFiles.clean();
+  // Home reads the store again at once, before the watch of the store sees the new look, as when a run of the step before ends just then: the tree
+  // still follows the look (it once kept the rows of before, build 85).
+  await promptHome?.evaluate(() => tell({ type: 'remarkAction', id: 0, action: 'none' })).catch(() => {});
   const treeRow = await until(() => fileRowOf('hold_service.py').first().evaluate((row) => {
     const icon = row.querySelector('.custom-view-tree-node-item-icon');
     const read = { words: row.querySelector('.label-description')?.textContent ?? '', icon: icon ? getComputedStyle(icon).backgroundImage : '', label: row.querySelector('.monaco-icon-label')?.className ?? '' };

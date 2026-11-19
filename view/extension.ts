@@ -209,6 +209,7 @@ export function activate(context: vscode.ExtensionContext) {
   };
   const updateLookPages = (): void => { void vscode.commands.executeCommand('setContext', 'apostil.lookHasPages', lookPages(theStore, openFolder()).length > 0); };
   updateLookPages();
+  context.subscriptions.push(home.onNew(() => { files.refresh(); updateLookPages(); }));
 
   // The tree "Files" marks the file of the tab in front, as the Explorer of VS Code does: the file of an editor, a notebook or a file tab of Apostil
   // (the choice: rowOfFileInFront).
@@ -287,7 +288,7 @@ export function activate(context: vscode.ExtensionContext) {
     clearTimeout(timer);
     timer = setTimeout(() => {
       list.refreshIfChanged(); page.reloadIfChanged(); updateHasChange(); notes.storeChanged(); lookInVsCode.storeChanged();
-      if (home.changed()) { files.refresh(); updateLookPages(); } // a new map or change can put new rows into a diagram; a new look new pages
+      home.changed(); // a new map or change can put new rows into a diagram, and a new look new pages: home.onNew
     }, 300);
   };
   for (const file of storeFiles()) watchFile(file, { interval: 1000 }, changed);
