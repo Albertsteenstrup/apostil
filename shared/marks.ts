@@ -4,9 +4,10 @@
 
 import { ID } from './change-file';
 import { fileText, repoFiles } from './git';
-import { areaOf, areaOrder, codeFiles, fingerprint, slug } from './note-groups';
+import { areaOf, areaOrder, areasWaitingForNotes, codeFiles, fingerprint, largestFirst, noteGroups, slug } from './note-groups';
 import { findBlock } from './notes-beside-code';
 import type { RepoMap } from './repo-map';
+import type { StoredMap } from './store';
 
 export type Corner = 'upper-left' | 'upper-right' | 'lower-left' | 'lower-right';
 export const CORNERS: Corner[] = ['upper-left', 'upper-right', 'lower-left', 'lower-right'];
@@ -196,7 +197,7 @@ const readPrint = (set: string, text: string, path: string): string =>
 /**
  * The work for the writers of a set, by area as note-groups gives it: only the files that need work, unless `all`. A file needs work when no writer of
  * the set has read it, when its text (for services, its candidate lines) changed since, or when a mark of it no longer stands at its line.
- * For services only the files with candidates are listed, each with its candidate lines.
+ * For services only the files with candidates are listed, each with its candidate lines. The groups are listed largest first, by their lines of code.
  */
 export function markGroups(folder: string, map: RepoMap | undefined, set: string, all = false): { groups: MarkGroup[]; skipped: number } {
   const { files, skipped } = codeFiles(folder);
@@ -229,7 +230,18 @@ export function markGroups(folder: string, map: RepoMap | undefined, set: string
     }
     close();
   }
-  return { groups, skipped };
+  return { groups: largestFirst(groups, (group) => group.files.reduce((sum, file) => sum + file.lines, 0)), skipped };
+}
+
+/**
+ * What `apostil mark-groups` prints (build 84, part G): the groups of the areas whose notes are all saved, so that the service and mark writers of an area
+ * start as soon as its notes are saved, not when all notes of the repo are saved, and `waiting`: how many areas still wait for notes. With no map, every group.
+ */
+export function readyMarkGroups(folder: string, stored: StoredMap | undefined, set: string, all = false): ReturnType<typeof markGroups> & { waiting: number } {
+  const listed = markGroups(folder, stored?.map, set, all);
+  if (!stored) return { ...listed, waiting: 0 };
+  const waiting = areasWaitingForNotes(noteGroups(folder, stored).groups);
+  return { ...listed, groups: listed.groups.filter((group) => !waiting.has(group.area ?? '')), waiting: waiting.size };
 }
 
 /** The fingerprints that a save of a group keeps for the files that its writer read. */

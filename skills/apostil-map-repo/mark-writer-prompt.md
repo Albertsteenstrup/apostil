@@ -45,6 +45,10 @@ It prints `{ "saved", "problems", "marks" }`. It replaces the marks of this set 
 - When `problems` is not empty, nothing is saved. Each problem is one sentence that says what to change. Change it, write the file again and run the command again.
 - Stop when `saved` is `true`, or after three rounds. Do not hide a problem that remains.
 
+## Check your part
+
+Run `apostil mark-groups --set <id of the set>`. No file of your group may be in it: a file that is listed still needs work. Add it to `"files"` with its marks, save again, and run the check again. Files of other groups are not yours.
+
 ## Your report
 
-At most 5 lines: the count of marks for each value, the values that you added, and the lines that you left out because you were not sure, with the reason.
+Reply with one line: `saved <count> marks`, and the values that you added, or the problem that remains. Nothing else.

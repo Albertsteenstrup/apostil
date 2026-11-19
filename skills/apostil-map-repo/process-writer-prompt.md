@@ -76,6 +76,10 @@ It prints `{ "saved", "problems", "processes", "steps", "notes", "left", "style"
 
 When it is saved, the command removes the file.
 
+## Check your part
+
+Run `apostil processes --group <name of your group>`. It prints `{ "group", "processes", "notInProcess", "stale", "again" }` for your group only. `notInProcess` lists the notes of your files that are in no process and not set aside, and `stale` the processes of your group that name notes that are gone. Put each listed note into a process or into `notInProcess` of your JSON, write each stale process again, and save again. Leave a note only when the code that calls it starts in another group.
+
 ## Your report
 
-At most ten lines: the name of your group, the count of processes and of steps, each note that you corrected, added or removed and why, each note that is left and why, and what was hard.
+Reply with one line: `saved <count> processes with <count> steps, <count> notes corrected or added`, and the keys of the notes that are left for another group, or the problem that remains. Nothing else.

@@ -50,6 +50,10 @@ It prints `{ "saved", "problems", "notes", "files" }`. It replaces the notes of 
 
 When it is saved, the command removes the file.
 
+## Check your part
+
+Run `apostil note-groups` in the top folder of the repo. No file of your group may be in it: a file that is listed has no notes yet, or its save failed. Save the notes of each listed file of your group, or put it in `"files"`, and run the check again. Files of other groups are not yours.
+
 ## Your report
 
-Reply with: the name of your group, how many notes you saved for each file, each file that has no note and why, and any problem that remains. Nothing else.
+Reply with one line: `saved <count of notes> notes in <count of files> files`, or the problem that remains. Nothing else.

@@ -277,7 +277,7 @@ test('process-groups lists only the groups of areas whose notes are all saved, a
   // When the last notes of lib are saved, its group is listed too, and no area waits.
   assert.equal(addNotesToMap(store, repo.folder, { notes: [note('lib/two.py', [1, 2], 'Return two')] }).saved, true);
   const all = readyProcessGroups(repo.folder, stored());
-  assert.deepEqual([all.groups.map((group) => group.area), all.waiting], [['code', 'lib'], 0]);
+  assert.deepEqual([all.groups.map((group) => group.area), all.waiting], [['lib', 'code'], 0]); // largest first: lib has two notes now
   store.close();
   repo.remove();
 });

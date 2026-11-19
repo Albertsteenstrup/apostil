@@ -1,55 +1,76 @@
-// Tests for the time left of a map run (build 84): a plan with nothing done, half done and with a slow pace, the time that the step of now has run,
-// the bar, and a rise that one computation alone shows, which is held back.
+// Tests for the time left of a map run (build 84): a plan with nothing done, half done and with a slow pace, the time that the stage of now has run,
+// the bar, the schedule of the writers (part G: the longer of the longest chain and all work over 16 places, steps at the same time counted once), and a
+// rise that one computation alone shows, which is held back.
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { shownTime, timeLeft, timeWords, type MapPlan, type SaveTime } from './map-estimate';
+import { expectedOf, shownTime, timeLeft, timeWords, type MapPlan, type SaveTime } from './map-estimate';
 
 const START = Date.parse('2026-11-18T10:00:00.000Z');
 const at = (minute: number): number => START + minute * 60_000;
+const round = (minutes: number): number => Math.round(minutes * 100) / 100;
 
-/** A made-up plan of a repo of 5,000 code lines, before the overview: 2 areas, 20 notes groups of 60 files, 6 process groups and 6 service groups. */
-const plan: MapPlan = { at: 0, done: 0, lines: 5000, overview: 1, areas: 2, notes: 20, noteFiles: 60, processes: 6, services: 6, again: 1, fit: 1 };
-// The expected minutes: the overview 4.5 + 2, the areas 4 + 2, the notes 2 waves of 8 + 2, the processes 15 + 2, the services 10 + 2, the second round
-// 8 + 2, the fit round 8 + 2: 79.5 in all.
-const ALL = 79.5;
+/**
+ * A made-up plan of a repo of 5,000 code lines, before the overview: 2 areas, 20 notes groups of 60 files and 6,000 lines (the largest 400), 6 process
+ * groups and 6 service groups.
+ */
+const plan: MapPlan = { at: 0, done: 0, lines: 5000, overview: 1, areas: 2, notes: 20, noteFiles: 60, noteLines: 6000, longest: 400, processes: 6, services: 6, again: 1, fit: 1 };
+// The expected minutes: the overview 4.5 + 2; the writers: their work is 8 + 100 + 90 + 48 + 60 = 306 minutes, 19.1 over 16 places, and their longest
+// chain the largest notes group (400 lines at 60 a minute), then a process writer and its second round: 6.67 + 15 + 8 = 29.67, + 2; the fit round 8 + 2.
+const OVERVIEW = 6.5;
+const WRITERS = 400 / 60 + 15 + 8 + 2;
+const ALL = OVERVIEW + WRITERS + 10;
 
-test('the time left of a plan with nothing done is its expected time, and the step that runs now counts the time it has already run', () => {
+test('the time left of a plan with nothing done is its expected time, and the stage that runs now counts the time it has already run', () => {
   const start = timeLeft(plan, [], START, at(0));
-  assert.equal(start.minutes, ALL);
+  assert.equal(round(start.minutes), round(ALL));
   assert.equal(start.share, 0);
-  // Three minutes in, nothing saved: the overview step has run 3 of its 6.5 minutes.
+  // Three minutes in, nothing saved: the overview has run 3 of its 6.5 minutes.
   const three = timeLeft(plan, [], START, at(3));
-  assert.equal(Math.round(three.minutes * 10) / 10, ALL - 3);
-  assert.ok(three.share > 0.03 && three.share < 0.04, String(three.share));
-  // A writer that takes long does not bring its step to nothing: a tenth of the step stays.
-  assert.equal(Math.round(timeLeft(plan, [], START, at(30)).minutes * 100) / 100, Math.round((ALL - 6.5 + 0.65) * 100) / 100);
+  assert.equal(round(three.minutes), round(ALL - 3));
+  assert.ok(three.share > 0.05 && three.share < 0.07, String(three.share));
+  // A writer that takes long does not bring its stage to nothing: a tenth of it stays.
+  assert.equal(round(timeLeft(plan, [], START, at(30)).minutes), round(ALL - OVERVIEW + 0.65));
 });
 
-test('the time left of a plan half done at the expected pace is about half; a slow pace makes it longer, more so as more is done', () => {
-  // The overview, both areas and all notes saved, at the minutes that the plan expects: 6.5 + 6 + 18 = 30.5 of 79.5 minutes done.
-  const onTime: SaveTime[] = [['o', 6.5], ['a', 12], ['a', 12.5], ['n', 21.5, 30], ['n', 30.5, 30]];
-  const half = timeLeft(plan, onTime, START, at(30.5));
-  assert.equal(Math.round(half.minutes), Math.round(ALL - 30.5));
-  assert.ok(Math.abs(half.share - 30.5 / ALL) < 0.01, String(half.share));
-  // The same work took twice as long: the pace counts by the share done (37%), so the time left grows by about a third, not double.
+test('the writers take the longer of their longest chain and all their work over 16 places; steps that run at the same time count once', () => {
+  // The plan above: the chain is longer than the work over 16 places, and the steps of the writers are not added (they were 6 + 18 + 17 + 12 + 10 before).
+  assert.equal(round(expectedOf(plan)), round(ALL));
+  // A large repo: 200 notes groups of 80,000 lines and 40 groups of processes and of services; the work over 16 places is longer than any chain.
+  const large: MapPlan = { ...plan, lines: 80000, areas: 8, notes: 200, noteFiles: 600, noteLines: 80000, longest: 400, processes: 40, services: 40 };
+  const work = 8 * 4 + 80000 / 60 + 40 * 15 + 40 * 8 + 40 * 10;
+  assert.equal(round(expectedOf(large)), round(4 + 8 + 2 + work / 16 + 2 + 10));
+  // A long file is one writer's: a file of 4,000 lines makes the chain 66.7 minutes of notes, then a process writer and its second round.
+  const long: MapPlan = { ...plan, noteLines: 6000, longest: 4000 };
+  assert.equal(round(expectedOf(long)), round(OVERVIEW + 4000 / 60 + 15 + 8 + 2 + 10));
+  // A plan made before part G has no lines of its groups: each group counts 400 lines.
+  const old: MapPlan = { ...plan, noteLines: undefined, longest: undefined };
+  assert.equal(round(expectedOf(old)), round(OVERVIEW + Math.max(400 / 60 + 23, (8 + 20 * 400 / 60 + 90 + 48 + 60) / 16) + 2 + 10));
+});
+
+test('the time left of a plan half done at the expected pace is the expected time left; a slow pace makes it longer, and the bar is not behind', () => {
+  // The overview, both areas and all notes saved, the last save at the minute that the plan expects: the writers have done 108 of their 306 minutes.
+  const doneAt = OVERVIEW + WRITERS * 108 / 306;
+  const onTime: SaveTime[] = [['o', OVERVIEW], ['a', 9], ['a', 10], ['n', 14, 30], ['n', doneAt, 30]];
+  const half = timeLeft(plan, onTime, START, at(doneAt));
+  assert.equal(round(half.minutes), round(ALL - doneAt));
+  assert.ok(Math.abs(half.share - doneAt / ALL) < 0.001, String(half.share));
+  // The same work took twice as long: the pace counts by the share done, so the time left grows, but less than double.
   const slow: SaveTime[] = onTime.map(([kind, minute, files]) => [kind, minute * 2, files] as SaveTime);
-  const late = timeLeft(plan, slow, START, at(61));
-  const pace = 1 + (2 - 1) * (30.5 / ALL);
-  assert.equal(Math.round(late.minutes), Math.round((ALL - 30.5) * pace));
-  assert.ok(late.minutes > half.minutes * 1.3 && late.minutes < half.minutes * 1.45, `${late.minutes} against ${half.minutes}`);
-  // The bar moves by the expected work done, not by the pace: the same share for the same work.
-  assert.ok(Math.abs(late.share - half.share) < 0.001);
+  const late = timeLeft(plan, slow, START, at(doneAt * 2));
+  assert.ok(late.minutes > half.minutes * 1.05 && late.minutes < half.minutes * 1.5, `${late.minutes} against ${half.minutes}`);
+  // The bar moves by the expected work done and the time that the stage of now has run: for the same work it is never behind.
+  assert.ok(late.share >= half.share - 0.001, `${late.share} against ${half.share}`);
   // Early in a run the pace stays near 1: the overview alone took twice its time.
   const early = timeLeft(plan, [['o', 13]], START, at(13));
-  assert.ok(early.minutes < (ALL - 6.5) * 1.1, String(early.minutes));
+  assert.ok(early.minutes < (ALL - OVERVIEW) * 1.15, String(early.minutes)); // the overview is 13% of the work: the pace grows by that share of its slowness
 });
 
 test('the work before a plan counts in the bar; a plan made after the overview starts where the old one ended', () => {
-  const after: MapPlan = { ...plan, at: 6.5, done: 6.5, overview: 0 };
-  const result = timeLeft(after, [['o', 6.5]], START, at(6.5));
-  assert.equal(result.minutes, ALL - 6.5);
-  assert.ok(Math.abs(result.share - 6.5 / ALL) < 0.001);
+  const after: MapPlan = { ...plan, at: OVERVIEW, done: OVERVIEW, overview: 0 };
+  const result = timeLeft(after, [['o', OVERVIEW]], START, at(OVERVIEW));
+  assert.equal(round(result.minutes), round(ALL - OVERVIEW));
+  assert.ok(Math.abs(result.share - OVERVIEW / ALL) < 0.001);
 });
 
 test('a rise that one computation alone shows is held back; a second one that agrees shows the smaller of the two; a fall shows at once', () => {

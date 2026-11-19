@@ -79,6 +79,10 @@ It prints `{ "saved", "problems", "marks" }`. It replaces the marks that your gr
 - When `problems` is not empty, nothing is saved. Each problem is one sentence that says what to change. Change it, write the file again and run the command again.
 - Stop when `saved` is `true`, or after three rounds. Do not hide a problem that remains.
 
+## Check your part
+
+Run `apostil mark-groups --set services`. No file of your group may be in it: a file that is listed still needs work. Add it to `"files"` with its marks, save again, and run the check again. Files of other groups are not yours.
+
 ## Your report
 
-At most 8 lines: the services that you found, the count of marks, what you dropped and why (one line for each kind of reason), the marks that you added that the list missed, and the services whose icon was refused.
+Reply with one line: `saved <count> marks of <the ids of the services>`, and the services whose icon was refused, or the problem that remains. Nothing else.

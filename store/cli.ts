@@ -96,7 +96,7 @@ function run(store: Store, command: string, [argument = '', ...more]: string[], 
   const part = typeof flags.part === 'string' ? flags.part : undefined;
   if (command in MAP_USAGE) {
     const find = 'find' in flags ? (flagText(flags.find) ?? '') : undefined;
-    return runMapCommand(store, command, argument, folder, { full: flags.full === true, all: flags.all === true, set: flagText(flags.set), check: flags.check === true, find, fit: flags.fit === true });
+    return runMapCommand(store, command, argument, folder, { full: flags.full === true, all: flags.all === true, set: flagText(flags.set), group: flagText(flags.group), check: flags.check === true, find, fit: flags.fit === true });
   }
   // --base <commit>: on a main branch, the change is every commit after that one. The save stores it, so later commands need it no more.
   const named = typeof flags.base === 'string' ? namedBase(folder, flags.base) : undefined;
@@ -279,7 +279,7 @@ export async function main(args: string[]): Promise<void> {
   const flags: Record<string, string | true> = {};
   const rest: string[] = [];
   for (let index = 0; index < words.length; index++) {
-    if (['--folder', '--path', '--part', '--base', '--agent', '--session', '--session-name', '--account', '--timeout', '--set', '--find', '--site'].includes(words[index])) flags[words[index].slice(2)] = words[++index];
+    if (['--folder', '--path', '--part', '--base', '--agent', '--session', '--session-name', '--account', '--timeout', '--set', '--group', '--find', '--site'].includes(words[index])) flags[words[index].slice(2)] = words[++index];
     else if (words[index] === '--mark-sent') flags['mark-sent'] = true;
     else if (words[index] === '--wait') flags.wait = true;
     else if (words[index] === '--full') flags.full = true;

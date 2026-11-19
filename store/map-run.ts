@@ -84,7 +84,8 @@ export function workPlan(store: Store, folder: string, run: MapRun, overviewNow 
   const done = old ? old.done + doneOf(old, run.saves ?? []) : overviewNow ? firstOverview : 0;
   return {
     at, done: Math.round(done * 10) / 10, lines, overview, areas: overview || overviewNow ? areasOfSize(lines) : areasLeft,
-    notes: notes.length, noteFiles: notes.reduce((sum, group) => sum + group.files.length, 0), processes, services, again, fit,
+    notes: notes.length, noteFiles: notes.reduce((sum, group) => sum + group.files.length, 0),
+    noteLines: notes.reduce((sum, group) => sum + group.lines, 0), longest: Math.max(0, ...notes.map((group) => group.lines)), processes, services, again, fit,
   };
 }
 
@@ -121,9 +122,10 @@ let kept: { key: string; areas: Record<string, AreaWork> } | undefined; // the l
 
 /**
  * The areas of the top diagram that have work left in a run of the whole map, by node id; an area that is not named is done. The work of an area: the notes of
- * its code files, then the processes of its group, then its services. It is "working" when a writer can work on it now (notes and processes as soon as the
- * overview is saved, its processes when its notes are saved, its services when all notes are saved), else "waiting". `share`: its part of the three that is done.
- * The record says what is saved, not which writer runs: in the step that runs now, every area with work left in it counts as worked on.
+ * its code files, then the processes of its group, then its services. It is "working" when a writer can work on it now, else "waiting". Since build 84,
+ * part G, nothing of an area waits for another area: its notes start as soon as the overview is saved, and its processes and its services as soon as its
+ * notes are saved. So an area with work left counts as worked on. `share`: its part of the three that is done.
+ * The record says what is saved, not which writer runs: every area with work left counts as worked on.
  */
 export function areaWork(store: Store, folder: string, stored: StoredMap, run: MapRun): Record<string, AreaWork> {
   const key = `${stored.savedAt}|${run.savedAt ?? run.startedAt}|${folder}`;
@@ -145,8 +147,7 @@ export function areaWork(store: Store, folder: string, stored: StoredMap, run: M
     const marksLeft = marking.has(area);
     if (!notesLeft && !processLeft && !marksLeft) continue;
     const share = ((files ? 1 - notesLeft / files : 1) + (processLeft ? 0 : 1) + (marksLeft ? 0 : 1)) / 3;
-    const now = notesLeft > 0 || processLeft || notes.length === 0;
-    areas[area] = { state: now ? 'working' : 'waiting', share: Math.round(share * 100) / 100 };
+    areas[area] = { state: 'working', share: Math.round(share * 100) / 100 };
   }
   kept = { key, areas };
   return areas;

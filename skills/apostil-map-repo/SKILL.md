@@ -50,7 +50,13 @@ Do not paste code or the chat into the brief. The writer saves the top diagram w
 
 ## How many writers run at once, and when you end your turn
 
-Up to 16 writers run at the same time, of all kinds together. Start up to 16, and start the next as soon as one ends. Notes writers come first, then process writers, then service and mark writers. The steps below say when each kind may start; a kind does not wait for a whole earlier step when its own work is ready.
+Up to 16 writers run at the same time, of all kinds together. Start up to 16, and start the next as soon as one ends. Notes writers come first, then process writers, then service and mark writers. The steps below say when each kind may start; a kind does not wait for a whole earlier step when its own work is ready. Never leave a place free while work is ready.
+
+The commands list their groups largest first. Start the groups in that order, so that the longest work starts with the first writers, not at the end.
+
+Start several writers in one message: one tool call for each writer, at most 10 in one message (Claude Code runs at most 10 tool calls at once), and the rest in the next message.
+
+Each writer checks its own part before it reports, and reports one line: what it saved, or the problem. When a writer ends, run at most one command for it (the steps below name it), and start the next writers in the same message.
 
 The run waits for its writers. End your turn only when no writer runs, or when you wait for writers that you started: each writer reports to you when it ends, and you then check its save and start the next. Never end the run while a writer still works. In an app whose run ends with your turn (Codex), wait for the writers inside your turn, with its tool that waits for agents.
 
@@ -69,9 +75,9 @@ Each writer adds its diagram with `apostil add-diagram`. It writes no notes. The
 
 ## Step 3: Start the notes writers
 
-Run `apostil note-groups` in the repo. It prints `{ "groups": [ ... ], "skipped": { ... } }`: each group has a `name` and its `files`, about 400 lines in sum. A file is never split: a file longer than that is a group of its own, whole. It lists only the files that need notes. When it lists more than 80 groups, tell the owner the count of groups and of lines (the sum of `lines` of the files) and ask whether to map all of it or only the paths that he names. Use `apostil note-groups --all` only when the owner wants the notes of every file written again.
+Run `apostil note-groups` in the repo. It prints `{ "groups": [ ... ], "skipped": { ... } }`: each group has a `name` and its `files`, about 400 lines in sum, largest first. A file is never split: a file longer than that is a group of its own, whole, and it comes first, so start it with the first writers. It lists only the files that need notes. When it lists more than 80 groups, tell the owner the count of groups and of lines (the sum of `lines` of the files) and ask whether to map all of it or only the paths that he names. Use `apostil note-groups --all` only when the owner wants the notes of every file written again.
 
-Use the model that Apostil names. When it names none, use a small model. Start one notes writer for each group: up to 16 at once with the area writers, and the next when one ends.
+Use the model that Apostil names. When it names none, use a small model. Start one notes writer for each group, in the order listed: up to 16 at once with the area writers, and the next when one ends.
 
 Give each writer:
 
@@ -83,7 +89,7 @@ Each writer saves its notes with `apostil add-notes`. The command keeps the note
 
 ## Step 4: Start the process writers of an area as soon as its notes are saved
 
-After each notes writer ends, run `apostil process-groups`. It prints `{ "groups": [ ... ], "waiting": <n> }`: each group has a `name`, its `area` and its `files` with their count of notes. It lists only the groups of areas whose notes are all saved, and only the groups with work left; `waiting` says how many areas still wait for notes. Start one process writer for each group that it lists and that you have not started yet, in the places that the notes writers leave free. Use `apostil process-groups --all` only when the owner wants all processes written again.
+After each notes writer ends, run `apostil process-groups`: that is the one command for an ended notes writer. It prints `{ "groups": [ ... ], "waiting": <n> }`: each group has a `name`, its `area` and its `files` with their count of notes, largest first. It lists only the groups of areas whose notes are all saved, and only the groups with work left; `waiting` says how many areas still wait for notes. Start one process writer for each group that it lists and that you have not started yet, in the places that the notes writers leave free. When `waiting` went down, the notes of an area are all saved, and its service and mark writers may start too (Step 7). Use `apostil process-groups --all` only when the owner wants all processes written again.
 
 When all notes writers have ended, run `apostil note-groups`: when it lists a group, a notes writer failed, so start that one again. Then run `apostil process-groups` once more for the groups that are left.
 
@@ -95,9 +101,9 @@ Use the model that Apostil names. When it names none, use a medium model. Give e
 
 Each writer saves its processes with `apostil add-processes`. The command keeps the processes of the other writers. If no group is listed, skip this step.
 
-## Step 5: The notes that are left
+## Step 5: The second round of each group, as soon as its writer ends
 
-When all process writers have ended (the service writers of Step 7 may still run), run `apostil processes`. It prints counts, and in `notInProcess.files` the files whose notes are in no process yet, with up to five keys for each file. Run `apostil process-groups` again. For each group that it still lists, start one process writer again, with the same three things as in Step 4 and this part at the end, with the keys from `apostil processes` for the files of that group:
+When a process writer ends, run `apostil processes --group <name of its group>`: that is the one command for an ended process writer. It prints `{ "group", "processes", "notInProcess", "stale", "again" }`: in `notInProcess.files` the files of that group whose notes are in no process yet, with up to five keys for each file, and in `stale` the processes of that group whose steps name notes that are gone. When `again` is true, start one process writer again for that group at once, with the same three things as in Step 4 and this part at the end, with the keys of `notInProcess`:
 
     These notes of your files are in no process yet: <the keys>.
     Put each of these notes into a process, with its arrows, or set it aside in "notInProcess" with a reason.
@@ -105,31 +111,31 @@ When all process writers have ended (the service writers of Step 7 may still run
     Add "add": true to your JSON: the save then keeps the processes of your group that you do not name.
     To change a process that exists, run apostil process <id>, and send it again with the same id.
 
-When `apostil processes` lists stale processes of that group in `stale`, add this line with their ids:
+When `stale` lists processes, add this line with their ids:
 
     These processes of your group name notes that are gone: <the ids>. Write them again with the notes as they are now.
 
-Do this round once. Then run `apostil processes` again.
+Do this round once for each group: when the writer of the second round ends, start no third. The other groups do not wait for it. When every process writer has ended, run `apostil processes` once for the counts of the report.
 
 ## Step 6: Correct the top diagram
 
 The top diagram was drawn before the notes and the processes existed. Run `apostil map --fit`. It prints three short lists: `filesInNoNode` (files with notes that stand in no node of a diagram), `nodesWithNoFile` (nodes whose paths hold no file with a note or a process), and `callsWithNoArrow` (calls of the processes between two nodes of the top diagram that have no arrow between them, with an example line for each). Each list has at most 20 entries and the count of the rest.
 
-When all three lists are empty, skip this step. Else start the overview writer once more, on the model of Step 1, with the same things as in Step 1, the three lists as `apostil map --fit` printed them, and this sentence: "Correct only what these facts show, and keep the ids of the nodes that stay." Start the area writer of Step 2 again only for an area whose node the top diagram changed (new paths, or a new node). Do this round once.
+Do this step once, when the last process writer has ended, also of a second round; the service and mark writers of Step 7 may still run beside it. When all three lists are empty, skip this step. Else start the overview writer once more, on the model of Step 1, with the same things as in Step 1, the three lists as `apostil map --fit` printed them, and this sentence: "Correct only what these facts show, and keep the ids of the nodes that stay." Start the area writer of Step 2 again only for an area whose node the top diagram changed (new paths, or a new node). Do this round once.
 
-## Step 7: Start the service writers and the mark writers when all notes are saved
+## Step 7: Start the service writers and the mark writers of an area as soon as its notes are saved
 
-Start this step as soon as `apostil note-groups` lists no group: all notes are saved. It runs at the same time as the process writers that are left and as Steps 5 and 6, since a service writer marks lines of code and needs no process. Its writers share the 16 places with the process writers.
+The groups of an area are ready as soon as the notes of that area are saved, as in Step 4: a service writer marks lines of code and needs no process. So this step runs at the same time as the notes writers of other areas, the process writers and Steps 5 and 6. Its writers share the 16 places with the others; notes come first.
 
-Run `apostil mark-groups --set services`. It prints `{ "set", "values", "groups": [ ... ] }`: each group has a `name` and its `files`, each file with its `candidates` (lines that a list of signs found, with the service that each may be). It lists only the files that need work. Use `--all` only when the owner wants all services written again.
+Run `apostil mark-groups --set services` when `apostil process-groups` shows that the notes of another area are all saved (`waiting` went down), in the same message as the process writers that you start then, and once more when all notes writers have ended. It prints `{ "set", "values", "groups": [ ... ], "waiting": <n> }`: each group has a `name`, its `area` and its `files`, each file with its `candidates` (lines that a list of signs found, with the service that each may be), largest first. It lists only the groups of areas whose notes are all saved, and only the files that need work; `waiting` says how many areas still wait for notes. Use `--all` only when the owner wants all services written again.
 
-Use the model that Apostil names. When it names none, use a small model. Start one service writer for each group, in the places that are free, and the next when one ends. Give each writer:
+Use the model that Apostil names. When it names none, use a small model. Start one service writer for each group that it lists and that you have not started yet, in the order listed, in the places that are free, and the next when one ends. Give each writer:
 
 - the full text of `service-writer-prompt.md` and of `../apostil-describe-change/text-rules.md`,
 - the path of the repo folder,
 - its group: the `name` and the `files` of that group with their candidates, as the command printed them.
 
-Then, for each set of `apostil look` other than `services`, run `apostil mark-groups --set <id of the set>`, and start one mark writer for each group it lists, on the model that Apostil names, else a small model. Give each writer the full text of `mark-writer-prompt.md` and of `../apostil-describe-change/text-rules.md`, the path of the repo folder, its group as the command printed it, and the id, the name, the rule and the values of the set, as `apostil look` printed them, in place of the words in `<…>` of the prompt.
+Then, for each set of `apostil look` other than `services`, run `apostil mark-groups --set <id of the set>` at the same times, and start one mark writer for each group it lists that you have not started yet, on the model that Apostil names, else a small model. Give each writer the full text of `mark-writer-prompt.md` and of `../apostil-describe-change/text-rules.md`, the path of the repo folder, its group as the command printed it, and the id, the name, the rule and the values of the set, as `apostil look` printed them, in place of the words in `<…>` of the prompt.
 
 Each writer saves its marks with `apostil add-marks`. The command keeps the marks of the other writers. If `groups` is empty, skip that set.
 
@@ -141,7 +147,7 @@ Wait until every writer that you started has ended. Run `apostil map` to see the
 
 ## Step 9: Report to the owner
 
-Tell the owner in 2 or 3 lines: the map is saved, the areas it shows and which areas have their own diagram, how many notes the map holds and in how many files (`notes` and `notedFiles` of `apostil map`), the counts of `apostil processes` (`processes`, `steps`, `setAside`, `notInProcess.count` and the stale processes), the notes that the writers corrected or added, the services of `apostil marks` and their counts, and what the writers left out and why. Do not repeat the map file.
+Tell the owner in 2 or 3 lines: the map is saved, the areas it shows and which areas have their own diagram, how many notes the map holds and in how many files (`notes` and `notedFiles` of `apostil map`), the counts of `apostil processes` (`processes`, `steps`, `setAside`, `notInProcess.count` and the stale processes), the count of notes that the process writers corrected or added, the services of `apostil marks` and their counts, and the problems that the writers reported. Do not repeat the map file.
 
 ## When the app has no subagents
 
