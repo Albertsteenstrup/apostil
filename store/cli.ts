@@ -96,7 +96,7 @@ function run(store: Store, command: string, [argument = '', ...more]: string[], 
   const part = typeof flags.part === 'string' ? flags.part : undefined;
   if (command in MAP_USAGE) {
     const find = 'find' in flags ? (flagText(flags.find) ?? '') : undefined;
-    return runMapCommand(store, command, argument, folder, { full: flags.full === true, all: flags.all === true, set: flagText(flags.set), group: flagText(flags.group), check: flags.check === true, find, fit: flags.fit === true });
+    return runMapCommand(store, command, argument, folder, { full: flags.full === true, all: flags.all === true, set: flagText(flags.set), group: flagText(flags.group), check: flags.check === true, find, fit: flags.fit === true, more });
   }
   // --base <commit>: on a main branch, the change is every commit after that one. The save stores it, so later commands need it no more.
   const named = typeof flags.base === 'string' ? namedBase(folder, flags.base) : undefined;

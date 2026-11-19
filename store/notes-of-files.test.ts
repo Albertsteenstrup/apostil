@@ -230,7 +230,7 @@ test('note-groups: groups of about 400 lines of whole files, a long file whole i
   done();
 });
 
-test('the commands: add-notes removes its draft, apostil map prints counts and no notes of files, and apostil notes prints one file', () => {
+test('the commands: add-notes removes its draft, apostil map prints counts and no notes of files, and apostil notes prints one file, or one entry for each of several paths', () => {
   const repo = makeTestRepo();
   repo.write('src/app.py', Array.from({ length: 12 }, (_, at) => `line_${at + 1} = ${at + 1}`).join('\n') + '\n');
   repo.write('src/tool.py', 'def tool():\n    return 1\n');
@@ -253,8 +253,12 @@ test('the commands: add-notes removes its draft, apostil map prints counts and n
   assert.match(shown.hint, /2 code files need notes/); // new_tool.py and tool.py have none
 
   const one = JSON.parse(apostil('notes', 'src/app.py').stdout);
+  assert.equal(one.file, 'src/app.py');
   assert.deepEqual(one.notes.map((entry: Note) => entry.title), ['First half', 'Second half']);
   assert.equal(one.standing, 2);
+  const several = JSON.parse(apostil('notes', 'src/app.py', 'src/tool.py').stdout);
+  assert.deepEqual(several, { files: [one, JSON.parse(apostil('notes', 'src/tool.py').stdout)] });
+  assert.deepEqual(several.files[1].notes, []);
 
   const groups = JSON.parse(apostil('note-groups').stdout);
   assert.deepEqual(groups.groups.map((group: { files: { path: string }[] }) => group.files.map((file) => file.path)), [['src/new_tool.py', 'src/tool.py']]);

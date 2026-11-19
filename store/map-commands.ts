@@ -30,7 +30,7 @@ export const MAP_USAGE: Record<string, string> = {
   'add-diagram': 'apostil add-diagram <diagram.json> (or - for standard input)',
   'add-notes': 'apostil add-notes <notes.json> (or - for standard input)',
   'note-groups': 'apostil note-groups [--all]',
-  notes: 'apostil notes <path>',
+  notes: 'apostil notes <path> [<path> ...] (several paths print { "files": [ ... ] }, one entry for each)',
   'add-processes': 'apostil add-processes <processes.json> (or - for standard input)',
   'process-groups': 'apostil process-groups [--all]',
   processes: 'apostil processes [--group <name>] (--group: only the files and the processes of that group of process-groups)',
@@ -54,6 +54,7 @@ export interface MapFlags {
   check?: boolean;
   find?: string;
   fit?: boolean;
+  more?: string[]; // the words after the first argument: the other paths of apostil notes
 }
 
 /**
@@ -86,16 +87,22 @@ export function runMapCommand(store: Store, command: string, argument: string, f
     case 'note-groups': return { output: noteGroups(folder, store.getMap(repoId(folder)), all), ok: true };
     case 'notes': {
       const stored = store.getMap(repoId(folder));
-      if (!argument) return { output: { problems: ['Usage: apostil notes <path>'] }, ok: false };
+      const paths = [argument, ...(flags.more ?? [])].filter(Boolean);
+      if (!paths.length) return { output: { problems: [`Usage: ${MAP_USAGE.notes}`] }, ok: false };
       if (!stored) return NO_MAP;
-      // How many of its notes still stand at the text of their lines. Each note with its key, as a step of a process names it, and the processes that it is a step of.
-      const standing = notesOfFile([fileNotesSource(stored)], argument, fileText(folder, argument) ?? '', () => undefined);
-      const notes = notesOf(stored.map, argument).map((note) => {
-        const key = stepKey(note);
-        const processes = (stored.map.processes ?? []).filter((process) => process.steps.includes(key)).map((process) => process.id);
-        return { key, ...note, ...(processes.length ? { processes } : {}) };
-      });
-      return { output: { file: argument, notes, standing: standing.notes.length, older: standing.older }, ok: true };
+      const source = fileNotesSource(stored);
+      // The notes of one file: how many still stand at the text of their lines, and each with its key, as a step of a process names it, and the processes that it is a step of.
+      const notesOfPath = (path: string) => {
+        const standing = notesOfFile([source], path, fileText(folder, path) ?? '', () => undefined);
+        const notes = notesOf(stored.map, path).map((note) => {
+          const key = stepKey(note);
+          const processes = (stored.map.processes ?? []).filter((process) => process.steps.includes(key)).map((process) => process.id);
+          return { key, ...note, ...(processes.length ? { processes } : {}) };
+        });
+        return { file: path, notes, standing: standing.notes.length, older: standing.older };
+      };
+      // One path prints its file; several print one entry for each, so that a writer reads them in one plain command.
+      return { output: paths.length === 1 ? notesOfPath(paths[0]) : { files: paths.map(notesOfPath) }, ok: true };
     }
     case 'process-groups': {
       const stored = store.getMap(repoId(folder));
