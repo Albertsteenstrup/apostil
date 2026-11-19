@@ -69,9 +69,9 @@ const Hover = (() => {
     if (!content || mine !== turn || !here() || picking) return;
     hide();
     // At the right of the title bar: a quiet link of the content (`act`: { words, run }), and "Open".
-    // A link may name its key, quiet beside it (`act.keys`, `openKeys`), as "⌘ Enter" stands beside "Answer".
-    const keysHtml = (words) => (words ? `<span class="ak">${esc(words)}</span>` : '');
-    const actions = `${content.act ? `<a data-act>${esc(content.act.words)}</a>${keysHtml(content.act.keys)}` : ''}${content.open ? `<a data-open>Open</a>${keysHtml(content.openKeys)}` : ''}`;
+    // A link may name its key, quiet beside it (`act.keys`), as "⌘ Enter" stands beside "Answer".
+    const keys = content.act?.keys ? `<span class="ak">${esc(content.act.keys)}</span>` : '';
+    const actions = `${content.act ? `<a data-act>${esc(content.act.words)}</a>${keys}` : ''}${content.open ? '<a data-open>Open</a>' : ''}`;
     const frame = windowFrame({ title: content.title, sub: content.sub, width: content.width, actions });
     if (typeof content.body === 'string') frame.body.innerHTML = content.body;
     else frame.body.append(content.body);
@@ -92,7 +92,7 @@ const Hover = (() => {
   /** The innermost such element that an event is on: a move inside it also passes its outer ones, which must not take it. */
   const anchorOf = (event) => { let el = event.target; while (el && !anchors.has(el)) el = el.parentElement; return el; };
 
-  /** Gives an element a hover window. `load` returns { title, sub, body, width, open, openKeys, act, ready } when the window opens. */
+  /** Gives an element a hover window. `load` returns { title, sub, body, width, open, act, ready } when the window opens. */
   function attach(anchor, load, around) {
     let clicked = false; // a click opens the thing; its window is not wanted until the pointer has left
     anchors.add(anchor);

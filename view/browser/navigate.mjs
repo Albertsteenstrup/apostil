@@ -103,12 +103,13 @@ try {
   await away();
   await home.keyboard.press('Escape');
   const afterEscape = await focusNow();
-  // The quiet link in the window of the node does the same; the × of the line ends it; so does a click on an empty place of the frame (build 84).
+  // The window of the node has no link of the focus and no clue of a key in its title bar; the × of the line ends the focus; so does a click on an
+  // empty place of the frame (build 84).
   await home.hover(nodeOf(wanted.key));
-  await home.waitForSelector('.win .tb .act [data-act]', { timeout: 3000 }).catch(() => {});
-  const link = await home.textContent('.win .tb .act [data-act]').catch(() => '');
-  const linkKeys = await home.textContent('.win .tb .act .ak').catch(() => ''); // the small clue of the key beside the link
-  await home.click('.win .tb .act [data-act]').catch(() => {});
+  await home.waitForSelector('.win .tb', { timeout: 3000 }).catch(() => {});
+  const helpers = await home.evaluate(() => ({ win: !!document.querySelector('.win .tb'), links: document.querySelectorAll('.win .tb [data-act], .win .tb .ak').length })).catch(() => ({}));
+  await away();
+  await home.click(nodeOf(wanted.key), { modifiers: ['Alt'] });
   const byLink = await focusNow();
   await home.click('.bar [data-end-focus]').catch(() => {});
   const afterCross = await focusNow();
@@ -140,14 +141,14 @@ try {
   const onPanel = await panelNow();
   await home.keyboard.press('Escape');
   const panelAfter = await panelNow();
-  check('Option+click on a node of a diagram focuses it: the node, its arrows and the nodes at their other ends stay and the rest is faint, one quiet line names it, and the click leads nowhere; Escape ends it; the link "Focus on this node" in its window, with the key beside it as a small clue, does the same, the × of the line ends it, and a click on an empty place of the frame ends it; a look that gives that click a target wins; a step of a drawn process is named without the count of its steps; on the graphs page the click focuses the node inside its panel and the page stays',
+  check('Option+click on a node of a diagram focuses it: the node, its arrows and the nodes at their other ends stay and the rest is faint, one quiet line names it, and the click leads nowhere; Escape ends it; its window has no link of the focus and no clue of a key, the × of the line ends it, and a click on an empty place of the frame ends it; a look that gives that click a target wins; a step of a drawn process is named without the count of its steps; on the graphs page the click focuses the node inside its panel and the page stays',
     focused.on && focused.focused === wanted.key && focused.near === wanted.near && focused.faint === wanted.all - wanted.near.split(',').length && focused.faint > 0 && focused.arrows === wanted.arrows
       && focused.line === `Focus: ${wanted.name} · ×` && led.join() === '' && stayed === 'lib-lending'
-      && !afterEscape.on && afterEscape.faint === 0 && afterEscape.line === '' && link === 'Focus on this node' && linkKeys === 'Click' && byLink.focused === wanted.key && byLink.near === wanted.near
+      && !afterEscape.on && afterEscape.faint === 0 && afterEscape.line === '' && helpers.win && helpers.links === 0 && byLink.focused === wanted.key && byLink.near === wanted.near
       && !afterCross.on && !afterAgain.on && afterAgain.faint === 0 && !lookWins.on && lookWins.sent === 'target'
       && onStep.on && onStep.at === 'process:ask-request' && /\d+ steps?$/.test(stepWords) && /^Focus: \S/.test(onStep.line) && !/\d+ steps?/.test(onStep.line)
       && onPanel.graphs && onPanel.focused === 'service' && onPanel.panels === 1 && /Focus: \S/.test(onPanel.line) && panelAfter.graphs && panelAfter.panels === 0 && panelAfter.line === '',
-    JSON.stringify({ wanted, focused, led, stayed, afterEscape, link, byLink, afterCross, afterAgain, lookWins, stepWords, onStep, onPanel, panelAfter }));
+    JSON.stringify({ wanted, focused, led, stayed, afterEscape, helpers, byLink, afterCross, afterAgain, lookWins, stepWords, onStep, onPanel, panelAfter }));
 
   // ----- build 85: where cards show, one click focuses the node and its card; the card and "Open" go in; alone, two clicks go in -----
   const cardNow = () => home.evaluate(() => {
@@ -193,7 +194,7 @@ try {
       && scrolledTo.card === below && scrolledTo.scrolled > 0 && scrolledTo.shows[below] && ended.card === '' && ended.faint === 0,
     JSON.stringify({ inView, below, clicked, second, double, scrolledTo, ended }));
 
-  // The window of a node with a way in has "Open", which goes in as the card does; where cards show it names no click.
+  // The window of a node with a way in has "Open", which goes in as the card does; its title bar holds nothing else.
   await home.hover(nodeOf('lending'));
   await home.waitForSelector('.win .tb .act [data-open]', { timeout: 3000 }).catch(() => {});
   const bar = await home.evaluate(() => [...document.querySelectorAll('.win .tb .act > *')].map((el) => el.textContent).join('|')).catch(() => '');
@@ -201,7 +202,7 @@ try {
   await home.click('.win .tb .act [data-open]').catch(() => {});
   await settled();
   const byOpen = { at: await home.evaluate(() => Home.at), sent: await home.evaluate((from) => window.apostilSent.slice(from).filter((one) => one.type === 'openFile').length, openFrom) };
-  // Alone (full screen), as before: one click focuses, a second click goes in; the window names the clicks of each; a double click on a step of a
+  // Alone (full screen), as before: one click focuses, a second click goes in; the title bar of the window holds only "Open"; a double click on a step of a
   // process opens its file at its line once and does not fit the drawing.
   await homeAt('');
   await home.click('#view > .ovt');
@@ -227,9 +228,9 @@ try {
   };
   await home.click('#view > .ovt'); // the overview again, for the checks after this one
   await settled();
-  check('the window of a node with a way in has "Open", which goes one level down as its card does, and names no click where cards show; alone, a second click on the focused node goes in, the window names "Click" beside the focus and "Double click" beside "Open", and a double click on a step of a process opens its file at its line once and does not fit the drawing',
-    bar === 'Focus on this node|Click|Open' && byOpen.at === 'lib-lending' && byOpen.sent === 0
-      && aloneBar === 'End the focus|Esc|Open|Click' && aloneSecond === 'lib-lending'
+  check('the window of a node with a way in has "Open", which goes one level down as its card does, and nothing else stands in its title bar; alone, a second click on the focused node goes in, the title bar still holds only "Open", and a double click on a step of a process opens its file at its line once and does not fit the drawing',
+    bar === 'Open' && byOpen.at === 'lib-lending' && byOpen.sent === 0
+      && aloneBar === 'Open' && aloneSecond === 'lib-lending'
       && leaf.sent.length === 1 && leaf.sent[0].type === 'openFile' && leaf.sent[0].path === 'src/library/lending/requests.py' && leaf.sent[0].line === 62 && leaf.at === 'process:answer-request/2' && leaf.box && leaf.focus === 's7',
     JSON.stringify({ bar, byOpen, aloneBar, aloneSecond, leaf }));
 

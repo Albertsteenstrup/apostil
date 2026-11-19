@@ -317,15 +317,10 @@ async function drawHome() {
         else if (paths.length === 1 && !paths[0].endsWith('/')) tell({ type: 'openFile', path: paths[0] });
         else tell({ type: 'showInTree', paths, open: true });
       } : null;
-      // The window of the node, with a quiet link that focuses it as a click does, and "Open" for a node with a way in (build 85), each with its click
-      // beside it as a small clue: where cards stand under the map, the card is the way in, so "Open" names no click.
+      // The window of the node, with "Open" for a node with a way in (build 85): it goes where the card goes. No link of the focus and no clue of a
+      // key in its title bar: a click on the node focuses it.
       const content = node.note ? noteWindow(node, thing) : nodeWindow(g, node, thing);
-      const focusIt = () => focusOn(view, joined, nodeKey(g), diagram.id);
-      Hover.attach(g, async () => {
-        const on = hasFocus(view, nodeKey(g));
-        const opens = today ? { open: today, openKeys: cardsShow(view) ? '' : on ? 'Click' : 'Double click' } : {};
-        return { ...(await content()), act: { words: on ? 'End the focus' : 'Focus on this node', keys: on ? 'Esc' : 'Click', run: focusIt }, ...opens };
-      });
+      Hover.attach(g, async () => ({ ...(await content()), ...(today ? { open: today } : {}) }));
       focusClicks(g, { stage: view, graph: joined, slots: thing?.slots, into: today, diagram: diagram.id }); // before the click of the node (Marks.bind)
       if (Marks.bind(g, thing?.slots ?? {}, today, Marks.nameOf(g))) g.classList.add('go');
       opens.set(g, today);
