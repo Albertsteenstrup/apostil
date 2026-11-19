@@ -9,7 +9,7 @@ import { thingsOf } from '../shared/diagram-code';
 import { diagramGraph, type DiagramGraph } from '../shared/diagram-graph';
 import { schemaDrawing, type SchemaDrawing } from '../shared/schema';
 import { sessionName } from '../shared/agents';
-import { changedFiles, commitExists, tryGit } from '../shared/git';
+import { changedFiles, commitExists, tryGit, type ChangedFile } from '../shared/git';
 import { appToStart } from '../shared/map-app';
 import { homeRun, mapRunLine, type MapRunLine } from '../shared/map-run';
 import { areaWork } from '../store/map-run';
@@ -24,11 +24,15 @@ import { changeMermaid, nodeId, partMermaid } from './change-diagram';
 import { repoName } from './page-data';
 import type { Step } from './trail';
 
+/** A file that a change changes, with its counts from Git; with no counts when Git cannot read them. */
+export type ChangeFileCounts = { path: string } & Partial<Pick<ChangedFile, 'added' | 'removed' | 'status'>>;
+
 /** A change in the list, as a node of Home names it. */
 export interface ChangeRef {
   id: number;
   branch: string;
   title: string;
+  files: ChangeFileCounts[]; // the files of the node that it changes
 }
 
 /** One node of a map diagram: what it stands for and where a click goes. */
@@ -136,8 +140,20 @@ const isFolder = (full: string): boolean => {
 /** The id of the repo of a folder: its first commit, the same in every worktree. */
 export const idOf = (folder: string): string | undefined => tryGit(folder, 'rev-list', '--max-parents=0', 'HEAD')?.split('\n').pop();
 
-/** The files that a stored change names: the files of its parts and the files in no part. */
-const filesOfChange = (change: StoredChange): string[] => [...change.file.parts.flatMap((part) => part.files), ...change.checks.filesInNoPart];
+/** The changed files of a stored change with their counts, read in Git where changeWhere says; none when its base or its saved commit is gone. */
+function countedFiles(change: StoredChange, openFolder: string): ChangedFile[] {
+  const { folder, saved } = changeWhere(change, openFolder);
+  try { return saved?.missing ? [] : changedFiles(folder, change.base, saved && change.head); } catch { return []; }
+}
+
+/** The files that a stored change names (the files of its parts and the files in no part), each with its counts from Git when Git has them. */
+function filesOfChange(change: StoredChange, openFolder: string): ChangeFileCounts[] {
+  const counted = new Map(countedFiles(change, openFolder).map((file) => [file.path, file]));
+  return [...new Set([...change.file.parts.flatMap((part) => part.files), ...change.checks.filesInNoPart])].map((path) => {
+    const file = counted.get(path);
+    return file ? { path, added: file.added, removed: file.removed, status: file.status } : { path };
+  });
+}
 
 /** "written 12 commits ago", "written at another commit", or nothing when the map was written at the commit that the folder is at. */
 export function writtenLine(folder: string, commit: string): string | undefined {
@@ -183,7 +199,7 @@ export function homeData(store: Store, folder: string, apps: string[] = [], addr
   const run = store.mapRun(id);
   if (mapRun?.time && run) mapRun.areas = areaWork(store, folder, stored, run);
   const files = repoFiles(folder);
-  const changes = store.listChanges(id).map((change) => ({ ref: { id: change.id, branch: change.branch, title: change.file.title }, files: filesOfChange(change) }));
+  const changes = store.listChanges(id).map((change) => ({ id: change.id, branch: change.branch, title: change.file.title, files: filesOfChange(change, folder) }));
   const count = (path: string): number => files.filter((file) => touches(path, file)).length;
   const { diagrams } = stored.map;
   const homeDiagrams: HomeDiagram[] = diagrams.map((diagram) => ({
@@ -192,7 +208,8 @@ export function homeData(store: Store, folder: string, apps: string[] = [], addr
       const under = files.filter((file) => paths.some((path) => touches(path, file)));
       return [node, {
         paths: paths.map((path) => ({ path, files: count(path) })), files: under.length,
-        changes: changes.filter((change) => change.files.some((file) => paths.some((path) => touches(path, file)))).map((change) => change.ref),
+        // Each change that touches the node, with only the files of the node that it changes.
+        changes: changes.map((change) => ({ ...change, files: change.files.filter((file) => paths.some((path) => touches(path, file.path))) })).filter((change) => change.files.length),
         down: downOf(diagrams, diagram.id, paths), graphs: paths.find((path) => path.endsWith('/')) ?? paths[0],
       }];
     })),
@@ -266,9 +283,7 @@ export function graphsData(store: Store, folder: string, path: string, address: 
     if (!change) return undefined;
     const from = `${FROM[entry.level]} · branch ${change.branch}`;
     if (entry.level === 'change') {
-      const { folder: where, saved } = changeWhere(change, folder);
-      let files: ReturnType<typeof changedFiles> = [];
-      try { if (!saved?.missing) files = changedFiles(where, change.base, saved && change.head); } catch { /* the base is gone: the parts without counts */ }
+      const files = countedFiles(change, folder); // none when the base is gone: the parts without counts
       const mermaid = changeMermaid({ parts: change.file.parts, links: change.file.links, files, filesInNoPart: change.checks.filesInNoPart });
       const lit = entry.lit.map((part) => nodeId(change.file.parts.findIndex((candidate) => candidate.id === part)));
       const names = entry.lit.map((part) => change.file.parts.find((candidate) => candidate.id === part)?.name ?? part);

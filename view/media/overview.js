@@ -244,11 +244,10 @@ function drawingShape(graph, text = '', schema = null) {
 
 /**
  * The units of a card with a drawing: a wide drawing more units across, a tall one more down, and a drawing with many nodes larger than one with three.
- * Only a drawing of three nodes or fewer may take one unit either way: more nodes would not read in it.
+ * Only a drawing of three nodes or fewer may take one unit either way: more nodes would not read in it. `least`: the fewest units either way.
  */
-function drawingUnits(shape) {
+function drawingUnits(shape, least = shape.nodes <= 3 ? 1 : 2) {
   const cells = shape.nodes <= 3 ? 2 : shape.nodes <= 6 ? 4 : shape.nodes <= 12 ? 6 : 9;
-  const least = shape.nodes <= 3 ? 1 : 2;
   let best = { w: 2, h: 2, score: Infinity };
   for (let w = least; w <= MOST_UNITS; w++) {
     for (let h = least; h <= MOST_UNITS; h++) {
@@ -348,8 +347,8 @@ const Overview = {
 
   /**
    * The cards under the diagram, into `holder`: one for each item, in its order. An item is { title, draw(box), shape, open() } for a node with a diagram
-   * of its own, drawn small and read only (`shape`: drawingShape() of its drawing), or { title, files: [{ path, line?, folder?, count?, counts? }] } for a
-   * node that leads to files; `node` is the id of its node, and `run` ({ state, share }) the state of its area while a map is written (build 84): a card
+   * of its own, drawn small and read only (`shape`: drawingShape() of its drawing), or { title, files: [{ path, line?, folder?, count?, counts?, diff? }] }
+   * for a node that leads to files; `changes`: the changes that touch the node, as rows at its bottom; `node` is the id of its node, and `run` ({ state, share }) the state of its area while a map is written (build 84): a card
    * that a writer works on shows a sketch that shimmers, a turning mark and its own bar; a card that waits is empty, with a dashed edge and a faint name.
    * A card with a drawing is filled when it comes into view, so a level with many nodes opens at once. A click on a card with a diagram goes one level
    * down (open); a click on a file row does what the page does for that row. The cards take the sizes of their contents and are placed with no gaps.
@@ -358,7 +357,8 @@ const Overview = {
     holder.innerHTML = items.map((item, at) => {
       const state = item.run?.state;
       const head = `<div class="ovh"><span class="ovn" title="${esc(item.title)}">${esc(item.title)}</span>${state === 'working' ? workHtml(item.run.share) : ''}</div>`;
-      return `<div class="ovc${item.open ? ' go' : ''}${state ? ` run-${state}` : ''}" data-card="${at}"${item.node ? ` data-node="${esc(item.node)}"` : ''}>${head}<div class="ovb"></div></div>`;
+      const changes = item.changes?.length ? `<div class="ovx">${changeRowsHtml(item.changes)}</div>` : ''; // under the content, the changes that touch the node
+      return `<div class="ovc${item.open ? ' go' : ''}${state ? ` run-${state}` : ''}" data-card="${at}"${item.node ? ` data-node="${esc(item.node)}"` : ''}>${head}<div class="ovb"></div>${changes}</div>`;
     }).join('');
     holder.hidden = !items.length;
     holder.classList.remove('focus'); // new cards: none has the focus until focusOn says so
@@ -386,7 +386,7 @@ const Overview = {
     for (const card of holder.querySelectorAll('.ovc')) {
       const item = items[Number(card.dataset.card)];
       if (item.draw && !item.run) seen.observe(card);
-      if (item.open) card.addEventListener('click', (event) => { if (!event.target.closest('[data-open], [data-tree], [data-open-file]')) item.open(event); });
+      if (item.open) card.addEventListener('click', (event) => { if (!event.target.closest('[data-open], [data-tree], [data-open-file], [data-change-id]')) item.open(event); });
     }
     if (!this.watched?.has(holder)) {
       (this.watched ??= new WeakSet()).add(holder);
@@ -440,14 +440,16 @@ const Overview = {
    */
   sizeOf(card, item, unit, columns) {
     const work = card.querySelector('.ovw');
-    const named = unitsFor(card.querySelector('.ovn').scrollWidth + (work ? work.offsetWidth + 10 : 0) + 24 + 2, unit);
-    const head = card.querySelector('.ovh').offsetHeight;
+    // The rows of the changes at the bottom count as the head does (build 86): whole across, and their height taken from the room of the content.
+    const changes = [...card.querySelectorAll('.ovx a')].map((row) => row.querySelector('.nm').scrollWidth + 10 + row.querySelector('.c').offsetWidth);
+    const named = unitsFor(Math.max(card.querySelector('.ovn').scrollWidth + (work ? work.offsetWidth + 10 : 0), ...changes) + 24 + 2, unit);
+    const head = card.querySelector('.ovh').offsetHeight + (card.querySelector('.ovx')?.offsetHeight ?? 0);
     if (item.shape && !item.files) {
       const fill = (w, h) => fillOf(item.shape.ratio, w, h, unit, head);
       // How much larger than its own size the drawing is drawn in a card of w by h units (its width as guessed, or as it came out).
       const scale = (w, h) => (item.shape.width ? Math.min((unitsPx(w, unit) - 26) / item.shape.width, ((unitsPx(h, UNIT_HIGH) - head - 18) * item.shape.ratio) / item.shape.width) : 1);
-      const own = drawingUnits(item.shape);
-      const least = item.shape.nodes <= 3 ? 1 : 2;
+      const least = item.shape.nodes <= 3 && !item.changes?.length ? 1 : 2; // over the rows of its changes a drawing needs two units to read (build 86)
+      const own = drawingUnits(item.shape, least);
       const w = Math.max(own.w, named);
       const downs = [1, 2, 3].filter((h) => h >= least);
       const h = w === own.w ? own.h : downs.reduce((best, one) => (fill(w, one) > fill(w, best) ? one : best));
@@ -553,9 +555,16 @@ function fileRowHtml(file) {
   const at = folder ? folderOf(file.path.slice(0, -1)) : folderOf(file.path);
   const attrs = file.counts !== undefined ? `data-open-file="${esc(file.path)}"`
     : folder ? `data-tree="${esc(file.path)}"` : `data-open="${esc(file.path)}"${file.line ? ` data-line="${file.line}"` : ''}`;
-  const count = file.counts !== undefined ? countsHtml(file.counts) : folder && file.count ? plural(file.count, 'file') : '';
+  const count = file.counts !== undefined ? countsHtml(file.counts) : mapCountHtml(file.diff, folder && file.count);
   return `<a ${attrs} title="${esc(file.path)}">${FileIcons.html(file.path)}<span class="dir"><bdi dir="ltr">${esc(at)}</bdi></span><span class="nm">${esc(name)}</span><i class="c">${count}</i></a>`;
 }
+
+/** The count of a row of the map, in a card and in the window of a node: the counts of the changes that touch it (build 86), then a folder's count of files. */
+const mapCountHtml = (diff, files) => [countsHtml(diff), files ? plural(files, 'file') : ''].filter(Boolean).join(' · ');
+
+/** One row for each change that touches a node, in its card and in its window (build 86): the branch, and how many files of the node it changes. A click opens the change. */
+const changeRowsHtml = (changes = []) => changes.map((change) =>
+  `<a data-change-id="${change.id}" data-title="${esc(change.title)}"><span class="nm">${esc(change.branch)}</span><i class="c">${plural(change.files.length, 'file')} changed</i></a>`).join('');
 
 /**
  * The height of the frame of a diagram in the overview (build 85): the height of the drawing ({ width, height }) at the scale that the surface really

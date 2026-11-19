@@ -395,6 +395,7 @@ async function twoHalves() {
   const behindMore = 'web/src/member/index.ts';
   await pointRow(behindMore);
   await hereIs('holds-tab');
+  await when(() => [...document.querySelectorAll('.half.left .f.lit')].some((line) => !line.dataset.file)); // the line of the hidden file, not of a row of the same part that the pointer crossed
   await quiet();
   const onHidden = await marks();
   await toGutter();
@@ -672,14 +673,15 @@ async function twoHalves() {
   await when((count) => window.apostilRendered > count, drawnBefore);
   await quiet();
   const drilled = await painted();
-  await wide.evaluate(() => { App.page.parts.find((one) => one.id === 'hold-service').drillUp = undefined; Split.setHidden('code', true); }); // beside the diffs no window opens on a part
+  // Beside the diffs no window opens on a part, nor where cards show (build 86): the diagram alone.
+  await wide.evaluate(() => { App.page.parts.find((one) => one.id === 'hold-service').drillUp = undefined; localStorage.setItem('apostil.diagramFull', '1'); Split.setHidden('code', true); });
   await show({ level: 'change', from: null });
   await pointAt('#view b[data-part="hold-service"]');
   await when(() => !!document.querySelector('.win g.node.d-removed') && /steps/.test(document.querySelector('.win .tb .sub')?.textContent ?? ''));
   const inWindow = await wide.evaluate(() => ({ sub: document.querySelector('.win .tb .sub')?.textContent, removed: document.querySelectorAll('.win g.node.d-removed').length, added: document.querySelectorAll('.win g.node.d-add').length }));
   await away();
-  await wide.evaluate(() => Split.setHidden('code', false));
-  check('after drill up the part keeps its diagram whole with the same marks, the removed step back and dashed; with the code hidden, the window on the part shows them too, with the total beside its title',
+  await wide.evaluate(() => { localStorage.removeItem('apostil.diagramFull'); Split.setHidden('code', false); });
+  check('after drill up the part keeps its diagram whole with the same marks, the removed step back and dashed; with the code hidden and the diagram alone, the window on the part shows them too, with the total beside its title',
     drilled.added === 'pack,ship,take' && drilled.both === 'check' && drilled.removed === 'mail' && drilled.removedEdges === 2
       && inWindow.removed === 1 && inWindow.added === 3 && /\+2 steps −1 step · 3 changed/.test(inWindow.sub), JSON.stringify({ drilled, inWindow }));
 

@@ -77,19 +77,38 @@ const mapPage = (data) => (data.kind === 'home' && data.map
 
 // ----- Home -----
 
+/** The marks of a node of a set that stands in no corner of it (a rule put something else there): each set with its stack of values. */
+const hiddenMarks = (thing) => (thing ? Home.data.look.sets.filter((set) => !thing.cornered?.has(set.id)).map((set) => [set, Marks.stackOf(thing.marks, set.id)]).filter(([, stack]) => stack.length) : []);
+
 /**
- * The window of a node, from its sections: the folders and files it stands for with their counts ("files"), the changes that touch it ("changes"), and
- * the marks of a set that stands in no corner of the node ("marks": a rule put something else there), each value with its count of places. A rule of the
- * look orders the sections and leaves some out. A folder opens in the tree "Files" of the side bar; a file opens in VS Code.
+ * The counts of a path of a node in the changes that touch it (build 86): a file has those of the first change that edits it, a folder the sum of its
+ * changed files. Nothing when no change edits it.
+ */
+function diffOf(node) {
+  const first = new Map();
+  for (const change of node.changes) for (const file of change.files) if (!first.has(file.path)) first.set(file.path, file);
+  return (path) => {
+    const under = [...first.values()].filter((file) => (path.endsWith('/') ? file.path.startsWith(path) : file.path === path));
+    return under.length ? { added: under.reduce((sum, file) => sum + (file.added ?? 0), 0), removed: under.reduce((sum, file) => sum + (file.removed ?? 0), 0) } : undefined;
+  };
+}
+
+/**
+ * The window of a node, from its sections: the folders and files it stands for with their counts and those of the changes ("files"), the changes that
+ * touch it ("changes"), and the marks of a set that stands in no corner of the node ("marks": a rule put something else there), each value with its
+ * count of places; the rows of a card show the same (build 86). A rule of the look orders the sections and leaves some out. A folder opens in the tree
+ * "Files" of the side bar; a file opens in VS Code.
  */
 function nodeWindow(g, node, thing) {
   return () => {
-    const paths = node.paths.map(({ path, files }) => (path.endsWith('/')
-      ? `<a data-tree="${esc(path)}">${FileIcons.html(path)}<span>${esc(path)}</span><i class="c">${plural(files, 'file')}</i></a>`
-      : `<a data-open="${esc(path)}">${FileIcons.html(path)}<span>${esc(path)}</span><i class="c"></i></a>`)).join('');
-    const changes = node.changes.map((change) => `<a data-change-id="${change.id}" data-title="${esc(change.title)}"><span>${esc(change.branch)}</span><i class="c">${esc(change.title)}</i></a>`).join('');
+    const diff = diffOf(node);
+    const paths = node.paths.map(({ path, files }) => {
+      const folder = path.endsWith('/');
+      return `<a ${folder ? 'data-tree' : 'data-open'}="${esc(path)}">${FileIcons.html(path)}<span>${esc(path)}</span><i class="c">${mapCountHtml(diff(path), folder && files)}</i></a>`;
+    }).join('');
+    const changes = changeRowsHtml(node.changes);
     const look = Home.data.look;
-    const hidden = thing ? look.sets.filter((set) => !thing.cornered?.has(set.id)).map((set) => [set, Marks.stackOf(thing.marks, set.id)]).filter(([, stack]) => stack.length) : [];
+    const hidden = hiddenMarks(thing);
     const marks = hidden.map(([set, stack]) => `<div class="gp">${esc(set.name)}</div>${stack.map((one) => `<a data-mk-node="${esc(one.key)}"><span>${esc(look.values[one.key]?.name ?? one.value)}</span><i class="c">${plural(one.marks.length, 'place')}</i></a>`).join('')}`).join('');
     return Marks.windowOf({
       title: Marks.nameOf(g), width: 520,
@@ -207,9 +226,11 @@ const leadsSomewhere = (node) => !!node && !node.quiet && (!!diagramOf(node.down
 function homeCard(g, node, open, graph, run) {
   const title = plainName(graph, nodeKey(g));
   const below = diagramOf(node.down);
-  const own = { title, node: nodeKey(g), ...(run ? { run, areaFiles: node.paths } : {}) };
+  // The changes that touch the node stand at the bottom of its card, and its rows have their counts (build 86); not while its area is written.
+  const own = { title, node: nodeKey(g), ...(run ? { run, areaFiles: node.paths } : { changes: node.changes }) };
   if (below) return { ...own, open, draw: (box) => drawPanel(box, { ...below, lit: [] }, true), shape: { ...drawingShape(below.graph, below.mermaid, below.schema), key: below.id } };
-  const files = node.paths.map(({ path, files }) => ({ path, count: files, line: node.line }));
+  const diff = diffOf(node);
+  const files = node.paths.map(({ path, files }) => ({ path, count: files, line: node.line, diff: diff(path) }));
   return run ? own : { ...own, files };
 }
 
@@ -317,10 +338,12 @@ async function drawHome() {
         else if (paths.length === 1 && !paths[0].endsWith('/')) tell({ type: 'openFile', path: paths[0] });
         else tell({ type: 'showInTree', paths, open: true });
       } : null;
-      // The window of the node, with "Open" for a node with a way in (build 85): it goes where the card goes. No link of the focus and no clue of a
-      // key in its title bar: a click on the node focuses it.
+      // The window of the node, with "Open" for a node with a way in (build 85): it goes where the card goes. Where its card shows, the node has it only
+      // with the rule "window" of the look or marks in no corner (build 86); else, as a note card, only the lines of what a click of the look does.
       const content = node.note ? noteWindow(node, thing) : nodeWindow(g, node, thing);
-      Hover.attach(g, async () => ({ ...(await content()), ...(today ? { open: today } : {}) }));
+      const carded = overview && leading.includes(g) && !node.note && !Marks.hasWindow(thing?.slots) && !hiddenMarks(thing).length;
+      if (carded) Marks.inputWindow(g, thing?.slots ?? {}, Marks.nameOf(g));
+      else Hover.attach(g, async () => ({ ...(await content()), ...(today ? { open: today } : {}) }));
       focusClicks(g, { stage: view, graph: joined, slots: thing?.slots, into: today, diagram: diagram.id }); // before the click of the node (Marks.bind)
       if (Marks.bind(g, thing?.slots ?? {}, today, Marks.nameOf(g))) g.classList.add('go');
       opens.set(g, today);
