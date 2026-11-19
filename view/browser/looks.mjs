@@ -249,11 +249,13 @@ try {
     await one.evaluate(() => { const view = document.querySelector('.cv'); view.scrollTop = document.querySelector('.cv .mc').offsetTop - 60; }); // the first note in view
     await frames(one);
     await look('a file tab with its notes');
+    await one.evaluate(() => localStorage.setItem('apostil.diagramFull', '1')); // alone: where cards show a node has no window (build 86)
     await one.goto(`file://${homeFile}`);
     await drawn(one);
-    await pointAt(one, '#view g.node[id*="flowchart-jobs-"] .mk-stack .mk-more'); // where cards show a node has no window (build 86); its stack of marks has
-    const homeWindow = await one.waitForSelector('.win', { timeout: 3000 }).then(() => true, () => false);
+    await pointAt(one, '#view g.node[id*="flowchart-jobs-"]'); // its window has the counts of its change
+    const homeWindow = await one.waitForSelector('.win .rows .c .p', { timeout: 3000 }).then(() => true, () => false);
     await look('Home with the map and a hover window', homeWindow, ['dark', 'light'].includes(key) ? '8-home' : ''); // in the two default themes
+    await one.evaluate(() => localStorage.removeItem('apostil.diagramFull'));
     await one.goto(`file://${homeFile}?diagram=${encodeURIComponent('process:answer-request/2')}`);
     await drawn(one);
     await pointAt(one, '#view g.node[id*="flowchart-s7-"]');
