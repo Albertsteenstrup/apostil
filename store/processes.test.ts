@@ -339,7 +339,7 @@ test('the drawings: a process by its top steps in a box for each file, a step op
 });
 
 
-test('a map from before the processes opens as before, and the command saves from a file in the repo and removes it', () => {
+test('a map with no processes opens on Home, and the command saves from a file in the repo and removes it', () => {
   const { repo, store, map } = setup();
   const before = homeData(store, repo.folder);
   assert.equal(before.map!.diagrams.length, 1);

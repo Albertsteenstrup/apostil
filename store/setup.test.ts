@@ -73,7 +73,7 @@ test('setup for a repo keeps the draft files out of the list of new files, and -
   const before = { status: status(repo.folder), exclude: exclude(repo.folder) };
 
   setup({ install, machine, repo: repo.folder });
-  connectClaudeCode(repo.folder, machine.home); // setup adds no hook; this one is from an earlier build
+  connectClaudeCode(repo.folder, machine.home); // setup adds no hook; this one is from an earlier version
   const { lines } = setup({ install, machine, repo: repo.folder, undo: true });
   assert.deepEqual(words(lines), [...names.map(() => 'removed'), ...names.map((name) => (name === 'apostil-map-repo' ? 'left' : 'removed')), 'removed']);
   assert.deepEqual(JSON.parse(readFileSync(join(repo.folder, '.claude', 'settings.local.json'), 'utf8')), { permissions: { allow: ['Bash(ls)'] } });
@@ -145,7 +145,7 @@ test('setup --all puts the skills, and no hook, into the home folder and leaves 
   assert.ok(lines.includes(`added    Codex: the skill apostil-map-repo in ~/.agents/skills`));
   assert.equal(lines.some((one) => one.includes('hook')), false);
   assert.deepEqual(JSON.parse(readFileSync(join(machine.home, '.claude', 'settings.json'), 'utf8')), { model: 'made-up' });
-  connectClaudeCode(undefined, machine.home); // a hook from an earlier build, or from the step of its own
+  connectClaudeCode(undefined, machine.home); // a hook from an earlier version, or from the step of its own
 
   const undone = setup({ install, machine, undo: true });
   assert.deepEqual(words(undone.lines), Array(names.length * 2 + 1).fill('removed')); // the skills of both apps and the hook

@@ -1,6 +1,6 @@
-// The work for the notes writers: the code files of a repo that need notes, in groups of about 400 lines of whole files (build 84). A file longer than that is a group
+// The work for the notes writers: the code files of a repo that need notes, in groups of about 400 lines of whole files. A file longer than that is a group
 // of its own, whole: one writer has it alone and saves its notes in parts (`ranges` of add-notes), so that nothing is lost when it stops.
-// The groups of each kind of writer are listed largest first (build 84, part G): the longest work starts with the first writers, not at the end.
+// The groups of each kind of writer are listed largest first: the longest work starts with the first writers, not at the end.
 
 import { createHash } from 'node:crypto';
 import { fileText, lineCount, repoFiles } from './git';
@@ -181,7 +181,7 @@ export function processGroups(map: RepoMap, all = false): { groups: ProcessGroup
 }
 
 /**
- * The check of one group of the process writers (build 84, part G): what `apostil processes --group <name>` prints. Its writer runs it before it reports,
+ * The check of one group of the process writers: what `apostil processes --group <name>` prints. Its writer runs it before it reports,
  * and the lead starts the second round of that group from it at once: the notes of its files in no process yet, with up to five keys for each file, and
  * the processes of the group whose steps name notes that are gone. `again`: whether the group needs a second round. Undefined for an unknown group.
  */
@@ -201,7 +201,7 @@ export function groupProcessFacts(map: RepoMap, name: string) {
 export const areasWaitingForNotes = (groups: NoteGroup[]): Set<string> => new Set(groups.map((group) => group.area ?? ''));
 
 /**
- * What `apostil process-groups` prints (build 84): the groups of the process writers of the areas whose notes are all saved, so that the process writers of an
+ * What `apostil process-groups` prints: the groups of the process writers of the areas whose notes are all saved, so that the process writers of an
  * area start as soon as its notes are saved, and `waiting`: how many areas still wait for notes. The lead runs it after each notes writer ends.
  */
 export function readyProcessGroups(folder: string, stored: StoredMap, all = false): ReturnType<typeof processGroups> & { waiting: number } {

@@ -234,7 +234,7 @@ export function markGroups(folder: string, map: RepoMap | undefined, set: string
 }
 
 /**
- * What `apostil mark-groups` prints (build 84, part G): the groups of the areas whose notes are all saved, so that the service and mark writers of an area
+ * What `apostil mark-groups` prints: the groups of the areas whose notes are all saved, so that the service and mark writers of an area
  * start as soon as its notes are saved, not when all notes of the repo are saved, and `waiting`: how many areas still wait for notes. With no map, every group.
  */
 export function readyMarkGroups(folder: string, stored: StoredMap | undefined, set: string, all = false): ReturnType<typeof markGroups> & { waiting: number } {

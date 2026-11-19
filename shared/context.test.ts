@@ -72,7 +72,7 @@ test('what goes with a remark on a node, an arrow and a diagram: its diagram, it
   assert.deepEqual(about({ kind: 'diagram' }), ['The diagram of the change: one node for each part, one arrow for each link.', 'Its links are not checked yet by a second agent.', 'part "App" uses part "Tool"']);
 });
 
-test('a remark from before the new fields and a remark on the map have their about lines in the review context, and the inbox text holds the same lines', () => {
+test('a remark of an older version, with only its part and label, and a remark on the map have their about lines in the review context, and the inbox text holds the same lines', () => {
   const old = store.addRemark(changeId!, { kind: 'part', part: 'app', label: 'Part "App"' }, 'Explain this');
   const onNode = store.addRemark(changeId!, { kind: 'node', diagram: 'stop-flow', node: 'done', part: 'app', label: 'Node "Return 0"' }, 'Why 0?');
   const context = reviewContext(store, repo.folder);

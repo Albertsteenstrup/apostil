@@ -1,4 +1,4 @@
-// The time left of a map run (build 84): the expected time of the work that is left, from the plan of the run, multiplied by the pace of this run.
+// The time left of a map run: the expected time of the work that is left, from the plan of the run, multiplied by the pace of this run.
 // store/map-run.ts makes the plan when a run starts, and again when the overview is saved and when the last notes are saved; Home shows the result.
 // No `vscode` import.
 
@@ -12,7 +12,7 @@ export const WRITERS_AT_ONCE = 16;
  */
 export const WAVE_MINUTES = { overview: 4, overviewPerThousandLines: 0.1, areas: 4, notesLinesPerMinute: 60, processes: 15, again: 8, fit: 8, services: 10, lead: 2 };
 
-/** The lines of a notes group before the plan kept them (build 84, part A): what an old plan counts for each group. */
+/** What a plan with no lines of its groups (a record of an older version) counts for each notes group. */
 const OLD_GROUP_LINES = 400;
 
 /** The kinds of save that the record keeps the time of: the overview, an area, notes, the processes of a group, the marks of a group. */
@@ -30,7 +30,7 @@ export interface MapPlan {
   areas: number; // the diagrams of areas that are expected
   notes: number; // the groups of the notes writers
   noteFiles: number; // the code files in those groups
-  noteLines?: number; // the lines of those files (build 84, part G)
+  noteLines?: number; // the lines of those files; missing in a record of an older version
   longest?: number; // the lines of the largest of those groups, the longest work of one notes writer
   processes: number; // the groups of the process writers that are expected
   services: number; // the groups of the service and mark writers that are expected
@@ -65,8 +65,7 @@ const shareOf = (stage: Stage): number => {
 };
 
 /**
- * The stages of a plan in their order, each with the share of its work that the saves since the plan did (build 84, part G: the run waits only where it
- * must):
+ * The stages of a plan in their order, each with the share of its work that the saves since the plan did (the run waits only where it must):
  * 1. the overview, alone;
  * 2. the writers: the area writers and the notes writers, the process writers of an area as soon as its notes are saved, the second round of a process
  *    group as soon as its writer ended, and the service and mark writers of an area as soon as its notes are saved. Its longest chain is the largest

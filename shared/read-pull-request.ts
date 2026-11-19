@@ -65,7 +65,7 @@ export interface PullThread {
   review?: string; // the review of its first comment
   wholeFile: boolean; // a comment on the whole file, not on lines
   fileRemoved: boolean; // the pull request removes the file
-  canReply: boolean; // what the owner may do with it; an answer stored before these were read has none, which means no
+  canReply: boolean; // what the owner may do with it; an answer stored by an older version has none, which means no
   canResolve: boolean;
   canUnresolve: boolean;
   side?: 'LEFT' | 'RIGHT'; // the side of the diff: LEFT is the file as it was, where GitHub applies no suggestion
@@ -145,7 +145,7 @@ export interface Rights {
 
 export interface PullRequestView {
   repo: string; // "owner/name"
-  id: string; // the node id that a write names; '' in an answer stored before it was read
+  id: string; // the node id that a write names; '' in an answer stored by an older version
   number: number;
   title: string;
   url: string;
@@ -550,7 +550,7 @@ function stackFacts(stack?: Stack): MergeInput['stack'] {
 const METHOD_FIELDS: [MergeMethod, string][] = [['MERGE', 'mergeCommitAllowed'], ['SQUASH', 'squashMergeAllowed'], ['REBASE', 'rebaseMergeAllowed']];
 const WRITERS = ['ADMIN', 'MAINTAIN', 'WRITE']; // the permissions that may push to the base
 
-/** The merge methods that the repo allows; a base that must keep a straight history takes no merge commit. An answer stored before these were read allows none. */
+/** The merge methods that the repo allows; a base that must keep a straight history takes no merge commit. An answer stored by an older version allows none. */
 const methodsOf = (pr: Raw): MergeMethod[] => METHOD_FIELDS
   .filter(([method, field]) => pr.repository?.[field] === true && !(method === 'MERGE' && pr.baseRef?.refUpdateRule?.requiresLinearHistory))
   .map(([method]) => method);

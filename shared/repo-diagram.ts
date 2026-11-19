@@ -28,7 +28,7 @@ export interface RepoDiagram {
 
 /** The repo diagram of a diagram of a change, from the map as it is now. Undefined for a diagram that names none. */
 export function repoDiagramOf(map: RepoMap | undefined, diagram: Diagram): RepoDiagram | undefined {
-  // A wider diagram from before "of" has the id of its repo diagram as its own id; its "before" was not checked against the map.
+  // A wider diagram of an older version has no "of": its own id is the id of its repo diagram, and its "before" was not checked against the map.
   const id = diagram.of ?? (diagram.broad ? diagram.id : undefined);
   const drawn = id ? mapDrawing(map, id) : undefined;
   const found = drawn ? { id, title: drawn.diagram.title } : {};

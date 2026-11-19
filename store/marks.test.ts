@@ -222,8 +222,8 @@ test('set-look keeps a look and its files in the store, removes its draft files,
   // The look as "apostil look" prints it names the files that Apostil keeps: sent again with one more rule, it saves, with no file in the repo.
   const again = setLook(store, repoFolder, { sets: kept.sets, rules: [...kept.rules, { pick: { kind: 'note' }, note: { color: '#15803d' } }] });
   assert.deepEqual([again.saved, again.problems, again.files], [true, [], 3]);
-  // "apostil look-slots --all" prints the one list that the check reads: the components with their slots, the picks and every target. Later builds add
-  // components and slots at the end.
+  // "apostil look-slots --all" prints the one list that the check reads: the components with their slots, the picks and every target. A new
+  // component or slot goes at the end.
   const parts = JSON.parse(runApostil(['look-slots', '--all'], { cwd: repoFolder, env }).stdout);
   assert.deepEqual([Object.keys(parts.components).slice(0, 5), parts.components.note.slots.slice(0, 6), Object.keys(parts.targets)], [
     ['node', 'step', 'call', 'arrow', 'note'], ['note', 'corners', 'content', 'show', 'click', 'input'],

@@ -105,7 +105,7 @@ export function runMapCommand(store: Store, command: string, argument: string, f
       const stored = store.getMap(repoId(folder));
       if (!stored) return NO_MAP;
       if (flags.group === undefined) return { output: processFacts(stored.map), ok: true };
-      // The check of one group (build 84, part G): its writer runs it before it reports, and the lead starts its second round from it at once.
+      // The check of one group: its writer runs it before it reports, and the lead starts its second round from it at once.
       const facts = groupProcessFacts(stored.map, flags.group);
       return facts ? { output: facts, ok: true } : { output: { problems: [`No group of the process writers is named "${flags.group}". apostil process-groups --all names them.`] }, ok: false };
     }
@@ -171,7 +171,7 @@ const MARK_COMMANDS: Record<string, (store: Store, folder: string, argument: str
   'look-slots': (_store, _folder, argument, { find, all = false }) => lookSlots(argument, find, all),
   look: (store, folder) => {
     const stored = store.getLook(repoId(folder));
-    // With no look saved, the default look applies: today's look, with the logos of the services at the upper right of a node, a step and a call, and at the left of each service line of a note.
+    // With no look saved, the default look applies: the logos of the services at the upper right of a node, a step and a call, and at the left of each service line of a note.
     return { output: stored ? { savedAt: stored.savedAt, ...stored.look } : { look: 'default', rules: DEFAULT_RULES, sets: [SERVICES] }, ok: true };
   },
 };

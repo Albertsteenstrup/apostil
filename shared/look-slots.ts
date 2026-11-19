@@ -14,7 +14,7 @@ type Example = Readonly<Record<string, unknown>>;
 const entries = <T>(record: Readonly<Record<string, T>>): [string, T][] => Object.entries(record);
 const only = <T>(record: Readonly<Record<string, T>>, keys: readonly string[]): Record<string, T> => Object.fromEntries(entries(record).filter(([key]) => keys.includes(key)));
 const kindsOf = (fields: Readonly<Record<string, string>>[]): string[] => [...new Set(fields.flatMap((one) => Object.values(one)))];
-/** The words of a pick: a pick of a later build has its area, words and example beside them. */
+/** The words of a pick: a pick of an area has its area, words and example beside them. */
 const pickWhat = (pick: LookPartsList['picks'][string]): string => (typeof pick === 'string' ? pick : pick.what);
 
 /** One line for each area: what is inside, as a person says it. */
@@ -53,7 +53,7 @@ function area(id: string): Record<string, unknown> {
   const all = (name: string): boolean => Object.keys(fieldsOf(name)).length === Object.keys(LIST.slots[name].fields).length;
   const targets = entries(TARGETS).filter(([, target]) => target.area === id);
   const picks = entries(LIST.picks).filter(([, pick]) => typeof pick !== 'string' && pick.area === id);
-  // The blocks of a page or a window (build 58): each with its form and the form of a file in its place, the title, the sources and the limits.
+  // The blocks of a page or a window: each with its form and the form of a file in its place, the title, the sources and the limits.
   const blocks = entries(LIST.blocks).filter(([, one]) => one.area === id);
   return {
     area: id,

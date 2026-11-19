@@ -34,12 +34,12 @@ export interface StoredChange {
   base: string; // the commit that the branch started from
   head: string; // the newest commit when the change file was saved
   savedAt: string;
-  firstSavedAt?: string; // the first save of the branch; missing in a change saved before the store kept it
+  firstSavedAt?: string; // the first save of the branch; missing in a change of an older version
   file: ChangeFile;
   checks: CheckResult;
   missingSince?: string; // set when the folder and the commits were not found
   agent?: AgentSession; // the agent app and session that made the change
-  noteCode?: NoteCode; // the text of the lines of each note at the save, so that a note finds its lines after the branch is gone; missing in a change saved before the save kept it
+  noteCode?: NoteCode; // the text of the lines of each note at the save, so that a note finds its lines after the branch is gone; missing in a change of an older version
   checked?: string[]; // the ids of the diagrams that a second agent read against their code, and "links:<part id>" for the links that leave a part, for this save; a new save takes them away
 }
 
@@ -327,7 +327,7 @@ export class Store {
     this.allowRemarksWithoutChange();
   }
 
-  /** A store from before the remarks on the map has "change_id not null": its remark table is made again, with every row. */
+  /** A store of a version with no remarks on the map has "change_id not null": its remark table is made again, with every row. */
   private allowRemarksWithoutChange(): void {
     const changeColumn = () => (this.db.prepare('pragma table_info(remark)').all() as Row[]).find((row) => row.name === 'change_id');
     if (!changeColumn()?.notnull) return;
@@ -403,7 +403,7 @@ export class Store {
   /**
    * Keeps the notes of a change and the text of their lines: before the cleanup removes the change, or (`replaced`) before a description of later commits
    * of the same branch takes its place. A removed change keeps them under its own id; a replaced description gets a number of its own below zero, so that
-   * each description of a branch is kept. A change saved before the text was kept has nothing to keep.
+   * each description of a branch is kept. A change of an older version kept no text, so it has nothing to keep.
    */
   keepNotes(change: StoredChange, replaced = false): void {
     if (!change.noteCode || !Object.keys(change.noteCode).length) return;

@@ -1,7 +1,7 @@
 // What each rule of a look picks now, in words, for `apostil set-look` and `apostil set-look --check`: "Rule 1: 2 nodes get a colour.", and a note
 // for a rule that picks nothing now (not a fault: the marks of a new set come after the save). The picks are the pages' own: the first part of
 // view/media/marks.js, read in Node as view/marks.test.ts does, on the diagrams of Home (homeData) and on the note cards of the map; and on the page of
-// the saved change of the branch and its file tabs (changeThings and fileThings of marks.js, build 60).
+// the saved change of the branch and its file tabs (changeThings and fileThings of marks.js).
 
 import { an, LOOK_PARTS, nameOf, namesPart, type Look, type LookPartsList, type Pick } from '../shared/look';
 import { currentBranch, repoId, repoRoot } from '../shared/git';
@@ -21,7 +21,7 @@ type Thing = { kind: string; slots?: Record<string, unknown> } & Record<string, 
 /** The kinds of the page of a change and of its file tabs: they are counted on the saved change of the branch and the files with notes or marks. */
 const PAGE_AREAS = ['change', 'diffs', 'comments', 'file-tab'];
 const onPage = (kind: string): boolean => PAGE_AREAS.includes((LIST.components[kind]?.area ?? ''));
-/** The kinds whose things Home or a graphs page make as they show (a step of the trail, the panels of a graphs page, build 59): not counted either. */
+/** The kinds whose things Home or a graphs page make as they show (a step of the trail, the panels of a graphs page): not counted either. */
 const UNCOUNTED_KINDS = ['trail-step', 'header', 'frame', 'comment-box', 'count-line', 'panel', 'panel-node', 'panel-title', 'panel-level', 'panel-in'];
 
 /** Counts the things that a pick takes now, as the pages pick them. `page` says whether the branch has a saved change. */
@@ -31,7 +31,7 @@ function counter(store: Store, folder: string): ((pick: Pick) => number) & { pag
   const marks = home.look?.marks ?? [];
   const none = { marks, rules: [] };
   const diagrams = (home.map?.diagrams ?? []).map((diagram: HomeDiagram) => ({ diagram, things: Marks.thingsOf(diagram, none) as Record<string, Thing> }));
-  // The things of a diagram: its nodes, the count line of a step, its boxes (an area box, a file box), and a drawn process as a whole (build 59).
+  // The things of a diagram: its nodes, the count line of a step, its boxes (an area box, a file box), and a drawn process as a whole.
   const things = diagrams.flatMap(({ diagram, things: own }) => [...Object.values(own), ...Object.values(own).flatMap((thing) => (thing.count ? [thing.count as Thing] : [])),
     ...Marks.boxesOf(diagram, none), ...[Marks.drawingOf(diagram, none)].filter(Boolean)]);
   // A note card of the file tab stands for the lines of its note. The window of a step is a note in the diagram of the step (view/media/home.js),
@@ -100,7 +100,7 @@ export function lookChanges(store: Store, folder: string, look: Look): { changes
   const changes: string[] = [];
   const notes: string[] = [];
   look.rules.forEach((rule, index) => {
-    // A part of the side bar or of a pull request is neither in the map nor on the page of the change, so it is not counted (build 61).
+    // A part of the side bar or of a pull request is neither in the map nor on the page of the change, so it is not counted.
     if (UNCOUNTED.includes(LIST.components[rule.pick.kind]?.area) || UNCOUNTED_KINDS.includes(rule.pick.kind)) return void changes.push(`Rule ${index + 1}: ${an(rule.pick.kind)} that it picks gets ${gives(rule)}.`);
     const picked = count(rule.pick);
     changes.push(`Rule ${index + 1}: ${picked} ${picked === 1 ? `${nameOf(rule.pick.kind)} gets` : `${many(rule.pick.kind)} get`} ${gives(rule)}.`);
@@ -108,7 +108,7 @@ export function lookChanges(store: Store, folder: string, look: Look): { changes
     // A part id is checked against the saved change of the branch; with none, it is not checked.
     if (namesPart(rule) && !count.page) notes.push(`Rule ${index + 1} names a part, and this branch has no saved change: the part is not checked.`);
   });
-  // A page of the look (build 58): the tab that it opens as.
+  // A page of the look: the tab that it opens as.
   for (const page of look.pages ?? []) changes.push(`Page "${page.id}" opens as the tab "${page.title}", with ${page.blocks.length} ${page.blocks.length === 1 ? 'block' : 'blocks'}.`);
   return { changes, notes };
 }

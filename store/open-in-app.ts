@@ -1,4 +1,4 @@
-// Opens a folder in Apostil, as "code ." does for VS Code. Until the fork exists, Apostil is VS Code with its extension:
+// Opens a folder in Apostil, as "code ." does for VS Code. Apostil is VS Code with its extension:
 // from a checkout, VS Code with this repo as the extension; from an installed extension, VS Code as it is.
 
 import { spawn } from 'node:child_process';

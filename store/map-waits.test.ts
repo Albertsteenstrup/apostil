@@ -1,4 +1,4 @@
-// Tests for the order and the readiness of the work of a map run (build 84, part G): note-groups, process-groups and mark-groups list their groups
+// Tests for the order and the readiness of the work of a map run: note-groups, process-groups and mark-groups list their groups
 // largest first, and the groups of the service and mark writers of an area are ready as soon as the notes of that area are saved.
 
 import assert from 'node:assert/strict';

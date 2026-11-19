@@ -29,7 +29,7 @@ export interface RepoMap {
   iconRefused?: IconRefused[]; // values whose own website refused the writer its icon
 }
 
-export const MAX_MAP_NOTES = 12; // for one diagram of an area (a map from before the notes of files)
+export const MAX_MAP_NOTES = 12; // for one diagram of an area (only a map of an older version has them: the writers write notes of files)
 export const MAX_FILE_NOTES = 400; // for one file
 const MAX_TITLE_WORDS = 6; // a bare verb and what it acts on (skills/apostil-describe-change/text-rules.md)
 const MAX_TEXT_WORDS = 20; // one sentence, as ASD-STE100 asks of a sentence

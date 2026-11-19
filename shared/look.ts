@@ -108,7 +108,7 @@ export interface LookPartsList {
   values: Readonly<Record<string, string>>;
   [TARGETS_KEY]: Readonly<Record<string, { what: string; form: string; asks?: boolean; core?: boolean; area?: string; words?: readonly string[]; example?: Example }>>;
   sets: { what: string; form: string; area: string; words?: readonly string[] };
-  // Build 58: what a page or a section of a window shows. Each block has its form, and `file` when its data may come from a file of the repo.
+  // What a page or a section of a window shows. Each block has its form, and `file` when its data may come from a file of the repo.
   blocks: Readonly<Record<string, { what: string; form: string; file?: string; area: string; words?: readonly string[]; example: Example }>>;
   blockTitle: string;
   sources: Readonly<Record<string, string>>; // where the data of a block comes from
@@ -174,7 +174,7 @@ export const LOOK_PARTS = {
       fields: { title: 'text', file: 'text', function: 'text', tests: 'count', check: 'yes' }, shows: ['title', 'function', 'tests', 'text', 'services'], sections: ['check'],
       example: { pick: { kind: 'note', paths: ['<file>'] }, note: { color: AMBER } },
     },
-    // Build 59: the rest of Home, the drawn processes and the graphs page.
+    // The rest of Home, the drawn processes and the graphs page.
     'trail-step': {
       what: 'a step of the line at the top of Home, the graphs page and the change page', name: 'step of the trail', area: 'home', slots: ['text', 'content'],
       takes: { text: ['color', 'icon'], content: ['words'] }, words: ['trail', 'breadcrumb', 'path', 'crumb', 'back'],
@@ -253,7 +253,7 @@ export const LOOK_PARTS = {
       fields: { title: 'text', level: LEVELS, branch: 'text', path: 'text', where: 'text' },
       example: { pick: { kind: 'panel-in' }, text: { color: BLUE } },
     },
-    // ----- the page of a change (build 60) -----
+    // ----- the page of a change -----
     'change-card': {
       what: 'the card of the change: its title, files and counts, whether its links were checked, the wider diagrams', area: 'change', name: 'card of the change',
       slots: ['box', 'content'], takes: { box: ['color'], content: ['fields'] }, words: ['summary', 'header', 'total', 'size'],
@@ -321,7 +321,7 @@ export const LOOK_PARTS = {
       slots: ['box', 'content'], takes: { box: ['color'], content: ['picture'] }, words: ['step', 'node', 'state', 'table'], fields: { title: 'text', added: 'count', removed: 'count' },
       example: { pick: { kind: 'part-step', paths: ['<file>'] }, box: { color: BLUE } },
     },
-    // ----- the file tab (build 60) -----
+    // ----- the file tab -----
     'function-line': {
       what: 'the first line of a function over its first note card: its name and its count of tests', area: 'file-tab', name: 'first line of a function',
       slots: ['content', 'show'], takes: { content: ['words'], show: ['shown'] }, words: ['function', 'tests', 'heading'], fields: { function: 'text', tests: 'count' },
@@ -352,7 +352,7 @@ export const LOOK_PARTS = {
       note: 'VS Code draws the margin, and a look can only say which marks stand there.',
       example: { pick: { kind: 'margin', mark: '<set>:<value>' }, show: { shown: true } },
     },
-    // Build 61: the list "Repo" and the tree "Files" of the side bar, and the page of a pull request (view/media/part-look.js draws them).
+    // The list "Repo" and the tree "Files" of the side bar, and the page of a pull request (view/media/part-look.js draws them).
     'home-row': {
       what: 'the Home row of "Repo"', area: 'side-bar', slots: ['text', 'content', 'click'], takes: { text: ['icon'], content: ['words'] },
       fields: { repo: 'text' }, name: 'the Home row', words: ['home', 'header', 'top'], example: { pick: { kind: 'home-row' }, content: { words: 'Home · {repo}' } },
@@ -476,7 +476,7 @@ export const LOOK_PARTS = {
       fields: { type: ['comment', 'review', 'bot', 'description'] }, names: { type: 'kind of box' }, name: 'box of "Classic"', words: ['border'],
       example: { pick: { kind: 'classic-box', where: { type: 'review' } }, box: { line: BLUE } },
     },
-    // The parts of VS Code's own editor and frame (build 62). Each is off until a rule turns it on.
+    // The parts of VS Code's own editor and frame. Each is off until a rule turns it on.
     'symbol-search': {
       what: 'the search with # of VS Code (Go to Symbol in Workspace): notes, steps and processes by their titles', area: 'vscode', slots: ['show'], takes: { show: ['shown'] },
       fields: { of: ['note', 'step', 'process'] }, words: ['search', 'symbol', 'find', 'quick open', 'go to', 'workspace'],
@@ -803,7 +803,7 @@ export type Block = Record<string, unknown> & { title?: string };
 export interface OwnSection { title?: string; blocks?: Block[]; ref?: string }
 /** A page of the look: it opens as a tab named by its title. */
 export interface LookPage { id: string; title: string; blocks: Block[] }
-/** An action of the look: a row of "Actions of the Look…", and the target of a key action-1 to action-9 (build 62). */
+/** An action of the look: a row of "Actions of the Look…", and the target of a key action-1 to action-9. */
 export interface LookAction {
   id: string;
   name: string;
@@ -1279,7 +1279,7 @@ export function targetProblems(value: unknown, at: string, context: LookContext)
   return problems;
 }
 
-// ----- blocks: what a page or a section of a window shows (build 58) -----
+// ----- blocks: what a page or a section of a window shows -----
 
 const LIMITS = LOOK_PARTS.limits;
 export const BLOCK_KINDS = Object.keys(LOOK_PARTS.blocks);

@@ -40,14 +40,14 @@ test('look-slots with no argument prints the core and one index line for each ar
   const run = runApostil(['look-slots'], { env: { APOSTIL_HOME: tempFolder('apostil-store-') } });
   const { core, areas, more } = JSON.parse(run.stdout);
   // The core: the box, the arrow without its button, the colour of a note, the corners, every pick, and the form of each target; of the content
-  // only its words, of "show" only "shown", and the click (build 57).
+  // only its words, of "show" only "shown", and the click.
   assert.deepEqual(Object.keys(core.slots), ['box', 'content', 'corners', 'note', 'arrow', 'show', 'click']);
   assert.deepEqual([Object.keys(core.slots.arrow.fields), Object.keys(core.slots.content.fields), Object.keys(core.slots.show.fields), core.slots.click.target], [['color', 'width', 'dashed'], ['words'], ['shown'], true]);
-  // The targets of build 51 are in the core; the others in the area "clicks".
+  // The targets marked core are in the core; the others in the area "clicks".
   assert.deepEqual([Object.keys(core.picks), Object.keys(core.targets)], [Object.keys(LOOK_PARTS.picks), ['file', 'url', 'command', 'prompt', 'place']]);
   assert.deepEqual(areas.map((one: { id: string; line: string }) => one.line.startsWith(`${one.id}: `) && one.id), AREAS);
   assert.match(more, /look-slots <area>.*--find "<words>".*--all/);
-  // An agent pays for each character: the prompt and this answer at most 9,000 (room for one index line of each area of the builds 58 to 62),
+  // An agent pays for each character: the prompt and this answer at most 9,000 (room for one index line of each area),
   // each index line at most 110, one area at most 3,000, one search at most 2,000.
   assert.ok(PROMPT.length + run.stdout.length <= 9000, `the prompt ${PROMPT.length} and the answer ${run.stdout.length}`);
   for (const one of areas as { id: string; line: string }[]) assert.ok(one.line.length <= 110, `the index line of ${one.id}: ${one.line.length}`);
@@ -68,13 +68,13 @@ test('look-slots with no argument prints the core and one index line for each ar
 test('look-slots <area> prints only the parts of that area; an unknown area names the nearest and fails', () => {
   const home = { env: { APOSTIL_HOME: tempFolder('apostil-store-') } };
   const processes = JSON.parse(runApostil(['look-slots', 'processes'], home).stdout);
-  // Every slot of its components; a slot of another area is one line that names it (build 57).
+  // Every slot of its components; a slot of another area is one line that names it.
   assert.deepEqual([Object.keys(processes.components), Object.keys(processes.slots)], [['step', 'call'], ['box', 'content', 'corners', 'show', 'text', 'click', 'input', 'window']]);
   assert.deepEqual([processes.slots.window, Object.keys(processes.slots.box.fields)], ['the area windows gives its fields', Object.keys(LOOK_PARTS.slots.box.fields)]);
   assert.deepEqual(processes.components.call.example, LOOK_PARTS.components.call.example);
   const marks = JSON.parse(runApostil(['look-slots', 'marks'], home).stdout);
   assert.deepEqual([marks.components, Object.keys(marks.slots), marks.targets, marks.sets.form], [undefined, ['corners'], undefined, LOOK_PARTS.sets.form]);
-  // The slots of a click and other input, and every target of the area "clicks" (build 57); the window and the page of build 58 are in their areas.
+  // The slots of a click and other input, and every target of the area "clicks"; the window and the page are in their own areas.
   const clicks = JSON.parse(runApostil(['look-slots', 'clicks'], home).stdout);
   const ofClicks = Object.entries(LOOK_PARTS.targets).filter(([, target]) => target.area === 'clicks').map(([name]) => name);
   assert.deepEqual([Object.keys(clicks.slots), Object.keys(clicks.targets)], [['click', 'input'], ofClicks]);
@@ -87,7 +87,7 @@ test('look-slots <area> prints only the parts of that area; an unknown area name
 test('look-slots --find finds a part by a word of its "what" and by one of its "words"; words that fit nothing say so and print the index', () => {
   const home = { env: { APOSTIL_HOME: tempFolder('apostil-store-') } };
   const find = (words: string) => JSON.parse(runApostil(['look-slots', '--find', words], home).stdout);
-  // "tab" stands only in the "what" of a note (the block "table" starts with it, build 58); "badge" only in the "words" of the corners.
+  // "tab" stands only in the "what" of a note (the block "table" starts with it); "badge" only in the "words" of the corners.
   const note = find('tab').matches.find((one: { name: string }) => one.name === 'note');
   assert.deepEqual([note.name, note.is, note.area, note.example], ['note', 'component', 'notes', LOOK_PARTS.components.note.example]);
   const [corners] = find('a badge').matches;

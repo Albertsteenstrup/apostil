@@ -112,7 +112,7 @@ test('the change of a notebook is the change of its cells, counted in lines of c
 /** The raw notebook fees.ipynb at the base, or now. */
 const fileTextAt = (folder: string, commit?: string): string => require('./git').rawFileText(folder, 'notebooks/fees.ipynb', commit);
 
-test('the save checks a note in a cell as a note in a file, refuses a note or a place that names lines of the raw file, and checks a note with no cell on a file that is no notebook as before', () => {
+test('the save checks a note in a cell as a note in a file, refuses a note or a place that names lines of the raw file, and checks a note with no cell on a file that is no notebook as any note of a file', () => {
   const good = checkDraft(repo.folder, notebookChangeFile(), repo.base);
   assert.deepEqual([good.problems, good.checks?.badNotes], [[], []]);
   const file = notebookChangeFile();
@@ -147,7 +147,7 @@ test('the save checks a note in a cell as a note in a file, refuses a note or a 
     store.close();
   }
 
-  // A change file and a store from before this build still open: a note with no cell on a file that is no notebook is checked as before.
+  // A note with no cell on a file that is no notebook is checked as any note of a file.
   {
     const file = notebookChangeFile();
     file.parts.push({ id: 'app', name: 'App', files: ['src/app.py'], notes: [{ file: 'src/app.py', lines: [1, 2], title: 'Start the app' }] });
