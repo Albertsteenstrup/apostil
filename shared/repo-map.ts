@@ -1,5 +1,5 @@
 // The map of a repo: a small tree of diagrams of the repo as it is, and the answer to
-// "which diagrams is this folder or file a part of". See docs/change-file-format.md.
+// "which diagrams is this folder or file a part of".
 
 import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
