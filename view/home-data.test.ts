@@ -49,8 +49,12 @@ test('Home: with no map it offers each installed app to write one; with a map it
     const top = home.map!.diagrams.find((one) => one.id === 'top')!;
     assert.deepEqual(top.nodes.code.paths, [{ path: 'src/', files: 2 }]);
     assert.equal(top.nodes.code.files, 2);
-    assert.deepEqual(top.nodes.code.changes, [{ id: changeId, branch: 'feature', title: 'Adds a stop function and a tool' }]);
+    // Each change carries the files of the node that it changes, with their counts from Git (build 86).
+    const files = [{ path: 'src/app.py', added: 5, removed: 1, status: 'changed' }, { path: 'src/new_tool.py', added: 2, removed: 0, status: 'added' }];
+    assert.deepEqual(top.nodes.code.changes, [{ id: changeId, branch: 'feature', title: 'Adds a stop function and a tool', files }]);
+    assert.deepEqual(home.map!.diagrams.find((one) => one.id === 'code')!.nodes.app.changes[0].files, [files[0]]); // only the files of that node
     assert.deepEqual(top.nodes.docs.changes, []); // the change does not name README.md
+    assert.deepEqual(top.nodes.api.changes, []); // nor its generated files
     assert.equal(top.nodes.code.down, 'code'); // the diagram under the top map covers src/
     assert.equal(top.nodes.docs.down, undefined);
     assert.equal(top.nodes.docs.graphs, 'README.md'); // no level down: a click opens the graphs of its path
