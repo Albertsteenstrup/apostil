@@ -185,7 +185,15 @@ export interface AddNotesResult {
   notes?: number; // the notes of this JSON that were saved
   files?: number; // the files that this JSON replaced the notes of
   style?: string[]; // words of the saved notes that may break the rules (fileNotesStyle): a warning, the notes are saved
+  skipsLeftOut?: SkipLeftOut[]; // the skips that were not kept: the notes are saved all the same
   gaps?: Gap[]; // the code of the saved files that has no note and no skip: at most 30, the most used first
+}
+
+/** A skip that add-notes did not keep, with the reason in one short sentence. */
+interface SkipLeftOut {
+  file: unknown; // as the writer gave it: a skip with a wrong shape is left out too
+  lines: unknown;
+  reason: string;
 }
 
 /** What `apostil add-notes` is given. */
@@ -193,7 +201,7 @@ interface NotesDraft {
   notes?: Note[];
   files?: string[]; // files with no code worth a note
   ranges?: { file: string; from: number; to: number }[]; // the writer wrote only these lines of a long file
-  skip?: Skip[]; // code that needs no note, each with why
+  skip?: unknown[]; // code that needs no note, each with why; a skip that is no item of "gaps" is left out
 }
 
 const MOST_GAPS = 30;
@@ -210,21 +218,32 @@ function notesDraftProblems(folder: string, draft: unknown): string[] {
   if (!Array.isArray(notes)) problems.push('"notes" must be a list of notes. Write an empty list when no file has a note.');
   if (files !== undefined && !isList(files, (one) => typeof one === 'string')) problems.push('"files" must be a list of paths: the files that have no code worth a note.');
   if (ranges !== undefined && !isList(ranges, isRange)) problems.push('"ranges" must be a list of { "file", "from", "to" }, with "from" and "to" counted from 1.');
-  if (skip !== undefined && !isList(skip, isSkip)) problems.push('"skip" must be a list of { "file", "lines": [first, last], "why" }, with "file" and "lines" from an item of "gaps".');
+  if (skip !== undefined && !Array.isArray(skip)) problems.push('"skip" must be a list of { "file", "lines": [first, last], "why" }, with "file" and "lines" from an item of "gaps".');
   if (problems.length) return problems;
   const known = new Set(repoFiles(folder) ?? []);
-  const named = [...((files as string[] | undefined) ?? []), ...((ranges as { file: string }[] | undefined) ?? []).map((range) => range.file), ...((skip as Skip[] | undefined) ?? []).map((one) => one.file)];
+  const named = [...((files as string[] | undefined) ?? []), ...((ranges as { file: string }[] | undefined) ?? []).map((range) => range.file)];
   return [...new Set(named.filter((path) => !known.has(path)))].map((path) => `The file ${path} is no file of the repo: Git ignores it, or it does not exist. Name a file that Git tracks, or a new file that Git does not ignore.`);
 }
 
-/** A skip needs a why of one short sentence, and lines that are a function, method or class of its file. */
-function skipProblems(folder: string, skips: Skip[]): string[] {
-  return skips.flatMap((skip) => {
-    const at = `Skip of ${skip.file} ${skip.lines[0]}-${skip.lines[1]}`;
-    if (typeof skip.why !== 'string' || !skip.why.trim()) return [`${at}: give "why", one short sentence that says why this code needs no note.`];
-    const known = definitionsOf(skip.file, fileText(folder, skip.file) ?? '').some(({ lines }) => lines[0] === skip.lines[0] && lines[1] === skip.lines[1]);
-    return [...textWording(skip.why, at, 'why'), ...(known ? [] : [`${at}: these lines are no function, method or class of the file. Copy "file" and "lines" from an item of "gaps".`])];
-  });
+/**
+ * Keeps a skip that names the lines of a function, method or class of a file of the repo (an item of "gaps") and has a why of one short sentence.
+ * Every other skip is left out, with its reason: a skip never keeps the notes from being saved.
+ */
+function sortSkips(folder: string, skips: unknown[]): { kept: Skip[]; leftOut: SkipLeftOut[] } {
+  const kept: Skip[] = [];
+  const leftOut: SkipLeftOut[] = [];
+  const known = skips.length ? new Set(repoFiles(folder) ?? []) : new Set<string>();
+  for (const one of skips as Skip[]) {
+    const isDefinition = isSkip(one) && known.has(one.file) && definitionsOf(one.file, fileText(folder, one.file) ?? '').some(({ lines }) => lines[0] === one.lines[0] && lines[1] === one.lines[1]);
+    const reason = !isSkip(one) ? 'It needs "file" and "lines": [first, last], copied from an item of "gaps".'
+      : !isDefinition ? 'These lines are no function, method or class of the file, so they are no item of "gaps".'
+      : typeof one.why !== 'string' || !one.why.trim() ? 'It has no "why", one short sentence that says why the code needs no note.'
+      : textWording(one.why, 'Skip').length ? 'Its "why" is not one sentence of at most 20 words with no semicolon.'
+      : undefined;
+    if (reason) leftOut.push({ file: one?.file, lines: one?.lines, reason });
+    else kept.push({ file: one.file, lines: one.lines, why: one.why });
+  }
+  return { kept, leftOut };
 }
 
 /** A note of a file with ranges must lie inside one of them. */
@@ -249,10 +268,10 @@ export function addNotesToMap(store: Store, folder: string, draft: unknown): Add
       return undefined;
     }
     const shape = notesDraftProblems(folder, draft);
-    const { notes = [], files = [], ranges = [], skip = [] } = (shape.length ? {} : draft) as NotesDraft;
+    const { notes = [], files = [], ranges = [], skip: given = [] } = (shape.length ? {} : draft) as NotesDraft;
     // Each note is checked as the note of a diagram is, and the JSON alone must keep the rules of the notes of files.
     const sound = shape.length ? shape : fileNotesProblems(notes, 'The notes'); // a note with a wrong shape is not read further
-    const problems = sound.length ? sound : [...mapNoteProblems(folder, [], notes), ...outsideRanges(notes, ranges), ...skipProblems(folder, skip)];
+    const problems = sound.length ? sound : [...mapNoteProblems(folder, [], notes), ...outsideRanges(notes, ranges)];
     if (problems.length) {
       result = { saved: false, problems };
       return undefined;
@@ -266,17 +285,17 @@ export function addNotesToMap(store: Store, folder: string, draft: unknown): Add
       result = { saved: false, problems: total };
       return undefined;
     }
+    const { kept: skip, leftOut } = sortSkips(folder, given);
     // A file that a writer called empty is not asked for again while its text stays the same.
     const noNotes = Object.fromEntries([
       ...Object.entries(stored.noNotes ?? {}).filter(([path]) => !named.has(path)),
       ...files.filter((path) => !notes.some((note) => note.file === path) && !ranges.some((range) => range.file === path)).map((path) => [path, fingerprint(fileText(folder, path) ?? '')]),
     ]);
     // A skip stays with the notes of its file: a save that names the file replaces it, as it replaces the notes.
-    const skips = [...(stored.skips ?? []).filter((one) => !replaced(one) && !skip.some((other) => other.file === one.file && other.lines.join() === one.lines.join())),
-      ...skip.map(({ file, lines, why }) => ({ file, lines, why }))];
+    const skips = [...(stored.skips ?? []).filter((one) => !replaced(one) && !skip.some((other) => other.file === one.file && other.lines.join() === one.lines.join())), ...skip];
     const { noNotes: _oldNone, skips: _oldSkips, ...rest } = stored;
     const style = fileNotesStyle(notes);
-    result = { saved: true, problems: [], notes: notes.length, files: named.size, ...(style.length ? { style } : {}) };
+    result = { saved: true, problems: [], notes: notes.length, files: named.size, ...(style.length ? { style } : {}), ...(leftOut.length ? { skipsLeftOut: leftOut } : {}) };
     // The gaps are found after the store is written, so that other writers do not wait for them. A set-aside file has none.
     const saved = all.map((one) => one.note);
     const paths = [...new Set([...named, ...skip.map((one) => one.file)])].filter((path) => !noNotes[path]);
