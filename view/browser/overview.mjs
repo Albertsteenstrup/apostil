@@ -33,14 +33,26 @@ try {
     };
   });
 
+  /** The frame of the diagram, the drawing in it, and the head of the first card under it (build 85). */
+  const frameNow = () => home.evaluate(() => {
+    const view = document.getElementById('view').getBoundingClientRect();
+    const drawn = (document.querySelector('#view svg g.root') ?? document.querySelector('#view svg > g'))?.getBoundingClientRect();
+    const head = document.querySelector('#cards .ovc .ovh')?.getBoundingClientRect();
+    const svg = document.querySelector('#view svg');
+    return {
+      top: Math.round(view.top), bottom: Math.round(view.bottom), drawn: drawn && [Math.round(drawn.top), Math.round(drawn.bottom)], cut: !drawn || drawn.top < view.top - 1 || drawn.bottom > view.bottom + 1,
+      scale: +(svg.getBoundingClientRect().width / svg.viewBox.baseVal.width).toFixed(2), head: head && Math.round(head.bottom), tab: innerHeight, scrolled: scrollY,
+    };
+  });
   // 1. Home opens in the overview: the top map large in the upper part of the tab, and a card for each of its 8 areas in the reading order of the map,
   // an area with a diagram under it drawn small, an area with folders and files as their list; the cards in a quiet well of their own under the frame.
   await homeAt();
   await cardsFilled();
   const top = await shown();
+  const smallTop = await frameNow();
   await takePicture(home, 'overview-1-home.png');
   check('Home opens in the overview: the top map in the upper part of the tab as large as its width allows, the icon "Full screen" at its top right, and under it one card for each of the 8 areas in the reading order of the map: an area with a diagram under it drawn small, an area that leads to folders and files with their list; the cards stand a little apart from the frame, on a surface of their own',
-    top.crumb === 'Home' && top.icon === 'Full screen' && top.frame.height < 900 * 0.62 && top.scale > 1 && top.wide > 1200
+    top.crumb === 'Home' && top.icon === 'Full screen' && top.frame.height < 900 * 0.5 && top.scale > 1 && top.wide > 1200
       && top.titles.join() === 'Web pages,Web routes,Guides and notes,Night jobs,Lending,Database,Front desk,Tests' && top.drawings.join() === 'Web pages,Web routes,Lending,Database'
       && top.files['Guides and notes']?.join() === 'docs/4 files,README.md' && top.files.Tests?.join() === 'tests/4 files' && Object.keys(top.files).length === 4
       && top.shows && top.under >= 16 && top.well !== top.paper, JSON.stringify(top));
@@ -85,6 +97,21 @@ try {
       && narrower.columns !== packed.columns && narrower.first === 'Web pages' && narrower.firstAt && narrower.holes === 0, JSON.stringify({ packed, narrower }));
   check('no card of the overview is narrower than its content (no folder or file name of a row is cut), no card of files is more than one unit taller than its rows need, and each drawing fills its card: the tall drawing of "Database" gets a card higher than wide, and each drawing fills at least 60% of its card both ways; also when the tab gets narrower',
     sized(packed) && sized(narrower), JSON.stringify({ packed, narrower }));
+
+  // 1c. Build 85: the frame takes the height of the drawing at the scale that the surface draws it at, and a tall drawing fills the tab down to the peek
+  // of the cards: the head of their first row and a little of their content. A wide map that opens readable (900 px) is not cut.
+  const tallAt = async (width, height) => { await home.setViewportSize({ width, height }); await homeAt('?diagram=process:answer-request/2'); return frameNow(); };
+  const tall1400 = await tallAt(1400, 900);
+  const tall900 = await tallAt(900, 700);
+  await home.setViewportSize({ width: 900, height: 700 });
+  await homeAt();
+  const readable900 = await frameNow();
+  await home.setViewportSize({ width: 1400, height: 900 });
+  // The peek: the bottom of the frame, the room above the well and in it, the head of a card (about 25 px) and 36 px of content.
+  const peeked = (one) => !one.cut && one.bottom >= one.tab - 100 && one.bottom <= one.tab - 90 && one.head <= one.tab - 30;
+  check('the frame of the diagram takes the height of the drawing at the scale that it is drawn at: the small top map keeps a small frame and is whole; a tall drawing fills the tab down to the peek of the cards, the head of their first row and a little of their content, at 1400 by 900 and at 900 by 700; at 900 px the wide top map opens readable and is not cut',
+    !smallTop.cut && smallTop.drawn[0] - smallTop.top <= 40 && smallTop.bottom - smallTop.drawn[1] <= 40 && peeked(tall1400) && peeked(tall900)
+      && !readable900.cut && readable900.scale === 0.85 && readable900.head < 700, JSON.stringify({ smallTop, tall1400, tall900, readable900 }));
 
   // 2. A click on a card goes one level down in the same layout; a click on a file of a card asks VS Code to open that file.
   const card = (title) => home.locator('.ovc', { has: home.locator('.ovh', { hasText: new RegExp(`^${title}$`) }) });
@@ -169,6 +196,66 @@ try {
       && change.files.Routes?.join() === 'src/library/web/holds_router.py+112' && change.files['Holds tab']?.[0] === 'web/src/member/HoldDialog.tsx+160'
       && part.level === 'part' && part.part === 'hold-service' && /›Hold service$/.test(part.crumb) && file.view === 'code' && file.file === 'web/src/member/HoldDialog.tsx'
       && beside.cards === 7 && beside.under && beside.list, JSON.stringify({ change, part, file, beside }));
+
+  // 6. Build 85: each file row and folder row of a card, and of the window of a node, starts with the icon that the Explorer shows for it in his file
+  // icon theme (here the made-up theme of the example): before the name, at the size of the text, centred on the line. With no theme, no row has an
+  // icon or its room; a new theme gives the rows that show their new icons in place.
+  /** The icons of the rows of `selector`: the picture of each, its size against the size of the text, and its place against the name. */
+  const iconRows = (selector) => home.evaluate((selector) => Object.fromEntries([...document.querySelectorAll(selector)].map((row) => {
+    const icon = row.querySelector('.fi');
+    const box = icon.getBoundingClientRect();
+    const name = (row.querySelector('.nm') ?? row.querySelector('span')).getBoundingClientRect();
+    const font = parseFloat(getComputedStyle(row).fontSize);
+    const picture = /example-icons\/(\w+)\.svg/.exec(getComputedStyle(icon).backgroundImage)?.[1] ?? 'none';
+    const sized = box.width >= font && box.width <= font * 1.5 && Math.abs(box.height - box.width) < 1;
+    const placed = box.right <= (row.querySelector('.dir') ?? row.querySelector('span')).getBoundingClientRect().left && Math.abs(box.top + box.height / 2 - (name.top + name.height / 2)) <= 1.5;
+    return [icon.dataset.fi, box.width ? `${picture}${sized ? '' : ' (not the size of the text)'}${placed ? '' : ' (not before the name, centred)'}` : 'no icon'];
+  })), selector);
+  await homeAt();
+  await cardsFilled();
+  const homeIcons = await iconRows('#cards .ovf a');
+  await home.locator('#view g.node[id*="flowchart-lending-"]').hover();
+  await home.waitForSelector('.win .rows a[data-tree] .fi', { timeout: 5000 }).catch(() => {});
+  const windowIcons = await iconRows('.win .rows a[data-tree], .win .rows a[data-open]');
+  await takePicture(home, 'overview-7-icons.png');
+  // A new theme while Home shows (the message of VS Code): one where every file and folder has the fallback icon, then no theme, then the made-up
+  // theme again; the rows keep their place and take their new icons.
+  const swapped = await home.evaluate(async () => {
+    const pictures = () => [...document.querySelectorAll('#cards .ovf a .fi')].map((icon) => (icon.offsetWidth ? /(\w+)\.svg/.exec(getComputedStyle(icon).backgroundImage)?.[1] ?? 'none' : 'no icon')).join();
+    const next = () => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+    const rows = document.querySelectorAll('#cards .ovf a');
+    const { home: icons } = window.APOSTIL_EXAMPLE.icons;
+    postMessage({ type: 'icons', icons: { css: icons.css, paths: Object.fromEntries(Object.keys(icons.paths).map((path) => [path, icons.paths['README.md']])) } });
+    await next();
+    const plain = pictures();
+    postMessage({ type: 'icons' });
+    await next();
+    const none = pictures();
+    postMessage({ type: 'icons', icons });
+    await next();
+    const same = [...document.querySelectorAll('#cards .ovf a')].every((row, at) => row === rows[at]);
+    return { plain, none, back: pictures(), same };
+  });
+  await homeAt('?icons=none');
+  await cardsFilled();
+  const noTheme = await iconRows('#cards .ovf a');
+  const noRoom = await home.evaluate(() => [...document.querySelectorAll('#cards .ovf a')].every((row) => Math.abs(row.querySelector('.dir').getBoundingClientRect().left - row.getBoundingClientRect().left) < 1));
+  // The width of a card counts the icon: at 1200 px three rows of "Holds tab" would be cut without it.
+  await home.setViewportSize({ width: 1200, height: 900 });
+  await home.goto(`file://${pageFile}`);
+  await loaded();
+  await cardsFilled();
+  await placed();
+  const changeIcons = await iconRows('.ovcards .ovf a');
+  const changeCut = await home.evaluate(() => [...document.querySelectorAll('.ovcards .ovf .dir, .ovcards .ovf .nm')].filter((part) => part.scrollWidth > part.clientWidth + 1).map((part) => part.closest('a').title));
+  await home.setViewportSize({ width: 1400, height: 900 });
+  check('each file row and folder row of a card and of the window of a node starts with the icon of the Explorer in the file icon theme (the made-up theme: code by extension and by language, the folder icon, the fallback of other files), before the name, at the size of the text and centred on the line, and the width of a card counts it (no row is cut); a new theme changes the icons of the rows in place; with no theme no row has an icon or its room',
+    homeIcons['docs/'] === 'folder' && homeIcons['README.md'] === 'file' && homeIcons['src/library/night_jobs.py'] === 'code' && homeIcons['tests/'] === 'folder'
+      && Object.values(homeIcons).every((one) => /^(code|folder|file)$/.test(one)) && windowIcons['src/library/lending/'] === 'folder'
+      && changeIcons['web/src/member/HoldDialog.tsx'] === 'code' && changeIcons['web/src/member/member.css'] === 'file' && Object.values(changeIcons).every((one) => /^(code|folder|file)$/.test(one)) && changeCut.length === 0
+      && /^file(,file)+$/.test(swapped.plain) && /^no icon(,no icon)+$/.test(swapped.none) && swapped.back === Object.values(homeIcons).join() && swapped.same
+      && Object.keys(noTheme).length > 0 && Object.values(noTheme).every((one) => one === 'no icon') && noRoom,
+    JSON.stringify({ homeIcons, windowIcons, changeIcons, changeCut, swapped, noTheme, noRoom }));
 
   // Pictures for a person: the dark theme of VS Code.
   await homeAt();

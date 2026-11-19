@@ -153,7 +153,8 @@ const leftAt = { page: null, views: new Map() };
  * With `stack` (one of several diagrams one under the other in a half that scrolls), the card takes the height of the diagram fit to its width, or at the size
  * where its words read, and at most most of the half; a scroll that the drawing cannot take (all of it shows that way) scrolls the half.
  * With `key` (the name of the diagram in its view), the same diagram drawn again keeps the zoom and the place that he left it at (leftAt); a fit forgets them.
- * With `overview` (build 83: cards stand under it), the card takes the upper part of the tab, and a small diagram is drawn larger, up to GROW, to fill its width.
+ * With `overview` (build 83: cards stand under it), the card takes the height of the drawing at the scale that it is drawn at, at most the tab down to the
+ * peek of the cards (keepOverview, build 85), and a small diagram is drawn larger, up to GROW, to fill its width.
  */
 function makeSurface(stage, readable = false, stack = false, key = undefined, overview = false) {
   const page = typeof Trail === 'object' ? Trail.ownKey() : null;
@@ -172,8 +173,11 @@ function makeSurface(stage, readable = false, stack = false, key = undefined, ov
     stage.style.height = `${Math.round(Math.min(height * scale, stage.closest('.half').clientHeight * 0.8))}px`;
   };
   delete stage.dataset.height; // the height of the frame in an overview, which Overview.trim reads
+  delete stage.dataset.least;
+  // In a half of the page a diagram too large for it, wide or tall, opens readable at its start too.
+  const half = !!stage.closest('.split');
   if (stack) stackHeight();
-  else if (overview) keepOverview(stage, width, height);
+  else if (overview) keepOverview(stage, width, height, readable || half);
   else keepFilled(stage);
   let view = { x: x0, y: y0, scale: 1 };
   let moved = false; // he moved or zoomed it, so a new size of the card keeps his view
@@ -185,8 +189,6 @@ function makeSurface(stage, readable = false, stack = false, key = undefined, ov
     if (moved) leftAt.views.set(key, view);
     else leftAt.views.delete(key);
   };
-  // In a half of the page a diagram too large for it, wide or tall, opens readable at its start too.
-  const half = !!stage.closest('.split');
   const fit = (whole = false) => {
     const [w, h] = [stage.clientWidth, stage.clientHeight];
     if (!w || !h) return;
@@ -339,23 +341,28 @@ function focusNode(stage, graph, node) {
 }
 
 // ----- one click focuses a node, two clicks go into it (build 84; on Home, the graphs page and "Diagram" of a change) -----
+// Build 85: where cards stand under the diagram, one click focuses the node and its card, and the card is the way in.
 
 let focus = null; // { stage, graph, node, diagram }: the drawing with its graph, the node that the focus is on, and on Home the diagram
 
 /**
  * Focuses a node of a drawing, with its arrows and the nodes at their other ends (focusNode); the same node again, or no node, ends the focus.
  * One quiet line in the head, after the path, names the node, with a × that ends it; it stands on the line of the path, so nothing under the pointer
- * moves when it comes (build 84). The card of the node in the overview gets a quiet accent edge.
+ * moves when it comes (build 84). The card of the node in the overview is focused too, and comes into view when none of it shows (build 85);
+ * `quiet`: the same diagram drawn again keeps its focus, and the page does not move.
  */
-function focusOn(stage, graph, node, diagram) {
+function focusOn(stage, graph, node, diagram, quiet = false) {
   const again = focus?.stage === stage && focus.node === node;
   if (focus) focusNode(focus.stage, focus.graph, null);
   const name = node && !again ? focusNode(stage, graph, node) : null;
   focus = name ? { stage, graph, node, diagram } : null;
   endFocusLine();
   if (name) document.getElementById('crumb')?.insertAdjacentHTML('afterend', `<span class="mk-filter fc">Focus: ${esc(name)} · <a data-end-focus title="End the focus (Escape)">×</a></span>`);
-  if (typeof Overview === 'object') Overview.focused(focus?.node ?? null);
+  if (typeof Overview === 'object') Overview.focused(focus?.node ?? null, !quiet);
 }
+
+/** True when cards stand under this drawing (the overview, build 83): there a click on a node does not go in, the card does (build 85). */
+const cardsShow = (stage) => stage.dataset.height !== undefined;
 
 /** The line of the focus goes: the focus ended, or the page draws another view (a new drawing starts with no focus). */
 const endFocusLine = () => document.querySelector('.bar > .fc')?.remove();
@@ -370,7 +377,8 @@ let wentInAt = 0; // the time of the last click that went into a node: the doubl
 
 /**
  * The clicks of a node: one click focuses it (focusOn), as Option+click does; a click on the node that has the focus, or a double click, goes into it
- * (`into`: one level down, or its code). A double click on a node never fits the drawing. The look wins where it gives the click, Option+click,
+ * (`into`: one level down, or its code). Where cards stand under the drawing (build 85), they do not: a second click keeps the focus, and the card or
+ * "Open" in the window of the node goes in. A double click on a node never fits the drawing. The look wins where it gives the click, Option+click,
  * Shift+click or the double click of the node a target (Marks.bind, whose listeners come after these). `el` takes the clicks; `find(event)` is the
  * node that a click is on, or null (a panel of the graphs page finds it by the place of the click). Call it before Marks.bind.
  */
@@ -389,6 +397,7 @@ function focusClicks(el, { stage, graph, slots = {}, into, diagram, find = () =>
     if (event.detail > 1) return; // the second click of a double click: the double click goes in
     Hover.hide();
     if (!hasFocus(stage, nodeKey(g))) return focusOn(stage, graph, nodeKey(g), diagram);
+    if (cardsShow(stage)) return Overview.focused(focus.node, true); // the focus stays, and its card comes into view when it is out of view
     wentInAt = Date.now();
     into?.(event);
   });
@@ -396,7 +405,7 @@ function focusClicks(el, { stage, graph, slots = {}, into, diagram, find = () =>
     const g = !slots['input.double'] && nodeOf(event);
     if (!g || !stage.contains(g)) return;
     event.stopPropagation();
-    if (Date.now() - wentInAt < 700) return;
+    if (cardsShow(stage) || Date.now() - wentInAt < 700) return;
     Hover.hide();
     into?.(event);
   });
@@ -408,11 +417,14 @@ document.addEventListener('keydown', (event) => {
   focusOn(null);
 }, true);
 
-// The × of the line ends the focus, and so does a click on an empty place of the drawing (a drag is no click: the surface takes it).
+// The × of the line ends the focus, and so does a click on an empty place of the drawing (a drag is no click: the surface takes it) or between
+// the cards under it.
 document.addEventListener('click', (event) => {
   if (!focus) return;
   if (event.target.closest('[data-end-focus]')) return focusOn(null);
-  if (focus.stage.isConnected && focus.stage.contains(event.target) && !event.target.closest(`${ON_A_THING}, .ovt, .mk-holder`) && !document.body.classList.contains('picking')) focusOn(null);
+  if (document.body.classList.contains('picking')) return;
+  if (focus.stage.isConnected && focus.stage.contains(event.target) && !event.target.closest(`${ON_A_THING}, .ovt, .mk-holder`)) focusOn(null);
+  else if (event.target.matches('.ovcards')) focusOn(null);
 });
 
 // ----- the things of a drawing that a comment can be stuck on -----
@@ -638,7 +650,9 @@ function placesWindow(name, code, check, slots = {}) {
 function partWindow(part, slots = {}) {
   const diagram = App.page.diagrams.find((candidate) => candidate.id === part.diagrams[0]);
   const files = filesWindow(part.name, part.files);
-  if (!diagram && !Object.keys(slots).length) return files;
+  // "Open" goes where two clicks on the part went before the cards (build 85): its diagram, or its first file.
+  const open = diagram ? () => App.go({ level: 'part', part: part.id }) : () => App.openPart(part.id);
+  if (!diagram && !Object.keys(slots).length) return () => ({ ...files(), open });
   return () => {
     const list = files();
     const sections = [
@@ -650,7 +664,7 @@ function partWindow(part, slots = {}) {
     ];
     const shown = slots['window.sections'] ? sections : sections.slice(0, 1); // with no rule, the diagram, or else the files
     const content = Marks.windowOf({ title: part.name, width: shown[0].id === 'diagram' ? 440 : 620, sections: shown }, slots);
-    return { ...content, pad: content.ids[0] === 'diagram', ...(diagram ? { open: () => App.go({ level: 'part', part: part.id }) } : {}) };
+    return { ...content, pad: content.ids[0] === 'diagram', open };
   };
 }
 

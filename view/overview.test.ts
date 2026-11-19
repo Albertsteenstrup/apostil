@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { placeCards, drawingUnits, fillOf } = require('../../view/media/overview.js');
+const { placeCards, drawingUnits, fillOf, frameHeight, GROW, OVERVIEW_LEAST, OVERVIEW_ROOM } = require('../../view/media/overview.js');
 
 type Place = { x: number; y: number; w: number; h: number };
 /** What a card needs (Overview.sizeOf): a card of files with `most`, the most units it may have down; a drawing card with the other sizes it fills. */
@@ -113,4 +113,20 @@ test('the size of a card with a drawing follows its shape: a wide drawing more u
   const many = drawingUnits({ nodes: 14, ratio: 1.3 });
   assert.ok(many.w * many.h > 4, JSON.stringify(many));
   assert.ok(fillOf(0.6, 3, 2, 125, 26) < 0.7 && fillOf(0.6, 2, 3, 125, 26) >= 0.7);
+});
+
+test('the frame of the diagram takes the height of the drawing at the scale that the surface draws it at, from its least height to the tab less the peek of the cards (build 85)', () => {
+  const tab = { across: 1300, room: 800, peek: 96 };
+  // A small drawing grows to fill the width only up to GROW, and keeps a small frame; a very small one keeps the least height.
+  assert.equal(frameHeight({ ...tab, width: 400, height: 150 }), Math.round(150 * GROW + 2 * OVERVIEW_ROOM));
+  assert.equal(frameHeight({ ...tab, width: 300, height: 40 }), OVERVIEW_LEAST);
+  // A wide map fits the width; where the surface opens it readable, the frame takes its height at that size, so its bottom is not cut.
+  const fitted = (1300 - 2 * OVERVIEW_ROOM) / 2400;
+  assert.equal(frameHeight({ ...tab, width: 2400, height: 500 }), Math.round(500 * fitted + 2 * OVERVIEW_ROOM));
+  assert.equal(frameHeight({ ...tab, width: 2400, height: 500, floor: 0.85 }), Math.round(500 * 0.85 + 2 * OVERVIEW_ROOM));
+  // A tall drawing fills the tab down to the peek of the cards, and no more.
+  assert.equal(frameHeight({ ...tab, width: 600, height: 1800 }), 800 - 96);
+  assert.equal(frameHeight({ ...tab, width: 2400, height: 1600, floor: 0.85 }), 800 - 96);
+  // A low tab still gives the frame its least height.
+  assert.equal(frameHeight({ ...tab, room: 250, width: 600, height: 1800 }), OVERVIEW_LEAST);
 });

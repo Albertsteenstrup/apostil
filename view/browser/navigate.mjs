@@ -16,13 +16,14 @@ try {
   const settled = () => home.evaluate(() => (typeof Home === 'object' ? Home : App).drawing); // the drawing that a click or a key asked for
   const crumb = () => home.evaluate(() => document.getElementById('crumb').textContent);
   const nodeOf = (key) => `#view g.node[id*="flowchart-${key}-"]`;
+  const cardOf = (key) => `#cards .ovc[data-node="${key}"]`; // where cards show, the card is the way in (build 85)
   const away = async () => { await home.mouse.move(2, 2); await home.waitForSelector('.win', { state: 'detached', timeout: 3000 }); };
   /** A key that goes to another page: the page that it leads to is drawn. */
   const toPage = async (key, address) => { await home.keyboard.press(key); await home.waitForURL(address, { timeout: 5000 }).catch(() => {}); await drawn(); };
 
   // ----- Cmd+Left and Cmd+Right: back and forward along the path, inside one page and from page to page; not in a text field -----
   await homeAt('');
-  await home.dblclick(nodeOf('lending'));
+  await home.click(cardOf('lending'));
   await settled();
   const lower = await crumb();
   await away();
@@ -61,7 +62,7 @@ try {
   await home.keyboard.press('Meta+ArrowLeft');
   await settled();
   const top = await crumb();
-  await home.dblclick(nodeOf('routes')).catch(() => {});
+  await home.click(cardOf('routes')).catch(() => {});
   await settled();
   const other = await crumb();
   await home.keyboard.press('Meta+ArrowRight');
@@ -148,18 +149,72 @@ try {
       && onPanel.graphs && onPanel.focused === 'service' && onPanel.panels === 1 && /Focus: \S/.test(onPanel.line) && panelAfter.graphs && panelAfter.panels === 0 && panelAfter.line === '',
     JSON.stringify({ wanted, focused, led, stayed, afterEscape, link, byLink, afterCross, afterAgain, lookWins, stepWords, onStep, onPanel, panelAfter }));
 
-  // ----- build 84: one click on a node focuses it, a click on the node with the focus goes into it, a double click goes into it at once -----
+  // ----- build 85: where cards show, one click focuses the node and its card; the card and "Open" go in; alone, two clicks go in -----
+  const cardNow = () => home.evaluate(() => {
+    const cards = [...document.querySelectorAll('#cards .ovc')];
+    const shows = (card) => { const box = card.getBoundingClientRect(); return box.bottom > 0 && box.top < innerHeight; };
+    return {
+      card: cards.filter((card) => card.classList.contains('focused')).map((card) => card.dataset.node).join(), faint: cards.filter((card) => getComputedStyle(card).opacity === '0.4').length, cards: cards.length,
+      edge: getComputedStyle(cards.find((card) => card.classList.contains('focused')) ?? cards[0]).borderTopColor, plain: getComputedStyle(cards.find((card) => !card.classList.contains('focused'))).borderTopColor,
+      scrolled: Math.round(scrollY), shows: Object.fromEntries(cards.map((card) => [card.dataset.node, shows(card)])), at: Home.at,
+    };
+  });
+  /** The page scrolls smoothly: waits until it stands still. */
+  const still = () => home.evaluate(() => new Promise((done) => { let last = -1; let same = 0; const step = () => { same = scrollY === last ? same + 1 : 0; last = scrollY; if (same >= 6) done(); else requestAnimationFrame(step); }; step(); }));
+  await home.setViewportSize({ width: 1400, height: 600 }); // a low tab: the last cards are under its bottom edge
   await homeAt('');
+  // A card that shows only in part at the bottom of the tab, and one that does not show at all.
+  const { inView, below } = await home.evaluate(() => {
+    const cards = [...document.querySelectorAll('#cards .ovc')].map((card) => ({ node: card.dataset.node, box: card.getBoundingClientRect() }));
+    return { inView: cards.find(({ box }) => box.top < innerHeight && box.bottom > innerHeight)?.node, below: cards.find(({ box }) => box.top >= innerHeight)?.node };
+  });
+  await home.click(nodeOf(inView));
+  await still();
+  const clicked = { ...(await focusNow()), ...(await cardNow()) };
+  await home.click(nodeOf(inView)); // a second click keeps the focus
+  await home.waitForTimeout(150); // a click that went in would have drawn the level under it by now
+  const second = { ...(await focusNow()), ...(await cardNow()) };
+  await home.dblclick(nodeOf('lending')); // a double click focuses, and does not go in
+  await home.waitForTimeout(150);
+  const double = { ...(await focusNow()), ...(await cardNow()) };
+  await away();
+  await home.evaluate(() => scrollTo(0, 0));
+  await home.click(nodeOf(below));
+  await still();
+  const scrolledTo = { ...(await focusNow()), ...(await cardNow()) };
+  await home.evaluate(() => scrollTo(0, 0));
+  await away();
+  await home.keyboard.press('Escape');
+  const ended = await cardNow();
+  await home.setViewportSize({ width: 1400, height: 900 });
+  check('where cards show under the diagram, one click on a node focuses it and its card: the card has an accent edge and the other cards fade as the other nodes do; the page does not move while some of the card shows, and scrolls to it when none of it shows; a second click on the node and a double click keep the focus and do not go in; Escape ends the focus of the node and of its card',
+    clicked.on && clicked.focused === inView && clicked.card === inView && clicked.faint === clicked.cards - 1 && clicked.edge !== clicked.plain && clicked.scrolled === 0 && /^Focus: /.test(clicked.line)
+      && second.focused === inView && second.card === inView && second.at === 'lib-top' && double.focused === 'lending' && double.card === 'lending' && double.at === 'lib-top'
+      && scrolledTo.card === below && scrolledTo.scrolled > 0 && scrolledTo.shows[below] && ended.card === '' && ended.faint === 0,
+    JSON.stringify({ inView, below, clicked, second, double, scrolledTo, ended }));
+
+  // The window of a node with a way in has "Open", which goes in as the card does; where cards show it names no click.
+  await home.hover(nodeOf('lending'));
+  await home.waitForSelector('.win .tb .act [data-open]', { timeout: 3000 }).catch(() => {});
+  const bar = await home.evaluate(() => [...document.querySelectorAll('.win .tb .act > *')].map((el) => el.textContent).join('|')).catch(() => '');
+  const openFrom = await home.evaluate(() => window.apostilSent.length);
+  await home.click('.win .tb .act [data-open]').catch(() => {});
+  await settled();
+  const byOpen = { at: await home.evaluate(() => Home.at), sent: await home.evaluate((from) => window.apostilSent.slice(from).filter((one) => one.type === 'openFile').length, openFrom) };
+  // Alone (full screen), as before: one click focuses, a second click goes in; the window names the clicks of each; a double click on a step of a
+  // process opens its file at its line once and does not fit the drawing.
+  await homeAt('');
+  await home.click('#view > .ovt');
+  await settled();
   await home.click(nodeOf('lending'));
-  const clicked = {
-    ...(await focusNow()), at: await home.evaluate(() => Home.at), scrolled: await home.evaluate(() => scrollY),
-    card: await home.evaluate(() => [...document.querySelectorAll('.ovc.focused')].map((card) => card.querySelector('.ovn').textContent).join()),
-    edges: await home.evaluate(() => [...document.querySelectorAll('.ovc')].map((card) => getComputedStyle(card).borderTopColor)),
-  };
+  await away(); // the window of a node that was clicked waits until the pointer has left it
+  await home.hover(nodeOf('lending'));
+  await home.waitForSelector('.win .tb .act [data-open]', { timeout: 3000 }).catch(() => {});
+  const aloneBar = await home.evaluate(() => [...document.querySelectorAll('.win .tb .act > *')].map((el) => el.textContent).join('|')).catch(() => '');
+  await away();
   await home.click(nodeOf('lending'));
   await settled();
-  const second = { at: await home.evaluate(() => Home.at), crumb: await crumb() };
-  // At the last level a double click opens the code: a step with no inner steps opens its file at its line. It never fits the drawing.
+  const aloneSecond = await home.evaluate(() => Home.at);
   await homeAt('?diagram=process:answer-request/2');
   const viewBox = () => home.$eval('#view svg', (svg) => svg.getAttribute('viewBox'));
   const boxBefore = await viewBox();
@@ -170,16 +225,13 @@ try {
     sent: await home.evaluate((from) => window.apostilSent.slice(from).filter((one) => /^(walk|showInTree|openFile)$/.test(one.type)), leafFrom),
     at: await home.evaluate(() => Home.at), box: (await viewBox()) === boxBefore, focus: (await focusNow()).focused,
   };
-  await away();
-  await home.keyboard.press('Escape');
-  const leafAfter = await focusNow();
-  check('one click on a node focuses it: the rest of the diagram goes quiet, the line "Focus: <name> ×" stands in the head, nothing scrolls and its card in the overview gets an accent edge; a click on the node with the focus goes one level down; a double click on a step of a process opens its file at its line once and does not fit the drawing; Escape ends the focus',
-    clicked.on && clicked.focused === 'lending' && clicked.faint > 0 && /^Focus: Lending/.test(clicked.line) && clicked.at === 'lib-top' && clicked.scrolled === 0
-      && clicked.card === 'Lending' && new Set(clicked.edges).size === 2
-      && second.at === 'lib-lending' && second.crumb === 'Home›Lending: holds, requests and mails'
-      && leaf.sent.length === 1 && leaf.sent[0].type === 'openFile' && leaf.sent[0].path === 'src/library/lending/requests.py' && leaf.sent[0].line === 62
-      && leaf.at === 'process:answer-request/2' && leaf.box && leaf.focus === 's7' && !leafAfter.on && leafAfter.line === '',
-    JSON.stringify({ clicked, second, leaf, leafAfter }));
+  await home.click('#view > .ovt'); // the overview again, for the checks after this one
+  await settled();
+  check('the window of a node with a way in has "Open", which goes one level down as its card does, and names no click where cards show; alone, a second click on the focused node goes in, the window names "Click" beside the focus and "Double click" beside "Open", and a double click on a step of a process opens its file at its line once and does not fit the drawing',
+    bar === 'Focus on this node|Click|Open' && byOpen.at === 'lib-lending' && byOpen.sent === 0
+      && aloneBar === 'End the focus|Esc|Open|Click' && aloneSecond === 'lib-lending'
+      && leaf.sent.length === 1 && leaf.sent[0].type === 'openFile' && leaf.sent[0].path === 'src/library/lending/requests.py' && leaf.sent[0].line === 62 && leaf.at === 'process:answer-request/2' && leaf.box && leaf.focus === 's7',
+    JSON.stringify({ bar, byOpen, aloneBar, aloneSecond, leaf }));
 
   // ----- the view stays: a diagram that draws again with new marks keeps its zoom and its place; a fit and a new diagram fit again -----
   await homeAt('');

@@ -15,7 +15,8 @@ import { STATE_LOOKS, type PullRequest } from '../shared/pull-requests';
 import type { OpenPoint, Remark } from '../shared/store';
 import { madeUpAgentHome, tempFolder } from '../shared/test-repo';
 import { menuOf, sessionPick, teamOf } from '../shared/models';
-import { EXAMPLE_LOOK, makeCheckExample, putLookFiles } from './check-example';
+import { EXAMPLE_FILES, EXAMPLE_LOOK, makeCheckExample, putLookFiles } from './check-example';
+import { changePaths, homePaths, iconsFor, languagesOf, readIconTheme } from './file-icons';
 import { asDefault, type LookData } from './look-data';
 import { blocksAnswer, pageData, type CustomPageData } from './look-blocks';
 import { addMarksToMap, setLook } from '../store/marks-save';
@@ -223,8 +224,19 @@ answers['pull:https://example.com/made-up/pull/11'] = { pull: pullRequestFrom(ex
 const pagePulls = pulls[page.branch].slice(0, 2); // the page knows the two that have a made-up conversation
 const readyPull = pullRequestFrom(exampleReadyPullRequest()); // #12 as a read gives it once it can merge: the browser check puts it in place of #12
 
+// The icons of the rows of Home and of the page in the made-up file icon theme (view/check-example/file-icons/, build 85), resolved as in VS Code
+// with a dark colour theme; its files are copied next to the page.
+const iconFiles = join(__dirname, '../../view/media/example-icons');
+rmSync(iconFiles, { recursive: true, force: true });
+mkdirSync(iconFiles, { recursive: true });
+const iconAddress = (file: string): string => { copyFileSync(file, join(iconFiles, basename(file))); return `example-icons/${basename(file)}`; };
+const iconTheme = readIconTheme(join(EXAMPLE_FILES, 'file-icons/icon-theme.json'));
+if (!iconTheme) throw new Error('The made-up icon theme cannot be read.');
+const iconLanguages = languagesOf([{ contributes: { languages: [{ id: 'python', extensions: ['.py'] }] } }]);
+const icons = { home: iconsFor(iconTheme, homePaths(home.map), 'dark', iconLanguages, iconAddress), page: iconsFor(iconTheme, changePaths(page), 'dark', iconLanguages, iconAddress) };
+
 const target = join(__dirname, '../../view/media/example-data.js');
-writeFileSync(target, `// Written by view/example-data.ts. Not in Git.\n${iconScript(join(__dirname, '../../view/media'))}window.APOSTIL_EXAMPLE = ${JSON.stringify({ page, pageLooks, pagePulls, readyPull, answers, list, home, homeLooks, homeNoMap, graphs, lookPages, graphsLooks, mapRuns, homeState, askTeam: teamOf('claude-code') })};\n`);
+writeFileSync(target, `// Written by view/example-data.ts. Not in Git.\n${iconScript(join(__dirname, '../../view/media'))}window.APOSTIL_EXAMPLE = ${JSON.stringify({ page, pageLooks, pagePulls, readyPull, answers, list, home, homeLooks, homeNoMap, graphs, lookPages, graphsLooks, mapRuns, homeState, icons, askTeam: teamOf('claude-code') })};\n`);
 example?.remove();
 rmSync(agentHome, { recursive: true, force: true });
 console.log(`Wrote ${target}: ${page.files.length} files, ${page.parts.length} parts, ${Object.keys(answers).length} answers, ${rows.length} list rows, ${home.map?.diagrams.length ?? 0} map diagrams, ${Object.keys(graphs).length} graphs pages.`);

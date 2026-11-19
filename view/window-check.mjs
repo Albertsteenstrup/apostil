@@ -30,6 +30,7 @@ const { putLookFiles } = own('./out/view/check-example.js');
 const { noteCodeOf } = own('./out/shared/notes-beside-code.js');
 const { makeNotebookRepo, notebookChangeFile } = own('./out/shared/test-repo.js');
 const { saveDraft } = own('./out/store/save.js');
+const { readIconTheme } = own('./out/view/file-icons.js');
 const { setLook } = own('./out/store/marks-save.js');
 const { markLineNow } = own('./out/shared/marks.js');
 const { appLink } = own('./out/shared/apostil-link.js');
@@ -274,6 +275,24 @@ try {
     return undefined;
   }, ms);
   const frameWith = (selector, ms) => frameWhere((wanted) => !!document.querySelector(wanted), selector, ms);
+  // Build 85: the default file icon theme of VS Code (Seti), read from its own JSON, and what a row of a card shows before its name: the character
+  // and the colour of its font icon, whether the font of the theme came, and the room of the icon.
+  const seti = readIconTheme(path.join(path.dirname(CODE), '../Resources/app/extensions/theme-seti/icons/vs-seti-icon-theme.json'));
+  /** The font icon of Seti for a language, as CSS gives it: its character and its colour; its light part in a light theme. */
+  const setiIcon = (language, light) => {
+    const icon = seti?.iconDefinitions[(light && seti.light?.languageIds?.[language]) || seti?.languageIds?.[language]];
+    return icon && { content: JSON.stringify(String.fromCodePoint(parseInt(icon.fontCharacter.slice(1), 16))), color: `rgb(${[1, 3, 5].map((at) => parseInt(icon.fontColor.slice(at, at + 2), 16)).join(', ')})` };
+  };
+  const rowIconNow = (frame, wanted) => frame?.evaluate((wanted) => {
+    const icon = document.querySelector(`.ovf a[title="${wanted}"] .fi`);
+    const before = icon && getComputedStyle(icon, '::before');
+    const font = [...document.fonts].find((face) => face.family.replace(/"/g, '') === 'fi-seti');
+    return icon && { light: document.body.classList.contains('vscode-light'), content: before.content, color: before.color, family: before.fontFamily, font: font?.status ?? 'none', room: icon.offsetWidth };
+  }, wanted).catch(() => undefined);
+  /** The icon of a row once the font of the theme came (a row with no icon at once). */
+  const iconOfRow = async (frame, wanted) => (await until(async () => { const now = await rowIconNow(frame, wanted); return now && (now.font === 'loaded' || now.content === 'none') && now; }, 8000)) || rowIconNow(frame, wanted);
+  /** True when a row shows the font icon of Seti for its language, in the font of the theme. */
+  const setiRow = (row, language) => !!row && row.content === setiIcon(language, row.light)?.content && row.color === setiIcon(language, row.light)?.color && /fi-seti/.test(row.family) && row.font === 'loaded' && row.room > 0;
   const runsNow = () => (existsSync(runs) ? readFileSync(runs, 'utf8').split(`${RUN}\n`).slice(1) : []);
   const remarks = () => store.remarks(changeId);
   /** Sets one setting in the settings file of the window; VS Code reads the file again when it changes. */
@@ -504,6 +523,8 @@ try {
   await list?.locator('.home').click();
   const home = await homeFrame();
   check('the Home row opens the Home tab with the top map of its 8 areas', !!home && /^Home/.test(await activeTab() ?? ''), await activeTab());
+  const homeRows = { folder: await iconOfRow(home, 'docs/'), python: await iconOfRow(home, 'src/library/night_jobs.py') };
+  await shot('2d-home-with-the-icons-of-files');
   const filesPane = page.locator('.pane', { has: page.locator('.pane-header .title', { hasText: /^Files$/ }) });
   const rowOf = (name) => filesPane.locator('.monaco-list-row', { has: page.locator('.label-name', { hasText: new RegExp(`^${name.replace('.', '\\.')}$`) }) }).first();
   for (const name of ['src', 'library', 'lending']) { await rowOf(name).click(); await rowOf(name).waitFor(); }
@@ -529,9 +550,15 @@ try {
     whole.querySelector('[data-unfold]')?.replaceWith(whole.querySelector('[data-unfold]').title.replaceAll(' › ', '›'));
     return whole.textContent;
   });
+  /** The way into a node of Home where cards show (build 85): a click on its card, or on the one row of its card of files. */
+  const intoNode = async (frame, key) => {
+    const card = frame?.locator(`#cards .ovc[data-node="${key}"]`);
+    const rows = card?.locator('.ovf a');
+    await ((await rows?.count().catch(() => 0)) === 1 ? rows.click({ timeout: 8000 }) : card?.click({ timeout: 8000 }));
+  };
   await list?.locator('.home').click();
   const walkHome = await homeFrame();
-  await walkHome?.locator('#view g.node[id*="flowchart-lending-"]').dblclick();
+  await intoNode(walkHome, 'lending');
   const walkLower = await until(() => lineIn(walkHome).then((line) => line.includes('›') && line, () => ''));
   // The tree "Files" follows the map: the folder of the area is marked and open. Then it marks the file of the tab in front, and keeps it while a tab with no file is in front.
   const marked = () => filesPane.locator('.monaco-list-row.selected').first().evaluate((row) => `${row.querySelector('.label-name')?.textContent ?? row.textContent.trim()}${row.getAttribute('aria-expanded') === 'true' ? ' (open)' : ''}`).catch(() => '');
@@ -544,7 +571,8 @@ try {
     window.apostilWatch = new MutationObserver(look);
     window.apostilWatch.observe(document.querySelector('.part.editor'), { subtree: true, childList: true, attributes: true });
   });
-  await walkHome?.locator('#view g.node[id*="flowchart-service-"]').dblclick();
+  await walkHome?.locator('#cards .ovc[data-node="service"]').waitFor({ timeout: 8000 }).catch(() => {});
+  await intoNode(walkHome, 'service');
   const fileTabShown = await until(async () => { const now = await activeTab(); return /^hold_service\.py/.test(now ?? '') && await frameWhere(() => typeof App === 'object' && !!App.tab?.endsWith('hold_service.py'), undefined, 300) && now; });
   const textEditorSeen = await page.evaluate(() => { window.apostilWatch.disconnect(); return window.apostilTextEditorSeen; });
   const treeAtFile = await markedIs('hold_service.py');
@@ -563,10 +591,10 @@ try {
   const homeTabShown = await until(async () => { const now = await activeTab(); return /^Home/.test(now ?? '') && now; });
   const homeLine = walkHome ? await until(() => lineIn(walkHome).then((line) => line === 'Home' && line, () => '')) : '';
   const treeAtHome = await marked();
-  check('across real tabs: a node that is one file opens the file, in the file tab of Apostil at once; from its graphs to the change page the line lists Home, the graphs and the change; a click on a step shows the tab of that step',
+  check('across real tabs: the card of a node that is one file opens the file, in the file tab of Apostil at once; from its graphs to the change page the line lists Home, the graphs and the change; a click on a step shows the tab of that step',
     walkLower === 'Home›Lending: holds, requests and mails' && !!fileTabShown && !textEditorSeen && walkLine === ['Home', servicePath, walkTitle].join('›') && !!graphsTabShown && homeLine === 'Home',
     `${walkLower} | ${fileTabShown}, text editor seen ${textEditorSeen} | ${walkLine} | ${graphsTabShown} | ${homeTabShown}: ${homeLine}`);
-  check('the tree "Files" follows the map: a click on an area marks and opens its folder; the tree marks the file of the tab in front, and keeps it marked when a tab with no file comes to the front',
+  check('the tree "Files" follows the map: a click on the card of an area marks and opens its folder; the tree marks the file of the tab in front, and keeps it marked when a tab with no file comes to the front',
     treeAtArea === 'lending (open)' && treeAtFile === 'hold_service.py' && treeAtHome === 'hold_service.py', `${treeAtArea} | ${treeAtFile} | ${treeAtHome}`);
 
   // The icons of the services on a node of Home: the pointer on them opens their window, and a click on a service with one place opens its file at that line.
@@ -580,15 +608,15 @@ try {
   // From Home down to a process: a click on a step with no inner steps opens its file at its first line, in the file tab with its notes.
   await list?.locator('.home').click();
   const processHome = await homeFrame();
-  for (const key of ['routes', 'q0', 's2', 's7']) await processHome?.locator(`#view g.node[id*="flowchart-${key}-"]`).dblclick({ timeout: 8000 });
+  for (const key of ['routes', 'q0', 's2', 's7']) await intoNode(processHome, key).catch(() => {});
   const inStepTab = () => frameWhere(() => typeof App === 'object' && App.tab?.endsWith('lending/requests.py') && App.state?.lines?.join() === '62,62' && !!document.querySelector('.cv [data-line="62"]'), undefined, 8000);
   let stepTab = await inStepTab();
   if (!stepTab && /^Home/.test(await activeTab() ?? '')) { // under load the last click can land while Home draws the step again
     console.log('NOTE  the click on the step left Home in front; once more');
-    await processHome?.locator('#view g.node[id*="flowchart-s7-"]').dblclick({ timeout: 8000 }).catch(() => {});
+    await intoNode(processHome, 's7').catch(() => {});
     stepTab = await inStepTab();
   }
-  check('from Home a click on a node goes down to its processes, and a click on a step opens its file at its first line, in the file tab with its notes', !!stepTab && /^requests\.py/.test(await activeTab() ?? ''), `tab ${await activeTab()}`);
+  check('from Home the card of a node goes down to its processes, and the card of a step opens its file at its first line, in the file tab with its notes', !!stepTab && /^requests\.py/.test(await activeTab() ?? ''), `tab ${await activeTab()}`);
 
   // A click whose target is a prompt (a look of the repo, build 57): VS Code asks with the whole words and "Send". With no "Send" the stand-in claude
   // gets no run; with "Send" it gets one, with the words. A browser cannot show VS Code's question.
@@ -633,6 +661,9 @@ try {
     { pick: { kind: 'tree-file', paths: ['src/library/lending/hold_service.py'] }, text: { icon: 'apostil-look-open.svg' }, content: { words: 'in the look' }, click: { file: 'src/library/night_jobs.py', line: 516 } },
   ] });
   lookFiles.clean();
+  // Home reads the store again at once, before the watch of the store sees the new look, as when a run of the step before ends just then: the tree
+  // still follows the look (it once kept the rows of before, build 85).
+  await promptHome?.evaluate(() => tell({ type: 'remarkAction', id: 0, action: 'none' })).catch(() => {});
   const treeRow = await until(() => fileRowOf('hold_service.py').first().evaluate((row) => {
     const icon = row.querySelector('.custom-view-tree-node-item-icon');
     const read = { words: row.querySelector('.label-description')?.textContent ?? '', icon: icon ? getComputedStyle(icon).backgroundImage : '', label: row.querySelector('.monaco-icon-label')?.className ?? '' };
@@ -693,6 +724,12 @@ try {
   check('the page draws the diagram of the change, fills its tab, and its font is the font of VS Code, its code the font of the editor; the state that agents read names the open change and its view',
     appState?.view === 'diagram' && font.left === 0 && !!font.vscode && plain(font.family) === plain(workbenchFont.family) && font.size === workbenchFont.size && !!font.editor && plain(font.code) === plain(font.editor), JSON.stringify(font));
   await shot('3-change-as-diagram');
+  // Build 85: each row of a card starts with the icon that the Explorer shows in the default file icon theme (Seti): for a .ts file and a .py file the
+  // font icon of its language in its colour, from the font of the theme; Seti has no icon for a folder, so a folder row keeps the room of one, empty.
+  const tsRow = await iconOfRow(stage, 'web/src/member/holdsApi.ts');
+  check('the rows of the cards show the icons of the Explorer in the default file icon theme (Seti, read from its own JSON): the font icon of TypeScript on the change page and of Python on Home, each in its colour and in the font of the theme; a folder row of Home has no icon, as in the Explorer, and keeps its room',
+    !!seti && setiRow(tsRow, 'typescript') && setiRow(homeRows.python, 'python') && !seti.folder && !seti.folderNames?.docs && homeRows.folder?.content === 'none' && homeRows.folder.room > 0,
+    JSON.stringify({ tsRow, ...homeRows, ts: setiIcon('typescript', tsRow?.light) }));
 
   // Opening a file from the page opens the file as a tab of its own, in the group of the page, with its file icon, in Apostil's view.
   const tabOf = (name) => page.locator('.editor-group-container .tab', { has: page.locator('.label-name', { hasText: new RegExp(`^${name.replace('.', '\\.')}$`) }) });
@@ -1020,6 +1057,10 @@ try {
   const darkSettings = settingsNow();
   await stage.evaluate(async () => { await App.go({ level: 'change' }); await App.drawing; });
   await shot('5b-vscode-default-change');
+  // Build 85: the colour theme changed while the page shows, so its rows take the icons of the dark part of the theme, with no new load of the page.
+  const darkRow = await until(async () => { const now = await rowIconNow(stage, 'web/src/member/holdsApi.ts'); return !now?.light && setiRow(now, 'typescript') && now; }, 8000) || await rowIconNow(stage, 'web/src/member/holdsApi.ts');
+  check('when the colour theme turns dark while the page shows, the icons of its rows follow at once: the TypeScript icon of Seti takes the colour of its dark part, in the same page',
+    setiRow(darkRow, 'typescript') && tsRow?.light && darkRow.color !== tsRow.color && kept.same, JSON.stringify({ before: tsRow, darkRow }));
   const seen = await stage.evaluate(lookOfPage, true).catch((error) => ({ error: String(error) }));
   check('the look "VS Code default" chosen while a diagram of a part shows: the page is dark at once and keeps that drawing, the dark theme is in the settings, and the page of the change reads: no box lighter than the page, no text in a box on an arrow, text at least 4.5 to 1',
     turnedDark && kept.level === 'part' && kept.same && /Dark/.test(darkSettings['workbench.colorTheme'] ?? '') && darkSettings['window.autoDetectColorScheme'] === false

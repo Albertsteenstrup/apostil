@@ -238,8 +238,8 @@ try {
   await page.evaluate(() => window.scrollTo(0, 120));
   await page.hover('#view b[data-part="hold-service"]');
   const scrolled = await page.evaluate(() => window.scrollY);
-  // A click in place: under the cards of the overview the page scrolls, and a click of Playwright scrolls it to reach a part under its hover window.
-  await drawn(() => page.$eval('#view b[data-part="hold-service"]', (title) => title.closest('g.node').dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))));
+  // A click in place on the card of the part, the way in where cards show (build 85): a click of Playwright would scroll the page to reach it.
+  await drawn(() => page.evaluate(() => [...document.querySelectorAll('.ovc')].find((card) => card.querySelector('.ovn').textContent === 'Hold service').dispatchEvent(new MouseEvent('click', { bubbles: true }))));
   const down = await page.evaluate(() => ({ crumb: document.getElementById('crumb').textContent, tabs: [...document.querySelectorAll('#tabs > :not(.dchg, .dfact, .drepo, .codeswitch)')].map((el) => el.textContent).join(' · ') }));
   await drawn(() => page.click('#tabs [data-diagram="offer-sequence"]'));
   const sequence = await page.$eval('#view svg', (svg) => ({
@@ -247,7 +247,7 @@ try {
     lifelineEnd: Math.round(Math.max(...[...svg.querySelectorAll('line.actor-line')].map((line) => Number(line.getAttribute('y2'))))),
   }));
   await drawn(() => page.click('#tabs [data-diagram="offer-flow"]'));
-  check('a click on a part drills down to its diagram, with tabs named by the titles of its diagrams and the kind after each; the tab "Sequence" draws the sequence at a size that he can read, the lifelines ending under the last message',
+  check('a click on the card of a part drills down to its diagram, with tabs named by the titles of its diagrams and the kind after each; the tab "Sequence" draws the sequence at a size that he can read, the lifelines ending under the last message',
     /Hold service$/.test(down.crumb) && down.tabs === 'How one night run offers returned copies flow · The night run, message by message sequence'
       && sequence.actors >= 3 && sequence.actorHeight >= 36 && sequence.lifelineEnd < 700, JSON.stringify({ ...down, ...sequence }));
   await drawn(() => page.click('#crumb a[data-trail="1"]'));
@@ -630,7 +630,8 @@ try {
     const svg = document.querySelector('#view .sec .surface svg');
     return { rows: Object.values(byRow).join(), scale: +(svg.getBoundingClientRect().width / Number(svg.getAttribute('viewBox').split(' ')[2])).toFixed(2) };
   });
-  check('nine parts with no links stand in three rows of three, and their words have the normal size', nineDrawn.rows === '3,3,3' && nineDrawn.scale === 1, JSON.stringify(nineDrawn));
+  // Since build 85 the frame of the overview takes the drawing at the size that fills its width, up to 1.4 times (GROW): never smaller than its own size.
+  check('nine parts with no links stand in three rows of three, and their words have at least their normal size, at most 1.4 times', nineDrawn.rows === '3,3,3' && nineDrawn.scale >= 1 && nineDrawn.scale <= 1.4, JSON.stringify(nineDrawn));
   await readsShot('38-nine-parts-in-rows');
 
   // A part with two diagrams of two functions opens the first one, and the switch names both by their function.

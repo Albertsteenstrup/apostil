@@ -26,6 +26,7 @@ out/view/check-example.js
 view/check-example/**
 view/media/example-data.js
 view/media/example-look/**
+view/media/example-icons/**
 view/media/pull-data*.js
 view/example-*.json
 view/theme-colors.json

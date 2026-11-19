@@ -143,8 +143,13 @@ try {
       once?.type === 'openFile' && once.path === 'src/library/lending/notices.py' && once.line === 35 && down.crumb === 'Home›Lending: holds, requests and mails · PostgreSQL' && down.lit.join() === 'service,requests'
         && down.line === 'PostgreSQL · 27 places in Lending ×' && !cleared.lit && !cleared.line && cleared.crumb === 'Home›Lending: holds, requests and mails', JSON.stringify({ once, down, cleared }));
     // The contents and the button of the look: a picture node opens on a click like any node, a film plays with no sound only on a click, a button does its action.
+    // Where cards show (build 85), one click on it focuses it as any node, and "Open" in its window goes in.
     await drawnAt(homeFile, '?look=1');
-    await one.dblclick(node('writing'));
+    await one.click(node('writing'));
+    const pictureFocus = await one.evaluate(() => document.querySelector('#cards .ovc.focused')?.dataset.node ?? '');
+    await one.mouse.move(2, 2);
+    await one.hover(node('writing'));
+    await one.click('.win .tb .act [data-open]', { timeout: 3000 }).catch(() => {});
     const picture = await sent();
     await one.click(`${node('jobs')} .mk-button`);
     const button = await sent();
@@ -153,9 +158,9 @@ try {
     await one.click('#view .lk-play');
     await one.waitForFunction(() => !document.querySelector('#view video').paused, null, { timeout: 5000 });
     const playing = await one.evaluate(() => ({ muted: document.querySelector('#view video').muted, crumb: document.getElementById('crumb').textContent }));
-    check('a picture in place of a node opens on a click like any node; a film shows its first frame and plays, with no sound, only on a click, and its play mark is no word of the name of the node; a button opens its file at its line',
-      picture?.type === 'showInTree' && picture.paths.join() === 'docs/,README.md' && button?.type === 'target' && button.target.file === 'src/library/night_jobs.py' && button.target.line === 516
-        && still.paused && still.at === 0 && still.name === 'Holds: books to wait for' && playing.muted && playing.crumb === 'Home›The areas of the member page', JSON.stringify({ picture, button, still, playing }));
+    check('a picture in place of a node takes a click like any node: one click focuses it and its card, and "Open" in its window opens it; a film shows its first frame and plays, with no sound, only on a click, and its play mark is no word of the name of the node; a button opens its file at its line',
+      pictureFocus === 'writing' && picture?.type === 'showInTree' && picture.paths.join() === 'docs/,README.md' && button?.type === 'target' && button.target.file === 'src/library/night_jobs.py' && button.target.line === 516
+        && still.paused && still.at === 0 && still.name === 'Holds: books to wait for' && playing.muted && playing.crumb === 'Home›The areas of the member page', JSON.stringify({ pictureFocus, picture, button, still, playing }));
     // A service icon shows in one place only (the owner: "only show service icon in one place. left side and aligned with line so middle is same height as middle as text"):
     // a note has no corner for the services, and the icon of its service line has its middle at the middle of the text, and in the window of a step it starts where the note does.
     /** The icon of the first service line: its middle against the middle of the name beside it, and its left edge. */

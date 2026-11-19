@@ -434,7 +434,8 @@ try {
   const plain = await two.evaluate(() => ({
     looked: document.querySelectorAll('#view [class*="lk-"], .mg, .lk-icon, .pgroup').length,
     row: document.querySelector('.sec[data-section="change"] .sh').textContent, order: [...document.querySelectorAll('.switch a')].map((link) => link.dataset.view).join(),
-    side: document.querySelectorAll('#side').length, words: [...document.querySelectorAll('#view g.edgeLabel')].map((label) => label.textContent.trim()).filter(Boolean).length,
+    // The words on the arrows of the diagram of the change; a small drawing of a card under it (build 83) has the words of its own diagram.
+    side: document.querySelectorAll('#side').length, words: [...document.querySelectorAll('#view g.edgeLabel')].filter((label) => !label.closest('.ovcards')).map((label) => label.textContent.trim()).filter(Boolean).length,
     rows: document.querySelectorAll('.half.right .dfile').length,
   }));
   await two.goto(`file://${pageFile}?file=src/library/lending/hold_service.py`);

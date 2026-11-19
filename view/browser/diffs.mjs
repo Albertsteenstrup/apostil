@@ -1214,21 +1214,26 @@ async function faults() {
     opened: [...document.querySelectorAll('.half.right .dfile.open')].map((el) => el.dataset.file), top: Math.round(document.querySelector('.half.right').scrollTop),
   }));
 
-  // 1. A part with no diagram, and a file of it in a node, open their diff in the list; the diagram half keeps its diagram and no tab opens.
+  // 1. A part with no diagram, and a file of it in a node, open their diff in the list; the diagram half keeps its diagram and no tab opens. Two clicks
+  // on a part go in only where no cards show (build 85): the diagram alone.
+  await wide.evaluate(() => Overview.choose(true, () => App.render()));
+  await quiet();
   const noDiagram = 'src/library/web/holds_router.py';
   // On its name: the middle of the title row of a short name holds the comment mark of the part, which opens its card.
   const nameAt = await wide.evaluate(() => { const box = document.querySelector('#view b[data-part="routes"]').getBoundingClientRect(); return { x: box.left + 12, y: box.top + box.height / 2 }; });
   await wide.mouse.move(nameAt.x, nameAt.y, { steps: 4 });
-  await wide.mouse.dblclick(nameAt.x, nameAt.y); // one click focuses the part, two clicks go into it (build 84)
+  await wide.mouse.dblclick(nameAt.x, nameAt.y); // one click focuses the part, two clicks go into it (build 84) while no cards show
   await when((path) => !!document.querySelector(`.half.right .dfile.open[data-file="${path}"]`), noDiagram);
   const byPart = await state();
   await clickAt('.half.left .f[data-file="tests/test_holds.py"]');
   await when(() => !!document.querySelector('.half.right .dfile.open[data-file="tests/test_holds.py"]'));
   const byFile = await state();
-  check('on "Diagram" a double click on a part with no diagram, and a click on the row of one of its files, open the diff of that file in the list, in place; the diagram half keeps the diagram of the change and no tab opens',
+  check('on "Diagram" alone a double click on a part with no diagram, and a click on the row of one of its files, open the diff of that file in the list, in place; the diagram half keeps the diagram of the change and no tab opens',
     byPart.view === 'diagram' && byPart.level === 'change' && byPart.opened.includes(noDiagram) && byPart.cards.join() === 'change'
       && byFile.view === 'diagram' && byFile.opened.includes('tests/test_holds.py') && byFile.cards.join() === 'change', JSON.stringify({ byPart, byFile }));
   await away();
+  await wide.evaluate(() => Overview.choose(false, () => App.render())); // the cards again, for the checks after this one
+  await quiet();
 
   // 2. The arrows of the stepper answer a click, as Alt+Down and Alt+Up do: ↓ reads on, ↑ goes back, › goes to the next file.
   await show({ level: 'change', from: null });

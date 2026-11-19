@@ -324,6 +324,39 @@ const agentHead = (agent, icon = agentIcon(agent)) => {
 /** An icon of icons/, in the colour of its text. */
 const ico = (name, cls = '') => `<i class="ico ${name}${cls ? ` ${cls}` : ''}"></i>`;
 
+/**
+ * The icons of files and folders as the Explorer of VS Code shows them, in the file icon theme that he uses (build 85). VS Code sends the CSS of only
+ * the icons that the rows of the page use, and the class of each path (view/file-icons.ts). A row starts with FileIcons.html(path). With a theme, a
+ * row with no icon keeps the room of one, so the names stand in one column; with no theme, no row has an icon or its room.
+ */
+const FileIcons = {
+  paths: {},
+  /** The icons of a page; undefined with no theme. The rows that show keep their place and get their new icons. */
+  set(icons) {
+    // The fonts of the theme stand in a style of their own, written again only when they change: a new @font-face loads its font again, and the
+    // font icons would blink when only their colours change (a new colour theme).
+    const lines = (icons?.css ?? '').split('\n');
+    this.style('file-icon-fonts', lines.filter((line) => line.startsWith('@font-face')).join('\n'));
+    this.style('file-icons', lines.filter((line) => !line.startsWith('@font-face')).join('\n'));
+    this.paths = icons?.paths ?? {};
+    document.body.classList.toggle('fi-on', !!icons);
+    for (const row of document.querySelectorAll('.fi[data-fi]')) row.className = this.classOf(row.dataset.fi);
+  },
+  /** Writes a style element of the page, made at its first use; the same text is not written again. */
+  style(id, text) {
+    let el = document.getElementById(id);
+    if (!el) { el = document.createElement('style'); el.id = id; document.head.append(el); }
+    if (el.textContent !== text) el.textContent = text;
+  },
+  classOf(path) {
+    return this.paths[path] ? `fi ${this.paths[path]}` : 'fi';
+  },
+  /** The icon of a path (a folder ends with "/") at the start of its row. */
+  html(path) {
+    return `<i class="${this.classOf(path)}" data-fi="${esc(path)}"></i>`;
+  },
+};
+
 // People of GitHub: the page of a pull request and the list of the side bar draw them with the same parts.
 const TINTS = 6;
 const tint = (login) => [...login].reduce((sum, c) => sum + c.charCodeAt(0), 0) % TINTS;

@@ -18,6 +18,7 @@ import { rowOfFileInFront, treeSteps } from './files-follow';
 import { FilesTree } from './files-tree';
 import { idOf } from './home-data';
 import { HomePages } from './home-page';
+import { fileIcons } from './icon-theme';
 import { lookPages } from './look-blocks';
 import { answerTarget, type TargetPlaces } from './look-targets';
 import { LookInVsCode } from './look-in-vscode';
@@ -81,6 +82,9 @@ export function activate(context: vscode.ExtensionContext) {
     full: () => context.globalState.get<boolean>(LAYOUT_KEY, false),
     set: (full) => void context.globalState.update(LAYOUT_KEY, full).then(() => { home.postLayout(); page.postLayout(); }),
   };
+  // The icons of files and folders in the rows of the cards and the windows (build 85): from the file icon theme that he uses, again when he changes it.
+  fileIcons.start(context);
+  context.subscriptions.push(fileIcons.onChange(() => { home.iconsChanged(); page.iconsChanged(); }));
   // From outside a page (the side bar, the Files tree, the Explorer, a title bar, a command) a view starts a new path.
   const openHome = (quiet = false): void => { trail.start(TrailRules.HOME); home.openHome(undefined, quiet); };
   const openChange = (id: number): void => {
@@ -205,6 +209,7 @@ export function activate(context: vscode.ExtensionContext) {
   };
   const updateLookPages = (): void => { void vscode.commands.executeCommand('setContext', 'apostil.lookHasPages', lookPages(theStore, openFolder()).length > 0); };
   updateLookPages();
+  context.subscriptions.push(home.onNew(() => { files.refresh(); updateLookPages(); }));
 
   // The tree "Files" marks the file of the tab in front, as the Explorer of VS Code does: the file of an editor, a notebook or a file tab of Apostil
   // (the choice: rowOfFileInFront).
@@ -283,7 +288,7 @@ export function activate(context: vscode.ExtensionContext) {
     clearTimeout(timer);
     timer = setTimeout(() => {
       list.refreshIfChanged(); page.reloadIfChanged(); updateHasChange(); notes.storeChanged(); lookInVsCode.storeChanged();
-      if (home.changed()) { files.refresh(); updateLookPages(); } // a new map or change can put new rows into a diagram; a new look new pages
+      home.changed(); // a new map or change can put new rows into a diagram, and a new look new pages: home.onNew
     }, 300);
   };
   for (const file of storeFiles()) watchFile(file, { interval: 1000 }, changed);
