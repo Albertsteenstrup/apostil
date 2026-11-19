@@ -524,6 +524,7 @@ try {
   const home = await homeFrame();
   check('the Home row opens the Home tab with the top map of its 8 areas', !!home && /^Home/.test(await activeTab() ?? ''), await activeTab());
   const homeRows = { folder: await iconOfRow(home, 'docs/'), python: await iconOfRow(home, 'src/library/night_jobs.py') };
+  await shot('2d-home-with-the-icons-of-files');
   const filesPane = page.locator('.pane', { has: page.locator('.pane-header .title', { hasText: /^Files$/ }) });
   const rowOf = (name) => filesPane.locator('.monaco-list-row', { has: page.locator('.label-name', { hasText: new RegExp(`^${name.replace('.', '\\.')}$`) }) }).first();
   for (const name of ['src', 'library', 'lending']) { await rowOf(name).click(); await rowOf(name).waitFor(); }

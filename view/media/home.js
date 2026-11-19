@@ -574,7 +574,7 @@ if (vscodeApi) {
     if (run && Home.data.kind === 'home') Home.data = { ...Home.data, mapRun: run };
     Home.at = query.get('diagram') || null;
     Home.lit = (query.get('lit') ?? '').split(',').filter(Boolean);
-    if (query.get('icons') !== 'none') FileIcons.set(example.icons.home); // the made-up icon theme; "?icons=none": no theme
+    if (query.get('icons') !== 'none') FileIcons.set(example.icons?.home); // the made-up icon theme; "?icons=none": no theme
     Home.render();
   };
   document.head.append(script);

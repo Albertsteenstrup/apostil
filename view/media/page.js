@@ -658,7 +658,7 @@ if (vscodeApi) {
   script.onload = () => {
     const query = new URLSearchParams(location.search);
     App.page = window.APOSTIL_EXAMPLE.page;
-    if (query.get('icons') !== 'none') FileIcons.set(window.APOSTIL_EXAMPLE.icons.page); // the made-up icon theme; "?icons=none": no theme
+    if (query.get('icons') !== 'none') FileIcons.set(window.APOSTIL_EXAMPLE.icons?.page); // the made-up icon theme; "?icons=none": no theme
     if (query.get('look')) App.page = { ...App.page, look: window.APOSTIL_EXAMPLE.pageLooks[query.get('look')] }; // a made-up look of the example: "1", "shared" or "change"
     // As in VS Code, a page of the change comes first and the pull requests of its branch after it: the first view is chosen before them.
     // "?pulls=kept" has them at once, as when the extension kept them; "?pulls=none" is a branch with none. A file tab, "?go=" and "?pull=" have them at once.
