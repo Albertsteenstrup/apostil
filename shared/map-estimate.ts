@@ -155,5 +155,3 @@ export function shownTime(before: ShownTime | undefined, minutes: number): Shown
   return { minutes: before.minutes, rise: now };
 }
 
-/** The words of the time left: "About 14 min left", or "Less than a minute left". The page says the same (timeWords in media/tools.js). */
-export const timeWords = (minutes: number): string => (minutes < 1 ? 'Less than a minute left' : `About ${minutes} min left`);

@@ -331,8 +331,6 @@ export const firstQuery = (size = PAGE): string => wrap(`
   ${page('reviewThreads', size, false)}
   ${page('files', size, false)}`, false, `viewer { ${WHO} } `);
 
-export const FIRST_QUERY = firstQuery();
-
 /** The query for one more page of a list. */
 export const nextQuery = (list: ListName, size = PAGE): string => wrap(page(list, size, true), true);
 
@@ -365,8 +363,6 @@ const REACTION_EMOJI: Record<string, string> = {
 };
 
 const ROLES: Record<string, string> = { OWNER: 'Owner', MEMBER: 'Member', COLLABORATOR: 'Collaborator', CONTRIBUTOR: 'Contributor' };
-
-const named = (raw: Raw): string => raw?.login ?? raw?.name ?? 'someone';
 
 const words = (reason: string): string => reason.toLowerCase().replace(/_/g, ' ');
 

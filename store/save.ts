@@ -10,7 +10,7 @@ import { fingerprint } from '../shared/note-groups';
 import { rawLineProblems } from '../shared/notebook';
 import { noteCodeOf } from '../shared/notes-beside-code';
 import { sameDiagramText } from '../shared/repo-diagram';
-import { checkMap, fileNotesProblems, fileNotesStyle, FILE_NOTES_PART, mapAsChange, mapNoteProblems, mapProblems, type MapCheck, type RepoMap } from '../shared/repo-map';
+import { checkMap, fileNotesProblems, fileNotesStyle, mapAsChange, mapNoteProblems, mapProblems, type MapCheck, type RepoMap } from '../shared/repo-map';
 import type { CheckResult, Store } from '../shared/store';
 import { freshNotes, isFileNoteKey, notesWithCode, sortedNotes, withFileNotes, withNoteCode } from './note-code';
 import { mapProcessProblems } from './processes-save';

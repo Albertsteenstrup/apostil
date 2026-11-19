@@ -4,7 +4,7 @@
 import type { Diagram, Note } from './change-file';
 import { diagramText, drawingPlaces, keptInChange, keptLines, keptOnMap, mapDrawing } from './comment-lines';
 import { inNoThingWords, linksChecked, linkThings, REASON_WORDS, thingsOf, type Place, type ThingCode } from './diagram-code';
-import { cellsIn, inNoThingPlaces, linesInNoThingOf, rangesText } from './checks';
+import { cellsIn, inNoThingPlaces, linesInNoThingOf } from './checks';
 import { diagramGraph } from './diagram-graph';
 import { changedFiles, currentBranch, fileText, repoId, type ChangedFile } from './git';
 import { cellOfLine, cellsOfText, inCellText, isNotebookPath } from './notebook';

@@ -769,9 +769,6 @@ export interface Target {
   window?: { title?: string; width?: number; blocks?: Block[]; ref?: string }; // a page gets `ref` in place of the blocks, and asks for them when it opens
   page?: string;
 }
-/** What a button does on a click: a target (build 51 named it an action). */
-export type Action = Target;
-
 export interface Button {
   icon: string; // in a draft: a file in the repo folder; stored: the name of the kept file
   name: string; // what the pointer says

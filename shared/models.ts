@@ -174,9 +174,6 @@ export function catalogOf(app: string, home = agentHome()): Catalog | undefined 
   return catalog;
 }
 
-/** Forgets the catalogs read, for the checks. */
-export const forgetCatalogs = (): void => kept.clear();
-
 /** The id of a model in the menu of a catalog: "claude-haiku-5-5" is "haiku" when it is the newest Haiku; any other stays as it is. */
 export const menuId = (catalog: Catalog | undefined, model: string): string => catalog?.ids[model] ?? model;
 

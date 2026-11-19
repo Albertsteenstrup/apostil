@@ -71,8 +71,6 @@ export function claudeDefaultMode(folder?: string, home = homedir()): string | u
 /** The mode of a Claude Code run that Apostil starts: the default of the person when a run can work alone in it (as "auto"), else acceptEdits, the least that a run needs to write its drafts. */
 export const claudeRunMode = (preferred?: string): string => (preferred && RUN_ALONE.includes(preferred) ? preferred : 'acceptEdits');
 
-/** The values of the setting `apostil.commentRuns`: what a run that a comment starts may do in the repo. */
-export const COMMENT_RUNS = ['read and edit', 'read only'] as const;
 const READ_TOOLS = ['Read', 'Grep', 'Glob'];
 
 /**
@@ -148,7 +146,7 @@ const writerAgents = (options: RunOptions): string[] => (options.writers?.model 
 
 /** The text of a JSON file that may hold comments and commas before a closing bracket (JSONC), as JSON. A "//" inside a string stays. */
 const plainJson = (text: string): string =>
-  text.replace(/("(?:\\.|[^"\\])*")|\/\/[^\n]*|\/\*[\s\S]*?\*\//g, (all, string) => string ?? '').replace(/,(\s*[}\]])/g, '$1');
+  text.replace(/("(?:\\.|[^"\\])*")|\/\/[^\n]*|\/\*[\s\S]*?\*\//g, (_whole, string) => string ?? '').replace(/,(\s*[}\]])/g, '$1');
 
 /**
  * The small model that the person set for OpenCode (`small_model`, "provider/model"), read as OpenCode reads its config, and never written:

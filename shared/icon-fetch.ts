@@ -7,7 +7,6 @@ import { fileProblem, iconEndingOf, siteOf } from './marks';
 export type Fetcher = (address: string, init: { redirect: 'manual'; signal: AbortSignal }) => Promise<Response>;
 
 const SECONDS = 10;
-const MOST_BYTES = 100 * 1024;
 const MOST_PAGE = 500 * 1024;
 const MOST_REDIRECTS = 4;
 const MOST_TRIES = 5;

@@ -229,16 +229,6 @@ const toRemark = (row: Row): Remark => ({
   changed: row.changed_json ? JSON.parse(row.changed_json) : undefined,
 });
 
-/** The remarks grouped by thread, each thread in the order of its remarks, the threads in the order of their first remark. */
-export function threadsOf(remarks: Remark[]): Remark[][] {
-  const threads = new Map<number, Remark[]>();
-  for (const remark of [...remarks].sort((a, b) => a.id - b.id)) {
-    const key = remark.thread ?? remark.id;
-    threads.set(key, [...(threads.get(key) ?? []), remark]);
-  }
-  return [...threads.values()];
-}
-
 /** True while a process with this id runs. */
 export function isAlive(pid: number): boolean {
   try {

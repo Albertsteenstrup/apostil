@@ -1,6 +1,5 @@
 // The pull requests of a branch, read from GitHub with the gh program.
 
-import { execFileSync } from 'node:child_process';
 import { person, reviewersOf } from './pull-request-facts';
 import type { Label, Person, Reviewer } from './read-pull-request';
 
@@ -218,12 +217,3 @@ export function stackPlacesFromJson(json: string): Map<number, StackPlace> {
 export const withStacks = (pulls: PullRequest[], places: Map<number, StackPlace>): PullRequest[] =>
   pulls.map((pull) => (places.has(pull.number) ? { ...pull, stack: places.get(pull.number) } : pull));
 
-/** The pull requests of a branch. Empty when gh is missing, not signed in, or the folder has no GitHub remote. */
-export function pullRequestsOf(folder: string, branch: string): PullRequest[] {
-  try {
-    const json = execFileSync('gh', ghArguments(branch), { cwd: folder, encoding: 'utf8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'] });
-    return pullRequestsFromJson(json);
-  } catch {
-    return [];
-  }
-}

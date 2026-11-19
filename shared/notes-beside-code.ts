@@ -143,17 +143,3 @@ export function notesInRepo(store: Store, folder: string, path: string, text: st
 
 /** Where a note came from, in words: "From the map: <title of its diagram>", "From the map" for a note of a file, or "From the change "<title>" (<branch>)". */
 export const fromWords = (change: NoteHere['change']): string => (change.map ? (change.title ? `From the map: ${change.title}` : 'From the map') : `From the change "${change.title}" (${change.branch})`);
-
-const LONG = 80; // a line longer than this hides a title at its end on a narrow editor
-
-/**
- * The line of a range that carries the title of its note: the first line that ends within 80 columns and holds no other title,
- * else the shortest such line, so that the title stays in view when lines are long. `taken` holds the lines with a title already (counted from 1).
- */
-export function titleLine(lines: string[], [first, last]: [number, number], taken: Set<number> = new Set()): number {
-  const width = (line: number): number => (lines[line - 1] ?? '').replace(/\t/g, '    ').trimEnd().length;
-  const free: number[] = [];
-  for (let line = first; line <= last; line++) if (!taken.has(line)) free.push(line);
-  const candidates = free.length ? free : [first];
-  return candidates.find((line) => width(line) <= LONG) ?? candidates.reduce((best, line) => (width(line) < width(best) ? line : best));
-}

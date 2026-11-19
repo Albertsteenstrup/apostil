@@ -26,11 +26,6 @@ export function openCommand(folder: string, env: Record<string, string | undefin
   return [onPath('code', env) ? 'code' : VS_CODE, ...(isCheckout(root) ? [`--extensionDevelopmentPath=${root}`] : []), path];
 }
 
-/** True when a program is there to open a folder: APOSTIL_APP, the command "code", or VS Code in its usual place. */
-export function canOpen(env: Record<string, string | undefined>): boolean {
-  return Boolean(env.APOSTIL_APP) || onPath('code', env) || existsSync(VS_CODE);
-}
-
 /** Starts the app detached and does not wait for it. */
 export function openInApp(folder: string): void {
   const [program, ...args] = openCommand(folder, process.env);

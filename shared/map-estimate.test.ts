@@ -4,7 +4,7 @@
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { expectedOf, shownTime, timeLeft, timeWords, type MapPlan, type SaveTime } from './map-estimate';
+import { expectedOf, shownTime, timeLeft, type MapPlan, type SaveTime } from './map-estimate';
 
 const START = Date.parse('2026-11-18T10:00:00.000Z');
 const at = (minute: number): number => START + minute * 60_000;
@@ -85,5 +85,4 @@ test('a rise that one computation alone shows is held back; a second one that ag
   assert.deepEqual(shown, { minutes: 17 });
   shown = shownTime(shown, 0.4); // under a minute: 0, which Home says in words
   assert.deepEqual(shown, { minutes: 0 });
-  assert.deepEqual([timeWords(0), timeWords(14)], ['Less than a minute left', 'About 14 min left']);
 });
