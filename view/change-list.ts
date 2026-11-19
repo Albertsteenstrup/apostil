@@ -47,7 +47,7 @@ function stackPlacesLater(folder: string, repo?: string): Promise<Map<number, St
 }
 
 /**
- * The pull requests of a branch with their places in a stack, kept for 60 seconds. It asks gh as pullRequestsOf() does, but without blocking VS Code.
+ * The pull requests of a branch with their places in a stack, kept for 60 seconds. It asks gh without blocking VS Code.
  * With a repo ("owner/name"), of that repo: in a clone of a fork, origin is the fork and the pull request is in another remote.
  */
 export function pullRequestsLater(folder: string, branch: string, repo?: string): Promise<PullRequest[]> {

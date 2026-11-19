@@ -371,7 +371,6 @@ const Overview = {
       const item = items[Number(card.dataset.card)];
       const body = card.querySelector('.ovb');
       if (item.run?.state === 'working') body.innerHTML = sketchHtml(true);
-      else if (item.run?.state === 'waiting') body.innerHTML = '';
       else if (item.files) body.innerHTML = `<div class="ovf">${item.files.map(fileRowHtml).join('')}</div>`;
       if (item.run || item.files) card.dataset.drawn = '';
     }

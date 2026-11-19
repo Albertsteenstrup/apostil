@@ -127,7 +127,7 @@ function mapRunHtml(run, again = null) {
   return `<span class="state maprun" data-run="${esc(run.state)}">${[words, reach, press, again?.app ? anotherAppHtml(again.apps) : ''].filter(Boolean).join(' · ')}</span>`;
 }
 
-/** The words of the time left of a map run, as timeWords in shared/map-estimate.ts: "About 14 min left", or "Less than a minute left". */
+/** The words of the time left of a map run: "About 14 min left", or "Less than a minute left". */
 const timeWords = (minutes) => (minutes < 1 ? 'Less than a minute left' : `About ${Math.round(minutes)} min left`);
 
 /**

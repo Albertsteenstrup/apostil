@@ -59,8 +59,8 @@ export function lookOfPage(dark) {
   const bright = [];
   if (dark) {
     for (const el of document.querySelectorAll('body *')) {
-      // A button, an icon, the dot where states start, and the chip of a mark, which is light in every theme so that a coloured icon reads (build prompt 51);
-      // the bar of a block "bars" and the dot of a block "state", which are data in the accent colour, not boxes (build 58).
+      // A button, an icon, the dot where states start, and the chip of a mark, which is light in every theme so that a coloured icon reads;
+      // the bar of a block "bars" and the dot of a block "state", which are data in the accent colour, not boxes.
       if (el.closest('marker, .tip, button, .ghs, .newest, .ico, .pri, .dot, img, .state-start, .mk-chip, .mk-more, .bk-bar, .bk-dot') || !shows(el)) continue;
       const box = el.getBoundingClientRect();
       if (box.width < 8 || box.height < 8) continue;

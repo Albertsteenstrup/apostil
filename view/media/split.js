@@ -8,7 +8,7 @@
 'use strict';
 
 const SPLIT = 1040; // from this width of the tab the diagram page is two halves
-const HALF_LEAST = 420; // the least width of a half: an open comments window can leave too little room
+const HALF_LEAST = 420; // the least width of a half
 const LIST_WIDTH = 300; // the list of closed rows beside the file on "Diffs"
 // The two choices, each of its own: the code beside a diagram ("Hide code"), and the list of files beside the file of "Diffs" ("Hide files").
 const HIDDEN_KEYS = { code: 'apostil.codeHidden', files: 'apostil.filesHidden' };
@@ -634,7 +634,7 @@ async function changeWithDiffs(left, right, from) {
  * of the next file with a change, and Alt+Up from its first change to the last change of the file before. J and K show the next and the previous file
  * at its first change; a click on a row shows that file, back at the place where he left it when it was drawn before. The counter counts over the
  * whole list (changeCounts). The row of the file that shows is marked and in view. With no `list` (a narrow tab, "Hide files") it is the file alone.
- * Returns what the keys, the counter, the list of files and the comments window use: step, stepFile, toPath, here, reveal, ready.
+ * Returns what the keys, the counter, the list of files and the comments use: step, stepFile, toPath, here, reveal, ready.
  */
 function diffsPage(into, list) {
   into.classList.add('file-left');
@@ -715,7 +715,7 @@ function diffsPage(into, list) {
     } else one.steps.enter(at === -1 ? -1 : 1);
   }
 
-  // A new width of the half (the comments window, the tab): the file is drawn again for it, in cards or in marks, with the same line at its top.
+  // A new width of the half (the tab): the file is drawn again for it, in cards or in marks, with the same line at its top.
   new ResizeObserver(() => {
     if (!into.isConnected || !now || !into.clientWidth || now.width === into.clientWidth) return;
     queue(async () => {
@@ -760,7 +760,7 @@ function diffsPage(into, list) {
     },
     ready: (first ? queue(() => show(first, 1)) : Promise.resolve()).then(() => { started = true; }),
   };
-  Split.list = self; // the comments window finds the file of a comment here
+  Split.list = self; // the comments find the file of a comment here
   return self;
 }
 

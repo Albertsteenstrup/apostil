@@ -63,7 +63,7 @@ const Trail = (() => {
     return whole[at + way] ?? null;
   }
 
-  const pure = { HOME, key, start, upTo, walk, before, goTo, next };
+  const pure = { HOME, start, upTo, walk, before, goTo, next };
   if (typeof window !== 'object') return pure;
 
   // ----- in a page: its copy of the path, and the line at the top -----

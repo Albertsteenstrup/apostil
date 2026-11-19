@@ -615,7 +615,7 @@ const Marks = (() => {
 
   /**
    * The things of the page of a change of one kind, or of every kind, from its data (view/page-data.ts): the card, the parts, the box of the files in no
-   * part, the links between parts, the files of the list of diffs, the views, the diagrams of the parts and their steps, the comments window, the threads,
+   * part, the links between parts, the files of the list of diffs, the views, the diagrams of the parts and their steps, the list of comments, the threads,
    * the open points and the comment marks (one for each place with open threads). Each with its kind, its id, its paths and its fields. Worked out each time:
    * a page changes its data in place. A part holds the marks under its files, as a node of Home holds those under its paths, and a step of a flow chart
    * those inside its lines; `marks` are those of the files of the change, from the look of the page.

@@ -100,8 +100,8 @@ export interface MapRunLine {
   areas?: Record<string, AreaWork>; // the areas of the top diagram with work left, by node id; an area that is not named is done (homeData adds it)
 }
 
-/** An area of the top diagram with work left: "working" when a writer can work on it now, "waiting" when its work waits for a later step; `share`: the part of its work that is done. */
-export interface AreaWork { state: 'working' | 'waiting'; share: number }
+/** An area of the top diagram with work left, which writers work on now; `share`: the part of its work that is done. */
+export interface AreaWork { state: 'working'; share: number }
 
 const count = (number: number, word: string): string => `${number} ${word}${number === 1 ? '' : 's'}`;
 const NAME_LENGTH = 40; // a longer name of a session is cut; the tip holds the id

@@ -1,5 +1,5 @@
 // Made-up dense notes for the browser checks: a file of functions, a note of the map for each function, and a note for each step of `every` lines inside it.
-// It is the density that small models write with a note for each function and each step (build prompt 44). No real code.
+// It is the density that small models write with a note for each function and each step. No real code.
 
 const WORDS = ['reads the rows', 'checks the limit', 'keeps the order', 'skips an empty value', 'writes the result', 'counts the misses', 'stops at the first error', 'asks the store once'];
 const word = (at) => WORDS[at % WORDS.length];

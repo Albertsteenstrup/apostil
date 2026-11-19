@@ -730,7 +730,7 @@ async function fileView(into, path, { focus = null, nav = false, head = false, f
   if (!code) { into.innerHTML = '<p class="quiet">There is no code to show for this file.</p>'; return null; }
   const rows = fileRows(code);
   const notes = [...page.notes.filter((note) => note.file === path), ...(code.notes ?? [])]; // the notes of the change, then those of other saved changes
-  // The notes column stands in place while the width is measured: beside code with notes the comments window lies over that column and takes no room of its own (look.css).
+  // The notes column stands in place while the width is measured.
   into.innerHTML = shell(`<div class="cvc">${notes.length ? '<div class="cn"><div class="notes"></div></div>' : ''}</div>`);
   const scroller = into.querySelector('.cv');
   const holder = into.querySelector('.cvc');
@@ -754,13 +754,11 @@ async function drawCode(into, path, focus, at) {
   const page = App.page;
   into.innerHTML = `<div class="cvw" data-file="${esc(path)}"></div>`;
   const shown = await fileView(into.firstChild, path, { focus, nav: true });
-  // The comments window lies over the notes column, below the control of the files (look.css).
-  const notesTop = () => document.body.style.setProperty('--notes-top', `${Math.round(into.querySelector('.nav').getBoundingClientRect().bottom + 4)}px`);
   if (!shown) return;
   if (!shown.view) {
     Code.shown = { path, runs: [] };
     drawNav();
-    return notesTop();
+    return;
   }
   const { scroller, holder, view, rows } = shown;
   const steps = fileSteps(holder, scroller, path, view, {
@@ -772,7 +770,6 @@ async function drawCode(into, path, focus, at) {
   if (App.tab) holder.addEventListener('dblclick', (event) => { const line = Number(event.target.closest('[data-line]')?.dataset.line); if (line) tell({ type: 'edit', line }); });
   drawNav();
   view.place(); // the control of the files has its height now
-  notesTop();
 
   // Where the file opens: at the lines asked for, else as a key that comes into it from the file before (its first change) or after it (its last change).
   if (focus) Code.reveal({ lines: focus });

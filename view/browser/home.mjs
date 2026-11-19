@@ -458,7 +458,7 @@ try {
       line: document.querySelector('#summary .maprun')?.textContent ?? '', wordmark: !!document.querySelector('.wordmark'),
       sketch: !!view.querySelector(':scope > svg.sketch'), shimmer: getComputedStyle(view.querySelector('.sketch .sks') ?? view).animationName,
       bar: fill && { width: fill.style.width, top: Math.round(fill.getBoundingClientRect().top - frame.top), height: Math.round(fill.getBoundingClientRect().height) },
-      nodes: Object.fromEntries([...view.querySelectorAll('g.node')].filter((g) => /\brn-/.test(g.getAttribute('class'))).map((g) => [nodeKey(g), g.classList.contains('rn-working') ? 'working' : 'waiting'])),
+      nodes: Object.fromEntries([...view.querySelectorAll('g.node')].filter((g) => /\brn-/.test(g.getAttribute('class'))).map((g) => [nodeKey(g), g.classList.contains('rn-working') ? 'working' : 'other'])),
       cards: cards.map((card) => ({
         title: card.querySelector('.ovn').textContent, state: /run-(\w+)/.exec(card.className)?.[1] ?? 'done', spin: getComputedStyle(card.querySelector('.ovh .spin') ?? card).animationName,
         bar: card.querySelector('.ovbar i')?.style.width ?? '', sketch: !!card.querySelector('.ovb .sketch'), content: !!card.querySelector('.ovb svg:not(.sketch), .ovf'),
@@ -484,12 +484,11 @@ try {
   await takePicture(home, '84-2-areas-loading.png');
   const cardOf = (title) => loading.cards.find((card) => card.title === title) ?? {};
   const working = ['Web routes', 'Lending'].map(cardOf);
-  const waiting = ['Front desk', 'Database'].map(cardOf);
   const done = loading.cards.filter((card) => card.state === 'done');
-  check('while the areas load, a node with work left is quiet and the node of an area that writers work on now has an accent edge; its card shows a sketch, a turning mark and its own bar, a card that waits is empty with a dashed edge, a card whose area is done shows its diagram or files; the bar of the run and the time stay',
-    JSON.stringify(loading.nodes) === JSON.stringify({ routes: 'working', lending: 'working', desk: 'waiting', data: 'waiting' })
+  check('while the areas load, the node of an area that writers work on now has an accent edge; its card shows a sketch, a turning mark and its own bar, and a card whose area is done shows its diagram or files; the bar of the run and the time stay',
+    JSON.stringify(loading.nodes) === JSON.stringify({ routes: 'working', lending: 'working' })
       && working.every((card) => card.state === 'working' && card.sketch && card.spin === 'ov-turn' && !card.content) && working.map((card) => card.bar).join() === '45%,20%'
-      && waiting.every((card) => card.state === 'waiting' && card.empty && card.edge === 'dashed') && done.length === 4 && done.every((card) => card.content && card.edge === 'solid')
+      && done.length === 6 && done.every((card) => card.content && card.edge === 'solid')
       && parseFloat(loading.bar?.width) > 15 && loading.bar.top <= 1 && /^About \d+ min left$/.test(loading.time) && !loading.scrolls, JSON.stringify(loading));
 
   // After a save the time changes once and calmly; the time that VS Code sends every 30 seconds changes the words and the bar, and draws nothing again.
@@ -522,7 +521,7 @@ try {
   await cardsDrawn();
   const ended = await runState();
   check('in full screen during a run the top map shows with the bar of the run and the time left, and no cards; when the run ends the bar, the time and the states go, and the page is the normal overview with every card filled',
-    fullRun.cards.length === 0 && fullRun.fills && parseFloat(fullRun.bar?.width) > 0 && fullRun.time !== '' && Object.keys(fullRun.nodes).length === 4
+    fullRun.cards.length === 0 && fullRun.fills && parseFloat(fullRun.bar?.width) > 0 && fullRun.time !== '' && Object.keys(fullRun.nodes).length === 2
       && !ended.bar && ended.time === '' && ended.line === '' && Object.keys(ended.nodes).length === 0 && ended.cards.length === 8 && ended.cards.every((card) => card.state === 'done' && card.content),
     JSON.stringify({ fullRun, ended }));
 

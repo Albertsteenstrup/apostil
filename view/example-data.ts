@@ -171,7 +171,7 @@ const planned = (minutes: number, saves: SaveTime[], parts: MapRun['parts']): Ma
 const loading: SaveTime[] = [['o', 7], ['a', 12], ['a', 13], ['n', 15, 6], ['n', 16, 6], ['n', 18, 6]];
 const top = home.map?.diagrams.find((diagram) => diagram.id === home.map?.top);
 const leading = Object.entries(top?.nodes ?? {}).filter(([, node]) => !node.quiet && (node.down || node.paths.length)).map(([key]) => key);
-const areaStates = { [leading[1]]: { state: 'working', share: 0.45 }, [leading[2]]: { state: 'working', share: 0.2 }, [leading[4]]: { state: 'waiting', share: 0 }, [leading[5]]: { state: 'waiting', share: 0 } } as const;
+const areaStates = { [leading[1]]: { state: 'working', share: 0.45 }, [leading[2]]: { state: 'working', share: 0.2 } } as const;
 // As VS Code sends it (home-page.ts): whole minutes, and the share of the bar to a thousandth.
 const whole = (line: MapRunLine | undefined): MapRunLine | undefined => (line?.time ? { ...line, time: { minutes: Math.round(line.time.minutes), share: Math.round(line.time.share * 1000) / 1000 } } : line);
 const withAreas = (line: MapRunLine | undefined): MapRunLine | undefined => (line ? { ...line, ...whole(line), areas: areaStates } : line);

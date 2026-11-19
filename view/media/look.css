@@ -614,10 +614,8 @@ div.nomap .runpick{margin:0 0 8px}
 .ovcards.focus .ovc:not(.focused){opacity:.4}
 .ovh{flex:none;display:flex;align-items:center;gap:10px;padding:8px 12px 0;font-size:var(--small);font-weight:600;color:var(--ink);white-space:nowrap}
 .ovn{min-width:0;overflow:hidden;text-overflow:ellipsis}
-/* while a map is written: a card with work now has a quiet accent edge, a turning mark and its own bar; a card that waits is empty, dashed, its name faint */
+/* while a map is written: a card with work now has a quiet accent edge, a turning mark and its own bar */
 .ovc.run-working{border-color:var(--tealline)}
-.ovc.run-waiting{background:transparent;border-style:dashed}
-.ovc.run-waiting .ovn{color:var(--faint);font-weight:500}
 .ovw{flex:none;margin-left:auto;display:flex;align-items:center;gap:8px}
 .spin{display:block;box-sizing:border-box;width:11px;height:11px;border-radius:50%;border:1.5px solid var(--line);border-top-color:var(--teal);animation:ov-turn 2.4s linear infinite}
 @keyframes ov-turn{to{transform:rotate(360deg)}}
@@ -644,9 +642,7 @@ div.nomap .runpick{margin:0 0 8px}
 .rt-old{position:absolute;right:0;top:0;animation:rt-out 1.4s ease both}
 @keyframes rt-in{from{opacity:0;transform:translateY(60%)}}
 @keyframes rt-out{to{opacity:0;transform:translateY(-90%)}}
-/* the nodes of the top map while it is written: work left is quiet with a faint name; an area that writers work on now has a quiet accent edge */
-.stage g.node.rn-waiting > :is(rect,polygon,path,circle){fill:var(--region)!important;stroke:var(--line)!important}
-.stage g.node.rn-waiting :is(.nodeLabel,.nodeLabel *,text){color:var(--faint)!important;fill:var(--faint)!important}
+/* the nodes of the top map while it is written: an area that writers work on now has a quiet accent edge */
 .stage g.node.rn-working > :is(rect,polygon,path,circle){stroke:var(--teal)!important;stroke-width:1.5px!important}
 @media (prefers-reduced-motion:reduce){.spin,.sketch .sks,.rt-in,.rt-old{animation:none}.sketch .sks,.rt-old{display:none}.ovbar i,.runbar i{transition:none}}
 .ovb{flex:1;min-height:0;padding:6px 12px 10px}
@@ -1453,7 +1449,7 @@ body:where(.vscode-dark,.vscode-high-contrast) .bk-press{background:transparent}
 /* a page of the look: one column that reads well, under the line at the top */
 .bk-page{max-width:1040px}
 .bk-head{margin:2px 0 18px;font-size:calc(var(--size) + 7px);font-weight:600;color:var(--ink);line-height:1.25}
-/* The look on the page of a change and in the file tab. A box of a page (the card of the change, the comments window, a thread) takes the
+/* The look on the page of a change and in the file tab. A box of a page (the card of the change, the list of comments, a thread) takes the
    colours of one colour of a rule, as a node does; the lines beside the notes take its colour, width and dashes; the comment mark and the "?" of an
    open point take the colour of its words and an icon; the margin of the code shows the icon of a mark. */
 :is(.sec, .cml, .cbox, .cml .cmr).lk-fill{background:var(--lk-fill)}

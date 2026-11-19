@@ -624,7 +624,7 @@ const drawIfWaiting = () => { if (App.waiting) App.render(); };
 document.addEventListener('visibilitychange', drawIfWaiting);
 
 // The code view of a file tab has a narrow form, and the diagram page two halves on a wide tab: draw it again when the tab crosses that width.
-// A column of another width (the tab, the side bar, the comments window) wraps the long lines again: codeWithNotes watches its own width.
+// A column of another width (the tab, the side bar) wraps the long lines again: codeWithNotes watches its own width.
 let wasNarrow = null;
 let wasWide = null;
 const resized = new ResizeObserver(() => {

@@ -57,7 +57,7 @@ function walkTo(step) {
 Trail.here((step) => step.tab === 'home' && Home.data?.kind === 'home' && (Home.goTo(step.diagram || null, step.lit ?? [], step.filter), true));
 
 // ----- comments on the map -----
-// The comments window (remarks.js) and the things that hold a comment (places.js) read `App`, as on the change page.
+// The comments (remarks.js) and the things that hold a comment (places.js) read `App`, as on the change page.
 // On Home it holds the map in the shape of a change page; the small panels of the graphs page hold no comment.
 
 const Code = { shown: null }; // Home has no code view

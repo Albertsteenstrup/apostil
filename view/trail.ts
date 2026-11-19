@@ -21,7 +21,6 @@ export type Step =
 
 interface Rules {
   HOME: Step;
-  key(step: Step): string;
   start(step: Step): Step[];
   upTo(steps: Step[], step: Step): Step[];
   walk(steps: Step[], from: Step, to: Step): Step[];

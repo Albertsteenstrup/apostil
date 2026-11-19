@@ -74,7 +74,7 @@ type ValueKind = keyof typeof VALUES;
 /** The kind of a field that a rule reads of a thing: words, a count, true or false, the id of a part of the change of the branch, or one of a few fixed values. */
 type FieldKind = 'text' | 'count' | 'yes' | 'part' | readonly string[];
 
-/** The states of a thread of comments, as the comments window says them (view/media/states.js turns the state of a remark into one). */
+/** The states of a thread of comments, as the list of comments says them (view/media/states.js turns the state of a remark into one). */
 export const THREAD_STATES = ['open', 'sent', 'working', 'answered', 'resolved'] as const;
 
 /** A rule as an example in the list. It may hold the placeholders <folder>/, <file>, <diagram>, <node> and <set>:<value>. */
@@ -278,7 +278,7 @@ export const LOOK_PARTS = {
       example: { pick: { kind: 'part-link' }, arrow: { dashed: true }, content: { words: '{words} (+{added})' } },
     },
     'comment-mark': {
-      what: 'the small circle with the count of open comments on a thing; the comments window still counts them', area: 'comments', name: 'comment mark',
+      what: 'the small circle with the count of open comments on a thing; the list of comments still counts them', area: 'comments', name: 'comment mark',
       slots: ['text', 'show'], takes: { text: ['color', 'icon'], show: ['shown'] }, words: ['bubble', 'circle', 'count'], fields: { count: 'count' },
       example: { pick: { kind: 'comment-mark' }, text: { color: AMBER } },
     },
@@ -289,18 +289,18 @@ export const LOOK_PARTS = {
       example: { pick: { kind: 'diff-file' }, order: { by: 'added', down: true } },
     },
     'comments-window': {
-      what: 'the window of the comments and the open points; "folded" folds it at the start', area: 'comments', name: 'comments window',
-      slots: ['window', 'box', 'show'], takes: { window: ['width'], box: ['color'], show: ['folded'] }, words: ['sidebar', 'panel', 'review'], fields: {},
+      what: 'the list of comments and open points, from the count in the top bar', area: 'comments', name: 'list of comments',
+      slots: ['window', 'box'], takes: { window: ['width'], box: ['color'] }, words: ['sidebar', 'panel', 'review'], fields: {},
       example: { pick: { kind: 'comments-window' }, window: { width: 380 } },
     },
     thread: {
-      what: 'a card of a thread of comments in the comments window', area: 'comments',
+      what: 'a card of a thread of comments', area: 'comments',
       slots: ['content', 'box', 'order'], takes: { content: ['fields'], box: ['color'], order: ['by', 'down'] }, words: ['conversation', 'discussion', 'reply', 'answer'],
       fields: { state: THREAD_STATES, where: 'text', author: 'text' }, shows: ['where', 'messages', 'state', 'reply'],
       example: { pick: { kind: 'thread', where: { state: 'answered' } }, box: { color: '#15803d' } },
     },
     'open-point': {
-      what: 'a finding of the fresh check: its card in the comments window and its "?" on the thing', area: 'comments', name: 'open point',
+      what: 'a finding of the fresh check: its row in the list of comments and its "?" on the thing', area: 'comments', name: 'open point',
       slots: ['text', 'order', 'show'], takes: { text: ['color', 'icon'], order: ['by', 'down', 'group'], show: ['shown'] }, words: ['finding', 'question', 'problem', 'issue'],
       fields: { type: ['note', 'no-note', 'thing'], file: 'text', part: 'part', diagram: 'text' },
       example: { pick: { kind: 'open-point' }, order: { group: 'file' } },
@@ -578,7 +578,7 @@ export const LOOK_PARTS = {
       example: { pick: ONE_NODE, input: { alt: { file: '<file>' }, menu: [{ name: 'Show the folder in Files', target: { folder: '<folder>/' } }] } },
     },
     window: {
-      what: 'the window of the pointer on the thing: its width, and which of its sections show, in their order; a section that "sections" does not name is not shown; where cards show, a thing with a card shows it only with this or with marks in no corner',
+      what: 'the window of the pointer on the thing: its width, and which of its sections show, in their order; a section that "sections" does not name is not shown; with cards, only with this rule or with hidden marks',
       area: 'windows', fields: { width: 'pixels', sections: 'sections' },
       words: ['pop-up', 'popup', 'hover', 'tooltip', 'window', 'sections', 'wider'], gets: { width: 'a window width', sections: 'window sections' },
       example: { pick: ONE_NODE, window: { width: 440, sections: ['changes', 'files'] } },
@@ -637,7 +637,7 @@ export const LOOK_PARTS = {
     pages: 'a page of the look as a tab, and the target that opens it',
     change: 'the change page: its card, its parts and their links',
     diffs: 'the list of diffs, the views, part diagrams',
-    comments: 'the comments window: threads, open points, marks',
+    comments: 'the list of comments: threads, open points, marks',
     'file-tab': 'the file tab: function line, notes column, code map, margin',
     'side-bar': 'the list "Repo": Home row, search, rows, order',
     'pull-lines': 'pull requests in "Repo": colour, avatars',
