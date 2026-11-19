@@ -661,6 +661,11 @@ div.nomap .runpick{margin:0 0 8px}
 .ovf .dir{flex:0 1 auto;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;direction:rtl;text-align:left;color:var(--muted)}
 .ovf .nm{flex:none;max-width:75%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .ovf .c{flex:none;margin-left:auto;padding-left:10px;color:var(--muted);font-style:normal;white-space:nowrap}
+/* the icon of a file or a folder as the Explorer shows it (build 85, FileIcons): before the name, at the size of the text, centred on the line; only with a theme */
+.fi{display:none}
+.fi-on .fi{display:inline-flex;flex:none;align-self:center;align-items:center;justify-content:center;width:1.25em;height:1.25em;margin-right:6px;font-style:normal;overflow:visible}
+.fi::before{line-height:1}
+.fi-on .rows a .fi{margin-right:-4px} /* the gap of a row of a window is 10px: 6px after the icon, as in a card */
 /* the quiet icon at the top right of the frame: the diagram alone, or the overview again */
 .sb.surface{position:relative}
 .ovt{position:absolute;top:8px;right:8px;z-index:2;width:24px;height:24px;border-radius:6px;background:color-mix(in srgb,var(--paper) 85%,transparent);color:var(--muted);cursor:pointer}

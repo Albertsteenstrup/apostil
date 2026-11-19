@@ -6,6 +6,7 @@ out/
 .DS_Store
 view/media/example-data.js
 view/media/example-look/
+view/media/example-icons/
 view/media/pull-data*.js
 
 # Kept on this computer only: the records, briefs, research and pictures of the work. The logo of the design stays in Git.

@@ -571,8 +571,10 @@ window.addEventListener('message', (event) => {
     Overview.heard(message.full); // the overview of a diagram or the diagram alone, as he chose last (build 83)
     if (message.pullRead) takePullRead(message.pullRead);
     App.ask = message.ask ?? null; // the words for an agent of the page, with their press and the line of their run
+    FileIcons.set(message.icons); // the icons of the rows of the cards, in his file icon theme (build 85)
     App.render();
   }
+  if (message?.type === 'icons') { FileIcons.set(message.icons); Overview.relayout(); } // he changed the icon theme or the colour theme
   // The words went to a session, or its run moved on: only the line changes.
   if (message?.type === 'asked') {
     App.ask = message.ask;
@@ -656,6 +658,7 @@ if (vscodeApi) {
   script.onload = () => {
     const query = new URLSearchParams(location.search);
     App.page = window.APOSTIL_EXAMPLE.page;
+    if (query.get('icons') !== 'none') FileIcons.set(window.APOSTIL_EXAMPLE.icons.page); // the made-up icon theme; "?icons=none": no theme
     if (query.get('look')) App.page = { ...App.page, look: window.APOSTIL_EXAMPLE.pageLooks[query.get('look')] }; // a made-up look of the example: "1", "shared" or "change"
     // As in VS Code, a page of the change comes first and the pull requests of its branch after it: the first view is chosen before them.
     // "?pulls=kept" has them at once, as when the extension kept them; "?pulls=none" is a branch with none. A file tab, "?go=" and "?pull=" have them at once.

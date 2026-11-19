@@ -1,0 +1,13 @@
+// A made-up file icon theme for the browser checks (build 85), read as VS Code reads one: an SVG icon of code by extension and by language,
+// an SVG icon of a folder, and the fallback of every other file. No font: the font icons of the default theme are checked in real VS Code.
+{
+  "iconDefinitions": {
+    "_code": { "iconPath": "./code.svg" },
+    "_folder": { "iconPath": "./folder.svg" },
+    "_file": { "iconPath": "./file.svg" },
+  },
+  "file": "_file",
+  "folder": "_folder",
+  "fileExtensions": { "ts": "_code", "tsx": "_code" },
+  "languageIds": { "python": "_code" },
+}

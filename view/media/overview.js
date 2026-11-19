@@ -424,6 +424,11 @@ const Overview = {
     else this.trim();
   },
 
+  /** The rows of the cards changed their width (an icon came or went, build 85): the cards are placed again. */
+  relayout() {
+    if (this.held?.holder.isConnected) this.layout(this.held.holder, this.held.items);
+  },
+
   /**
    * What one card needs, for placeCards (sizesOf): the least units that show its content, and how it may grow.
    * - A card of files (also of a run whose area has files and no drawing yet): as wide as its longest row needs to show whole (folder, name and count;
@@ -454,8 +459,10 @@ const Overview = {
     const rows = [...card.querySelectorAll('.ovf a')];
     const rowHigh = rows[0]?.offsetHeight || 21;
     const need = head + 16 + 2 + files.length * rowHigh; // the head, the room of the body above and under its rows, the borders, and the rows
-    // A row whole: its folder, its name and its count (the name takes at most 75% of a row).
-    const wide = rows.length ? Math.max(...rows.map((row) => { const name = row.querySelector('.nm').scrollWidth; return Math.max(name / 0.75, (row.querySelector('.dir')?.scrollWidth ?? 0) + name + row.querySelector('.c').offsetWidth + 2); })) : 0;
+    // A row whole: its icon with the room after it (build 85, FileIcons), its folder, its name and its count (the name takes at most 75% of a row).
+    const icon = rows[0]?.querySelector('.fi');
+    const iconRoom = icon?.offsetWidth ? icon.offsetWidth + parseFloat(getComputedStyle(icon).marginRight) : 0;
+    const wide = rows.length ? Math.max(...rows.map((row) => { const name = row.querySelector('.nm').scrollWidth; return Math.max(name / 0.75, iconRoom + (row.querySelector('.dir')?.scrollWidth ?? 0) + name + row.querySelector('.c').offsetWidth + 2); })) : 0;
     const h = files.length ? unitsFor(need, UNIT_HIGH) : 2;
     const most = files.length ? Math.max(h, [1, 2, 3].filter((one) => unitsPx(one, UNIT_HIGH) <= need + UNIT_HIGH + CARD_GAP).pop() ?? h) : h;
     return { w: Math.max(rows.length ? unitsFor(wide + 24 + 2, unit) : 2, named), h, files: true, most, alone: h };
@@ -547,7 +554,7 @@ function fileRowHtml(file) {
   const attrs = file.counts !== undefined ? `data-open-file="${esc(file.path)}"`
     : folder ? `data-tree="${esc(file.path)}"` : `data-open="${esc(file.path)}"${file.line ? ` data-line="${file.line}"` : ''}`;
   const count = file.counts !== undefined ? countsHtml(file.counts) : folder && file.count ? plural(file.count, 'file') : '';
-  return `<a ${attrs} title="${esc(file.path)}"><span class="dir"><bdi dir="ltr">${esc(at)}</bdi></span><span class="nm">${esc(name)}</span><i class="c">${count}</i></a>`;
+  return `<a ${attrs} title="${esc(file.path)}">${FileIcons.html(file.path)}<span class="dir"><bdi dir="ltr">${esc(at)}</bdi></span><span class="nm">${esc(name)}</span><i class="c">${count}</i></a>`;
 }
 
 /**

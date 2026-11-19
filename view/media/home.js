@@ -85,8 +85,8 @@ const mapPage = (data) => (data.kind === 'home' && data.map
 function nodeWindow(g, node, thing) {
   return () => {
     const paths = node.paths.map(({ path, files }) => (path.endsWith('/')
-      ? `<a data-tree="${esc(path)}"><span>${esc(path)}</span><i class="c">${plural(files, 'file')}</i></a>`
-      : `<a data-open="${esc(path)}"><span>${esc(path)}</span><i class="c"></i></a>`)).join('');
+      ? `<a data-tree="${esc(path)}">${FileIcons.html(path)}<span>${esc(path)}</span><i class="c">${plural(files, 'file')}</i></a>`
+      : `<a data-open="${esc(path)}">${FileIcons.html(path)}<span>${esc(path)}</span><i class="c"></i></a>`)).join('');
     const changes = node.changes.map((change) => `<a data-change-id="${change.id}" data-title="${esc(change.title)}"><span>${esc(change.branch)}</span><i class="c">${esc(change.title)}</i></a>`).join('');
     const look = Home.data.look;
     const hidden = thing ? look.sets.filter((set) => !thing.cornered?.has(set.id)).map((set) => [set, Marks.stackOf(thing.marks, set.id)]).filter(([, stack]) => stack.length) : [];
@@ -536,8 +536,10 @@ window.addEventListener('message', (event) => {
     Home.data = message.data;
     if (message.trail) Trail.set(message.trail);
     Overview.heard(message.full); // the overview or the diagram alone, as he chose last
+    FileIcons.set(message.icons); // the icons of the rows, in his file icon theme (build 85)
     Home.render();
   }
+  if (message?.type === 'icons') { FileIcons.set(message.icons); Overview.relayout(); } // he changed the icon theme or the colour theme
   if (message?.type === 'layout' && Overview.heard(message.full)) Home.render(); // he chose on another page
   // Every 30 seconds while a map is written: the time left and the bar, with nothing drawn again.
   if (message?.type === 'time' && Home.data?.mapRun?.time) { Home.data.mapRun.time = message.time; showTime(message.time); barTo(message.time.share); }
@@ -553,7 +555,7 @@ new ResizeObserver(drawIfWaiting).observe(document.body);
 // Start: inside VS Code ask for the data; as a file in a browser, load example-data.js:
 // "?path=<path>" is the graphs page of that path, "?nomap=1" Home with no map, "?run=<name>" Home with the line of a made-up map run, "?diagram=<id>&lit=<ids>" Home at that diagram, "?look=<name>" Home with a
 // made-up look of the example: "?look=1" the look of build 51 (look.json), "?look=shared" look-shared.json; "?look=blocks&page=<id>" a page of that look;
-// "?look=home" look-home.json, also with "?path=".
+// "?look=home" look-home.json, also with "?path="; "?icons=none" with no file icon theme.
 if (vscodeApi) {
   tell({ type: 'ready' });
 } else {
@@ -572,6 +574,7 @@ if (vscodeApi) {
     if (run && Home.data.kind === 'home') Home.data = { ...Home.data, mapRun: run };
     Home.at = query.get('diagram') || null;
     Home.lit = (query.get('lit') ?? '').split(',').filter(Boolean);
+    if (query.get('icons') !== 'none') FileIcons.set(example.icons.home); // the made-up icon theme; "?icons=none": no theme
     Home.render();
   };
   document.head.append(script);

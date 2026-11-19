@@ -30,6 +30,7 @@ const { putLookFiles } = own('./out/view/check-example.js');
 const { noteCodeOf } = own('./out/shared/notes-beside-code.js');
 const { makeNotebookRepo, notebookChangeFile } = own('./out/shared/test-repo.js');
 const { saveDraft } = own('./out/store/save.js');
+const { readIconTheme } = own('./out/view/file-icons.js');
 const { setLook } = own('./out/store/marks-save.js');
 const { markLineNow } = own('./out/shared/marks.js');
 const { appLink } = own('./out/shared/apostil-link.js');
@@ -274,6 +275,24 @@ try {
     return undefined;
   }, ms);
   const frameWith = (selector, ms) => frameWhere((wanted) => !!document.querySelector(wanted), selector, ms);
+  // Build 85: the default file icon theme of VS Code (Seti), read from its own JSON, and what a row of a card shows before its name: the character
+  // and the colour of its font icon, whether the font of the theme came, and the room of the icon.
+  const seti = readIconTheme(path.join(path.dirname(CODE), '../Resources/app/extensions/theme-seti/icons/vs-seti-icon-theme.json'));
+  /** The font icon of Seti for a language, as CSS gives it: its character and its colour; its light part in a light theme. */
+  const setiIcon = (language, light) => {
+    const icon = seti?.iconDefinitions[(light && seti.light?.languageIds?.[language]) || seti?.languageIds?.[language]];
+    return icon && { content: JSON.stringify(String.fromCodePoint(parseInt(icon.fontCharacter.slice(1), 16))), color: `rgb(${[1, 3, 5].map((at) => parseInt(icon.fontColor.slice(at, at + 2), 16)).join(', ')})` };
+  };
+  const rowIconNow = (frame, wanted) => frame?.evaluate((wanted) => {
+    const icon = document.querySelector(`.ovf a[title="${wanted}"] .fi`);
+    const before = icon && getComputedStyle(icon, '::before');
+    const font = [...document.fonts].find((face) => face.family.replace(/"/g, '') === 'fi-seti');
+    return icon && { light: document.body.classList.contains('vscode-light'), content: before.content, color: before.color, family: before.fontFamily, font: font?.status ?? 'none', room: icon.offsetWidth };
+  }, wanted).catch(() => undefined);
+  /** The icon of a row once the font of the theme came (a row with no icon at once). */
+  const iconOfRow = async (frame, wanted) => (await until(async () => { const now = await rowIconNow(frame, wanted); return now && (now.font === 'loaded' || now.content === 'none') && now; }, 8000)) || rowIconNow(frame, wanted);
+  /** True when a row shows the font icon of Seti for its language, in the font of the theme. */
+  const setiRow = (row, language) => !!row && row.content === setiIcon(language, row.light)?.content && row.color === setiIcon(language, row.light)?.color && /fi-seti/.test(row.family) && row.font === 'loaded' && row.room > 0;
   const runsNow = () => (existsSync(runs) ? readFileSync(runs, 'utf8').split(`${RUN}\n`).slice(1) : []);
   const remarks = () => store.remarks(changeId);
   /** Sets one setting in the settings file of the window; VS Code reads the file again when it changes. */
@@ -504,6 +523,7 @@ try {
   await list?.locator('.home').click();
   const home = await homeFrame();
   check('the Home row opens the Home tab with the top map of its 8 areas', !!home && /^Home/.test(await activeTab() ?? ''), await activeTab());
+  const homeRows = { folder: await iconOfRow(home, 'docs/'), python: await iconOfRow(home, 'src/library/night_jobs.py') };
   const filesPane = page.locator('.pane', { has: page.locator('.pane-header .title', { hasText: /^Files$/ }) });
   const rowOf = (name) => filesPane.locator('.monaco-list-row', { has: page.locator('.label-name', { hasText: new RegExp(`^${name.replace('.', '\\.')}$`) }) }).first();
   for (const name of ['src', 'library', 'lending']) { await rowOf(name).click(); await rowOf(name).waitFor(); }
@@ -700,6 +720,12 @@ try {
   check('the page draws the diagram of the change, fills its tab, and its font is the font of VS Code, its code the font of the editor; the state that agents read names the open change and its view',
     appState?.view === 'diagram' && font.left === 0 && !!font.vscode && plain(font.family) === plain(workbenchFont.family) && font.size === workbenchFont.size && !!font.editor && plain(font.code) === plain(font.editor), JSON.stringify(font));
   await shot('3-change-as-diagram');
+  // Build 85: each row of a card starts with the icon that the Explorer shows in the default file icon theme (Seti): for a .ts file and a .py file the
+  // font icon of its language in its colour, from the font of the theme; Seti has no icon for a folder, so a folder row keeps the room of one, empty.
+  const tsRow = await iconOfRow(stage, 'web/src/member/holdsApi.ts');
+  check('the rows of the cards show the icons of the Explorer in the default file icon theme (Seti, read from its own JSON): the font icon of TypeScript on the change page and of Python on Home, each in its colour and in the font of the theme; a folder row of Home has no icon, as in the Explorer, and keeps its room',
+    !!seti && setiRow(tsRow, 'typescript') && setiRow(homeRows.python, 'python') && !seti.folder && !seti.folderNames?.docs && homeRows.folder?.content === 'none' && homeRows.folder.room > 0,
+    JSON.stringify({ tsRow, ...homeRows, ts: setiIcon('typescript', tsRow?.light) }));
 
   // Opening a file from the page opens the file as a tab of its own, in the group of the page, with its file icon, in Apostil's view.
   const tabOf = (name) => page.locator('.editor-group-container .tab', { has: page.locator('.label-name', { hasText: new RegExp(`^${name.replace('.', '\\.')}$`) }) });
@@ -1027,6 +1053,10 @@ try {
   const darkSettings = settingsNow();
   await stage.evaluate(async () => { await App.go({ level: 'change' }); await App.drawing; });
   await shot('5b-vscode-default-change');
+  // Build 85: the colour theme changed while the page shows, so its rows take the icons of the dark part of the theme, with no new load of the page.
+  const darkRow = await until(async () => { const now = await rowIconNow(stage, 'web/src/member/holdsApi.ts'); return now && !now.light && now.color === setiIcon('typescript', false)?.color && now; }, 8000) || await rowIconNow(stage, 'web/src/member/holdsApi.ts');
+  check('when the colour theme turns dark while the page shows, the icons of its rows follow at once: the TypeScript icon of Seti takes the colour of its dark part, in the same page',
+    setiRow(darkRow, 'typescript') && tsRow?.light && darkRow.color !== tsRow.color && kept.same, JSON.stringify({ before: tsRow, darkRow }));
   const seen = await stage.evaluate(lookOfPage, true).catch((error) => ({ error: String(error) }));
   check('the look "VS Code default" chosen while a diagram of a part shows: the page is dark at once and keeps that drawing, the dark theme is in the settings, and the page of the change reads: no box lighter than the page, no text in a box on an arrow, text at least 4.5 to 1',
     turnedDark && kept.level === 'part' && kept.same && /Dark/.test(darkSettings['workbench.colorTheme'] ?? '') && darkSettings['window.autoDetectColorScheme'] === false

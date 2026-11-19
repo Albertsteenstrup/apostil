@@ -197,6 +197,66 @@ try {
       && part.level === 'part' && part.part === 'hold-service' && /›Hold service$/.test(part.crumb) && file.view === 'code' && file.file === 'web/src/member/HoldDialog.tsx'
       && beside.cards === 7 && beside.under && beside.list, JSON.stringify({ change, part, file, beside }));
 
+  // 6. Build 85: each file row and folder row of a card, and of the window of a node, starts with the icon that the Explorer shows for it in his file
+  // icon theme (here the made-up theme of the example): before the name, at the size of the text, centred on the line. With no theme, no row has an
+  // icon or its room; a new theme gives the rows that show their new icons in place.
+  /** The icons of the rows of `selector`: the picture of each, its size against the size of the text, and its place against the name. */
+  const iconRows = (selector) => home.evaluate((selector) => Object.fromEntries([...document.querySelectorAll(selector)].map((row) => {
+    const icon = row.querySelector('.fi');
+    const box = icon.getBoundingClientRect();
+    const name = (row.querySelector('.nm') ?? row.querySelector('span')).getBoundingClientRect();
+    const font = parseFloat(getComputedStyle(row).fontSize);
+    const picture = /example-icons\/(\w+)\.svg/.exec(getComputedStyle(icon).backgroundImage)?.[1] ?? 'none';
+    const sized = box.width >= font && box.width <= font * 1.5 && Math.abs(box.height - box.width) < 1;
+    const placed = box.right <= (row.querySelector('.dir') ?? row.querySelector('span')).getBoundingClientRect().left && Math.abs(box.top + box.height / 2 - (name.top + name.height / 2)) <= 1.5;
+    return [icon.dataset.fi, box.width ? `${picture}${sized ? '' : ' (not the size of the text)'}${placed ? '' : ' (not before the name, centred)'}` : 'no icon'];
+  })), selector);
+  await homeAt();
+  await cardsFilled();
+  const homeIcons = await iconRows('#cards .ovf a');
+  await home.locator('#view g.node[id*="flowchart-lending-"]').hover();
+  await home.waitForSelector('.win .rows a[data-tree] .fi', { timeout: 5000 }).catch(() => {});
+  const windowIcons = await iconRows('.win .rows a[data-tree], .win .rows a[data-open]');
+  await takePicture(home, 'overview-7-icons.png');
+  // A new theme while Home shows (the message of VS Code): one where every file and folder has the fallback icon, then no theme, then the made-up
+  // theme again; the rows keep their place and take their new icons.
+  const swapped = await home.evaluate(async () => {
+    const pictures = () => [...document.querySelectorAll('#cards .ovf a .fi')].map((icon) => (icon.offsetWidth ? /(\w+)\.svg/.exec(getComputedStyle(icon).backgroundImage)?.[1] ?? 'none' : 'no icon')).join();
+    const next = () => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+    const rows = document.querySelectorAll('#cards .ovf a');
+    const { home: icons } = window.APOSTIL_EXAMPLE.icons;
+    postMessage({ type: 'icons', icons: { css: icons.css, paths: Object.fromEntries(Object.keys(icons.paths).map((path) => [path, icons.paths['README.md']])) } });
+    await next();
+    const plain = pictures();
+    postMessage({ type: 'icons' });
+    await next();
+    const none = pictures();
+    postMessage({ type: 'icons', icons });
+    await next();
+    const same = [...document.querySelectorAll('#cards .ovf a')].every((row, at) => row === rows[at]);
+    return { plain, none, back: pictures(), same };
+  });
+  await homeAt('?icons=none');
+  await cardsFilled();
+  const noTheme = await iconRows('#cards .ovf a');
+  const noRoom = await home.evaluate(() => [...document.querySelectorAll('#cards .ovf a')].every((row) => Math.abs(row.querySelector('.dir').getBoundingClientRect().left - row.getBoundingClientRect().left) < 1));
+  // The width of a card counts the icon: at 1200 px three rows of "Holds tab" would be cut without it.
+  await home.setViewportSize({ width: 1200, height: 900 });
+  await home.goto(`file://${pageFile}`);
+  await loaded();
+  await cardsFilled();
+  await placed();
+  const changeIcons = await iconRows('.ovcards .ovf a');
+  const changeCut = await home.evaluate(() => [...document.querySelectorAll('.ovcards .ovf .dir, .ovcards .ovf .nm')].filter((part) => part.scrollWidth > part.clientWidth + 1).map((part) => part.closest('a').title));
+  await home.setViewportSize({ width: 1400, height: 900 });
+  check('each file row and folder row of a card and of the window of a node starts with the icon of the Explorer in the file icon theme (the made-up theme: code by extension and by language, the folder icon, the fallback of other files), before the name, at the size of the text and centred on the line, and the width of a card counts it (no row is cut); a new theme changes the icons of the rows in place; with no theme no row has an icon or its room',
+    homeIcons['docs/'] === 'folder' && homeIcons['README.md'] === 'file' && homeIcons['src/library/night_jobs.py'] === 'code' && homeIcons['tests/'] === 'folder'
+      && Object.values(homeIcons).every((one) => /^(code|folder|file)$/.test(one)) && windowIcons['src/library/lending/'] === 'folder'
+      && changeIcons['web/src/member/HoldDialog.tsx'] === 'code' && changeIcons['web/src/member/member.css'] === 'file' && Object.values(changeIcons).every((one) => /^(code|folder|file)$/.test(one)) && changeCut.length === 0
+      && /^file(,file)+$/.test(swapped.plain) && /^no icon(,no icon)+$/.test(swapped.none) && swapped.back === Object.values(homeIcons).join() && swapped.same
+      && Object.keys(noTheme).length > 0 && Object.values(noTheme).every((one) => one === 'no icon') && noRoom,
+    JSON.stringify({ homeIcons, windowIcons, changeIcons, changeCut, swapped, noTheme, noRoom }));
+
   // Pictures for a person: the dark theme of VS Code.
   await homeAt();
   await home.evaluate(() => { document.body.classList.add('vscode-dark'); });
