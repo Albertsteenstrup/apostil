@@ -183,6 +183,15 @@ try {
   check('after a close from outside, a pointer event at the old place opens no hover window, and the first real move of the pointer on the same thing opens it again',
     openedFirst && openedAtOldPlace === 0 && openedBySmallMove, JSON.stringify({ openedFirst, openedAtOldPlace, openedBySmallMove }));
 
+  // A close from outside can also come while a window waits its 0.3 s (the tab shows again with the pointer on a thing, and the page closes its
+  // windows): the wait stops, and the next real move of the pointer on that thing asks again. No leave comes first, since the pointer stays on it.
+  await page.$eval(fileName, (el) => { el.dispatchEvent(new MouseEvent('mouseenter')); Hover.hide(); });
+  await page.mouse.move(onName.x - 2, onName.y); // the pointer comes onto the name and rests there
+  const openedAfterStoppedWait = !!(await hoverWindow());
+  await away();
+  check('a close from outside while a hover window waits leaves no wait behind: the next real move of the pointer on the same thing opens its window',
+    openedAfterStoppedWait, JSON.stringify({ openedAfterStoppedWait }));
+
   // A node that a click opens grows a little under the pointer, from its middle. A node that opens nothing does not, and none does under the comment pointer.
   const underPointer = async (title, picking = false) => {
     const shape = page.locator(`${changeSection} g.node:has(${title}) > :first-child`);

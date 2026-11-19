@@ -39,7 +39,9 @@ function placeWindow(win, box) {
 const Hover = (() => {
   let shown = null; // { el, anchor }
   let openTimer = 0;
+  let waiting = null; // the element whose window the open timer waits for: each stop of the timer clears it, so no wait stays asked for with no timer
   let hideTimer = 0;
+  const stopWait = () => { clearTimeout(openTimer); waiting = null; };
   let turn = 0; // goes up with each window that is asked for and each close from outside: content that comes late for an older turn opens no window
   // A tab that shows again gets pointer events at the place where the pointer was before, though the pointer is elsewhere now.
   // So after a close from outside no window opens until the pointer has really moved.
@@ -90,25 +92,25 @@ const Hover = (() => {
 
   /** Gives an element a hover window. `load` returns { title, sub, body, width, open, ready } when the window opens. */
   function attach(anchor, load, around) {
-    let waits = false; // its window is asked for and the wait runs
     let clicked = false; // a click opens the thing; its window is not wanted until the pointer has left
     anchors.add(anchor);
     const come = (event) => {
-      if (waits || clicked || shown?.anchor === anchor || anchorOf(event) !== anchor) return;
-      waits = true;
-      clearTimeout(openTimer);
+      if (waiting === anchor || clicked || shown?.anchor === anchor || anchorOf(event) !== anchor) return;
+      stopWait();
       clearTimeout(hideTimer);
-      openTimer = setTimeout(() => { waits = false; show(anchor, load, around); }, 300);
+      waiting = anchor;
+      openTimer = setTimeout(() => { waiting = null; show(anchor, load, around); }, 300);
     };
     anchor.addEventListener('mouseenter', come);
     // The pointer can be on the element already when the page draws it; then no "enter" comes, and its first real move counts as coming.
+    // So also a close from outside during the wait leaves the next move free to ask again.
     anchor.addEventListener('mousemove', come);
     anchor.addEventListener('mouseleave', () => {
-      waits = clicked = false;
-      clearTimeout(openTimer);
+      clicked = false;
+      stopWait();
       hideTimer = setTimeout(hide, 250);
     });
-    anchor.addEventListener('click', () => { waits = false; clicked = true; clearTimeout(openTimer); });
+    anchor.addEventListener('click', () => { clicked = true; stopWait(); });
   }
 
   /**
@@ -145,12 +147,12 @@ const Hover = (() => {
    * `asked`: it opens also when the pointer is not on the element (the window of a target, from a row of a menu).
    */
   function now(anchor, load, around, asked = false) {
-    clearTimeout(openTimer);
+    stopWait();
     clearTimeout(hideTimer);
     return show(anchor, load, around, asked);
   }
 
-  const close = () => { clearTimeout(openTimer); turn++; stale = point; hide(); };
+  const close = () => { stopWait(); turn++; stale = point; hide(); };
   // Escape closes the window that is open (build 58), unless he types in a field.
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && shown && !event.target.closest?.('[data-field], textarea, input')) close();
