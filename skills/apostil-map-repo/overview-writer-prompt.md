@@ -18,11 +18,12 @@ Read the README and the largest files of the folders that you cannot place. Read
 
 ## A second run: a correction
 
-The main agent may start you again after the notes and the processes exist. It gives you three lists from `apostil map --fit`: files with notes that stand in no node, nodes that hold no file with a note or a process, and calls of the processes between two nodes that have no arrow. It asks you to correct only what these facts show, and to keep the ids of the nodes that stay.
+The main agent may start you again after the notes and the processes exist. It gives you four lists from `apostil map --fit`: files with notes that stand in no node, nodes that hold no file with a note or a process, calls of the processes between two nodes that have no arrow, and code that other files use and that has no note. It asks you to correct only what these facts show, and to keep the ids of the nodes that stay.
 
 - A file in no node: give it to the node that it belongs to, or add a node when it is a new area.
 - A node with no file with a note: its paths may be wrong, or it may be a part with no code (docs, tests). Fix the paths, or keep the node and say why in your report.
 - A call with no arrow is a fact to weigh, not an order. An arrow of the top diagram means a main flow. Add the arrow only when the calls are a main flow between the two areas; else leave it out, and say so in your report.
+- Code with no note that other files use is a fact to weigh too. When its file stands in no node, give it to the node that it belongs to.
 - The save of `apostil save-map` replaces all diagrams: write the diagrams of the stored map (`apostil map-material` prints them) into `diagrams` unchanged, and your corrected top diagram with them. Notes and processes stay by themselves.
 
 ## Step 3: Write the top diagram
