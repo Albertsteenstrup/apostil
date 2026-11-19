@@ -43,6 +43,7 @@ try {
   await takePicture(home, '30-home-with-a-map.png');
   const nodeWin = await windowOf('lending');
   const grows = await home.$eval(`${nodeOf('lending')} > :first-child`, (el) => getComputedStyle(el).scale);
+  const iconsStay = await home.$eval(`${nodeOf('lending')} > .mk-holder`, (el) => getComputedStyle(el).scale).catch(() => 'no icons'); // grown, they would shake under a resting pointer
   // The same node, with the counts of a large repo.
   await away();
   const bigDraw = (files, paths) => home.evaluate(async ([files, paths]) => {
@@ -56,10 +57,10 @@ try {
   const bigWin = await windowOf('lending');
   await away();
   await bigDraw(...smallCounts);
-  check('Home draws the top map as one surface: 8 named areas, no dot on any node, the line "Home" alone; an area grows a little under the pointer and opens a window with its folders and files, the count of files and the change that touches it; a large repo has commas in its counts',
-    top.nodes === 8 && top.names === 8 && top.dots === 0 && top.surface && top.crumb === 'Home' && grows === '1.03'
+  check('Home draws the top map as one surface: 8 named areas, no dot on any node, the line "Home" alone; an area grows a little under the pointer (the icons at its corner stay where they are) and opens a window with its folders and files, the count of files and the change that touches it; a large repo has commas in its counts',
+    top.nodes === 8 && top.names === 8 && top.dots === 0 && top.surface && top.crumb === 'Home' && grows === '1.03' && iconsStay === 'none'
       && nodeWin.title === 'Lending' && nodeWin.sub === '9 files · 1 change' && nodeWin.rows?.[0] === 'src/library/lending/9 files' && /^book-holds/.test(nodeWin.rows?.[1] ?? '')
-      && bigWin.sub === '2,339 files · 1 change' && bigWin.first === '5,132 files', JSON.stringify({ top, grows, nodeWin, bigWin }));
+      && bigWin.sub === '2,339 files · 1 change' && bigWin.first === '5,132 files', JSON.stringify({ top, grows, iconsStay, nodeWin, bigWin }));
 
   // A click on a node goes down and "Home" goes up; a node with no diagram under it asks for its folder in the tree "Files" and never opens the graphs
   // of the folder; the window of a node of an area lists its files, and a click on a file asks VS Code to open it (build prompt 43).

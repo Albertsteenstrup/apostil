@@ -101,9 +101,10 @@ body:where(.vscode-light:not([data-vscode-theme-id="Apostil Light"]),.vscode-dar
 .stage .node.hot rect,.stage .node.hot polygon,.stage .node.hot path{stroke:var(--teal)!important;stroke-width:2px!important}
 .stage .go{cursor:pointer}
 /* a node that a click opens grows a little under the pointer; not under the comment pointer, where a click sticks a comment.
-   Each child grows from the middle of the node, because Mermaid places the node itself with a transform. */
-.stage g.node.go > *{transition:scale .15s ease-out}
-body:not(.picking) .stage g.node.go:hover > *{scale:1.03}
+   Each child grows from the middle of the node, because Mermaid places the node itself with a transform. The icons at its corner stay where they
+   are: grown, they would move away from a pointer that rests on their edge, and shake. */
+.stage g.node.go > :not(.mk-holder){transition:scale .15s ease-out}
+body:not(.picking) .stage g.node.go:hover > :not(.mk-holder){scale:1.03}
 @media (prefers-reduced-motion:reduce){.stage g.node.go > *{transition:none}}
 .nodeLabel{font-weight:600;line-height:1.35}
 .nodeLabel b{display:block;font-size:var(--size);font-weight:600;margin-bottom:3px;text-align:left}
@@ -1344,8 +1345,8 @@ body.vscode-high-contrast .lk-fill{--lk-fill:var(--d-node)}body.vscode-high-cont
 .stage path.lk-wide{stroke-width:var(--lk-width)!important}
 .stage path.lk-dashed{stroke-dasharray:6 4!important}
 /* A node that the look fills with a picture or a film: a node all the same, which grows under the pointer when a click opens it. */
-.stage g.image-shape.go > *{transition:scale .15s ease-out}
-body:not(.picking) .stage g.image-shape.go:hover > *{scale:1.03}
+.stage g.image-shape.go > :not(.mk-holder){transition:scale .15s ease-out}
+body:not(.picking) .stage g.image-shape.go:hover > :not(.mk-holder){scale:1.03}
 @media (prefers-reduced-motion:reduce){.stage g.image-shape.go > *{transition:none}}
 .lk-film{position:relative;width:100%;height:100%}
 .lk-film video{width:100%;height:100%;display:block;object-fit:contain;border-radius:4px;background:var(--region)}
