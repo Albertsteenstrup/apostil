@@ -116,12 +116,12 @@ test('every new session takes the small model of its app unless the owner set an
     const drawing = { ...models, ...kind };
     assert.deepEqual(modelWords('claude-code', drawing), ['--model', 'haiku', '--effort', 'max']);
     assert.deepEqual(modelWords('codex', drawing), ['-c', 'model="gpt-6-luna"', '-c', 'model_reasoning_effort="max"']);
-    assert.deepEqual(modelWords('antigravity', drawing), ['--model', 'gemini-4-hydrogen', '--effort', 'max']);
+    assert.deepEqual(modelWords('antigravity', drawing), ['--model', 'gemini-4-hydrogen', '--effort', 'medium']);
     assert.deepEqual(modelWords('opencode', drawing), ['--model', 'made-up-provider/small-one#max']);
     const resumed = resumeCommand({ app: 'claude-code', session: 's1' }, 'Do it', drawing)!;
     assert.deepEqual(resumed.slice(7, 11), ['--model', 'haiku', '--effort', 'max']);
     assert.deepEqual(resumeCommand({ app: 'codex', session: 't1' }, 'Do it', drawing)?.slice(-4), ['-c', 'model="gpt-6-luna"', '-c', 'model_reasoning_effort="max"']);
-    assert.deepEqual(resumeCommand({ app: 'antigravity', session: 'c1' }, 'Do it', drawing)?.slice(7, 11), ['--model', 'gemini-4-hydrogen', '--effort', 'max']);
+    assert.deepEqual(resumeCommand({ app: 'antigravity', session: 'c1' }, 'Do it', drawing)?.slice(7, 11), ['--model', 'gemini-4-hydrogen', '--effort', 'medium']);
     assert.deepEqual(resumeCommand({ app: 'opencode', session: 'o1' }, 'Do it', drawing)?.slice(-2), ['--model', 'made-up-provider/small-one#max']);
   }
   const agyMap = newRunCommand('antigravity', 'Write the map', { ...models, diagrams: true })!;

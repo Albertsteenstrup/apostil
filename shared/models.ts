@@ -245,14 +245,14 @@ const mostEffort = (model: ModelInfo | undefined): string => (!model || model.ef
 
 /**
  * The choice of a map run or a description run: for Claude Code and Codex, the second smallest model leads at its most effort and every writer runs on
- * the smallest; for Antigravity, Gemini 4 Hydrogen leads and writes. OpenCode has no order: it keeps its own model and small model.
+ * the smallest; for Antigravity, Gemini 4 Hydrogen leads and writes at medium effort. OpenCode has no order: it keeps its own model and small model.
  */
 export function teamOf(app: string, home = agentHome()): Team {
   const catalog = catalogOf(app, home);
   if (!catalog) return { app, effort: 'max', list: [] };
   if (app === 'antigravity') {
     const hydrogen = catalog.models.find((one) => one.id === ANTIGRAVITY_SMALL) ?? smallest(app, catalog);
-    return { app, lead: hydrogen?.id, writer: hydrogen?.id, effort: mostEffort(hydrogen), list: catalog.models };
+    return { app, lead: hydrogen?.id, writer: hydrogen?.id, effort: nearestEffort(hydrogen?.efforts ?? [], 'medium'), list: catalog.models };
   }
   const lead = secondSmallest(app, catalog);
   return { app, lead: lead?.id, writer: smallest(app, catalog)?.id, effort: mostEffort(lead), list: catalog.models };
@@ -370,12 +370,17 @@ export function teamFrom(app: string, sent: unknown, home = agentHome()): Team {
 const modelIn = (team: Team, id: unknown): ModelInfo | undefined => team.list.find((model) => model.id === id);
 
 /**
- * What a run of a team takes: the lead's model and effort, and the writers' model at its most effort, whatever effort the lead has. OpenCode keeps its
- * own model.
+ * What a run of a team takes: the lead's model and effort, and the writers' model at its default effort (medium for Antigravity; most effort for
+ * Claude Code and Codex), whatever effort the lead has. OpenCode keeps its own model.
  */
 export const teamRun = (team: Team): { model?: string; effort: string; writers?: { model: string; effort: string }; opencodeModel: undefined } => ({
   ...(team.lead ? { model: team.lead } : {}), effort: nearestEffort(modelIn(team, team.lead)?.efforts ?? [], team.effort),
-  ...(team.writer ? { writers: { model: team.writer, effort: mostEffort(modelIn(team, team.writer)) } } : {}),
+  ...(team.writer ? {
+    writers: {
+      model: team.writer,
+      effort: team.app === 'antigravity' ? nearestEffort(modelIn(team, team.writer)?.efforts ?? [], 'medium') : mostEffort(modelIn(team, team.writer)),
+    },
+  } : {}),
   opencodeModel: undefined,
 });
 

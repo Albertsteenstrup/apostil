@@ -82,15 +82,15 @@ test('a map run is led by the second smallest model at the most effort and every
   const codexMap = newRunCommand('codex', mapPrompt(false, codex), { codexModel: 'gpt-6-luna', diagrams: true, ...teamRun(codex) })!;
   assert.deepEqual(codexMap.slice(-8), ['-c', 'agents.max_threads=16', '-c', 'agents.max_concurrent_threads_per_session=16', '-c', 'model="gpt-6.1-terra"', '-c', 'model_reasoning_effort="max"']); // 16 writers at once, for this run alone
   assert.match(codexMap[2], /Start every writer and checker subagent on Luna 6 at max effort: start each one with spawn_agent, with model "gpt-6-luna" and reasoning_effort "max"\./);
-  // Antigravity: Gemini 4 Hydrogen leads and writes at xhigh; writers inherit the model via invoke_subagent, or use swarm when lead/effort differs.
+  // Antigravity: Gemini 4 Hydrogen leads and writes at medium; writers inherit the model via invoke_subagent, or use swarm when lead/effort differs.
   const agy = teamOf('antigravity', home);
-  assert.deepEqual([agy.lead, agy.writer, agy.effort], ['gemini-4-hydrogen', 'gemini-4-hydrogen', 'xhigh']);
+  assert.deepEqual([agy.lead, agy.writer, agy.effort], ['gemini-4-hydrogen', 'gemini-4-hydrogen', 'medium']);
   const agyMap = newRunCommand('antigravity', mapPrompt(false, agy), { antigravityModel: 'gemini-4-hydrogen', diagrams: true, ...teamRun(agy) })!;
-  assert.deepEqual(agyMap.slice(agyMap.indexOf('--model'), agyMap.indexOf('--model') + 4), ['--model', 'gemini-4-hydrogen', '--effort', 'xhigh']);
-  assert.match(agyMap[2], /You lead on Gemini 4 Hydrogen at xhigh effort:.*Start every writer and checker subagent on Gemini 4 Hydrogen at xhigh effort: start each one with invoke_subagent, with TypeName "self" and Model "inherit"\./);
+  assert.deepEqual(agyMap.slice(agyMap.indexOf('--model'), agyMap.indexOf('--model') + 4), ['--model', 'gemini-4-hydrogen', '--effort', 'medium']);
+  assert.match(agyMap[2], /You lead on Gemini 4 Hydrogen at medium effort:.*Start every writer and checker subagent on Gemini 4 Hydrogen at medium effort: start each one with invoke_subagent, with TypeName "self" and Model "inherit"\./);
   const agyNeon = teamFrom('antigravity', { app: 'antigravity', lead: 'gemini-4-neon', effort: 'high' }, home);
-  assert.deepEqual(teamRun(agyNeon), { model: 'gemini-4-neon', effort: 'high', writers: { model: 'gemini-4-hydrogen', effort: 'xhigh' }, opencodeModel: undefined });
-  assert.match(teamSentence(agyNeon, WRITER_AGENT), /start each one with swarm, action "add" and model "gemini-4-hydrogen-xhigh"\./);
+  assert.deepEqual(teamRun(agyNeon), { model: 'gemini-4-neon', effort: 'high', writers: { model: 'gemini-4-hydrogen', effort: 'medium' }, opencodeModel: undefined });
+  assert.match(teamSentence(agyNeon, WRITER_AGENT), /start each one with swarm, action "add" and model "gemini-4-hydrogen-medium"\./);
   // OpenCode keeps its own model and small model: no model, and the words of the skill.
   const opencode = teamOf('opencode', home);
   assert.deepEqual([newRunCommand('opencode', 'Map', Object.assign({ opencodeModel: 'made-up/small', diagrams: true as const }, teamRun(opencode)))?.slice(-2), teamSentence(opencode, WRITER_AGENT)], [['--format', 'json'], '']);

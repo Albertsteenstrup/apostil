@@ -501,7 +501,7 @@
         "apostil.antigravityModel": {
           "type": "string",
           "default": "gemini-4-hydrogen",
-          "markdownDescription": "The model that a new Antigravity session for a comment starts on, until you choose another in the line of the model under the picker of the comment. `gemini-4-hydrogen` by default. A session that a comment continues keeps the model it last used. The map and a description use `gemini-4-hydrogen` as both lead and writer by default, unless you choose another lead in the line after their press. Leave it empty to use the model of your Antigravity settings."
+          "markdownDescription": "The model that a new Antigravity session for a comment starts on, until you choose another in the line of the model under the picker of the comment. `gemini-4-hydrogen` by default. A session that a comment continues keeps the model it last used. The map and a description use `gemini-4-hydrogen` at medium effort for both lead and writers by default, unless you choose another lead in the line after their press. Leave it empty to use the model of your Antigravity settings."
         },
         "apostil.commentRuns": {
           "type": "string",
