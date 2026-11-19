@@ -80,9 +80,18 @@ try {
   const unlit = await home.evaluate(() => document.querySelectorAll('#view g.node.lit').length);
   // A dot inside the frame: in the overview the frame is the upper part of the tab, and the drawing opens at its top (build 83).
   const inFrame = await home.evaluate(() => { const frame = document.getElementById('view').getBoundingClientRect(); return [...document.querySelectorAll('#view circle.calldot')].findIndex((dot) => { const box = dot.getBoundingClientRect(); return box.top >= frame.top && box.bottom <= frame.bottom && box.left >= frame.left && box.right <= frame.right; }); });
-  await home.hover(`#view circle.calldot >> nth=${Math.max(0, inFrame)}`);
-  await home.waitForSelector('.tip', { timeout: 3000 });
-  const tip = await home.textContent('.tip');
+  // The tip comes 0.4 s after the pointer enters the dot, and a scroll or a window that comes over the dot takes it away; under the load of the other
+  // parts that once took more than 3 s. So the pointer rests on the dot until the tip shows, and enters it again if no tip came (build 85).
+  const tipOf = async (target) => {
+    for (let turn = 0; turn < 3; turn += 1) {
+      await home.mouse.move(2, 2);
+      await target.hover();
+      const text = await home.waitForFunction(() => document.querySelector('.tip')?.textContent, null, { timeout: 4000 }).then((handle) => handle.jsonValue(), () => '');
+      if (text) return text;
+    }
+    return '';
+  };
+  const tip = await tipOf(home.locator(`#view circle.calldot >> nth=${Math.max(0, inFrame)}`));
   await home.mouse.move(2, 2);
   await show(drawings, opened.id, true);
   const flat = await home.evaluate(() => ({ links: document.querySelectorAll('#view path.colink').length, arrows: document.querySelectorAll('#view .edgeLabel').length, again: document.querySelector('.pd-columns').textContent }));
