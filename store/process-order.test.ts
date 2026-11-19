@@ -1,4 +1,4 @@
-// Tests for the order of the calls of a drawn process, a box that many boxes call, and a long chain in columns (build 67).
+// Tests for the order of the calls of a drawn process, a box that many boxes call, and a long chain in columns.
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

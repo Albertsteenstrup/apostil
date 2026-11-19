@@ -121,7 +121,7 @@ test('a table or a relation with no code and no reason is refused with a sentenc
   assert.match(beforeProblems(shop({ before: 'erDiagram\n  coupon {\n    integer id PK\n  }' }))[0], /every table looks new.*Keep the id of each table/);
 });
 
-test('the page data of a schema diagram: its tables to draw, the code and diff of each, and the sum beside its title; a description from before the schema kind draws as before', () => {
+test('the page data of a schema diagram: its tables to draw, the code and diff of each, and the sum beside its title; a diagram of another kind draws from its Mermaid text', () => {
   const page = partDiagram(shop(), { fileChange, text: () => [], fileIsNew: false, checked: false });
   assert.equal(page.draw, now); // the page draws the tables itself, from `schema`
   assert.equal(page.plain, undefined);
@@ -130,7 +130,7 @@ test('the page data of a schema diagram: its tables to draw, the code and diff o
   assert.deepEqual(page.edges.map((edge) => edge.key), ['edge:0', 'edge:1', 'gone:1']);
   assert.equal(page.change!.words[0][0].text, '+1 table');
 
-  // A description from before the schema kind still opens: its diagrams have no "schema" field and draw as before.
+  // A diagram of another kind has no "schema" field and draws from its Mermaid text.
   {
     const flow: Diagram = { id: 'f', kind: 'flow', title: 'F', file: 'a.py', mermaid: 'flowchart TD\n  a["A"] --> b["B"]', nodeLines: { a: [1, 1], b: [2, 2] } };
     const page = partDiagram(flow, { fileChange, text: () => [], fileIsNew: false, checked: false });

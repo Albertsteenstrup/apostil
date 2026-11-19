@@ -47,7 +47,7 @@ Check with `claude mcp list`, or `/mcp` inside Claude Code.
 
 ## Codex
 
-Source: https://learn.chatgpt.com/docs/extend/mcp?surface=cli (the old address developers.openai.com/codex/mcp redirects there)
+Source: https://learn.chatgpt.com/docs/extend/mcp?surface=cli
 
 ```
 codex mcp add apostil -- node /path/to/apostil/out/helper/helper.js

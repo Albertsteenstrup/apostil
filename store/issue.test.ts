@@ -125,7 +125,7 @@ test('apostil issue: --facts holds no home path and no user name, and --open ope
 
   const sent = apostil(['--kind', 'bug', '--title', 'Notes: a note on the wrong lines', '--open'], `### What I tried\nOpened ${join(machine.home, 'work')}.\n`);
   assert.equal(sent.status, 0, sent.stdout + sent.stderr);
-  // The stand-in browser makes its file before it writes the address into it: wait for the address, not only the file (build 85).
+  // The stand-in browser makes its file before it writes the address into it: wait for the address, not only the file.
   const address = (): string => (existsSync(opened) ? readFileSync(opened, 'utf8') : '');
   for (let wait = 0; wait < 100 && !address(); wait++) spawnSync('sleep', ['0.05']);
   const url = new URL(address());

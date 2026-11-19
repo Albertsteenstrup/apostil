@@ -1,4 +1,4 @@
-// Opens a folder in Apostil, as "code ." does for VS Code. Until the fork exists, Apostil is VS Code with its extension:
+// Opens a folder in Apostil, as "code ." does for VS Code. Apostil is VS Code with its extension:
 // from a checkout, VS Code with this repo as the extension; from an installed extension, VS Code as it is.
 
 import { spawn } from 'node:child_process';
@@ -24,11 +24,6 @@ export function openCommand(folder: string, env: Record<string, string | undefin
   const path = resolve(folder);
   if (env.APOSTIL_APP) return [env.APOSTIL_APP, path];
   return [onPath('code', env) ? 'code' : VS_CODE, ...(isCheckout(root) ? [`--extensionDevelopmentPath=${root}`] : []), path];
-}
-
-/** True when a program is there to open a folder: APOSTIL_APP, the command "code", or VS Code in its usual place. */
-export function canOpen(env: Record<string, string | undefined>): boolean {
-  return Boolean(env.APOSTIL_APP) || onPath('code', env) || existsSync(VS_CODE);
 }
 
 /** Starts the app detached and does not wait for it. */

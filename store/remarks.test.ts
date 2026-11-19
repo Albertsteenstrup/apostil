@@ -6,7 +6,7 @@ import { chmodSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { reviewContext } from '../shared/context';
-import { Store, threadsOf } from '../shared/store';
+import { Store } from '../shared/store';
 import { makeTestRepo, runApostil, tempFolder, testChangeFile } from '../shared/test-repo';
 import { runHasNoPerson, sentRemarks, waitForRemarks } from './inbox';
 import { openCommand } from './open-in-app';
@@ -62,8 +62,7 @@ test('a thread groups its remarks in order, Resolve and Reopen move the whole th
   const first = store.addRemark(changeId!, target, 'First');
   const other = store.addRemark(changeId!, target, 'Other');
   const reply = store.addRemark(changeId!, target, 'Reply to first', first);
-  const texts = (threads: { text: string }[][]) => threads.map((thread) => thread.map((remark) => remark.text));
-  assert.deepEqual(texts(threadsOf(store.remarks(changeId!))), [['First', 'Reply to first'], ['Other']]);
+  assert.deepEqual([first, other].map((id) => store.threadOf(id).map((remark) => remark.text)), [['First', 'Reply to first'], ['Other']]);
   assert.deepEqual(store.threadOf(reply).map((remark) => remark.id), [first, reply]);
   store.answerRemark(first, 'Answered.');
   store.closeThread(reply);

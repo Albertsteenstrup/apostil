@@ -66,7 +66,7 @@ When the command `apostil` is not there, show the issue as text. Tell the person
 - One problem in one issue. Two problems are two issues; ask which one comes first.
 - A title of a few plain words that names the part and the fault, for example "Notes: a note stands on the wrong lines". No "Bug:" and no "Please".
 - The headings in the fixed order, each as `### ` and its words. Under a heading that the person cannot fill, write "Not known".
-- Numbered steps, one action each, from a start that anyone can make: a new repo, the example of Apostil, a new window.
+- Numbered steps, one action each, from a start that anyone can make: a new repo, a new window.
 - The exact error text in a code block, whole when it is short.
 - Plain short sentences. No guess about the cause, unless the person asks for one; then mark it as a guess.
 
@@ -114,6 +114,6 @@ The note moves down with its lines.
 ### What I saw
 The note stays on the old lines. The status bar says:
 ```
-Notes: 12 in this file
+12 notes
 ```
 ````

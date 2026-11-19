@@ -167,7 +167,7 @@ export function beforeProblems(diagram: Pick<Diagram, 'kind' | 'mermaid' | 'befo
   const now = Object.keys(diagramGraph(diagram).nodes).filter((id) => !START_OR_END.test(id));
   const before = Object.keys(diagramGraph({ kind: diagram.kind, mermaid: diagram.before }).nodes);
   if (now.length && before.length && !now.some((id) => before.includes(id))) {
-    const [thing, things] = diagram.kind === 'schema' ? ['table', 'tables'] : ['step', 'steps'];
+    const thing = diagram.kind === 'schema' ? 'table' : 'step';
     return [`No node of "before" has the id of a node of the diagram now, so every ${thing} looks new and every old ${thing} looks removed. Keep the id of each ${thing} that is still there. Code that is all new gets no "before".`];
   }
   return [];

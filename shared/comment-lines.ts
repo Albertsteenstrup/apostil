@@ -111,9 +111,6 @@ export function keptInChange(change: StoredChange, target: RemarkTarget): Kept |
   return undefined;
 }
 
-/** True for a kind of target that keeps its thing: the others hold their file and lines themselves. */
-export const KEEPS = (kind: RemarkTarget['kind']): boolean => ['part', 'note', 'diagram', 'node', 'edge'].includes(kind);
-
 /** The target with what it is about kept in it, when it can be read now. */
 export const withKept = (target: RemarkTarget, kept: Kept | undefined): RemarkTarget => (kept ? { ...target, kept } : target);
 

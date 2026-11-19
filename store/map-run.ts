@@ -36,7 +36,7 @@ function fitDone(run: MapRun): boolean {
 const fitHasWork = (stored: StoredMap): boolean => Object.values(mapFit(stored.map)).some((list) => list.count > 0);
 
 /**
- * True while the writers of this run have work in the map. A run that writes the whole map (build 84: its steps run side by side): a group of the process
+ * True while the writers of this run have work in the map. A run that writes the whole map (its steps run side by side): a group of the process
  * writers has no process yet, the second process round or the fit round is still to come after processes of this run, a set of marks has a group, or a
  * code file needs notes. A run that writes a part asks only for the kinds that it saved: notes, or marks. The costly questions (they read the code files) come last.
  */
@@ -122,10 +122,9 @@ let kept: { key: string; areas: Record<string, AreaWork> } | undefined; // the l
 
 /**
  * The areas of the top diagram that have work left in a run of the whole map, by node id; an area that is not named is done. The work of an area: the notes of
- * its code files, then the processes of its group, then its services. It is "working" when a writer can work on it now, else "waiting". Since build 84,
- * part G, nothing of an area waits for another area: its notes start as soon as the overview is saved, and its processes and its services as soon as its
- * notes are saved. So an area with work left counts as worked on. `share`: its part of the three that is done.
- * The record says what is saved, not which writer runs: every area with work left counts as worked on.
+ * its code files, then the processes of its group, then its services. Nothing of an area waits for another area: its notes start as soon as the overview
+ * is saved, and its processes and its services as soon as its notes are saved. The record says what is saved, not which writer runs, so every area with
+ * work left is "working". `share`: its part of the three that is done.
  */
 export function areaWork(store: Store, folder: string, stored: StoredMap, run: MapRun): Record<string, AreaWork> {
   const key = `${stored.savedAt}|${run.savedAt ?? run.startedAt}|${folder}`;

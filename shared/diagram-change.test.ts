@@ -158,7 +158,7 @@ test('what is new and its colour: new wins over changed, the colour comes from t
     assert.equal(diagramChange({ kind: 'state', mermaid: 'stateDiagram-v2\n  [*] --> a' }, { fileIsNew: true }), undefined);
   }
 
-  // A diagram with no "before" and no code lines says nothing about the change, as an old change file.
+  // A diagram with no "before" and no code lines says nothing about the change.
   assert.equal(diagramChange({ kind: 'flow', mermaid: flowNow }), undefined);
   assert.equal(diagramChange({ kind: 'state', mermaid: 'stateDiagram-v2\n  [*] --> a' }), undefined);
   assert.equal(diagramChange({ kind: 'flow', mermaid: flowNow, before: flowNow }), undefined); // the same text: nothing changed

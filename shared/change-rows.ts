@@ -11,7 +11,7 @@ export interface ChangeRow {
   title: string;
   folder: string;
   savedAt: string;
-  firstSavedAt?: string; // missing in a change saved before the store kept it
+  firstSavedAt?: string; // missing in a change of an older version
   firstCommitAt?: string; // when the first commit of the branch since its base was written
   commits: number; // commits on the branch since its base
   files: number;

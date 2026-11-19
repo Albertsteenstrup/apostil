@@ -29,7 +29,7 @@ const problems = (diagrams: Diagram[]): string[] => saveDraft(store, repo.folder
 
 test('a repo with a map: the save refuses a "before" that is not the text of the repo diagram and a diagram of old code with no "of", and saves one with the right "before" and one that is new', () => {
   const [stop] = testChangeFile().diagrams!; // stop() is all new: its lines 5-6 are added, and it has "new"
-  // With no map there is nothing to draw on: a diagram as before is saved.
+  // With no map there is nothing to draw on: a diagram with no "of" and no "new" is saved.
   assert.deepEqual(problems([{ ...stop, new: undefined }]), []);
   assert.deepEqual(saveMapDraft(store, repo.folder, { format: 1, diagrams: [{ id: 'top', kind: 'flow', title: 'The test repo', mermaid: 'flowchart LR\n  code --> docs', nodePaths: { code: ['src/'], docs: ['README.md'] } }] }).problems, []);
   assert.equal(addDiagramToMap(store, repo.folder, startOnMap).saved, true);

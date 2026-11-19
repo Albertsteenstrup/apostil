@@ -491,12 +491,12 @@
         "apostil.claudeModel": {
           "type": "string",
           "default": "haiku",
-          "markdownDescription": "The model that a new Claude Code session for a comment starts on, until you choose another in the line of the model under the picker of the comment. The small model `haiku` by default. A session that a comment continues keeps the model it last used. The map and a description do not use it: their lead runs on the second smallest model at max effort and every writer on the smallest, unless you choose others in the line after their press. Leave it empty to use the model of your Claude Code settings."
+          "markdownDescription": "The model that a new Claude Code session for a comment starts on, until you choose another in the line of the model under the picker of the comment. The small model `haiku` by default. A session that a comment continues keeps the model it last used. The map and a description do not use it: their lead runs on the second smallest model at max effort, unless you choose another in the line after their press, and every writer on the smallest. Leave it empty to use the model of your Claude Code settings."
         },
         "apostil.codexModel": {
           "type": "string",
           "default": "gpt-6-luna",
-          "markdownDescription": "The model that a new Codex session for a comment starts on, until you choose another in the line of the model under the picker of the comment. The small model `gpt-6-luna` by default. A session that a comment continues keeps the model it last used. The map and a description do not use it: their lead runs on the second smallest model at max effort and every writer on the smallest, unless you choose others in the line after their press. Leave it empty to use the model of your Codex settings. Set another when the command-line Codex refuses that model for your account."
+          "markdownDescription": "The model that a new Codex session for a comment starts on, until you choose another in the line of the model under the picker of the comment. The small model `gpt-6-luna` by default. A session that a comment continues keeps the model it last used. The map and a description do not use it: their lead runs on the second smallest model at max effort, unless you choose another in the line after their press, and every writer on the smallest. Leave it empty to use the model of your Codex settings. Set another when the command-line Codex refuses that model for your account."
         },
         "apostil.commentRuns": {
           "type": "string",

@@ -99,7 +99,7 @@ test('add-notes refuses each fault with a sentence and saves nothing, keeps at m
   assert.equal(store.getMap(id)?.map.fileNotes?.length, 400);
 
   // Notes saved before keep their words, a new note is held to the pattern, and words that may break the rules come back as style.
-  // A note from before the pattern stays: another file can still get notes.
+  // A saved note that breaks the pattern stays: another file can still get notes.
   store.updateMap(id, 'x', (stored) => ({ ...stored!, fileNotes: [note('src/tool.py', [1, 4], 'Checks the whole tool from top to bottom')] }));
   const saved = addNotesToMap(store, repo.folder, { notes: [note('src/app.py', [1, 2], 'Skip the old rows', 'Rows are skipped when they are matching nothing.')] });
   assert.equal(saved.saved, true, saved.problems.join(' '));

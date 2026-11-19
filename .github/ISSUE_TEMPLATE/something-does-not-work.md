@@ -8,7 +8,7 @@ labels: bug
 
 ### What I tried
 
-<!-- In one line: the example, your own repo, a pull request. -->
+<!-- In one line: your own repo, a pull request. -->
 
 ### Steps to see it again
 

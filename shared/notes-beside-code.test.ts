@@ -6,7 +6,7 @@ import { cleanup } from '../store/cleanup';
 import { addDiagramToMap, saveDraft, saveMapDraft } from '../store/save';
 import type { Note } from './change-file';
 import { fileText, git, repoId } from './git';
-import { findBlock, fromWords, notesInRepo, notesOfFile, titleLine, type NoteSource } from './notes-beside-code';
+import { findBlock, fromWords, notesInRepo, notesOfFile, type NoteSource } from './notes-beside-code';
 import { Store } from './store';
 import { makeTestRepo, tempFolder, testChangeFile } from './test-repo';
 
@@ -21,7 +21,7 @@ const source = (id: number, fields: Partial<NoteSource> = {}): NoteSource => ({
 });
 const noGit = () => undefined;
 
-test('the rule finds a note again by the text of its lines: moved down, changed, there twice, saved twice, with no kept text; and the title stands on a short line', () => {
+test('the rule finds a note again by the text of its lines: moved down, changed, there twice, saved twice, with no kept text', () => {
   // A note whose lines moved down stands at the new place.
   const moved = notesOfFile([source(1)], 'src/app.py', `import os\n\n\n${NOW}`, noGit);
   assert.deepEqual(moved.notes.map((one) => one.lines), [[8, 9]]);
@@ -47,22 +47,13 @@ test('the rule finds a note again by the text of its lines: moved down, changed,
   // A change whose commit is gone: its kept text finds the lines; with no kept text its notes do not show.
   assert.equal(notesOfFile([source(1)], 'src/app.py', NOW, noGit).notes.length, 1);
   assert.deepEqual(notesOfFile([source(1, { noteCode: undefined })], 'src/app.py', NOW, noGit), { notes: [], older: 0 });
-
-  // The title of a note stands on the first line of its range that ends within 80 columns and has no title yet, else on the shortest.
-  const long = 'x'.repeat(120);
-  const lines = [long, 'short', long, long];
-  assert.equal(titleLine(lines, [1, 4]), 2);
-  assert.equal(titleLine(lines, [3, 4]), 3); // all long: the shortest, the first of equals
-  assert.equal(titleLine([long, 'y'.repeat(100)], [1, 2]), 2);
-  assert.equal(titleLine(['a', 'b'], [1, 2], new Set([1])), 2); // line 1 has the title of another note
-  assert.equal(titleLine(['a'], [1, 1], new Set([1])), 1);
 });
 
-test('the save keeps the text of the lines of each note, and none for a note on removed lines; the rule reads the text of the editor, and a change saved before this build reads it from Git', () => {
+test('the save keeps the text of the lines of each note, and none for a note on removed lines; the rule reads the text of the editor, and a change saved with no kept text reads it from Git', () => {
   const store = new Store(tempFolder('apostil-home-'));
   const repo = makeTestRepo();
   const head = git(repo.folder, 'rev-parse', 'HEAD');
-  // A change saved before this build has no kept text: Git has its commit.
+  // A change of an older version has no kept text: Git has its commit.
   store.saveChange({ repoId: repoId(repo.folder), folder: repo.folder, branch: 'feature', base: repo.base, head, file: testChangeFile(), checks: { filesInNoPart: [], filesInTwoParts: [], filesNotChanged: [], generated: [], badNotes: [] } });
   assert.deepEqual(notesInRepo(store, repo.folder, 'src/app.py', `# top\n${NOW}`).notes.map((one) => one.lines), [[6, 7]]);
 
@@ -120,10 +111,10 @@ const appArea = (notes: Note[]) => ({
 });
 const stopNote: Note = { file: 'src/app.py', lines: [5, 6], title: 'Stop returns zero', text: 'The app stops and says that all went well.' };
 
-test('a map with notes: the save keeps the text of their lines, they stand beside the code with "From the map", a note of the change on the same lines wins, and a map from before its notes still opens', () => {
+test('a map with notes: the save keeps the text of their lines, they stand beside the code with "From the map", a note of the change on the same lines wins, and a map with no notes of an older version still opens', () => {
   const store = new Store(tempFolder('apostil-home-'));
   const repo = makeTestRepo();
-  // A map from before its notes still opens, and gives no notes.
+  // A map with no notes of an older version still opens, and gives no notes.
   store.saveMap(repoId(repo.folder), git(repo.folder, 'rev-parse', 'HEAD'), { format: 1, diagrams: [topMap, { ...appArea([]), notes: undefined }] });
   assert.deepEqual(notesInRepo(store, repo.folder, 'src/app.py', NOW), { notes: [], older: 0 });
   const added = addDiagramToMap(store, repo.folder, appArea([stopNote]));

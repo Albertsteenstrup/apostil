@@ -1,5 +1,5 @@
 // The change file: what an agent writes about one change.
-// All parts of Apostil share this one format. See docs/change-file-format.md.
+// All parts of Apostil share this one format.
 
 import type { CellName, InCell } from './notebook';
 
@@ -45,7 +45,7 @@ export interface Link {
 export type Lines = [number, number]; // first and last line, counted from 1
 
 /**
- * The code of a node or an arrow of a diagram of a part, or of a link between parts: one or more places, or one reason for having none. See docs/change-file-format.md.
+ * The code of a node or an arrow of a diagram of a part, or of a link between parts: one or more places, or one reason for having none.
  * A range alone is lines in the "file" of the diagram; a list holds several places. A link has no file of its own, so each of its places names one. shared/diagram-code.ts reads it.
  */
 export type Code = Lines | Reason | PlaceText | (Lines | PlaceText)[];

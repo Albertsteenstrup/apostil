@@ -1,10 +1,10 @@
-// Tests for the time left of a map run (build 84): a plan with nothing done, half done and with a slow pace, the time that the stage of now has run,
-// the bar, the schedule of the writers (part G: the longer of the longest chain and all work over 16 places, steps at the same time counted once), and a
+// Tests for the time left of a map run: a plan with nothing done, half done and with a slow pace, the time that the stage of now has run,
+// the bar, the schedule of the writers (the longer of the longest chain and all work over 16 places, steps at the same time counted once), and a
 // rise that one computation alone shows, which is held back.
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { expectedOf, shownTime, timeLeft, timeWords, type MapPlan, type SaveTime } from './map-estimate';
+import { expectedOf, shownTime, timeLeft, type MapPlan, type SaveTime } from './map-estimate';
 
 const START = Date.parse('2026-11-18T10:00:00.000Z');
 const at = (minute: number): number => START + minute * 60_000;
@@ -34,7 +34,7 @@ test('the time left of a plan with nothing done is its expected time, and the st
 });
 
 test('the writers take the longer of their longest chain and all their work over 16 places; steps that run at the same time count once', () => {
-  // The plan above: the chain is longer than the work over 16 places, and the steps of the writers are not added (they were 6 + 18 + 17 + 12 + 10 before).
+  // The plan above: the chain is longer than the work over 16 places, and the steps of the writers are not added (that would be 6 + 18 + 17 + 12 + 10).
   assert.equal(round(expectedOf(plan)), round(ALL));
   // A large repo: 200 notes groups of 80,000 lines and 40 groups of processes and of services; the work over 16 places is longer than any chain.
   const large: MapPlan = { ...plan, lines: 80000, areas: 8, notes: 200, noteFiles: 600, noteLines: 80000, longest: 400, processes: 40, services: 40 };
@@ -43,7 +43,7 @@ test('the writers take the longer of their longest chain and all their work over
   // A long file is one writer's: a file of 4,000 lines makes the chain 66.7 minutes of notes, then a process writer and its second round.
   const long: MapPlan = { ...plan, noteLines: 6000, longest: 4000 };
   assert.equal(round(expectedOf(long)), round(OVERVIEW + 4000 / 60 + 15 + 8 + 2 + 10));
-  // A plan made before part G has no lines of its groups: each group counts 400 lines.
+  // A plan of an older version has no lines of its groups: each group counts 400 lines.
   const old: MapPlan = { ...plan, noteLines: undefined, longest: undefined };
   assert.equal(round(expectedOf(old)), round(OVERVIEW + Math.max(400 / 60 + 23, (8 + 20 * 400 / 60 + 90 + 48 + 60) / 16) + 2 + 10));
 });
@@ -85,5 +85,4 @@ test('a rise that one computation alone shows is held back; a second one that ag
   assert.deepEqual(shown, { minutes: 17 });
   shown = shownTime(shown, 0.4); // under a minute: 0, which Home says in words
   assert.deepEqual(shown, { minutes: 0 });
-  assert.deepEqual([timeWords(0), timeWords(14)], ['Less than a minute left', 'About 14 min left']);
 });

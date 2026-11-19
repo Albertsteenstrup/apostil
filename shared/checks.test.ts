@@ -280,7 +280,7 @@ test('a link has places, each with its file, or a reason; a link with neither is
   }
 });
 
-test('a description from before the rule for links still opens; a link with a diff has its counts, and the links are checked when each part that a link leaves has its mark', () => {
+test('a description of an older version whose links have no code still opens; a link with a diff has its counts, and the links are checked when each part that a link leaves has its mark', () => {
   const old: ChangeFile = { ...testChangeFile(), links: [{ from: 'app', to: 'tool' }] };
   assert.deepEqual(shapeProblems(old), []);
   const page = examplePage(repo.folder, repo.base, old, []);

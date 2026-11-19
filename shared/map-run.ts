@@ -26,7 +26,7 @@ export interface MapRun {
   home?: true; // the press of Home started it: a session with no window
   agent?: AgentSession; // the session that writes the map
   parts: MapRunParts;
-  plan?: MapPlan; // the plan of the work (build 84): made when the run starts, again when the overview is saved and when the last notes are saved
+  plan?: MapPlan; // the plan of the work: made when the run starts, again when the overview is saved and when the last notes are saved
   saves?: SaveTime[]; // the time of each save of a writer, so that the pace of the run can be measured; at most MOST_SAVES
 }
 
@@ -96,7 +96,7 @@ export interface MapRunLine {
   words: string;
   tip?: string; // the whole id of the session and the titles of the saved areas
   opens?: 'app' | 'terminal'; // "Open the session" opens it in its app, or in a terminal of VS Code that continues it (sessionOpens)
-  time?: TimeLeft; // while a run of the whole map writes and has a plan: the minutes left and the share of the bar (build 84)
+  time?: TimeLeft; // while a run of the whole map writes and has a plan: the minutes left and the share of the bar
   areas?: Record<string, AreaWork>; // the areas of the top diagram with work left, by node id; an area that is not named is done (homeData adds it)
 }
 

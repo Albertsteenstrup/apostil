@@ -17,7 +17,7 @@ export interface VsCodeRun {
 }
 
 /**
- * The settings of every window that a check starts. The checks were written for a window that starts with no tab,
+ * The settings of every window that a check starts. The checks expect a window that starts with no tab,
  * so Home does not open by itself in place of the empty editor area; view/window-check.mjs turns it on for its first part.
  */
 export const CHECK_SETTINGS = { 'apostil.homeWhenEmpty': false };

@@ -108,10 +108,10 @@ test('a store from each earlier version opens, gets the columns and tables that 
   assert.equal(remarks.remarks(1)[0].state, 'open');
   assert.equal(remarks.getChange(1)?.agent, undefined);
   assert.equal(remarks.answerRemark(1, 'ok')?.state, 'done');
-  assert.equal(remarks.remarks(1)[0].thread, undefined); // a store from before the thread column
+  assert.equal(remarks.remarks(1)[0].thread, undefined); // a store of a version with no thread column
   const reply = remarks.addRemark(1, { kind: 'part' }, 'A reply', 1);
   assert.deepEqual(remarks.threadOf(reply).map((remark) => remark.id), [1, reply]);
-  remarks.closeRemark(1, 'codex'); // a store from before the closed_by column
+  remarks.closeRemark(1, 'codex'); // a store of a version with no closed_by column
   assert.equal(remarks.remarks(1)[0].closedBy, 'codex');
   remarks.close();
 

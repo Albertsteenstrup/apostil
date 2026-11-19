@@ -19,7 +19,7 @@ export interface NoteSource {
   map?: true; // the map: each part is one of its diagrams, and its name is the title of that diagram
 }
 
-/** The map of a repo as a source of notes: each diagram with notes is a part, and the notes of files are one part (shared/repo-map.ts). A map from before its notes has none. */
+/** The map of a repo as a source of notes: each diagram with notes is a part, and the notes of files are one part (shared/repo-map.ts). A map of an older version may have none. */
 export const mapSource = (stored: StoredMap): NoteSource => ({
   id: 0, branch: '', head: stored.commit, savedAt: stored.savedAt, map: true, file: mapAsChange(stored.map.diagrams, stored.map.fileNotes), noteCode: stored.map.noteCode ?? {},
 });
@@ -76,7 +76,7 @@ export function findBlock(lines: string[], block: string[], near: number): numbe
   return found;
 }
 
-/** Gives the text of a note's lines at its save for a change saved before the save kept it, or undefined when it cannot be known. */
+/** Gives the text of a note's lines at its save for a change of an older version, which kept no text, or undefined when it cannot be known. */
 export type OldCode = (change: NoteSource, note: Note) => string[] | undefined;
 
 /**
@@ -94,7 +94,7 @@ export function notesOfFile(changes: NoteSource[], path: string, text: string, o
       (part.notes ?? []).forEach((note, index) => {
         if (note.removed || note.file !== path) return;
         const code = change.noteCode?.[noteKey(part.id, index)] ?? (note.cell === undefined ? oldCode(change, note) : undefined);
-        if (!code) return; // saved before the text was kept, and Git no longer has its commit
+        if (!code) return; // an older version kept no text, and Git no longer has its commit
         const words = [note.title, note.text ?? '', ...code].join('\n');
         if (seen.has(words)) return;
         seen.add(words);
@@ -143,17 +143,3 @@ export function notesInRepo(store: Store, folder: string, path: string, text: st
 
 /** Where a note came from, in words: "From the map: <title of its diagram>", "From the map" for a note of a file, or "From the change "<title>" (<branch>)". */
 export const fromWords = (change: NoteHere['change']): string => (change.map ? (change.title ? `From the map: ${change.title}` : 'From the map') : `From the change "${change.title}" (${change.branch})`);
-
-const LONG = 80; // a line longer than this hides a title at its end on a narrow editor
-
-/**
- * The line of a range that carries the title of its note: the first line that ends within 80 columns and holds no other title,
- * else the shortest such line, so that the title stays in view when lines are long. `taken` holds the lines with a title already (counted from 1).
- */
-export function titleLine(lines: string[], [first, last]: [number, number], taken: Set<number> = new Set()): number {
-  const width = (line: number): number => (lines[line - 1] ?? '').replace(/\t/g, '    ').trimEnd().length;
-  const free: number[] = [];
-  for (let line = first; line <= last; line++) if (!taken.has(line)) free.push(line);
-  const candidates = free.length ? free : [first];
-  return candidates.find((line) => width(line) <= LONG) ?? candidates.reduce((best, line) => (width(line) < width(best) ? line : best));
-}

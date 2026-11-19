@@ -10,7 +10,7 @@ import { fingerprint } from '../shared/note-groups';
 import { rawLineProblems } from '../shared/notebook';
 import { noteCodeOf } from '../shared/notes-beside-code';
 import { sameDiagramText } from '../shared/repo-diagram';
-import { checkMap, fileNotesProblems, fileNotesStyle, FILE_NOTES_PART, mapAsChange, mapNoteProblems, mapProblems, type MapCheck, type RepoMap } from '../shared/repo-map';
+import { checkMap, fileNotesProblems, fileNotesStyle, mapAsChange, mapNoteProblems, mapProblems, type MapCheck, type RepoMap } from '../shared/repo-map';
 import type { CheckResult, Store } from '../shared/store';
 import { freshNotes, isFileNoteKey, notesWithCode, sortedNotes, withFileNotes, withNoteCode } from './note-code';
 import { mapProcessProblems } from './processes-save';
@@ -70,7 +70,7 @@ function repoDiagramProblems(folder: string, base: string, file: ChangeFile, map
  * Runs the shape check, the rule that a place in a notebook names a cell, the rule that each node and arrow of a diagram of a part and each link between parts has code or a reason,
  * the rule of the repo diagrams (with the stored `map` of the repo), the file check and the line check. Saves nothing.
  * `leaveOut` is a path that is no file of the change: the untracked draft file that was given.
- * The rules are for a save from now on: a stored description from before still opens.
+ * The rules hold for a new save: a stored description that breaks them still opens.
  */
 export function checkDraft(folder: string, draft: unknown, base = baseOf(folder, currentBranch(folder)), leaveOut?: string, map?: RepoMap): SaveResult {
   const shape = shapeProblems(draft);
