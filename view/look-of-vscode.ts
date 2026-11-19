@@ -1,9 +1,9 @@
-// What the look of a repo turns on in VS Code's own editor and frame (build 62): the marks in the margin, the answers of the search with #, the
+// What the look of a repo turns on in VS Code's own editor and frame: the marks in the margin, the answers of the search with #, the
 // right-click entries and keys with the line facts they need, the first page, and the rows of the list "Look". Each part is off until a rule of the
 // look says "show": { "shown": true } (the first page: a "click"). The pick logic is the pages' own: the first part of view/media/marks.js, read in
 // Node. No `vscode` import: the extension (look-in-vscode.ts) and the tests use it.
 
-import { LOOK_PARTS, type Look, type LookAction, type LookRule, type Target } from '../shared/look';
+import { type Look, type LookAction, type LookRule, type Target } from '../shared/look';
 import { markLineNow, marksNow, type Mark } from '../shared/marks';
 import { mapSource, type NoteHere } from '../shared/notes-beside-code';
 import { parentsOf, parseKey, stepKey, type Process } from '../shared/processes';
@@ -137,7 +137,6 @@ export function answersFor(answers: Answer[], query: string): Answer[] {
 // ----- C and D. the right-click entries and the keys -----
 
 export const ENTRIES = ['note', 'process', 'mark', 'actions'] as const;
-export type Entry = (typeof ENTRIES)[number];
 const PLACES = { editor: 'editor', 'file-tab': 'fileTab', explorer: 'explorer' } as const;
 const ACTION_KEYS = 9;
 
@@ -213,9 +212,6 @@ export const processOfStep = (step: StepRef): Target => ({ place: { diagram: `pr
  * default; on Windows and Linux Ctrl+Alt is AltGr, which types characters, so a user there sets a key in VS Code's Keyboard Shortcuts.
  */
 export const keyWords = (key: string): string => `⌃⌥${key.toUpperCase()}`;
-
-/** The default keys of the four entries (package.json holds the same). */
-export const ENTRY_KEYS: Record<Entry, string> = { note: 'h', process: 's', mark: 'm', actions: 'l' };
 
 /** The rows of "Actions of the Look…": the name, the key of each of the first nine where one is bound (a Mac, when the look turns it on), and what it does. */
 export function actionRows(actions: LookAction[], keys: Record<string, boolean>, mac: boolean): { label: string; description?: string; detail: string; action: LookAction }[] {
@@ -337,6 +333,3 @@ export function notedFiles(store: Store, repo: string): string[] {
   const sources = [...store.listChanges(repo), ...store.keptNotes(repo), ...(stored ? [mapSource(stored)] : [])];
   return [...new Set(sources.flatMap((source) => source.file.parts.flatMap((part) => (part.notes ?? []).filter((note) => !note.removed).map((note) => note.file))))].sort();
 }
-
-/** True when a look turns on some part of VS Code; with none, the extension adds nothing to VS Code. */
-export const anyPartOn = (rules: LookRule[]): boolean => rules.some((rule) => LOOK_PARTS.components[rule.pick?.kind as keyof typeof LOOK_PARTS.components]?.area === 'vscode');

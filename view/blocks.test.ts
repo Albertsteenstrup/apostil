@@ -1,4 +1,4 @@
-// Tests for the blocks of a look (build 58): the check of a page, a section of its own and the window of a target (shared/look.ts), a file of the
+// Tests for the blocks of a look: the check of a page, a section of its own and the window of a target (shared/look.ts), a file of the
 // repo as the data of a block (shared/repo-data.ts), and the data of the blocks when their page or window opens (view/look-blocks.ts).
 // On the made-up example (the repo "library-app", with its file data/branches.csv) and on a small test repo.
 
@@ -130,7 +130,7 @@ test('Home carries no blocks: lookData() gives a ref for each list of blocks and
   const store = new Store(tempFolder('apostil-store-'));
   assert.deepEqual(saveMapDraft(store, example.folder, map).problems, []);
   const repoKey = repoId(example.folder);
-  assert.equal('pages' in lookData(store, repoKey, example.folder, (file) => file), false, 'with no look, the data of Home is as it was');
+  assert.equal('pages' in lookData(store, repoKey, example.folder, (file) => file), false, 'with no look, the data of Home has no pages');
   const put = putLookFiles(example.folder);
   assert.deepEqual(setLook(store, example.folder, blocksLook).problems, []);
   put.clean();
@@ -170,7 +170,7 @@ test('a file that changed since the save gives one quiet line in place of its bl
   store.close();
 });
 
-test('each new part has an area with an index line, other words and an example that passes the check', () => {
+test('each block, the targets "window" and "page", and the pages have an area with an index line, other words and an example that passes the check', () => {
   const fill = (value: unknown): unknown => JSON.parse(JSON.stringify(value).replaceAll('<diagram>', 'lib-top').replaceAll('<node>', 'jobs').replaceAll('<file>', 'src/library/night_jobs.py').replaceAll('<page>', 'opening-hours'));
   for (const [name, block] of Object.entries(LOOK_PARTS.blocks)) {
     assert.ok(Object.keys(LOOK_PARTS.areas).includes(block.area) && block.words.length, name);

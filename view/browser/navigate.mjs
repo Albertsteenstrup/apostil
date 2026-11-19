@@ -1,4 +1,4 @@
-// The browser check of build 64: back and forward along the path with the keys of a browser, the focus on a node, the view that stays when a
+// The browser check of the path: back and forward along it with the keys of a browser, the focus on a node, the view that stays when a
 // diagram draws again, and one icon for one service between an arrow and its ends. A group of view/browser-check.mjs; alone:
 //   node view/browser/navigate.mjs [--pictures] [<folder for pictures>]
 
@@ -16,7 +16,7 @@ try {
   const settled = () => home.evaluate(() => (typeof Home === 'object' ? Home : App).drawing); // the drawing that a click or a key asked for
   const crumb = () => home.evaluate(() => document.getElementById('crumb').textContent);
   const nodeOf = (key) => `#view g.node[id*="flowchart-${key}-"]`;
-  const cardOf = (key) => `#cards .ovc[data-node="${key}"]`; // where cards show, the card is the way in (build 85)
+  const cardOf = (key) => `#cards .ovc[data-node="${key}"]`; // where cards show, the card is the way in
   const away = async () => { await home.mouse.move(2, 2); await home.waitForSelector('.win', { state: 'detached', timeout: 3000 }); };
   /** A key that goes to another page: the page that it leads to is drawn. */
   const toPage = async (key, address) => { await home.keyboard.press(key); await home.waitForURL(address, { timeout: 5000 }).catch(() => {}); await drawn(); };
@@ -33,7 +33,7 @@ try {
   await home.keyboard.press('Meta+ArrowRight');
   await settled();
   const forward = await crumb();
-  // On to the page of a change, from the row of a change on the card of a node (build 86); back from there to Home, and forward to the change again.
+  // On to the page of a change, from the row of a change on the card of a node; back from there to Home, and forward to the change again.
   const touched = await home.evaluate(() => Object.entries(diagramOf(Home.at).nodes).find(([, node]) => node.changes.length)[0]);
   await home.click(`${cardOf(touched)} .ovx a[data-change-id]`).catch(() => {});
   await home.waitForURL(/page\.html/, { timeout: 5000 }).catch(() => {});
@@ -83,7 +83,7 @@ try {
       on: view.classList.contains('focus'), focused: nodes.filter((g) => g.classList.contains('focused')).map(nodeKey).join(),
       near: nodes.filter((g) => !faint(g)).map(nodeKey).sort().join(), faint: nodes.filter(faint).length,
       arrows: [...view.querySelectorAll('.edgePaths > path:not(.hit)')].filter((path) => !faint(path)).length,
-      line: document.querySelector('.bar > .fc')?.textContent ?? '', // in the head, after the path (build 84)
+      line: document.querySelector('.bar > .fc')?.textContent ?? '', // in the head, after the path
     };
   });
   // The node with the most arrows that still leaves a node out, and what the graph says is near it.
@@ -102,7 +102,7 @@ try {
   await away();
   await home.keyboard.press('Escape');
   const afterEscape = await focusNow();
-  // The × of the line ends the focus; so does a click on an empty place of the frame (build 84).
+  // The × of the line ends the focus; so does a click on an empty place of the frame.
   await home.click(nodeOf(wanted.key), { modifiers: ['Alt'] });
   const byLink = await focusNow();
   await home.click('.bar [data-end-focus]').catch(() => {});
@@ -144,7 +144,7 @@ try {
       && onPanel.graphs && onPanel.focused === 'service' && onPanel.panels === 1 && /Focus: \S/.test(onPanel.line) && panelAfter.graphs && panelAfter.panels === 0 && panelAfter.line === '',
     JSON.stringify({ wanted, focused, led, stayed, afterEscape, byLink, afterCross, afterAgain, lookWins, stepWords, onStep, onPanel, panelAfter }));
 
-  // ----- build 85: where cards show, one click focuses the node and its card; the card and "Open" go in; alone, two clicks go in -----
+  // ----- where cards show, one click focuses the node and its card; the card and "Open" go in; alone, two clicks go in -----
   const cardNow = () => home.evaluate(() => {
     const cards = [...document.querySelectorAll('#cards .ovc')];
     const shows = (card) => { const box = card.getBoundingClientRect(); return box.bottom > 0 && box.top < innerHeight; };
@@ -188,7 +188,7 @@ try {
       && scrolledTo.card === below && scrolledTo.scrolled > 0 && scrolledTo.shows[below] && ended.card === '' && ended.faint === 0,
     JSON.stringify({ inView, below, clicked, second, double, scrolledTo, ended }));
 
-  // Alone (full screen; where cards show a node has no window, build 86): the window of a focused node with a way in has only "Open" in its title bar,
+  // Alone (full screen; where cards show a node has no window): the window of a focused node with a way in has only "Open" in its title bar,
   // which goes one level down as its card does; one click focuses, a second click goes in; a double click on a step of a process opens its file at its
   // line once and does not fit the drawing.
   await homeAt('');
@@ -233,7 +233,7 @@ try {
   const fitted = await frame();
   /** A pinch at the pointer (a wheel with Ctrl) zooms in. */
   const pinch = async (x, y) => { await home.mouse.move(x, y); await home.keyboard.down('Control'); await home.mouse.wheel(0, -60); await home.keyboard.up('Control'); };
-  // At the middle of the frame: in the overview it is the upper part of the tab, with the cards under it (build 83).
+  // At the middle of the frame: in the overview it is the upper part of the tab, with the cards under it.
   const middle = await home.$eval('#view', (el) => { const box = el.getBoundingClientRect(); return { x: Math.round(box.left + box.width / 2), y: Math.round(box.top + box.height / 2) }; });
   await pinch(middle.x, middle.y);
   await home.mouse.down();

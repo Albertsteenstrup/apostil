@@ -139,7 +139,7 @@ test('gh is asked for the author, labels, reviewers and dates in the same call, 
   ]); // lena-s reviewed and is asked again: she stands once, with her review
   assert.equal(mapped.reviewers?.[3].person.team, true);
   assert.deepEqual([mapped.createdAt, mapped.updatedAt], ['2026-11-01T09:00:00Z', '2026-11-02T09:00:00Z']);
-  // A bot author has no picture address; an older answer with none of the new fields still maps.
+  // A bot author has no picture address; an answer with none of the optional fields maps too.
   const [bot] = pullRequestsFromJson(JSON.stringify([{ ...raw, author: { login: 'app/dependabot', is_bot: true } }]));
   assert.deepEqual(bot.author, { login: 'Dependabot', avatar: '', bot: true, icon: 'dependabot' });
   const { author: _a, labels: _l, latestReviews: _r, reviewRequests: _q, createdAt: _c, updatedAt: _u, ...old } = raw;

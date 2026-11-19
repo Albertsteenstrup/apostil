@@ -28,7 +28,7 @@ export async function answerTarget(target: Target, places: TargetPlaces, diagram
   if (target.file) return places.openFile(target.file, target.line);
   if (target.url) return askAndOpen(target.url);
   if (target.command) {
-    // A command that changes the computer is refused by the save; one saved by an older build does nothing.
+    // A command that changes the computer is refused by the save, and here too for a look file that did not go through it.
     if (LOOK_COMMANDS.includes(target.command)) await vscode.commands.executeCommand(target.command);
     return;
   }

@@ -1,4 +1,4 @@
-// Tests for the places of the cards of the overview (build 84, placeCards in media/overview.js): no hole in the block, no card narrower than its
+// Tests for the places of the cards of the overview (placeCards in media/overview.js): no hole in the block, no card narrower than its
 // content, no card of files more than one unit taller than its rows need, a drawing card only at a size that its drawing fills, the first card at the
 // top left, and the reading order kept where it can be. Given sizes; no browser.
 
@@ -52,7 +52,7 @@ function sizes(cards: Card[], places: Place[], columns: number): string[] {
   });
 }
 
-test('cards of the same size of build 83 stand in rows, in their order, with the first at the top left', () => {
+test('cards of one size stand in rows, in their order, with the first at the top left', () => {
   const places: Place[] = placeCards(Array.from({ length: 10 }, () => ({ w: 2, h: 2 })), 10);
   assert.deepEqual(places.slice(0, 6), [{ x: 0, y: 0, w: 2, h: 2 }, { x: 2, y: 0, w: 2, h: 2 }, { x: 4, y: 0, w: 2, h: 2 }, { x: 6, y: 0, w: 2, h: 2 }, { x: 8, y: 0, w: 2, h: 2 }, { x: 0, y: 2, w: 2, h: 2 }]);
   assert.deepEqual(holes(places, 10), { empty: [], twice: [] });
@@ -115,7 +115,7 @@ test('the size of a card with a drawing follows its shape: a wide drawing more u
   assert.ok(fillOf(0.6, 3, 2, 125, 26) < 0.7 && fillOf(0.6, 2, 3, 125, 26) >= 0.7);
 });
 
-test('the frame of the diagram takes the height of the drawing at the scale that the surface draws it at, from its least height to the tab less the peek of the cards (build 85)', () => {
+test('the frame of the diagram takes the height of the drawing at the scale that the surface draws it at, from its least height to the tab less the peek of the cards', () => {
   const tab = { across: 1300, room: 800, peek: 96 };
   // A small drawing grows to fill the width only up to GROW, and keeps a small frame; a very small one keeps the least height.
   assert.equal(frameHeight({ ...tab, width: 400, height: 150 }), Math.round(150 * GROW + 2 * OVERVIEW_ROOM));

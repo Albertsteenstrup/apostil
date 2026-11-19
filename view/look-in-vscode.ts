@@ -1,6 +1,6 @@
-// The look of a repo in VS Code's own editor and frame (build 62): the icon of a mark in the margin of an editor and of each side of a diff, notes,
+// The look of a repo in VS Code's own editor and frame: the icon of a mark in the margin of an editor and of each side of a diff, notes,
 // steps and processes in the search with #, the right-click entries and keys with the actions of the look, and the list "Look" in the side bar.
-// Each part is off until a rule of the look turns it on; with no look VS Code is as it was. The rules are in look-of-vscode.ts. Nothing here adds
+// Each part is off until a rule of the look turns it on; with no look Apostil adds nothing to VS Code. The rules are in look-of-vscode.ts. Nothing here adds
 // words to code, a tint, a hover, the status bar, the scroll bar or symbols of a file. An entry, a key and a row only carry out a target of the one
 // list, through answerTarget(), which asks before a web address or a prompt.
 

@@ -78,7 +78,7 @@ try {
   await page.goto(`file://${pageFile}`);
   await loaded();
 
-  // ----- the marks: no comments window; each thing with an open thread has a chat bubble with the icon of its agent, in the state of its thread -----
+  // ----- the marks: each thing with an open thread has a chat bubble with the icon of its agent, in the state of its thread -----
   const pointCount = await page.evaluate(() => App.page.openPoints.length);
   const marks = await page.evaluate((section) => {
     const markOf = (part) => document.querySelector(`${section} b[data-part="${part}"] .cb`);
@@ -90,7 +90,7 @@ try {
     const view = document.getElementById('view').getBoundingClientRect();
     const working = markOf(partOf(3));
     return {
-      window: document.querySelectorAll('#side, .side, .rail').length, room: document.body.className, viewRight: Math.round(view.right), width: innerWidth,
+      viewRight: Math.round(view.right), width: innerWidth,
       circles: document.querySelectorAll('.rk').length,
       // 1 a note to no agent, 2 sent and waiting, 3 working, 4 answered, 5 resolved
       states: [1, 2, 3, 4, 5].map(stateOf), still: working && getComputedStyle(working, '::after').animationName,
@@ -108,8 +108,8 @@ try {
     return { bubbles: all.length, count: all[0]?.querySelector('.n')?.textContent, threads: all[0]?.dataset.threads };
   }, changeSection);
   await drawn(() => page.evaluate(() => { App.page.remarks = App.page.remarks.filter((remark) => remark.id !== 90); App.render(); }));
-  check('no comments window and no rail: the page takes the full width; each part with an open thread has a chat bubble with the icon of its agent in place of the circle: empty for a note, the icon faint while it waits, a still teal dot while it works, tinted when answered; a resolved thread has no mark, and two threads on one thing share one bubble with a count',
-    marks.window === 0 && !/with-side|with-rail/.test(marks.room) && marks.viewRight > marks.width - 40 && marks.circles === 0
+  check('the page takes the full width; each part with an open thread has a chat bubble with the icon of its agent in place of the circle: empty for a note, the icon faint while it waits, a still teal dot while it works, tinted when answered; a resolved thread has no mark, and two threads on one thing share one bubble with a count',
+    marks.viewRight > marks.width - 40 && marks.circles === 0
       && JSON.stringify(marks.states) === JSON.stringify(['note', 'waiting agents/claude-code.svg', 'working agents/claude-code.svg', 'answered agents/claude-code.svg', 'none'])
       && marks.still === 'none' && marks.answeredFill !== 'rgb(255, 255, 255)' && !!marks.tealsoft && shared.bubbles === 1 && shared.count === '2' && shared.threads === '2 90',
     JSON.stringify({ marks, shared }));
@@ -592,7 +592,7 @@ try {
   ];
   check('a node and the title of a wider diagram each have the outline and hold the comment', onWider.every((one) => one.ok), failed(onWider));
 
-  // "Diffs": the row of a file in the list, a changed line and a note in the file beside it (build prompt 42).
+  // "Diffs": the row of a file in the list, a changed line and a note in the file beside it.
   const night = 'src/library/night_jobs.py';
   await drawn(() => page.click('.switch a[data-view="diffs"]'));
   await page.evaluate((file) => App.diffs.toPath(file), night);

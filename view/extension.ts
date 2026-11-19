@@ -76,13 +76,13 @@ export function activate(context: vscode.ExtensionContext) {
   const page = new ChangePage(media, theStore, openFolder, setState, apps, folderChange);
   page.trail = trail;
   const home = new HomePages(media, theStore, openFolder, apps, trail);
-  // How every diagram shows (build 83): the overview with its cards, or the diagram alone. One choice for every page and window, in the global state of VS Code.
+  // How every diagram shows: the overview with its cards, or the diagram alone. One choice for every page and window, in the global state of VS Code.
   const LAYOUT_KEY = 'apostil.diagramFull';
   home.layout = page.layout = {
     full: () => context.globalState.get<boolean>(LAYOUT_KEY, false),
     set: (full) => void context.globalState.update(LAYOUT_KEY, full).then(() => { home.postLayout(); page.postLayout(); }),
   };
-  // The icons of files and folders in the rows of the cards and the windows (build 85): from the file icon theme that he uses, again when he changes it.
+  // The icons of files and folders in the rows of the cards and the windows: from the file icon theme that he uses, again when he changes it.
   fileIcons.start(context);
   context.subscriptions.push(fileIcons.onChange(() => { home.iconsChanged(); page.iconsChanged(); }));
   // From outside a page (the side bar, the Files tree, the Explorer, a title bar, a command) a view starts a new path.
@@ -190,7 +190,7 @@ export function activate(context: vscode.ExtensionContext) {
   // The same for a click of the look in the list "Repo" and on a row of the tree "Files" (its item runs this command, which is not in the palette).
   list.onTarget = (target) => void answerTarget(target, places);
   context.subscriptions.push(vscode.commands.registerCommand('apostil.lookTarget', (target: Target) => answerTarget(target, places)));
-  // The look of the repo in VS Code itself (build 62): the margin, the search with #, the right-click entries and keys, and the list "Look".
+  // The look of the repo in VS Code itself: the margin, the search with #, the right-click entries and keys, and the list "Look".
   const lookInVsCode = new LookInVsCode(theStore, openFolder, places, (uri) => notes.notesOf(uri)?.result.notes);
   lookInVsCode.register(context);
 
@@ -221,7 +221,7 @@ export function activate(context: vscode.ExtensionContext) {
   };
   markFileInFront(true);
   // When the tree shows again it marks the file in front: after a moment, and only when it still shows. VS Code's reveal() shows a hidden view,
-  // so a mark that was asked for as the side bar showed opened it again when he hid it at once (Cmd+B twice).
+  // so a mark asked for as the side bar shows would open it again when he hides it at once (Cmd+B twice).
   let shownTimer: NodeJS.Timeout | undefined;
   const treeShows = (visible: boolean): void => {
     clearTimeout(shownTimer);

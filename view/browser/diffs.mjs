@@ -96,7 +96,7 @@ async function notes() {
       && narrowMark.marks === 1 && Math.abs(narrowMark.top) <= 2 && Math.abs(narrowMark.bottom) <= 2,
     JSON.stringify({ tabCard, redNote, greenNote, deleted, deletedCard, narrowMark }));
 
-  // The open diff of a file in the list of "Diagram" (since build prompt 42 "Diffs" opens no diff): its notes beside its changed lines, as cards when the
+  // The open diff of a file in the list of "Diagram" ("Diffs" opens no diff): its notes beside its changed lines, as cards when the
   // list is wide (a tab of 1900 px) and as marks at 1400 px.
   const listAt = async (width) => {
     await view.setViewportSize({ width, height: 900 });
@@ -160,7 +160,7 @@ async function notes() {
   check('no row of a diff has more text than its box shows and nothing scrolls sideways: in the list beside the diagram, and on "Diffs" and in the hover window of a diff at 370 and 1400 px; at 370 px long lines wrap',
     inList.rows > 20 && !inList.cut && !inList.sideways && fitOk(fitsAt[370], true) && fitOk(fitsAt[1400], false), JSON.stringify({ inList, ...fitsAt }));
 
-  // Made-up files from here on, the hard cases of the trial: a minified line of 30,000 characters, a renamed file, and files with no text to show.
+  // Made-up files from here on, the hard cases: a minified line of 30,000 characters, a renamed file, and files with no text to show.
   const minified = 'var a=1;b=2;'.repeat(2500); // 30,000 characters on one line
   await view.evaluate((long) => {
     const answers = window.APOSTIL_EXAMPLE.answers;
@@ -289,18 +289,16 @@ async function diagramTab(width = 1400) {
   const halves = () => wide.evaluate(() => {
     const control = document.querySelector('[data-half="code"]');
     const place = control && (({ right, top }) => ({ right: Math.round(right), top: Math.round(top) }))(control.getBoundingClientRect());
-    // By the place on the screen: the code at the left (.half.right), the diagram at the right (.half.left), since build prompt 42.
+    // By the place on the screen: the code at the left (.half.right), the diagram at the right (.half.left).
     const [left, right] = ['#view > .half.right', '#view > .half.left'].map((selector) => document.querySelector(selector)?.getBoundingClientRect());
     if (!left) return { split: false, control: control?.textContent ?? '', place };
     const svg = document.querySelector('.half.left svg');
     const label = svg.querySelector('.nodeLabel');
     const scale = svg.getBoundingClientRect().width / Number(svg.getAttribute('viewBox').split(' ')[2]);
-    const side = document.getElementById('side');
     return {
       split: true, control: control?.textContent ?? '', place, apart: left.right <= right.left, label: label ? +(parseFloat(getComputedStyle(label).fontSize) * scale).toFixed(1) : 0,
       inside: left.left >= 0 && right.right <= innerWidth && left.bottom <= innerHeight + 1 && right.bottom <= innerHeight + 1,
       pageScrolls: document.documentElement.scrollHeight > innerHeight + 1 || document.documentElement.scrollWidth > innerWidth,
-      sideApart: !side, // no comments window lies over the halves (build 80: a comment opens a card at its place)
     };
   });
   // A click on the text of an arrow or a message that starts with `word`; on the middle of the line of a link between two parts.
@@ -327,7 +325,7 @@ async function diagramTab(width = 1400) {
 /** The change on the diagram page: the code beside the diagram on a wide tab, and the change painted into the diagrams of a part. */
 async function twoHalves() {
   const { wide, quiet, when, loaded, open, show, wideShot, pointAt, clickAt, toGutter, away, halves, pointAtLabel, linkAt, pointAtLink, pointNamed } = await diagramTab();
-  const splitOk = (one) => one.split && one.apart && one.inside && !one.pageScrolls && one.sideApart && one.label >= 11;
+  const splitOk = (one) => one.split && one.apart && one.inside && !one.pageScrolls && one.label >= 11;
 
   // The page of the change: its diagram at the right, every changed file as one closed row at the left, under the name of its part.
   await open();
@@ -373,7 +371,7 @@ async function twoHalves() {
   check('a click on a row opens its diff below it with its rows, and a click on its head closes it again',
     opened.open && opened.by === 'click' && opened.rows > 0 && !closedAgain.open && !closedAgain.body, JSON.stringify({ opened, closedAgain }));
 
-  // A pointer that only crosses a row marks nothing and moves nothing (corrected in build 27). The pointer that rests on a row marks the node of its part and
+  // A pointer that only crosses a row marks nothing and moves nothing. The pointer that rests on a row marks the node of its part and
   // lights its file there, in a short animation; a file that its node does not list (behind "5 more files") takes the place of that line while it is
   // pointed at; when the node is outside the visible part of the diagram, the diagram moves to it.
   const tableFile = 'db/migrations/0042_holds.sql';
@@ -447,7 +445,7 @@ async function twoHalves() {
     routes: document.querySelectorAll('.half.right .dfile[data-part="routes"].open').length,
     worker: document.querySelector(`.half.right .dfile[data-file="${file}"]`).classList.contains('open'), window: !!document.querySelector('.win'),
   }), worker);
-  // Leaving the diagram to read the diffs leaves them as they are: the pointer goes to the list, at the left since build prompt 42.
+  // Leaving the diagram to read the diffs leaves them as they are: the pointer goes to the list, at the left.
   const listBox = await wide.locator('#view > .half.right').boundingBox();
   await wide.mouse.move(listBox.x + listBox.width / 2, listBox.y + listBox.height * 0.6, { steps: 6 });
   await wide.waitForTimeout(350); // kept: "they stay open" needs a calm page for longer than the rest of the pointer (300 ms)
@@ -469,7 +467,7 @@ async function twoHalves() {
     Math.abs(restOne.off) <= 3 && restOne.own === 8 && restOne.open === 8 && !restOne.window && restTwo.holdsTab === 0 && restTwo.routes === 1 && restTwo.worker && !restTwo.window
       && stayed === 1 && onName.pointerOpen.join() === modal && Math.abs(onName.off) <= 3 && !onName.window, JSON.stringify({ restOne, restTwo, stayed, onName }));
 
-  // A comment on a row of an open diff, as on "Diffs"; a point of the check on a file whose diff is closed is still in the comments window, and a click on
+  // A comment on a row of an open diff, as on "Diffs"; a point of the check on a file whose diff is closed stays in the list of the comments, and a click on
   // it opens that diff at its lines.
   await toGutter();
   await wide.evaluate((selector) => { const right = document.querySelector('.half.right'); right.scrollTop += document.querySelector(selector).getBoundingClientRect().top - right.getBoundingClientRect().top; }, row(worker));
@@ -496,8 +494,8 @@ async function twoHalves() {
   check('a comment works on a row of an open diff in the list, and its box names that file and line; a point on a file whose diff is closed stays in the list of the comments, and a click on it opens that diff at its lines, lit',
     commentWhere === `${worker}, line ${rowLine}` && serviceShut && fromPoint.open && fromPoint.flashed[0] === 214 && fromPoint.shown, JSON.stringify({ commentWhere, serviceShut, fromPoint }));
 
-  // J and K go to the next and the previous row: it comes to the top and opens, and the one that the keys opened before closes. J once landed 140 px off
-  // when the diff above it closed after the glide ended (build 41): the check reads the place when nothing moves any more.
+  // J and K go to the next and the previous row: it comes to the top and opens, and the one that the keys opened before closes. A diff above it that
+  // closes after the glide ends moves the row, so the check reads the place when nothing moves any more.
   await open();
   await wide.mouse.move(800, 880);
   const keyState = () => wide.evaluate(() => {
@@ -594,7 +592,7 @@ async function twoHalves() {
   const kept = await joinOf();
   const stillHere = await wide.evaluate(() => App.state.view);
   const diagramBox = await wide.locator('#view > .half.left').boundingBox();
-  await wide.mouse.click(diagramBox.x + 20, diagramBox.y + diagramBox.height - 20); // an empty place of the diagram, at the right since build prompt 42
+  await wide.mouse.click(diagramBox.x + 20, diagramBox.y + diagramBox.height - 20); // an empty place of the diagram, at the right
   await when(() => !document.querySelector('#view svg.join path'));
   const cleared = await joinOf();
   check('the pointer on a step only lights it and moves no code, with no window and no line to rows out of view; a click on it brings its rows into view, draws one line to them, and keeps them lit until the next click, with no file tab; the pointer on rows of a step lights that step',
@@ -673,7 +671,7 @@ async function twoHalves() {
   await when((count) => window.apostilRendered > count, drawnBefore);
   await quiet();
   const drilled = await painted();
-  // Beside the diffs no window opens on a part, nor where cards show (build 86): the diagram alone.
+  // Beside the diffs no window opens on a part, nor where cards show: the diagram alone.
   await wide.evaluate(() => { App.page.parts.find((one) => one.id === 'hold-service').drillUp = undefined; localStorage.setItem('apostil.diagramFull', '1'); Split.setHidden('code', true); });
   await show({ level: 'change', from: null });
   await pointAt('#view b[data-part="hold-service"]');
@@ -721,7 +719,7 @@ async function twoHalves() {
   check('a text with the removed things that does not draw still draws the diagram of now, with the marks that need no removed thing and the total, and no error',
     brokenMarks.plain && !brokenMarks.error && brokenMarks.added === 'pack,ship,take' && brokenMarks.both === 'check' && brokenMarks.removed === '' && brokenMarks.removedEdges === 0 && brokenMarks.words === '+2 steps −1 step · 3 changed', JSON.stringify(brokenMarks));
 
-  // ----- the code of each node and arrow (build prompt 25) -----
+  // ----- the code of each node and arrow -----
   const placesShown = () => wide.evaluate(() => ({
     heads: [...document.querySelectorAll('.places-half .plh a')].map((a) => a.textContent), lit: document.querySelectorAll('.places-half .l.lit').length,
     check: document.querySelector('.places-half .pck')?.textContent ?? '', joins: document.querySelectorAll('#view svg.join path').length, window: document.querySelector('.win .tb b')?.textContent ?? '',
@@ -823,7 +821,7 @@ async function twoHalves() {
     sequenceFacts.at(-1) === 'not checked yet' && /hold_service\.py.*whole file.*\+296/.test(table.head ?? '') && table.rows === 0, JSON.stringify({ sequenceFacts, table }));
   await away();
 
-  // ----- the code of the links between the parts (build prompt 26) -----
+  // ----- the code of the links between the parts -----
   const linkShown = () => wide.evaluate(() => {
     const right = document.querySelector('.half.right');
     const lit = [...right.querySelectorAll('.l.step')].map((row) => Number(row.dataset.line)).filter(Boolean);
@@ -937,7 +935,7 @@ async function twoHalves() {
   await wide.close();
 }
 
-/** A narrow tab (900 px): the diagram alone, as before the two halves, and a window on each thing; on a page of its own. */
+/** A narrow tab (900 px): the diagram alone, with no halves, and a window on each thing; on a page of its own. */
 async function narrowTab() {
   const { wide, quiet, when, open, show, pointAt, halves, pointAtLabel, pointAtLink } = await diagramTab(900);
   await open();
@@ -961,7 +959,7 @@ async function narrowTab() {
   await when(() => App.state.view === 'code');
   await quiet();
   const clickedStep = await wide.evaluate(() => ({ view: App.state.view, lines: App.state.lines }));
-  check('at 900 px the page of the change and the page of a part are the diagram alone, as before: no halves, no list, no control and no counter; the window on a step shows its lines as rows of the diff with two rows around them, added rows green; a Cmd+click on a step opens the code at its lines',
+  check('at 900 px the page of the change and the page of a part are the diagram alone: no halves, no list, no control and no counter; the window on a step shows its lines as rows of the diff with two rows around them, added rows green; a Cmd+click on a step opens the code at its lines',
     narrowDiagram.halves === 0 && !narrowDiagram.control && !narrowDiagram.nav && !narrow.split && narrow.control === ''
       && stepWindow.rows === 9 && stepWindow.added === 9 && stepWindow.sign === '+' && /^Read the date and the opening hours/.test(stepWindow.title ?? '')
       && clickedStep.view === 'code' && clickedStep.lines?.join() === '208,212', JSON.stringify({ narrowDiagram, narrow, stepWindow, clickedStep }));
@@ -985,11 +983,11 @@ async function narrowTab() {
   await wide.close();
 }
 
-/** The graph that follows the diffs (build prompt 27; on "Diagram" since build prompt 41), on a wide tab of its own. */
+/** The graph that follows the diffs on "Diagram", on a wide tab of its own. */
 async function graph() {
   const { wide, quiet, when, open, wideShot, pointAt, toGutter } = await diagramTab();
   const service = 'src/library/lending/hold_service.py';
-  // On "Diagram" after "Open all" the left half is the list that "Diffs" had beside the graph before build 41, and the graph at the right follows it.
+  // On "Diagram" after "Open all" the left half is the list of the diffs, and the graph at the right follows it.
   // What the two halves show: the cards of the diagram half with their lit things and marks, the counter, and the place at the reading line,
   // with how far the first row of the current change stands from that line.
   await open();
@@ -1094,7 +1092,7 @@ async function graph() {
   await wideShot('101-diffs-a-scroll-to-another-part-shows-its-diagram');
 
   // Alt+Down: the next change comes to the reading line; a change in no thing keeps the diagram and lights nothing. Alt+Up goes back. Over the edge of a
-  // file: the router is one change of 188 rows, taller than the view, so Alt+Up into it brings the end of the router to the bottom (build prompt 40).
+  // file: the router is one change of 188 rows, taller than the view, so Alt+Up into it brings the end of the router to the bottom.
   await altKey('ArrowDown');
   const noThing = await diffsNow();
   await altKey('ArrowUp');
@@ -1116,7 +1114,7 @@ async function graph() {
   const titles = await wide.evaluate(() => [...document.querySelectorAll('#tabs .nav a[title]')].map((a) => a.title));
   await step(() => wide.click('#tabs .nav [data-change="1"]'));
   const byArrow = await diffsNow();
-  // ↓ at the head of the service reads its long change on by one view less two rows; the change stays the current one (build prompt 40).
+  // ↓ at the head of the service reads its long change on by one view less two rows; the change stays the current one.
   check('three diagrams of the service stand one under the other, each the width of the half; the counter counts over the whole list ("file 13 of 40", "change 20 of 79"), its arrows have titles that name the keys, and ↓ steps as Alt+Down does: the long change of the service is read on and stays the current one',
     toService.path === service && toService.cards.length === 3 && toService.stacked
       && /‹file 13 of 40›↑change 20 of 79↓/.test(toService.nav) && byArrow.nav === toService.nav && byArrow.top > toService.top + 500 && titles.join() === 'Previous file (K),Every changed file,Next file (J),Previous change (Alt+Up),Next change (Alt+Down)',
@@ -1204,11 +1202,11 @@ async function graph() {
 }
 
 /**
- * Build 68, six faults of the change page, one check for each (the code follows a click, item 3, is in the checks of the join of a step and of a message above):
+ * Five behaviours of the change page, one check for each (the code that follows a click is in the checks of the join of a step and of a message above):
  * a file with no diagram opens its diff; the arrows of the stepper answer a click; "n more files" opens a window with the files of its part; a scroll moves a
  * diagram that is larger than its half; the controls of the code stand over the code.
  */
-async function faults() {
+async function fiveBehaviours() {
   const { wide, quiet, when, open, show, away, clickAt } = await diagramTab();
   await open();
   const state = () => wide.evaluate(() => ({
@@ -1217,14 +1215,14 @@ async function faults() {
   }));
 
   // 1. A part with no diagram, and a file of it in a node, open their diff in the list; the diagram half keeps its diagram and no tab opens. Two clicks
-  // on a part go in only where no cards show (build 85): the diagram alone.
+  // on a part go in only where no cards show: the diagram alone.
   await wide.evaluate(() => Overview.choose(true, () => App.render()));
   await quiet();
   const noDiagram = 'src/library/web/holds_router.py';
   // On its name: the middle of the title row of a short name holds the comment mark of the part, which opens its card.
   const nameAt = await wide.evaluate(() => { const box = document.querySelector('#view b[data-part="routes"]').getBoundingClientRect(); return { x: box.left + 12, y: box.top + box.height / 2 }; });
   await wide.mouse.move(nameAt.x, nameAt.y, { steps: 4 });
-  await wide.mouse.dblclick(nameAt.x, nameAt.y); // one click focuses the part, two clicks go into it (build 84) while no cards show
+  await wide.mouse.dblclick(nameAt.x, nameAt.y); // one click focuses the part, two clicks go into it while no cards show
   await when((path) => !!document.querySelector(`.half.right .dfile.open[data-file="${path}"]`), noDiagram);
   const byPart = await state();
   await clickAt('.half.left .f[data-file="tests/test_holds.py"]');
@@ -1258,7 +1256,7 @@ async function faults() {
   check('the arrows of the stepper answer a click: ↓ opens the first change and reads on, ↑ goes back, and › goes to the next file',
     /^‹file 1 of 40›↑change 1 of 79↓$/.test(first.nav) && down.top > first.top + 100 && up.top < down.top - 100 && /file 2 of 40/.test(next.nav), JSON.stringify({ first, down, up, next }));
 
-  // 4. "5 more files": a window in the diagram half with every file of the part and its counts; the list brings the part to its top; a file in it opens its diff there.
+  // 3. "5 more files": a window in the diagram half with every file of the part and its counts; the list brings the part to its top; a file in it opens its diff there.
   await show({ level: 'change', from: null });
   await wide.locator('.half.left g.node:has(b[data-part="holds-tab"]) .f.more').click();
   await when(() => !!document.querySelector('.win.files'));
@@ -1278,8 +1276,8 @@ async function faults() {
     JSON.stringify({ windowOf, settled, picked }));
   await away();
 
-  // 5. A diagram larger than its half moves with a scroll, also in the stack of the graph that follows (a sequence), and Cmd+scroll zooms it.
-  // The tab is as wide as the page was beside the comments window (before build 80), so that the sequence is wider than its half.
+  // 4. A diagram larger than its half moves with a scroll, also in the stack of the graph that follows (a sequence), and Cmd+scroll zooms it.
+  // At 1080 px the sequence is wider than its half.
   await wide.setViewportSize({ width: 1080, height: 900 });
   await quiet();
   await wide.evaluate((path) => App.diffs.toPath(path), 'src/library/night_jobs.py');
@@ -1300,7 +1298,7 @@ async function faults() {
   check('a scroll moves a sequence that is wider than its half in the stack of the graph that follows (its size stays), and Cmd+scroll zooms it',
     moved[0] > before[0] + 20 && Math.abs(moved[2] - before[2]) < 0.5 && Math.abs(zoomed[2] - moved[2]) > 5, JSON.stringify({ before, moved, zoomed }));
 
-  // 6. The controls of the code stand over the code, at the right end of the line of its first group header, and stay there while the list scrolls;
+  // 5. The controls of the code stand over the code, at the right end of the line of its first group header, and stay there while the list scrolls;
   // "Show code" stands at the left of the line above the diagram while the code is hidden.
   await show({ level: 'change', from: null });
   const placed = () => wide.evaluate(() => {
@@ -1329,7 +1327,7 @@ const flow = async (name, run) => {
 };
 await Promise.all([
   flow('the two halves', twoHalves),
-  flow('the six faults of build 68', faults),
+  flow('five behaviours of the change page', fiveBehaviours),
   flow('the notes', notes).then(() => flow('the narrow tab', narrowTab)).then(() => flow('the graph that follows', graph)),
 ]);
 await finish();

@@ -97,7 +97,7 @@ test('the roll-up: a node holds the marks under its paths, a step the marks insi
   assert.deepEqual([named.named.map((one: any) => `${one.name}:${one.marks.length}`), named.plain.length], [['book_request:1', 'loan:2'], 1]);
 
   // A call out of the repo whose line is a mark shows it in its box, once: the step that calls gets no second chip for it, and its arrow none either
-  // (build 64, tested below).
+  // (tested below).
   {
     const marks = [mark('table-store', 'src/requests.py', 102), mark('table-store', 'src/requests.py', 94)];
     const diagram = {
@@ -118,7 +118,7 @@ test('the roll-up: a node holds the marks under its paths, a step the marks insi
   }
 });
 
-// Build 64: one icon for one service between an arrow and its two ends.
+// One icon for one service between an arrow and its two ends.
 test('an arrow shows no mark that one of its ends shows already: the call box of that service, or the step that holds the same mark', () => {
   const marks = [mark('book-feed', 'src/ask.py', 12), mark('table-store', 'src/ask.py', 20), mark('night-bell', 'src/tell.py', 7)];
   const diagram = {
@@ -147,7 +147,7 @@ test('an arrow shows no mark that one of its ends shows already: the call box of
   assert.deepEqual(picked.map((edge: any) => edge.slots['arrow.width']), [2, undefined, undefined]);
 });
 
-// ----- the shared kinds of every component (build 57): the fields, what shows, the words, an order, the window of the pointer -----
+// ----- the shared kinds of every component: the fields, what shows, the words, an order, the window of the pointer -----
 
 test('the pick "where" picks by a field of a thing, and ranks after a path and before a kind', () => {
   const diagram = {

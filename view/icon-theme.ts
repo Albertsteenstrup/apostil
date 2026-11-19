@@ -1,4 +1,4 @@
-// The file icon theme that he uses now (build 85): `workbench.iconTheme`, read from the extension that contributes it, and the languages that VS Code
+// The file icon theme that he uses: `workbench.iconTheme`, read from the extension that contributes it, and the languages that VS Code
 // gives files. Home and the page of a change get the icons of their rows from it (file-icons.ts), and show the new ones when he changes the theme.
 
 import { join } from 'node:path';

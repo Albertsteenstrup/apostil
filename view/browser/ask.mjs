@@ -1,4 +1,4 @@
-// The browser check of the direct link that has an agent describe a pull request (build prompt 75, then "no words to give an agent"): one press in
+// The browser check of the direct link that has an agent describe a pull request, with no words to give the agent: one press in
 // place of "Copy", which names the session that will do it and shows no words for the agent, and the line of that run after the press. VS Code sends what the press says (App.ask, an AskView of shared/ask.ts); here the check sends it as VS Code does.
 // A group of view/browser-check.mjs; alone:
 //   node view/browser/ask.mjs [--pictures] [<folder for pictures>]
@@ -83,7 +83,7 @@ try {
       && after.moves === 0 && JSON.stringify(opened) === JSON.stringify([{ type: 'openAskSession', words: WORDS }]),
     JSON.stringify({ control: pressed.control, menu, chosen, sent, after, opened }));
 
-  // A press that started no run (build 77: Apostil could not get the branch of the pull request): the line says why in one sentence, with the press again.
+  // A press that started no run (Apostil could not get the branch of the pull request): the line says why in one sentence, with the press again.
   const why = 'Could not check out the branch made-up/reminders of pull request #35: couldn\'t find remote ref pull/35/head.';
   await page.evaluate(({ words, why }) => window.postMessage({ type: 'asked', ask: { words, problem: why, press: { label: 'Describe it with a new Claude Code session', tip: 'Starts a new Claude Code session that writes the description.' } } }, '*'), { words: WORDS, why });
   await page.waitForFunction(() => !document.querySelector('#summary [data-ask-open]'), null, { timeout: 3000 }).catch(() => {});

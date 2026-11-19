@@ -40,7 +40,7 @@ export class FilesTree implements vscode.TreeDataProvider<string> {
     };
     for (const file of folder ? repoFiles(folder) : []) {
       const parts = file.split('/');
-      parts.forEach((part, index) => add(parts.slice(0, index).map((name) => `${name}/`).join(''), parts.slice(0, index + 1).join('/') + (index < parts.length - 1 ? '/' : '')));
+      parts.forEach((_, index) => add(parts.slice(0, index).map((name) => `${name}/`).join(''), parts.slice(0, index + 1).join('/') + (index < parts.length - 1 ? '/' : '')));
     }
     // Folders first, then files, each by name, as the Explorer does.
     const order = (a: string, b: string): number => Number(!a.endsWith('/')) - Number(!b.endsWith('/')) || a.localeCompare(b);
@@ -68,7 +68,7 @@ export class FilesTree implements vscode.TreeDataProvider<string> {
     return item;
   }
 
-  // ----- the look of the repo (build 61) -----
+  // ----- the look of the repo -----
 
   /** Reads the look of the repo, when one is saved, and counts the files under each folder for it. */
   private loadLook(folder: string): void {

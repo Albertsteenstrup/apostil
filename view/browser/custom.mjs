@@ -1,10 +1,10 @@
-// The browser check of the shared kinds of every component of a look (build 57): what shows, the words with fields, where a click, a key, a double
+// The browser check of the shared kinds of every component of a look: what shows, the words with fields, where a click, a key, a double
 // click and a right-click entry go, the sections of a window, and the fields of a note card. A group of view/browser-check.mjs; alone:
 //   node view/browser/custom.mjs [--pictures] [<folder for pictures>]
-// It runs in the look "Apostil", on the made-up look "?look=shared" (view/check-example/look/look-shared.json). The later briefs add their checks here:
-// build 58 the blocks of a page of the look and of a window, on "?look=blocks" (look-blocks.json), also in the dark default theme; build 61 the list "Repo"
-// and the page of a pull request, on "?look=side-bar" (look-side-bar.json); build 63 the icons of the services on the diagrams of a change, in the
-// default look.
+// It runs in the look "Apostil", on the made-up look "?look=shared" (view/check-example/look/look-shared.json). It also checks the rest of Home on
+// "?look=home" (look-home.json); the blocks of a page of the look and of a window on "?look=blocks" (look-blocks.json), also in the dark default theme;
+// the page of a change and the file tab on "?look=change" (look-change.json); the list "Repo" and the page of a pull request on "?look=side-bar"
+// (look-side-bar.json); and the icons of the services on the diagrams of a change, in the default look.
 
 import { fileURLToPath } from 'node:url';
 import { lookOfPage, THEMES, wearTheme } from '../theme-look.mjs';
@@ -59,7 +59,7 @@ try {
       && win.does.join(' | ') === 'Click: Opens the graphs of src/library/night_jobs.py. | Alt+click: Opens src/library/night_jobs.py at line 516. | Double click: Shows src/library/jobs/ in the tree "Files". | Key G: Opens the change of the branch book-holds at its part hold-service. | Right click: 2 entries',
     JSON.stringify({ win, stepOrder }));
 
-  // A click target takes the place of the click of today: the node opens the graphs of its file, which a click on a node never opens by itself
+  // A click target takes the place of the default click: the node opens the graphs of its file, which a click on a node never opens by itself
   // (as a file in a browser that page opens; in VS Code its tab). The click of the words of an arrow opens its place on Home.
   await one.goto(`file://${homeFile}?look=shared`);
   await drawn(one);
@@ -72,7 +72,7 @@ try {
   await one.click('#view .edgeLabel.lk-words');
   await drawn(one, 2);
   const crumb = await one.evaluate(() => document.getElementById('crumb').textContent);
-  check('a click target takes the place of the click of today: the node opens the graphs of its file; the words of an arrow say what their click does, and open its place on Home',
+  check('a click target takes the place of the default click: the node opens the graphs of its file; the words of an arrow say what their click does, and open its place on Home',
     graphs === 'graphs:src/library/night_jobs.py' && arrowSays === 'Click: Opens process:answer-request on Home.' && /›Answer a book request$/.test(crumb), JSON.stringify({ graphs, arrowSays, crumb }));
   let from;
 
@@ -88,7 +88,7 @@ try {
   await one.waitForFunction((at) => window.apostilSent.slice(at).filter((sent) => sent.type === 'target').length >= 3, from, { timeout: 3000 }).catch(() => {});
   await one.evaluate(() => new Promise((done) => setTimeout(done, 400))); // a single click that the double click wrongly left would come by now
   const inputs = await targets(one, from);
-  // A node with no double click of the look does its click at once: since build 84 one click focuses it.
+  // A node with no double click of the look does its click at once: one click focuses it.
   const noWait = await one.evaluate(() => {
     const g = document.querySelector('#view g.node[id*="flowchart-lending-"]');
     g.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
@@ -125,7 +125,7 @@ try {
   check('a note card shows its fields in the order of the rule: the title, then the text; the function line and the service line that the rule leaves out are not shown',
     card.parts.join() === 't,d', JSON.stringify(card));
 
-  // ----- build 59: the rest of Home, the drawn processes and the graphs page, on the made-up look "?look=home" (look-home.json) -----
+  // ----- the rest of Home, the drawn processes and the graphs page, on the made-up look "?look=home" (look-home.json) -----
   const blue = await one.evaluate(() => Marks.lineColors('#2b6cb0')); // the line colour of the rules, in the light theme of the page
   const crumbWords = () => one.evaluate(() => { const el = document.querySelector('#crumb b .lk-words'); return el ? `${el.textContent}:${getComputedStyle(el).color}` : ''; });
   const rgb = (hex) => `rgb(${[1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16)).join(', ')})`;
@@ -194,8 +194,8 @@ try {
     graphsPage.summary === '5 diagrams' && graphsPage.levels.join() === 'map,function,function,function,map' && !graphsPage.levels.includes('change') && graphsPage.titles[0] === 'The tables of holds (map)'
       && graphsPage.titles.at(-1) === 'The library app and its parts (map)' && graphsPage.map.nodes === 1 && graphsPage.map.corners === 1 && graphsPage.tables === 0, JSON.stringify(graphsPage));
 
-  // With no look, Home, a process and the graphs page are drawn as before: Mermaid gets the written texts, and the lines of the page carry nothing of a look.
-  const asBefore = async (query) => {
+  // With no look, Home, a process and the graphs page are drawn plain: Mermaid gets the written texts, and the lines of the page carry nothing of a look.
+  const drawnWithNoLook = async (query) => {
     await one.goto(`file://${homeFile}${query}`);
     await drawn(one);
     return one.evaluate(async () => {
@@ -212,12 +212,12 @@ try {
       };
     });
   };
-  const noLook = { top: await asBefore(''), lending: await asBefore('?diagram=lib-lending'), step: await asBefore(`?diagram=${encodeURIComponent('process:answer-request/2')}`), graphs: await asBefore(`?path=${encodeURIComponent('db/migrations/0042_holds.sql')}`) };
-  check('with no look, Home, an area with its box, an opened step and the graphs page are drawn as before: Mermaid gets the written texts, the header and the count line are as they were, and no part carries a look',
+  const noLook = { top: await drawnWithNoLook(''), lending: await drawnWithNoLook('?diagram=lib-lending'), step: await drawnWithNoLook(`?diagram=${encodeURIComponent('process:answer-request/2')}`), graphs: await drawnWithNoLook(`?path=${encodeURIComponent('db/migrations/0042_holds.sql')}`) };
+  check('with no look, Home, an area with its box, an opened step and the graphs page are drawn plain: Mermaid gets the written texts, the header and the count line are the default ones, and no part carries a look',
     Object.values(noLook).every((one) => one.same && one.look === 0 && one.heads) && noLook.top.summary === '' && noLook.graphs.summary === '6 diagrams, the widest first', JSON.stringify(noLook));
   await one.close();
 
-  // ----- build 58: blocks, on the made-up look "?look=blocks" (view/check-example/look/look-blocks.json) -----
+  // ----- blocks, on the made-up look "?look=blocks" (view/check-example/look/look-blocks.json) -----
   const pageAt = () => `file://${homeFile}?look=blocks&page=opening-hours`;
   const kinds = ['text', 'fields', 'table', 'bars', 'code', 'state', 'links', 'button', 'picture', 'diagram', 'row'];
   /** What a page of blocks shows: each kind of block, the rows of its table, a drawn diagram, a loaded picture, the line at the top, and how it reads. */
@@ -268,7 +268,7 @@ try {
   check('a row puts its blocks side by side on a wide page and one under the other on a narrow page, with nothing cut off and nothing wider than the page',
     wide.side && !wide.wide && !wide.cut.length && narrow.under && !narrow.wide && !narrow.cut.length, JSON.stringify({ wide, narrow }));
 
-  // A section of its own in the window of a node, at its place among the sections of today; Home carries no blocks, and asks for them only when the window opens.
+  // A section of its own in the window of a node, at its place among the default sections; Home carries no blocks, and asks for them only when the window opens.
   const home = await openPage({ viewport: { width: 1400, height: 900 }, deviceScaleFactor: 2 });
   home.on('pageerror', (error) => errors.push(error.message));
   await home.goto(`file://${homeFile}?look=blocks`);
@@ -285,7 +285,7 @@ try {
     order: [...document.querySelectorAll('.win .wc .gp, .win .wc .bk-sectitle')].map((el) => el.textContent), rows: document.querySelectorAll('.win .block-table tbody tr').length, asked: window.blocksAsked.length,
   }));
   await takePicture(home, '583-custom-window-own-section.png');
-  check('a section of its own stands at its place among the sections of today in the window of a node; Home carries no blocks and asks for them only when the window opens',
+  check('a section of its own stands at its place among the default sections in the window of a node; Home carries no blocks and asks for them only when the window opens',
     !before.carries && before.asked === 0 && section.order.join() === 'Folders and files,Opening hours,Changes' && section.rows === 4 && section.asked === 1, JSON.stringify({ before, section }));
 
   // A window as a target: a click opens it beside the node, with its blocks, and Escape closes it.
@@ -320,7 +320,7 @@ try {
   check('text of a block with "<" in it shows as text', words.text.includes('<branch>, <opens>, <closes>, <hours>') && words.tags === 0, JSON.stringify(words));
   await links.close();
 
-  // ----- the page of a change and the file tab in a look (build 60, "?look=change": view/check-example/look/look-change.json) -----
+  // ----- the page of a change and the file tab in a look ("?look=change": view/check-example/look/look-change.json) -----
   const two = await openPage({ viewport: { width: 1400, height: 900 }, deviceScaleFactor: 2 });
   two.on('pageerror', (error) => errors.push(error.message));
   const diagramView = encodeURIComponent(JSON.stringify({ view: 'diagram', level: 'change' }));
@@ -367,7 +367,7 @@ try {
   const firstView = await two.evaluate(() => ({ view: App.state.view, order: [...document.querySelectorAll('.switch a:not([hidden])')].map((link) => `${link.textContent}${link.classList.contains('on') ? '*' : ''}`) }));
   check('"Diffs" opens first when a rule puts it first, and the switch shows it first', firstView.view === 'diffs' && firstView.order.join() === 'Diffs*,Conversation,Diagram', JSON.stringify(firstView));
 
-  // The list of the comments from the count in the top bar (the rule of the comments window applies to it) at the width of the rule, an answered thread
+  // The list of the comments from the count in the top bar (the rule "comments-window" applies to it) at the width of the rule, an answered thread
   // in the colour of its state, and the open points in groups by file, still counted.
   await two.click('[data-comments]');
   await two.waitForSelector('.cml', { timeout: 3000 });
@@ -385,7 +385,7 @@ try {
     };
   });
   await takePicture(two, '601-custom-comments-list.png');
-  check('the list of the comments has the width of the rule of the comments window, an answered thread the colour of the rule with words that read, and the open points stand in groups by file, still counted',
+  check('the list of the comments has the width of the rule "comments-window", an answered thread the colour of the rule with words that read, and the open points stand in groups by file, still counted',
     side.width === 380 && side.answered !== side.other && side.reads >= 4.5 && side.groups.join() === 'none,src/library/lending/hold_service.py' && side.points === 'Open points 5', JSON.stringify(side));
 
   // The file tab: a note with a check in the colour of the rule, the lines to the code dashed, the first line of a function from the words of the rule.
@@ -403,7 +403,7 @@ try {
     };
   });
   await takePicture(two, '602-custom-file-tab-notes.png');
-  // Its window of the pointer: what the check found, then a section of the look's own (build 58), through the same windowOf().
+  // Its window of the pointer: what the check found, then a section of the look's own, through the same windowOf().
   await two.hover('.mc.chk');
   const pointed = await two.waitForSelector('.win .bk-sec .block-text', { timeout: 4000 }).then(() => two.evaluate(() => ({
     check: document.querySelector('.win .stepnote')?.textContent.startsWith('Check: '), own: document.querySelector('.win .bk-sectitle')?.textContent, words: document.querySelector('.win .block-text').textContent.trim(),
@@ -428,25 +428,25 @@ try {
   check('the code map is not shown and the icon of a mark stands in the margin of the code at its line, whose click lists the places of its value; with no rule of the margin there is no icon and the map shows',
     !margin.map && margin.icons.includes('48:A wrong state') && margin.icons.includes('58:A wrong field') && /\|5$/.test(places) && !without.icons.length && without.map, JSON.stringify({ margin, places, without }));
 
-  // With no look (the default look of the example), the page of the change and the file tab are drawn as before.
+  // With no look (the default look of the example), the page of the change and the file tab are drawn plain.
   await two.goto(`file://${pageFile}?go=${diagramView}`);
   await drawn(two);
   const plain = await two.evaluate(() => ({
     looked: document.querySelectorAll('#view [class*="lk-"], .mg, .lk-icon, .pgroup').length,
     row: document.querySelector('.sec[data-section="change"] .sh').textContent, order: [...document.querySelectorAll('.switch a')].map((link) => link.dataset.view).join(),
-    // The words on the arrows of the diagram of the change; a small drawing of a card under it (build 83) has the words of its own diagram.
-    side: document.querySelectorAll('#side').length, words: [...document.querySelectorAll('#view g.edgeLabel')].filter((label) => !label.closest('.ovcards')).map((label) => label.textContent.trim()).filter(Boolean).length,
+    // The words on the arrows of the diagram of the change; a small drawing of a card under it has the words of its own diagram.
+    words: [...document.querySelectorAll('#view g.edgeLabel')].filter((label) => !label.closest('.ovcards')).map((label) => label.textContent.trim()).filter(Boolean).length,
     rows: document.querySelectorAll('.half.right .dfile').length,
   }));
   await two.goto(`file://${pageFile}?file=src/library/lending/hold_service.py`);
   await two.waitForSelector('.mc .nt', { timeout: 15000 });
   const plainFile = await two.evaluate(() => ({ looked: document.querySelectorAll('#view [class*="lk-"], .mg').length, map: !!document.querySelector('.cmap'), head: document.querySelector('.mc .fn')?.textContent }));
-  check('with no look the page of a change and the file tab are drawn as before: no colour, icon or group of a look, every file in the list, the views in their order, the counts and the map',
-    plain.looked === 0 && /^Adds holds for books that are out48 files \+[\d,]+ −[\d,]+(checked|not checked yet)$/.test(plain.row) && plain.order === 'conversation,diagram,diffs' && plain.side === 0 && plain.words === 0
+  check('with no look the page of a change and the file tab are drawn plain: no colour, icon or group of a look, every file in the list, the views in their order, the counts and the map',
+    plain.looked === 0 && /^Adds holds for books that are out48 files \+[\d,]+ −[\d,]+(checked|not checked yet)$/.test(plain.row) && plain.order === 'conversation,diagram,diffs' && plain.words === 0
       && plain.rows >= 30 && plainFile.looked === 0 && plainFile.map && plainFile.head === 'offer_returned_copies · 3 tests', JSON.stringify({ plain, plainFile }));
   await two.close();
 
-  // ----- Build 61: the list "Repo" and the page of a pull request in the made-up look "?look=side-bar" (view/check-example/look/look-side-bar.json) -----
+  // ----- the list "Repo" and the page of a pull request in the made-up look "?look=side-bar" (view/check-example/look/look-side-bar.json) -----
   {
   const openList = async (look) => {
     const page = await openPage({ viewport: { width: 400, height: 760 }, deviceScaleFactor: 2 });
@@ -498,7 +498,7 @@ try {
   const checks = await pull.evaluate(() => [...document.querySelectorAll('.checks-panel .ck')].map((ck) => ck.className.replace('ck ', '')));
   const stripAfter = await strip();
   await takePicture(pull, '612-custom-strip-checks-and-side-column.png');
-  check('"Classic" opens first, with the side column in the order of the rule (labels, reviewers, then the others as before)',
+  check('"Classic" opens first, with the side column in the order of the rule (labels, reviewers, then the others in their default order)',
     classic.mode === 'conv classic' && classic.side.join() === 'Labels,Reviewers,Assignees,Milestone,Closes,Tasks', JSON.stringify(classic));
   check('the status strip shows its bits in the order of the rule (checks, blocker, reviewers), "Review" at its place; the list of checks has no passed or skipped one, and the strip still counts every check',
     stripBefore.bits.join() === 'span,chk,msent,rvs,rvb,others' && checks.length === 3 && checks.every((one) => one === 'bad' || one === 'wait')
@@ -536,7 +536,7 @@ try {
     before.classic.fields > 0 && before.classic.resolve > 0 && before.classic.review === 1 && JSON.stringify(after) === JSON.stringify({ classic: before.classic, messages: before.messages }), JSON.stringify({ before, after }));
   await plain.close();
 
-  // With no look, the list and the page are drawn as before: a look with no rule for their parts gives the same HTML.
+  // With no look, the list and the page are drawn plain: a look with no rule for their parts gives the same HTML.
   const listHtml = async (look) => { const page = await openList(look); const html = await page.evaluate(() => document.getElementById('list').innerHTML); await page.close(); return html; };
   const pullHtml = async (look) => {
     const page = await openPull(look);
@@ -545,11 +545,11 @@ try {
     return html;
   };
   const [listPlain, listOther, pullPlain, pullOther] = [await listHtml(), await listHtml('1'), await pullHtml(), await pullHtml('1')];
-  check('with no rule for their parts (no look, or the look of build 51), the list and the page of a pull request are drawn as before, to the same HTML',
+  check('with no rule for their parts (no look, or the example look look.json), the list and the page of a pull request are drawn plain, to the same HTML',
     listPlain.length > 1000 && listPlain === listOther && pullPlain.length > 1000 && pullPlain === pullOther, `list ${listPlain.length}/${listOther.length}, page ${pullPlain.length}/${pullOther.length}`);
   }
 
-  // ----- the icons of the services on the diagrams of a change (build 63), in the default look of the example -----
+  // ----- the icons of the services on the diagrams of a change, in the default look of the example -----
   {
   const three = await newPage({ viewport: { width: 1400, height: 900 }, deviceScaleFactor: 2 });
   three.on('pageerror', (error) => errors.push(error.message));
@@ -597,7 +597,7 @@ try {
     JSON.stringify(onParts) === '{"night-job":"services:book-feed services:hours-desk services:night-bell +1","hold-service":"services:postgresql","tables":"services:postgresql"}'
       && down.at === 'part:hold-service:offer-flow' && down.lit.join() === 'pick', JSON.stringify({ onParts, down }));
 
-  // With no marks the page is as it was: the overview and the flow chart are the same pictures as with no look at all, which draws no icon.
+  // With no marks the overview and the flow chart are the same pictures as with no look at all, which draws no icon.
   const picture = async (look) => {
     await three.evaluate(async (which) => {
       const { look: given } = window.APOSTIL_EXAMPLE.page;

@@ -1,4 +1,4 @@
-// The Home tab with the map of the repo, one tab for the graphs of each folder or file, and one tab for each page of the look (build 58).
+// The Home tab with the map of the repo, one tab for the graphs of each folder or file, and one tab for each page of the look.
 
 import { join } from 'node:path';
 import * as vscode from 'vscode';
@@ -39,10 +39,10 @@ type Message =
   | { type: 'setUp' }
   | { type: 'rendered'; kind: string; nodes: number; panels: number; drawn: number }
   | { type: 'ask'; id: number; question: string } // the blocks of a section of its own or of the window of a target, when it opens
-  | { type: 'layout'; full: boolean }; // the icon of a diagram: the diagram alone, or the overview with its cards (build 83)
+  | { type: 'layout'; full: boolean }; // the icon of a diagram: the diagram alone, or the overview with its cards
 
 /**
- * How every diagram shows (build 83): the overview, with a card for each node under the diagram, or the diagram alone ("full"). One choice for every
+ * How every diagram shows: the overview, with a card for each node under the diagram, or the diagram alone ("full"). One choice for every
  * page and window, kept by the extension; a page that shows gets it again when it changed.
  */
 export interface DiagramLayout {
@@ -66,7 +66,7 @@ export class HomePages {
   private pages = new Map<string, Tab>(); // a page of the look, by its id
   private writing?: string; // the app that writes the map now
   private quiet?: NodeJS.Timeout; // while the line of a map run says "writing": draws Home again when the run saved nothing for 30 minutes
-  private ticker?: NodeJS.Timeout; // while a map run writes: the time left again every 30 seconds (build 84)
+  private ticker?: NodeJS.Timeout; // while a map run writes: the time left again every 30 seconds
   private shown?: { run: string; time: ShownTime }; // the minutes that Home shows of the run that started then, with a rise that is held back
   private pointerOn?: Tab; // the tab that the pointer is on, so the comment key works there
   private signature = '';
@@ -121,7 +121,7 @@ export class HomePages {
 
   /**
    * Opens a page of the look of the repo in a tab named by its title, with Apostil's icon, as the graphs of a path open. Only the first page of a look
-   * opens by itself (build 62), with `quiet` and `beside` as for Home.
+   * opens by itself, with `quiet` and `beside` as for Home.
    */
   openPage(id: string, quiet = false, beside = false): void {
     let tab = this.pages.get(id);
@@ -144,7 +144,7 @@ export class HomePages {
   private readonly seenNew = new vscode.EventEmitter<void>();
   /**
    * The map, the look, a change or a comment of the repo is new, whoever saw it first: the watch of the store, a run that ended, or a message of a
-   * tab. The tree "Files" and the pages of the look follow it (build 85: a run that ended just after a new look took the news from the watch).
+   * tab. The tree "Files" and the pages of the look follow it, also when a run that ends just after a new look takes the news from the watch.
    */
   readonly onNew = this.seenNew.event;
 
@@ -243,7 +243,7 @@ export class HomePages {
     }, runModels(), describe, (session) => { record((run) => withSession(run, session)); this.reload(); }, team);
     if (!started) return void vscode.window.showWarningMessage(`A new session of ${app} cannot be started from here.`);
     this.writing = app;
-    // The plan of the work is saved with the record at once (build 84): the code files and their lines, the notes groups, and the steps that are expected.
+    // The plan of the work is saved with the record at once: the code files and their lines, the notes groups, and the steps that are expected.
     record(() => homePlan(this.store, folder, homeRun(app, new Date().toISOString())));
     this.reload();
   }
@@ -272,13 +272,13 @@ export class HomePages {
     return { type: 'data', data: this.homeShown, trail: this.trail.steps, full: this.layout.full(), icons: this.homeIcons() };
   }
 
-  /** The icons of the folders and files of the map, which the cards and the windows of the nodes of Home show (build 85). */
+  /** The icons of the folders and files of the map, which the cards and the windows of the nodes of Home show. */
   private homeIcons(): unknown {
     return this.home && fileIcons.iconsFor(homePaths(this.homeShown?.map), this.home.panel.webview);
   }
 
   /**
-   * He changed the icon theme or the colour theme (build 85): Home shows the new icons. A theme of another extension needs another folder among the
+   * He changed the icon theme or the colour theme: Home shows the new icons. A theme of another extension needs another folder among the
    * roots of each tab, and new roots load a page again: it then asks for its data, with the icons.
    */
   iconsChanged(): void {

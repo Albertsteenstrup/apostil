@@ -1,5 +1,5 @@
-// Tests for the look of a repo in VS Code itself (build 62, view/look-of-vscode.ts): the marks in the margin, the answers of the search with #, the
-// places of a mark, the entries and keys as context keys, what opens by itself, the rows of the list "Look", and the checks of the new parts with
+// Tests for the look of a repo in VS Code itself (view/look-of-vscode.ts): the marks in the margin, the answers of the search with #, the
+// places of a mark, the entries and keys as context keys, what opens by itself, the rows of the list "Look", and the checks of these parts with
 // their sentences. Made-up marks and notes, and the made-up example of the checks ("library-app").
 
 import assert from 'node:assert/strict';
@@ -125,7 +125,7 @@ test('what opens by itself: Home in an empty window, the first page once beside 
   assert.deepEqual(whatOpens({ tabs: [], first, on: true, start: true }), { first, beside: false });
   assert.deepEqual(whatOpens({ tabs: [file], first, on: true, start: true }), { first, beside: true });
   assert.equal(whatOpens({ tabs: [file, { kind: 'home', name: 'Home' }], first, on: true, start: true }), undefined);
-  // A page of the look (build 58) is known by its title; the graphs of a path by its name.
+  // A page of the look is known by its title; the graphs of a path by its name.
   const pages = [{ id: 'opening-hours', title: 'Opening hours' }];
   assert.equal(whatOpens({ tabs: [{ kind: 'page', name: 'Opening hours' }], first: { page: 'opening-hours' }, pages, on: true, start: true }), undefined);
   assert.deepEqual(whatOpens({ tabs: [{ kind: 'graphs', name: 'jobs/' }], first: { graphs: 'src/library/night_jobs.py' }, on: true, start: true }), { first: { graphs: 'src/library/night_jobs.py' }, beside: true });
@@ -156,7 +156,7 @@ test('the rows of the list "Look": each set with its values and their counts, th
   assert.equal(lookRows({ rules: [on('look-list')], sets: [], values: {}, marks: [], pages, open: new Set(['pages']) })[1].rows!.length, 60);
 });
 
-test('each new part has the area vscode, other words and an example that passes the check; the example look of this build passes', () => {
+test('each part of VS Code has the area vscode, other words and an example that passes the check; the example look look-vscode.json passes', () => {
   const fill = (rule: unknown): unknown => JSON.parse(JSON.stringify(rule).replaceAll('<diagram>', 'lib-top').replaceAll('<set>:<value>', 'services:postgresql'));
   for (const kind of ['margin', 'symbol-search', 'menu-entry', 'key', 'first-page', 'look-list'] as const) {
     const part = LOOK_PARTS.components[kind];
@@ -198,7 +198,7 @@ test('a part that no look can use: the search says so in one sentence, and the c
   }
 });
 
-test('the example look of build 62 is one rule for each part, three actions and a page, which is its first page', () => {
+test('the example look look-vscode.json is one rule for each part, three actions and a page, which is its first page', () => {
   assert.deepEqual(vscodeLook.rules.map((rule: LookRule) => rule.pick.kind), ['margin', 'symbol-search', 'menu-entry', 'key', 'first-page', 'look-list']);
   assert.deepEqual([vscodeLook.actions.length, vscodeLook.pages.length, vscodeLook.rules[4].click], [3, 1, { page: 'opening-hours' }]);
 });

@@ -17,7 +17,7 @@ try {
   const panelsDrawn = () => home.waitForFunction(() => document.querySelectorAll('.pnl .pd[data-lit]').length === Home.data.panels.length, null, { timeout: 15000 });
   const crumbOf = () => home.textContent('#crumb');
   const nodeOf = (key) => `#view g.node[id*="flowchart-${key}-"]`;
-  /** The way into a node where cards show (build 85): a click on its card, or on the one row of its card of files (a folder, or a file at its line). */
+  /** The way into a node where cards show: a click on its card, or on the one row of its card of files (a folder, or a file at its line). */
   const into = async (key) => {
     const card = `#cards .ovc[data-node="${key}"]`;
     const rows = await home.locator(`${card} .ovf a`).count();
@@ -49,7 +49,7 @@ try {
     names: [...document.querySelectorAll('#view g.node.go')].map((g) => g.textContent.trim()).filter(Boolean).length, crumb: document.getElementById('crumb').textContent,
   }));
   await takePicture(home, '30-home-with-a-map.png');
-  // The window of a node, alone: where its card shows it has none (build 86).
+  // The window of a node, alone: where its card shows it has none.
   await alone(true);
   await homeAt('');
   const nodeWin = await windowOf('lending');
@@ -76,7 +76,7 @@ try {
       && bigWin.sub === '2,339 files · 1 change' && bigWin.first === '+593 −83 · 5,132 files', JSON.stringify({ top, grows, iconsStay, nodeWin, bigWin }));
 
   // A click on a node goes down and "Home" goes up; a node with no diagram under it asks for its folder in the tree "Files" and never opens the graphs
-  // of the folder; the window of a node of an area lists its files, and a click on a file asks VS Code to open it (build prompt 43).
+  // of the folder; the window of a node of an area lists its files, and a click on a file asks VS Code to open it.
   await into('lending');
   await homeSettled();
   const downCrumb = await crumbOf();
@@ -106,7 +106,7 @@ try {
       && areaWin.title === 'Queue and notices' && areaWin.group === 'Folders and files' && areaWin.files?.join() === 'src/library/lending/notices.py,src/library/lending/queue.py' && areaWin.folders === 0
       && openFile?.type === 'openFile' && openFile.path === 'src/library/lending/queue.py' && stayed === 'lib-lending', JSON.stringify({ downCrumb, downNodes, upCrumb, stillHome, deskLed, toTree, areaWin, openFile, stayed }));
 
-  // The processes of the map (build prompt 49): an area whose paths hold the first step of processes goes down to them, in three levels.
+  // The processes of the map: an area whose paths hold the first step of processes goes down to them, in three levels.
   const tasksPath = 'src/library/lending/requests.py';
   const drawing = () => home.evaluate(() => ({
     crumb: document.getElementById('crumb').textContent,
@@ -231,7 +231,7 @@ try {
   await homeAt('');
   await into('lending');
   await homeSettled();
-  await home.evaluate(() => walkTo(graphsStep('src/library/lending/hold_service.py'))); // as the icon of a file in the tree "Files" does; a click on a node no longer leads there
+  await home.evaluate(() => walkTo(graphsStep('src/library/lending/hold_service.py'))); // as the icon of a file in the tree "Files" does; a click on a node never leads there
   await home.waitForURL(/path=/, { timeout: 5000 }).catch(() => {});
   await homeDrawn();
   await panelsDrawn();
@@ -245,7 +245,7 @@ try {
   const changeTitle = await home.evaluate(() => App.page.title);
   const changeBold = await home.textContent('#crumb b');
   const walked = ['Home', 'Lending: holds, requests and mails', servicePath, changeTitle];
-  await home.locator('.ovc', { has: home.locator('.ovn', { hasText: /^Hold service$/ }) }).click(); // the card of the part goes in (build 85)
+  await home.locator('.ovc', { has: home.locator('.ovn', { hasText: /^Hold service$/ }) }).click(); // the card of the part goes in
   await pageSettled();
   const walkPart = await lineOf();
   await home.click('.switch a[data-view="diffs"]');
@@ -398,7 +398,7 @@ try {
       && team.chosen === 'Opus 5.5 · Extra' && JSON.stringify(team.sent) === JSON.stringify({ type: 'writeMap', app: 'claude-code', team: { app: 'claude-code', lead: 'opus', effort: 'xhigh' } }),
     JSON.stringify(team));
 
-  // The line of a map run (build prompt 65), from the made-up records of example-data.ts. While a run writes: which session, and what is saved so far.
+  // The line of a map run, from the made-up records of example-data.ts. While a run writes: which session, and what is saved so far.
   const SAVED = 'overview, 3 of 8 areas, notes of 40 files';
   /** The line of the map run as Home shows it: its words, what "Open the session" says it does, its presses, and anything in it or beside it that moves. */
   const runLine = () => home.evaluate(() => {
@@ -446,7 +446,7 @@ try {
       && stoppedOnMap?.text === `${STOPPED} · Open the session · Start again · Another app` && stoppedOnMap.nodes === 8 && stoppedOnMap.lines === 1 && again?.app === 'claude-code',
     JSON.stringify({ stoppedNoMap, stoppedOnMap, again }));
 
-  // Build 84: Home while a run of the whole map writes, from the made-up runs with a plan of the work in example-data.ts (the time left comes from the plan).
+  // Home while a run of the whole map writes, from the made-up runs with a plan of the work in example-data.ts (the time left comes from the plan).
   const runState = () => home.evaluate(() => {
     const view = document.getElementById('view');
     const frame = view.getBoundingClientRect();

@@ -49,7 +49,7 @@ test('a stack read with a pull request: none in no stack, the place and entries 
   assert.deepEqual(middle.stack!.entries.map((one) => [one.position, one.number, one.state, one.draft]),
     [[3, 25, 'draft', true], [2, 14, 'review needed', false], [1, 2, 'checks failing', false]]);
   assert.equal(middle.stack!.entries[1].look.icon, 'git-pull-request');
-  assert.equal(bottom.merge.sentence, 'Blocked: An approving review is needed'); // the lowest says what it says today
+  assert.equal(bottom.merge.sentence, 'Blocked: An approving review is needed'); // the lowest says what it says alone
   assert.equal(middle.merge.sentence, 'Waits for #2 below it in the stack · An approving review is needed');
   assert.equal(top.merge.sentence, 'Waits for #14 below it in the stack · An approving review is needed');
   assert.deepEqual(middle.merge.parts.map((part) => part.about), ['stack', 'review']);

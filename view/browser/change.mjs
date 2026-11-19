@@ -226,7 +226,7 @@ try {
   check('a part grows a little under the pointer and stays in its place; the node for files in no part does not, and no node does under the comment pointer',
     grows.part.scale === '1.03' && grows.part.wider > 1.02 && grows.part.wider < 1.05 && grows.part.moved < 0.6 && grows.noPart.scale === 'none' && grows.picking.scale === 'none', JSON.stringify(grows));
 
-  // Alone: where cards show, a part has no window (build 86).
+  // Alone (full screen) a part has its window; where cards show it has none.
   await page.evaluate(() => { localStorage.setItem('apostil.diagramFull', '1'); return App.render(); });
   await page.hover('#view b[data-part="hold-service"]');
   await hoverWindow();
@@ -242,7 +242,7 @@ try {
   await page.evaluate(() => window.scrollTo(0, 120));
   await page.hover('#view b[data-part="hold-service"]');
   const scrolled = await page.evaluate(() => window.scrollY);
-  // A click in place on the card of the part, the way in where cards show (build 85): a click of Playwright would scroll the page to reach it.
+  // A click in place on the card of the part, the way in where cards show: a click of Playwright would scroll the page to reach it.
   await drawn(() => page.evaluate(() => [...document.querySelectorAll('.ovc')].find((card) => card.querySelector('.ovn').textContent === 'Hold service').dispatchEvent(new MouseEvent('click', { bubbles: true }))));
   const down = await page.evaluate(() => ({ crumb: document.getElementById('crumb').textContent, tabs: [...document.querySelectorAll('#tabs > :not(.dchg, .dfact, .drepo, .codeswitch)')].map((el) => el.textContent).join(' · ') }));
   await drawn(() => page.click('#tabs [data-diagram="offer-sequence"]'));
@@ -343,7 +343,7 @@ try {
   await away();
 
   // ----- the diagram of the change as a surface -----
-  // In full screen (build 83), the diagram alone, as it was before the overview; the overview comes back after these checks.
+  // In full screen, the diagram alone with no cards; the overview comes back after these checks.
   await page.setViewportSize({ width: 1400, height: 1000 });
   await page.evaluate(() => localStorage.setItem('apostil.diagramFull', '1'));
   await page.reload(); // the plain page of the change, as it first opens
@@ -466,7 +466,7 @@ try {
   tab.on('pageerror', (error) => errors.push(error.message));
   const openTab = async (file) => { await tab.goto(`file://${pageFile}?file=${file}`); await loaded(tab); };
   const reveal = async (lines) => { await tab.evaluate((at) => Code.reveal(at), lines); await settle(tab); };
-  // The whole file with nothing above it, the notes at the right edge (the comments window starts folded there).
+  // The whole file with nothing above it, the notes at the right edge.
   await openTab('src/library/lending/hold_service.py');
   await reveal([208, 208]);
   const tabView = await tab.evaluate(() => ({
@@ -548,7 +548,7 @@ try {
     JSON.stringify(fileList));
   await tab.close();
 
-  // ----- "Diffs": the list of every changed file at the left as closed rows, part by part, and one file at the right (build prompt 42) -----
+  // ----- "Diffs": the list of every changed file at the left as closed rows, part by part, and one file at the right -----
   const diffsShown = () => page.evaluate(() => ({
     files: document.querySelectorAll('.diffs .dfile').length, folded: document.querySelectorAll('.diffs .dfile.quiet.shut').length,
     more: [...document.querySelectorAll('.diffs .dmore')].map((link) => link.textContent).join(), parts: [...document.querySelectorAll('.diffs .dp')].map((part) => part.textContent),
@@ -634,7 +634,7 @@ try {
     const svg = document.querySelector('#view .sec .surface svg');
     return { rows: Object.values(byRow).join(), scale: +(svg.getBoundingClientRect().width / Number(svg.getAttribute('viewBox').split(' ')[2])).toFixed(2) };
   });
-  // Since build 85 the frame of the overview takes the drawing at the size that fills its width, up to 1.4 times (GROW): never smaller than its own size.
+  // The frame of the overview takes the drawing at the size that fills its width, up to 1.4 times (GROW): never smaller than its own size.
   check('nine parts with no links stand in three rows of three, and their words have at least their normal size, at most 1.4 times', nineDrawn.rows === '3,3,3' && nineDrawn.scale >= 1 && nineDrawn.scale <= 1.4, JSON.stringify(nineDrawn));
   await readsShot('38-nine-parts-in-rows');
 

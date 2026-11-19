@@ -20,7 +20,7 @@ export const listFile = fileURLToPath(new URL('../media/list.html', import.meta.
 /** require() from the folder view/, for the built code in out/. */
 export const own = createRequire(new URL('../browser-check.mjs', import.meta.url));
 // A wide diagram page has the code beside the diagram. The checks of the page with the diagram alone start with the code hidden ("Hide code"),
-// which draws that page as it was; the checks of the two halves show the code. "Diffs" shows its list of files beside the file (build prompt 42).
+// which draws the diagram alone; the checks of the two halves show the code. "Diffs" shows its list of files beside the file.
 export const HIDDEN_KEY = 'apostil.codeHidden';
 export const FILES_HIDDEN_KEY = 'apostil.filesHidden';
 

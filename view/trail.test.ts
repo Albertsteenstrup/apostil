@@ -66,7 +66,7 @@ test('the window keeps one path: each change goes to every tab, and back opens t
   assert.deepEqual(opened.map((step) => step.name), ['Adds holds', 'src/lending/']); // a step that a page took in its own tab opens nothing
 });
 
-// Build 64: back and forward along the path, as in a browser (Cmd+Left and Cmd+Right on a page).
+// Back and forward along the path, as in a browser (Cmd+Left and Cmd+Right on a page).
 test('back keeps the steps that it leaves ahead, forward goes to them again, and a new step drops what was ahead', () => {
   const opened: string[] = [];
   const trail = new WindowTrail((step) => opened.push(step.name), () => {});

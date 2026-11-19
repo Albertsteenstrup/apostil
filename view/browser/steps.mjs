@@ -99,7 +99,7 @@ const tasks = 'src/library/lending/requests.py';
 
 try {
 
-  // ----- one way to step through changes (build prompt 40) -----
+  // ----- one way to step through changes -----
   // Alt+Down and Alt+Up by one rule in every place that shows a diff. Each check reads the rows in the view before the key and after it:
   // a row is in the view when its middle is below the head that sticks over the list and above the bottom edge.
   const stepRound = async () => {
@@ -111,7 +111,7 @@ try {
     const seen = (selector) => one.evaluate((where) => {
       const scroller = document.querySelector(where);
       const box = scroller.getBoundingClientRect();
-      // What sticks at the top: the name of the part, and under it the head of the file (build prompt 41), each standing on the one above.
+      // What sticks at the top: the name of the part, and under it the head of the file, each standing on the one above.
       const heads = [...scroller.querySelectorAll('.dp, .dh, .fh')].map((el) => el.getBoundingClientRect()).filter((head) => head.height);
       let viewTop = box.top;
       for (let head = heads.find((one) => Math.abs(one.top - viewTop) < 2); head; head = heads.find((one) => Math.abs(one.top - viewTop) < 2)) viewTop = head.bottom;
@@ -147,7 +147,7 @@ try {
     const filesOf = (look, file) => look.rows.filter((row) => row.startsWith(`${file}#`)).map((row) => Number(row.split('#')[1]));
     const rowCount = (file) => one.evaluate((where) => document.querySelector(`#view .dfile[data-file="${where}"]`).view.rows.length, file);
 
-    // On "Diagram" with every diff open: the list that "Diffs" had beside the graph before build 41, with the graph that follows (build prompt 41).
+    // On "Diagram" with every diff open: the list of the diffs, with the graph that follows.
     await one.click('[data-all="open"]');
     await one.waitForFunction(() => document.querySelector('[data-all]')?.textContent === 'Close all' && !document.querySelector('#view .dfile.shut:not(.quiet)'));
     await frames();
@@ -202,7 +202,7 @@ try {
         && changeOf(up.at(-1)) === changeOf(upReading[0]) - 1,
       JSON.stringify({ keys: up.length - 1, seen: upRows.size, rows: testRows, first: upReading[0]?.rows.slice(-2), broken: upReading.slice(1).flatMap((look, index) => (keptUp(upReading[index], look) ? [] : [[index, upReading[index].first2, look.last2]])), end: [up.at(-1).path, up.at(-1).nav] }));
 
-    // 5. A step whose change is in the view but not at the reading line (a short file, build 42): the counter has its number and the left half shows its diagram.
+    // 5. A step whose change is in the view but not at the reading line (a short file): the counter has its number and the left half shows its diagram.
     // a) From the end of the long new file of the service into hold_models.py, whose change lights a state of a hold.
     await toPath(service);
     await one.evaluate((where) => {
@@ -235,7 +235,7 @@ try {
         && end5b.path === tasks && end5b.run === 3 && changeOf(end5b) === changeOf(start5b) + 1 && longSteps.slice(1, -1).every((look) => look.nav === start5b.nav),
       JSON.stringify({ models: { before: [before5.path, before5.nav, before5.cards], after: [after5.path, after5.off, after5.nav, after5.cards, after5.lit] }, requests: { keys: longSteps.length - 1, runs: longSteps.map((look) => look.run), offs: longSteps.map((look) => look.off), navs: [start5b.nav, end5b.nav] } }));
 
-    // 6. Two keys with no wait between them end where two keys with a wait end: a second key while the list glides counts from where the glide ends (build 40).
+    // 6. Two keys with no wait between them end where two keys with a wait end: a second key while the list glides counts from where the glide ends.
     await toPath(worker2);
     await press('Alt+ArrowDown', 'Alt+ArrowDown');
     const quick = await seen(RIGHT);
@@ -246,7 +246,7 @@ try {
     check('two keys with no wait between them end where two keys with a wait end: the same rows in the view and the same change',
       quick.path === slow.path && quick.run === slow.run && slow.run === 2 && Math.abs(quick.top - slow.top) <= 2 && quick.rows.join() === slow.rows.join(), JSON.stringify({ quick: [quick.run, quick.top], slow: [slow.run, slow.top] }));
 
-    // 7. "Diffs" (build prompt 42): the file beside the list, the file alone ("Hide files"), and a narrow tab: the same counter, and Alt+Down in the file
+    // 7. "Diffs": the file beside the list, the file alone ("Hide files"), and a narrow tab: the same counter, and Alt+Down in the file
     // lands as on "Diagram": the same change of night_jobs.py, its first row at the reading line of the file.
     await toPath(worker2);
     await press('Alt+ArrowDown');
@@ -286,7 +286,7 @@ try {
     await one.close();
   };
 
-  // ----- "Diagram" with the diffs and the graph that follows (build prompt 41), "Diffs" with the list and the file, and the sides (build prompt 42) -----
+  // ----- "Diagram" with the diffs and the graph that follows, "Diffs" with the list and the file, and the sides -----
   // Each check reads what is in the view: the rows drawn, the cards, the lit things.
   const fileRound = async () => {
     const one = await examplePage();
@@ -332,7 +332,7 @@ try {
       JSON.stringify({ first, key1, inNight }));
 
     // 2. "Close all" closes every diff and the left shows the diagram of the change; the pointer that rests on a node opens the diffs of its part and brings
-    // them to the top, and the left does not follow that scroll (build prompt 41).
+    // them to the top, and the left does not follow that scroll.
     // "Open all" opens every diff and says "Close all"; a diff far down is filled only when it comes near the view.
     const allShut = async () => {
       await one.click('[data-all="close"]');
@@ -393,7 +393,7 @@ try {
       stuck.name === stuck.part && stuck.head === stuck.file && Math.abs(stuck.joined) <= 1, JSON.stringify(stuck));
     await snap('150-apostil-4-the-name-of-a-part-stays-at-the-top');
 
-    // ----- "Diffs": the list of the files as closed rows at the left, the file with its notes at the right (build prompt 42) -----
+    // ----- "Diffs": the list of the files as closed rows at the left, the file with its notes at the right -----
     // What "Diffs" shows now: the file, the list, the marked row, the counter, the place of each half, and the rows of the file in its view.
     const diffsNow = () => one.evaluate(() => {
       const file = document.querySelector('#view > .file-left');
@@ -457,7 +457,7 @@ try {
         && wideDiffs.file === service && wideDiffs.cards > 0 && reads.ok && /Hide files/.test(wideDiffs.tabs) && !/Open all|Close all/.test(wideDiffs.tabs)
         && longPath.title === longFile && longPath.name === 'reservation.ts' && longPath.nameWhole && longPath.cut && longPath.endShows && longPath.oneLine && /−30/.test(longPath.counts),
       JSON.stringify({ widths: wideDiffs.widths, xs: wideDiffs.xs, rows: wideDiffs.rows, opened: wideDiffs.opened, cards: wideDiffs.cards, reads, tabs: wideDiffs.tabs, longPath }));
-    console.log(`NOTE  "Diffs" at 1400 px with the comments window folded: the list ${wideDiffs.widths[0]} px, the file ${wideDiffs.widths[1]} px (${wideDiffs.cards ? 'cards' : 'marks'}, ${reads.columns} columns of code)`);
+    console.log(`NOTE  "Diffs" at 1400 px: the list ${wideDiffs.widths[0]} px, the file ${wideDiffs.widths[1]} px (${wideDiffs.cards ? 'cards' : 'marks'}, ${reads.columns} columns of code)`);
     await snap('150-apostil-5-diffs-the-list-and-the-file-with-cards');
 
     // 5. The row of the file is marked. Alt+Down through the last change of night_jobs.py: ready_shelf.py shows at its first change, its row is marked and in
@@ -507,7 +507,7 @@ try {
         && cameBack.file === worker2 && Math.abs(cameBack.top - leftAt.top) <= 1 && leftAt.top > 0,
       JSON.stringify({ j: [afterJ.file, afterJ.run], k: [afterK.file, afterK.run], clicked: clicked.file, back: [leftAt.top, cameBack.top] }));
 
-    // 7. "Hide files" and "Show files"; the narrow tab. (Before build 80 this step opened the comments window, which took room of the tab.)
+    // 7. "Hide files" and "Show files"; the narrow tab.
     const withSide = await diffsNow();
     const sideReads = await fileReads();
     console.log(`NOTE  "Diffs" at 1400 px: the list ${withSide.widths[0]} px, the file ${withSide.widths[1]} px (${withSide.cards ? 'cards' : 'marks'})`);
@@ -526,7 +526,7 @@ try {
         && narrow.alone && !narrow.list && !/Hide files/.test(narrow.tabs) && /file \d+ of 40/.test(narrow.nav),
       JSON.stringify({ withSide: { widths: withSide.widths, cards: withSide.cards, marks: withSide.marks, sideReads }, hidden: [hidden.alone, hidden.list, hidden.tabs, hidden.file], shownAgain: [shownAgain.list], narrow: [narrow.alone, narrow.tabs, narrow.nav] }));
 
-    // ----- The sides (the owner, 13 November): the list or the code at the left, the diagram or the file at the right, on all three pages -----
+    // ----- The sides: the list or the code at the left, the diagram or the file at the right, on all three pages -----
     const sides = () => one.evaluate(() => {
       const [left, right] = ['#view > .half.left', '#view > .half.right'].map((selector) => document.querySelector(selector)?.getBoundingClientRect());
       return left && right ? { code: Math.round(right.left), other: Math.round(left.left), widths: [Math.round(right.width), Math.round(left.width)] } : null;
@@ -551,7 +551,7 @@ try {
       const [file, diagram] = ['#view > .half.right', '#view > .half.left'].map((selector) => document.querySelector(selector).getBoundingClientRect());
       const box = document.querySelector('#view > .half.right .rowsbox').getBoundingClientRect();
       const lit = [...document.querySelectorAll('#view > .half.right .l.step')].map((row) => row.getBoundingClientRect());
-      const [x1, y1, x2, y2] = [numbers[0] + base.left, numbers[1] + base.top, numbers.at(-2) + base.left, numbers.at(-1) + base.top];
+      const [x1, x2, y2] = [numbers[0] + base.left, numbers.at(-2) + base.left, numbers.at(-1) + base.top];
       return {
         startsInDiagram: x1 >= diagram.left - 1 && x1 <= diagram.right + 1, endsInFile: x2 >= file.left && x2 <= file.right + 1 && x2 >= box.right - 2,
         atRows: lit.length > 0 && y2 >= lit[0].top - 1 && y2 <= lit.at(-1).bottom + 1, lit: lit.length,

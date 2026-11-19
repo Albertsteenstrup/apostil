@@ -53,7 +53,7 @@ const addNotebooks = (page) => page.evaluate(({ page: added, answers }) => {
 }, notebook);
 
 try {
-  // ----- marks and the look of a repo (build prompt 51) -----
+  // ----- marks and the look of a repo -----
   // The made-up example has services at lines of its code and a look with neutral rules; "?look=1" shows the look, else the default look applies.
   {
     const one = await openPage({ viewport: { width: 1400, height: 900 }, deviceScaleFactor: 2 });
@@ -75,15 +75,14 @@ try {
     const plain = await one.evaluate(() => ({
       stacks: [...document.querySelectorAll('#view .mk-stack')].map((stack) => `${nodeKey(stack.closest('g'))}:${stack.querySelectorAll('.mk-chip').length}${stack.querySelector('.mk-more')?.textContent ?? ''}`).sort(),
       changed: document.querySelectorAll('#view [class*="lk-"]').length,
-      // "+1" is one more chip (the owner: "+x component should look the same as icons so it looks like the 4th service" and "+x should not be in front instead behind 3rd"):
-      // as tall, round, overlapping the last chip and behind it, with its text clear of that chip.
+      // "+1" is one more chip, which looks like one more service: as tall, round, overlapping the last chip and behind it, with its text clear of that chip.
       more: (() => {
         const more = document.querySelector('#view .mk-more'), chip = more?.previousElementSibling;
         const [m, c] = [more?.getBoundingClientRect(), chip?.getBoundingClientRect()];
         if (!m || !c) return null;
         const y = (c.top + c.bottom) / 2, x = (m.left + c.right) / 2, top = document.elementFromPoint(x, y);
         const text = document.createRange(); text.selectNodeContents(more);
-        return { tall: Math.abs(m.height - c.height) <= 0.5, round: parseFloat(getComputedStyle(more).borderRadius) >= more.offsetHeight / 2 - 0.5, /* in its own size: the overview draws a small map larger (build 83) */ overlaps: m.left < c.right - 1, middle: Math.abs((m.top + m.bottom) - (c.top + c.bottom)) <= 1,
+        return { tall: Math.abs(m.height - c.height) <= 0.5, round: parseFloat(getComputedStyle(more).borderRadius) >= more.offsetHeight / 2 - 0.5, /* in its own size: the overview draws a small map larger */ overlaps: m.left < c.right - 1, middle: Math.abs((m.top + m.bottom) - (c.top + c.bottom)) <= 1,
           behind: !!top && chip.contains(top), clear: text.getBoundingClientRect().left >= c.right };
       })(),
     }));
@@ -143,7 +142,7 @@ try {
       once?.type === 'openFile' && once.path === 'src/library/lending/notices.py' && once.line === 35 && down.crumb === 'Home›Lending: holds, requests and mails · PostgreSQL' && down.lit.join() === 'service,requests'
         && down.line === 'PostgreSQL · 27 places in Lending ×' && !cleared.lit && !cleared.line && cleared.crumb === 'Home›Lending: holds, requests and mails', JSON.stringify({ once, down, cleared }));
     // The contents and the button of the look: a picture node opens on a click like any node, a film plays with no sound only on a click, a button does its action.
-    // Where cards show (build 85), one click on it focuses it as any node; alone (build 86: where cards show it has no window) "Open" in its window goes in.
+    // Where cards show, one click on it focuses it as any node; alone (where cards show it has no window) "Open" in its window goes in.
     await drawnAt(homeFile, '?look=1');
     await one.click(node('writing'));
     const pictureFocus = await one.evaluate(() => document.querySelector('#cards .ovc.focused')?.dataset.node ?? '');
@@ -163,7 +162,7 @@ try {
     check('a picture in place of a node takes a click like any node: one click focuses it and its card, and alone "Open" in its window opens it; a film shows its first frame and plays, with no sound, only on a click, and its play mark is no word of the name of the node; a button opens its file at its line',
       pictureFocus === 'writing' && picture?.type === 'showInTree' && picture.paths.join() === 'docs/,README.md' && button?.type === 'target' && button.target.file === 'src/library/night_jobs.py' && button.target.line === 516
         && still.paused && still.at === 0 && still.name === 'Holds: books to wait for' && playing.muted && playing.crumb === 'Home›The areas of the member page', JSON.stringify({ pictureFocus, picture, button, still, playing }));
-    // A service icon shows in one place only (the owner: "only show service icon in one place. left side and aligned with line so middle is same height as middle as text"):
+    // A service icon shows in one place only:
     // a note has no corner for the services, and the icon of its service line has its middle at the middle of the text, and in the window of a step it starts where the note does.
     /** The icon of the first service line: its middle against the middle of the name beside it, and its left edge. */
     const lineIcon = (el) => {
@@ -201,7 +200,7 @@ try {
     await one.close();
   }
 
-  // ----- the pages in the themes of VS Code (build prompt 33) -----
+  // ----- the pages in the themes of VS Code -----
   // Each kind of page in a theme: the page of a change, the diagrams of a part with a lit and a removed thing, "Diffs" beside its diagram, a notebook on "Diffs",
   // a file tab with notes, Home with a hover window, a process with the note of a step, the page of a pull request with its review panel, and the list.
   // A theme is worn before the scripts of the page start. One check for each theme; its detail names the page that does not read.
@@ -217,7 +216,7 @@ try {
     };
     await one.goto(`file://${pageFile}`);
     await drawn(one);
-    await look('the page of a change with its diagram, its closed diffs and the comments window', true, '1-change');
+    await look('the page of a change with its diagram and its closed diffs', true, '1-change');
     const { shopFlow, shopStates, shopSequence, runEnd } = madeUpDiagrams(await one.evaluate(() => ask('code:src/library/night_jobs.py')));
     await one.evaluate((diagrams) => { App.page.diagrams.push(...diagrams); App.page.parts.find((part) => part.id === 'hold-service').diagrams = diagrams.map((diagram) => diagram.id); }, [shopFlow, shopStates, shopSequence, runEnd]);
     await go(one, { level: 'part', part: 'hold-service', diagram: 'shop-flow', lit: ['pack'] });
@@ -249,7 +248,7 @@ try {
     await one.evaluate(() => { const view = document.querySelector('.cv'); view.scrollTop = document.querySelector('.cv .mc').offsetTop - 60; }); // the first note in view
     await frames(one);
     await look('a file tab with its notes');
-    await one.evaluate(() => localStorage.setItem('apostil.diagramFull', '1')); // alone: where cards show a node has no window (build 86)
+    await one.evaluate(() => localStorage.setItem('apostil.diagramFull', '1')); // alone: where cards show a node has no window
     await one.goto(`file://${homeFile}`);
     await drawn(one);
     await pointAt(one, '#view g.node[id*="flowchart-jobs-"]'); // its window has the counts of its change
@@ -314,7 +313,7 @@ try {
     await live.close();
   }
 
-  // ----- a schema diagram (build prompt 38) -----
+  // ----- a schema diagram -----
   // The schema of the migration of the example, in the look "Apostil": beside its migration with a table and its lines lit, the pointer on lines lighting
   // their table, the added and removed tables, "13 more columns" opened, the sum line, "Diagram" with its diffs open, and the narrow page.
   // A made-up description adds a dbt model, a file that is not a migration: an altered and a removed column, and a relation from a whole model.
@@ -464,7 +463,7 @@ try {
     await one.goto(`file://${homeFile}?diagram=lib-tables`);
     await drawn(one);
     const home = await one.evaluate(() => ({ tables: document.querySelectorAll('#view svg.schema g.node.go').length, crumb: document.querySelector('#crumb')?.textContent }));
-    await one.evaluate(() => localStorage.setItem('apostil.diagramFull', '1')); // alone: where cards show a part has no window (build 86)
+    await one.evaluate(() => localStorage.setItem('apostil.diagramFull', '1')); // alone: where cards show a part has no window
     await one.goto(`file://${pageFile}`);
     await drawn(one);
     await one.evaluate(() => Split.setHidden('code', true));
@@ -477,7 +476,7 @@ try {
     await one.close();
   }
 
-  // ----- a notebook by its cells (build prompt 39) -----
+  // ----- a notebook by its cells -----
   // A made-up change to notebooks, in the look "Apostil": the diff of a notebook by cells with a note beside a line, a text cell as written,
   // "only outputs changed", a step of a diagram joined to rows of a cell, and Alt+Down through the cells. The theme rounds read it in each theme.
   {
@@ -486,7 +485,7 @@ try {
     await drawn(one);
     await addNotebooks(one);
     await go(one, { level: 'change' });
-    await one.evaluate(() => App.diffs.list.setAll(true)); // the open diffs of the list of "Diagram": "Diffs" opens no diff (build prompt 42)
+    await one.evaluate(() => App.diffs.list.setAll(true)); // the open diffs of the list of "Diagram": "Diffs" opens no diff
 
     // The diff of a notebook by cells, with a note beside a line of a cell; a text cell shows its text as written.
     await toFile(one, FEES, 40);

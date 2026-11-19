@@ -49,7 +49,7 @@ test('Home: with no map it offers each installed app to write one; with a map it
     const top = home.map!.diagrams.find((one) => one.id === 'top')!;
     assert.deepEqual(top.nodes.code.paths, [{ path: 'src/', files: 2 }]);
     assert.equal(top.nodes.code.files, 2);
-    // Each change carries the files of the node that it changes, with their counts from Git (build 86).
+    // Each change carries the files of the node that it changes, with their counts from Git.
     const files = [{ path: 'src/app.py', added: 5, removed: 1, status: 'changed' }, { path: 'src/new_tool.py', added: 2, removed: 0, status: 'added' }];
     assert.deepEqual(top.nodes.code.changes, [{ id: changeId, branch: 'feature', title: 'Adds a stop function and a tool', files }]);
     assert.deepEqual(home.map!.diagrams.find((one) => one.id === 'code')!.nodes.app.changes[0].files, [files[0]]); // only the files of that node
@@ -109,7 +109,7 @@ test('the Files tree marks a row that a diagram stands for and a folder above it
   assert.ok(inDiagrams(paths, 'README.md'));
   assert.ok(!inDiagrams(paths, 'later.txt'));
 
-  // A diagram that draws on a repo diagram ("of") links to it while the map holds it as its "before" has it; a wider diagram from before names it by its own id.
+  // A diagram that draws on a repo diagram ("of") links to it while the map holds it as its "before" has it; a wider diagram with no "of" names it by its own id.
   const STOP = 'flowchart TD\n  ask["Ask to stop"]';
   const map = testMap();
   map.diagrams.push({ id: 'stop-repo', kind: 'flow', title: 'How the app stops', mermaid: STOP, parent: 'top', file: 'src/app.py' });
