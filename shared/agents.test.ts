@@ -110,19 +110,19 @@ test('every new session takes the small model of its app unless the owner set an
   assert.ok(!resumeCommand({ app: 'antigravity', session: 'c1' }, 'Do it', models)?.includes('--model'));
   assert.deepEqual(newRunCommand('opencode', 'Do it', models), ['opencode', 'run', 'Do it', '--format', 'json', '--model', 'made-up-provider/small-one#high']);
   assert.deepEqual(resumeCommand({ app: 'opencode', session: 'o1' }, 'Do it', models), ['opencode', 'run', '--session', 'o1', 'Do it', '--format', 'json']);
-  // A run that draws diagrams (the map, a description) with no model of its own: the model of the setting at the most effort, also in a session that it
-  // continues (the owner, 18 November). Apostil gives these runs the model of their lead (shared/models.test.ts checks that).
+  // A run that draws diagrams (the map, a description) with no model of its own: the model of the setting at medium effort, also in a session that it
+  // continues. Apostil gives these runs the model of their lead (shared/models.test.ts checks that).
   for (const kind of [{ diagrams: true as const }, { describe: true as const }]) {
     const drawing = { ...models, ...kind };
-    assert.deepEqual(modelWords('claude-code', drawing), ['--model', 'haiku', '--effort', 'max']);
-    assert.deepEqual(modelWords('codex', drawing), ['-c', 'model="gpt-6-luna"', '-c', 'model_reasoning_effort="max"']);
+    assert.deepEqual(modelWords('claude-code', drawing), ['--model', 'haiku', '--effort', 'medium']);
+    assert.deepEqual(modelWords('codex', drawing), ['-c', 'model="gpt-6-luna"', '-c', 'model_reasoning_effort="medium"']);
     assert.deepEqual(modelWords('antigravity', drawing), ['--model', 'gemini-4-hydrogen', '--effort', 'medium']);
-    assert.deepEqual(modelWords('opencode', drawing), ['--model', 'made-up-provider/small-one#max']);
+    assert.deepEqual(modelWords('opencode', drawing), ['--model', 'made-up-provider/small-one#medium']);
     const resumed = resumeCommand({ app: 'claude-code', session: 's1' }, 'Do it', drawing)!;
-    assert.deepEqual(resumed.slice(7, 11), ['--model', 'haiku', '--effort', 'max']);
-    assert.deepEqual(resumeCommand({ app: 'codex', session: 't1' }, 'Do it', drawing)?.slice(-4), ['-c', 'model="gpt-6-luna"', '-c', 'model_reasoning_effort="max"']);
+    assert.deepEqual(resumed.slice(7, 11), ['--model', 'haiku', '--effort', 'medium']);
+    assert.deepEqual(resumeCommand({ app: 'codex', session: 't1' }, 'Do it', drawing)?.slice(-4), ['-c', 'model="gpt-6-luna"', '-c', 'model_reasoning_effort="medium"']);
     assert.deepEqual(resumeCommand({ app: 'antigravity', session: 'c1' }, 'Do it', drawing)?.slice(7, 11), ['--model', 'gemini-4-hydrogen', '--effort', 'medium']);
-    assert.deepEqual(resumeCommand({ app: 'opencode', session: 'o1' }, 'Do it', drawing)?.slice(-2), ['--model', 'made-up-provider/small-one#max']);
+    assert.deepEqual(resumeCommand({ app: 'opencode', session: 'o1' }, 'Do it', drawing)?.slice(-2), ['--model', 'made-up-provider/small-one#medium']);
   }
   const agyMap = newRunCommand('antigravity', 'Write the map', { ...models, diagrams: true })!;
   assert.deepEqual(JSON.parse(agyMap[agyMap.indexOf('--settings') + 1]), { permissions: { allow: ['write_file(*)', 'command(*)'], deny: ['command(git push *)', 'command(git push)', 'command(rm -rf *)'] } });

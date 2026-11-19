@@ -123,8 +123,8 @@ export const SMALL_MODELS: Record<string, string> = { 'claude-code': 'haiku', co
 /** A run that draws diagrams: the map of a repo, or the description of a change (whose skill draws the diagrams of the change). */
 const drawsDiagrams = (options: RunOptions): boolean => !!(options.diagrams || options.describe);
 
-/** The reasoning effort of a run when nobody chose one: medium for Antigravity diagram runs, max for other apps' diagram runs, else high. */
-export const runEffort = (options: RunOptions, app?: string): string => options.effort ?? (drawsDiagrams(options) ? (app === 'antigravity' ? 'medium' : 'max') : 'high');
+/** The reasoning effort of a run when nobody chose one: medium for a run that draws diagrams, else high. */
+export const runEffort = (options: RunOptions): string => options.effort ?? (drawsDiagrams(options) ? 'medium' : 'high');
 
 /** The model of a run: the one that the person chose (shared/models.ts), else the setting of the app; none: the app takes the model of its own settings. */
 const modelOf = (app: string, options: RunOptions): string | undefined =>
@@ -141,7 +141,7 @@ const AGY_EFFORT_SUFFIX = /-(low|medium|high|xhigh|max)$/;
  */
 export function modelWords(app: string, options: RunOptions, withModel = true): string[] {
   const model = withModel ? modelOf(app, options) : undefined;
-  const effort = runEffort(options, app);
+  const effort = runEffort(options);
   if (app === 'claude-code') return [...(model ? ['--model', model] : []), '--effort', effort];
   if (app === 'codex') return [...(model ? ['-c', `model=${JSON.stringify(model)}`] : []), '-c', `model_reasoning_effort=${JSON.stringify(effort)}`];
   if (app === 'antigravity') return model && AGY_EFFORT_SUFFIX.test(model) ? ['--model', model] : [...(model ? ['--model', model] : []), '--effort', effort];

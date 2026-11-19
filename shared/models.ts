@@ -240,22 +240,22 @@ export function pickOf(catalog: Catalog | undefined, model: string | undefined, 
   return { model: id, name: catalog?.names[id] ?? catalog?.names[model] ?? id, effort: nearestEffort(efforts, effort) };
 }
 
-/** The most effort of a model: max, or its highest when it has no max. */
-const mostEffort = (model: ModelInfo | undefined): string => (!model || model.efforts.includes('max') ? 'max' : model.efforts.at(-1) ?? 'max');
+/** The default effort of a map or description run: medium, or the nearest effort that the model takes. */
+const defaultTeamEffort = (model: ModelInfo | undefined): string => nearestEffort(model?.efforts ?? [], 'medium');
 
 /**
- * The choice of a map run or a description run: for Claude Code and Codex, the second smallest model leads at its most effort and every writer runs on
- * the smallest; for Antigravity, Gemini 4 Hydrogen leads and writes at medium effort. OpenCode has no order: it keeps its own model and small model.
+ * The choice of a map run or a description run: for Claude Code and Codex, the second smallest model leads and every writer runs on the smallest;
+ * for Antigravity, Gemini 4 Hydrogen leads and writes. All run at medium effort by default. OpenCode has no order: it keeps its own model and small model.
  */
 export function teamOf(app: string, home = agentHome()): Team {
   const catalog = catalogOf(app, home);
-  if (!catalog) return { app, effort: 'max', list: [] };
+  if (!catalog) return { app, effort: 'medium', list: [] };
   if (app === 'antigravity') {
     const hydrogen = catalog.models.find((one) => one.id === ANTIGRAVITY_SMALL) ?? smallest(app, catalog);
-    return { app, lead: hydrogen?.id, writer: hydrogen?.id, effort: nearestEffort(hydrogen?.efforts ?? [], 'medium'), list: catalog.models };
+    return { app, lead: hydrogen?.id, writer: hydrogen?.id, effort: defaultTeamEffort(hydrogen), list: catalog.models };
   }
   const lead = secondSmallest(app, catalog);
-  return { app, lead: lead?.id, writer: smallest(app, catalog)?.id, effort: mostEffort(lead), list: catalog.models };
+  return { app, lead: lead?.id, writer: smallest(app, catalog)?.id, effort: defaultTeamEffort(lead), list: catalog.models };
 }
 
 // ----- what a session last used, from its own record -----
@@ -370,17 +370,12 @@ export function teamFrom(app: string, sent: unknown, home = agentHome()): Team {
 const modelIn = (team: Team, id: unknown): ModelInfo | undefined => team.list.find((model) => model.id === id);
 
 /**
- * What a run of a team takes: the lead's model and effort, and the writers' model at its default effort (medium for Antigravity; most effort for
- * Claude Code and Codex), whatever effort the lead has. OpenCode keeps its own model.
+ * What a run of a team takes: the lead's model and effort, and the writers' model at medium effort (or its nearest), whatever effort the lead has.
+ * OpenCode keeps its own model.
  */
 export const teamRun = (team: Team): { model?: string; effort: string; writers?: { model: string; effort: string }; opencodeModel: undefined } => ({
   ...(team.lead ? { model: team.lead } : {}), effort: nearestEffort(modelIn(team, team.lead)?.efforts ?? [], team.effort),
-  ...(team.writer ? {
-    writers: {
-      model: team.writer,
-      effort: team.app === 'antigravity' ? nearestEffort(modelIn(team, team.writer)?.efforts ?? [], 'medium') : mostEffort(modelIn(team, team.writer)),
-    },
-  } : {}),
+  ...(team.writer ? { writers: { model: team.writer, effort: defaultTeamEffort(modelIn(team, team.writer)) } } : {}),
   opencodeModel: undefined,
 });
 

@@ -65,23 +65,23 @@ test('a known session starts with the model and the effort that its own record s
   assert.deepEqual([nearestEffort(['low', 'high', 'max'], 'ultra'), nearestEffort(['low', 'high', 'max'], 'medium'), nearestEffort(['high'], 'low')], ['max', 'low', 'high']);
 });
 
-test('a map run is led by the second smallest model at the most effort and every writer runs on the smallest at the most effort: the lead in the run words, the writers in the prompt and, for Claude Code, in --agents; a description run has the same lead and writers, also when it continues a session; a choice of a page changes only the lead and its effort, and counts only with models of the catalog', () => {
+test('a map run defaults to medium effort for lead and writers: the lead in the run words, the writers in the prompt and, for Claude Code, in --agents; a description run has the same lead and writers, also when it continues a session; a choice of a page changes only the lead and its effort, and counts only with models of the catalog', () => {
   const home = madeUpAgentHome();
   const claude = teamOf('claude-code', home);
-  assert.deepEqual([claude.lead, claude.writer, claude.effort], ['sonnet', 'haiku', 'max']);
+  assert.deepEqual([claude.lead, claude.writer, claude.effort], ['sonnet', 'haiku', 'medium']);
   const map = newRunCommand('claude-code', mapPrompt(false, claude), { claudeModel: 'haiku', diagrams: true, ...teamRun(claude) })!;
-  assert.deepEqual(map.slice(map.indexOf('--model'), map.indexOf('--model') + 4), ['--model', 'sonnet', '--effort', 'max']);
+  assert.deepEqual(map.slice(map.indexOf('--model'), map.indexOf('--model') + 4), ['--model', 'sonnet', '--effort', 'medium']);
   assert.deepEqual(JSON.parse(map[map.indexOf('--agents') + 1])[WRITER_AGENT], {
     description: 'A writer or checker of Apostil: it writes or checks one part of a map or a description, as the prompt of its task says.',
-    prompt: 'Do the task that the lead gives you, as its prompt says, and nothing more.', model: 'haiku', effort: 'max',
+    prompt: 'Do the task that the lead gives you, as its prompt says, and nothing more.', model: 'haiku', effort: 'medium',
   });
-  assert.match(map[2], /You lead on Sonnet 5\.5 at max effort: you start, check and correct the writers, and you write no part yourself\. Start every writer and checker subagent on Haiku 5\.5 at max effort: start each one as the agent apostil-writer/);
+  assert.match(map[2], /You lead on Sonnet 5\.5 at medium effort: you start, check and correct the writers, and you write no part yourself\. Start every writer and checker subagent on Haiku 5\.5 at medium effort: start each one as the agent apostil-writer/);
 
-  // Codex: Terra leads at max, Luna writes at max; its spawn_agent takes the model and the effort of a subagent.
+  // Codex: Terra leads at medium, Luna writes at medium; its spawn_agent takes the model and the effort of a subagent.
   const codex = teamOf('codex', home);
   const codexMap = newRunCommand('codex', mapPrompt(false, codex), { codexModel: 'gpt-6-luna', diagrams: true, ...teamRun(codex) })!;
-  assert.deepEqual(codexMap.slice(-8), ['-c', 'agents.max_threads=16', '-c', 'agents.max_concurrent_threads_per_session=16', '-c', 'model="gpt-6.1-terra"', '-c', 'model_reasoning_effort="max"']); // 16 writers at once, for this run alone
-  assert.match(codexMap[2], /Start every writer and checker subagent on Luna 6 at max effort: start each one with spawn_agent, with model "gpt-6-luna" and reasoning_effort "max"\./);
+  assert.deepEqual(codexMap.slice(-8), ['-c', 'agents.max_threads=16', '-c', 'agents.max_concurrent_threads_per_session=16', '-c', 'model="gpt-6.1-terra"', '-c', 'model_reasoning_effort="medium"']); // 16 writers at once, for this run alone
+  assert.match(codexMap[2], /Start every writer and checker subagent on Luna 6 at medium effort: start each one with spawn_agent, with model "gpt-6-luna" and reasoning_effort "medium"\./);
   // Antigravity: Gemini 4 Hydrogen leads and writes at medium; writers inherit the model via invoke_subagent, or use swarm when lead/effort differs.
   const agy = teamOf('antigravity', home);
   assert.deepEqual([agy.lead, agy.writer, agy.effort], ['gemini-4-hydrogen', 'gemini-4-hydrogen', 'medium']);
@@ -97,19 +97,19 @@ test('a map run is led by the second smallest model at the most effort and every
 
   // A description: the same lead and writers; a session that it continues takes the lead's model.
   const described = resumeCommand({ app: 'claude-code', session: 's1' }, 'Describe pull request #35 for Apostil', { claudeModel: 'haiku', describe: true, ...teamRun(claude) })!;
-  assert.deepEqual(described.slice(7, 11), ['--model', 'sonnet', '--effort', 'max']);
+  assert.deepEqual(described.slice(7, 11), ['--model', 'sonnet', '--effort', 'medium']);
   assert.equal(JSON.parse(described[described.indexOf('--agents') + 1])[WRITER_AGENT].model, 'haiku');
-  assert.deepEqual(resumeCommand({ app: 'codex', session: 't1' }, 'Describe', { describe: true, ...teamRun(codex) })?.slice(-4), ['-c', 'model="gpt-6.1-terra"', '-c', 'model_reasoning_effort="max"']);
+  assert.deepEqual(resumeCommand({ app: 'codex', session: 't1' }, 'Describe', { describe: true, ...teamRun(codex) })?.slice(-4), ['-c', 'model="gpt-6.1-terra"', '-c', 'model_reasoning_effort="medium"']);
 
-  // A choice from the control: Opus leads at Extra, and the writers stay on Haiku at Max; a model that the catalog does not have, or another app, gives the default.
-  assert.deepEqual(teamRun(teamFrom('claude-code', { app: 'claude-code', lead: 'opus', effort: 'xhigh' }, home)), { model: 'opus', effort: 'xhigh', writers: { model: 'haiku', effort: 'max' }, opencodeModel: undefined });
+  // A choice from the control: Opus leads at Extra, and the writers stay on Haiku at Medium; a model that the catalog does not have, or another app, gives the default.
+  assert.deepEqual(teamRun(teamFrom('claude-code', { app: 'claude-code', lead: 'opus', effort: 'xhigh' }, home)), { model: 'opus', effort: 'xhigh', writers: { model: 'haiku', effort: 'medium' }, opencodeModel: undefined });
   assert.deepEqual([teamFrom('claude-code', { app: 'claude-code', lead: '--danger', effort: 'ultra' }, home).lead, teamFrom('claude-code', { app: 'codex', lead: 'opus' }, home).lead], ['sonnet', 'sonnet']);
-  // A writer that a page sends is ignored, and the writers keep Max when the lead runs at Low.
-  assert.deepEqual(teamRun(teamFrom('claude-code', { app: 'claude-code', lead: 'opus', writer: 'sonnet', effort: 'low' }, home)), { model: 'opus', effort: 'low', writers: { model: 'haiku', effort: 'max' }, opencodeModel: undefined });
-  // Codex: Sol may lead at Ultra, and Luna, which has no Ultra, writes at Max. A smallest model with no Max writes at the most that it takes.
-  assert.deepEqual(teamRun(teamFrom('codex', { app: 'codex', lead: 'gpt-6.1-sol', effort: 'ultra' }, home)).writers, { model: 'gpt-6-luna', effort: 'max' });
-  const noMax = [{ id: 'gpt-6-luna', name: 'Luna 6', efforts: ['low', 'high'] }, { id: 'gpt-6.1-terra', name: 'Terra 6.1', efforts: ['low', 'max'] }];
-  assert.deepEqual(teamRun({ app: 'codex', lead: 'gpt-6.1-terra', writer: 'gpt-6-luna', effort: 'low', list: noMax }).writers, { model: 'gpt-6-luna', effort: 'high' });
+  // A writer that a page sends is ignored, and the writers keep Medium when the lead runs at Low.
+  assert.deepEqual(teamRun(teamFrom('claude-code', { app: 'claude-code', lead: 'opus', writer: 'sonnet', effort: 'low' }, home)), { model: 'opus', effort: 'low', writers: { model: 'haiku', effort: 'medium' }, opencodeModel: undefined });
+  // Codex: Sol may lead at Ultra, and Luna writes at Medium. A smallest model with no Medium takes its nearest effort.
+  assert.deepEqual(teamRun(teamFrom('codex', { app: 'codex', lead: 'gpt-6.1-sol', effort: 'ultra' }, home)).writers, { model: 'gpt-6-luna', effort: 'medium' });
+  const noMedium = [{ id: 'gpt-6-luna', name: 'Luna 6', efforts: ['high', 'max'] }, { id: 'gpt-6.1-terra', name: 'Terra 6.1', efforts: ['low', 'max'] }];
+  assert.deepEqual(teamRun({ app: 'codex', lead: 'gpt-6.1-terra', writer: 'gpt-6-luna', effort: 'low', list: noMedium }).writers, { model: 'gpt-6-luna', effort: 'high' });
 });
 
 test('a comment run that continues a session gives no model when he did not change it, and the effort; with a model that he chose, both; a new session the chosen model', () => {

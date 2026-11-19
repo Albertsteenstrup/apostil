@@ -132,7 +132,7 @@ const timeWords = (minutes) => (minutes < 1 ? 'Less than a minute left' : `About
 
 /**
  * The quiet control of the model and the effort of a run, the same everywhere a run starts or continues: "Haiku 5.5 · High"; for a map and a
- * description the lead, "Sonnet 5.5 · Max" (its writers are fixed and do not show). A click opens its small menu in the look of the picker: the models,
+ * description the lead, "Sonnet 5.5 · Medium" (its writers are fixed and do not show). A click opens its small menu in the look of the picker: the models,
  * the one in use ticked, then the efforts that the chosen model takes. One click on a model or an effort sets it; the menu stays open until Escape, a click
  * outside or a click on the box. A press reads the choice (`RunPick.value(key)`), so one click on the press starts the run with what the control shows.
  * `spec`: { app, list, run } (`run`: { model, name, effort }); `reset`: the choice starts again when it changes (another place of the card); `onOpen`:

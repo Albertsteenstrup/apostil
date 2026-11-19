@@ -26,7 +26,7 @@ test('the press starts a new session with the words, its id known at once, led b
   const words = describeWords(35);
   try {
     const before = askView(store, repo.folder, words, ['claude-code']);
-    assert.deepEqual([before.press?.label, before.team?.lead, before.team?.writer, before.team?.effort], ['Describe it with a new Claude Code session', 'sonnet', 'haiku', 'max']);
+    assert.deepEqual([before.press?.label, before.team?.lead, before.team?.writer, before.team?.effort], ['Describe it with a new Claude Code session', 'sonnet', 'haiku', 'medium']);
     let done: (end: { problem?: string; denied?: string[] }) => void = () => {};
     const ending = new Promise<{ problem?: string; denied?: string[] }>((resolve) => { done = resolve; });
     assert.equal(await startAsk(store, repo.folder, words, ['claude-code'], { claude: 'haiku' }, () => {}, (problem, facts) => done({ problem, denied: facts?.denied })), true);
@@ -34,10 +34,10 @@ test('the press starts a new session with the words, its id known at once, led b
     const ended = await ending;
     const args = readFileSync(got, 'utf8').split('\n');
     const view = askView(store, repo.folder, words, ['claude-code']);
-    assert.deepEqual(args.slice(0, 2), ['-p', `${words}. You lead on Sonnet 5.5 at max effort: you start, check and correct the writers, and you write no part yourself. Start every writer and checker subagent on Haiku 5.5 at max effort: start each one as the agent ${WRITER_AGENT}, which runs on that model at that effort, and give it no model of your own.`]);
+    assert.deepEqual(args.slice(0, 2), ['-p', `${words}. You lead on Sonnet 5.5 at medium effort: you start, check and correct the writers, and you write no part yourself. Start every writer and checker subagent on Haiku 5.5 at medium effort: start each one as the agent ${WRITER_AGENT}, which runs on that model at that effort, and give it no model of your own.`]);
     assert.equal(args[args.indexOf('--session-id') + 1], view.line?.tip?.replace('Session ', '')); // the link of the session is there before the run ends
     assert.equal(args[args.indexOf('--model') + 1], 'sonnet'); // the lead, though the setting says haiku
-    assert.equal(args[args.indexOf('--effort') + 1], 'max'); // a description draws diagrams: the most effort
+    assert.equal(args[args.indexOf('--effort') + 1], 'medium'); // a description draws diagrams: medium effort by default
     assert.deepEqual(JSON.parse(args[args.indexOf('--agents') + 1])[WRITER_AGENT].model, 'haiku');
     assert.deepEqual(ended, { problem: 'It ended before it was done.', denied: ['Bash(gh pr *)'] });
     assert.equal(view.line?.state, 'stopped');

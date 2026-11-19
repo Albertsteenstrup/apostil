@@ -388,8 +388,8 @@ try {
       && nextSent === 'setUp' && narrowMark.width < 370 && narrowMark.centred && narrowMark.wide,
     JSON.stringify({ nothing, noMap, other, oneApp, marked, narrowMark, nextSent }));
 
-  // Right after the press, the control of the map run: the model of the lead at Max, as everywhere else; its menu has one model list and the efforts. A
-  // choice goes with the press, and no writer: the writers are always the smallest model at Max (teamFrom and teamRun in shared/models.ts).
+  // Right after the press, the control of the map run: the model of the lead at Medium, as everywhere else; its menu has one model list and the efforts. A
+  // choice goes with the press, and no writer: the writers are always the smallest model at Medium (teamFrom and teamRun in shared/models.ts).
   await homeAt('?nomap=1');
   const team = { words: await home.textContent('.nomap .runpick .rp').catch(() => '') };
   await home.mouse.move(5, 5);
@@ -404,8 +404,8 @@ try {
   team.chosen = (await home.textContent('.nomap .runpick .rp').catch(() => '')).trim();
   await home.click('[data-write="claude-code"]');
   team.sent = await home.evaluate(() => window.apostilSent.filter((message) => message.type === 'writeMap').pop());
-  check('right after the press "Map this repo" one quiet control says the model of the run and its effort, "Sonnet 5.5 · Max"; its menu has one model list and the efforts, as on a comment card, a choice stays while the menu is open, a click outside closes it, and the press sends the model and the effort and no writer',
-    team.words.trim() === 'Sonnet 5.5 · Max' && team.heads.join() === 'Model,Effort' && team.open === 1 && team.closed
+  check('right after the press "Map this repo" one quiet control says the model of the run and its effort, "Sonnet 5.5 · Medium"; its menu has one model list and the efforts, as on a comment card, a choice stays while the menu is open, a click outside closes it, and the press sends the model and the effort and no writer',
+    team.words.trim() === 'Sonnet 5.5 · Medium' && team.heads.join() === 'Model,Effort' && team.open === 1 && team.closed
       && team.chosen === 'Opus 5.5 · Extra' && JSON.stringify(team.sent) === JSON.stringify({ type: 'writeMap', app: 'claude-code', team: { app: 'claude-code', lead: 'opus', effort: 'xhigh' } }),
     JSON.stringify(team));
 
