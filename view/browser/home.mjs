@@ -43,6 +43,7 @@ try {
   await takePicture(home, '30-home-with-a-map.png');
   const nodeWin = await windowOf('lending');
   const grows = await home.$eval(`${nodeOf('lending')} > :first-child`, (el) => getComputedStyle(el).scale);
+  const iconsStay = await home.$eval(`${nodeOf('lending')} > .mk-holder`, (el) => getComputedStyle(el).scale).catch(() => 'no icons'); // grown, they would shake under a resting pointer
   // The same node, with the counts of a large repo.
   await away();
   const bigDraw = (files, paths) => home.evaluate(async ([files, paths]) => {
@@ -56,14 +57,14 @@ try {
   const bigWin = await windowOf('lending');
   await away();
   await bigDraw(...smallCounts);
-  check('Home draws the top map as one surface: 8 named areas, no dot on any node, the line "Home" alone; an area grows a little under the pointer and opens a window with its folders and files, the count of files and the change that touches it; a large repo has commas in its counts',
-    top.nodes === 8 && top.names === 8 && top.dots === 0 && top.surface && top.crumb === 'Home' && grows === '1.03'
+  check('Home draws the top map as one surface: 8 named areas, no dot on any node, the line "Home" alone; an area grows a little under the pointer (the icons at its corner stay where they are) and opens a window with its folders and files, the count of files and the change that touches it; a large repo has commas in its counts',
+    top.nodes === 8 && top.names === 8 && top.dots === 0 && top.surface && top.crumb === 'Home' && grows === '1.03' && iconsStay === 'none'
       && nodeWin.title === 'Lending' && nodeWin.sub === '9 files · 1 change' && nodeWin.rows?.[0] === 'src/library/lending/9 files' && /^book-holds/.test(nodeWin.rows?.[1] ?? '')
-      && bigWin.sub === '2,339 files · 1 change' && bigWin.first === '5,132 files', JSON.stringify({ top, grows, nodeWin, bigWin }));
+      && bigWin.sub === '2,339 files · 1 change' && bigWin.first === '5,132 files', JSON.stringify({ top, grows, iconsStay, nodeWin, bigWin }));
 
   // A click on a node goes down and "Home" goes up; a node with no diagram under it asks for its folder in the tree "Files" and never opens the graphs
   // of the folder; the window of a node of an area lists its files, and a click on a file asks VS Code to open it (build prompt 43).
-  await home.click(nodeOf('lending'));
+  await home.dblclick(nodeOf('lending'));
   await homeSettled();
   const downCrumb = await crumbOf();
   const downNodes = await home.$$eval('#view g.node.go', (all) => all.length);
@@ -71,7 +72,7 @@ try {
   await homeSettled();
   const upCrumb = await crumbOf();
   let sentBefore = await sentCount();
-  await home.click(nodeOf('desk'));
+  await home.dblclick(nodeOf('desk'));
   const toTree = await home.evaluate(() => window.apostilSent.at(-1));
   const deskLed = await ledSince(sentBefore);
   const stillHome = await home.evaluate(() => Home.data.kind === 'home' && !/path=/.test(location.search) && document.getElementById('crumb').textContent === 'Home');
@@ -102,14 +103,14 @@ try {
   }));
   await homeAt('');
   sentBefore = await sentCount();
-  await home.click(nodeOf('routes'));
+  await home.dblclick(nodeOf('routes'));
   await homeSettled();
   const placeDrawn = await drawing();
   const placeSent = await ledSince(sentBefore);
   const processWin = await windowOf('q0');
   await away();
   sentBefore = await sentCount();
-  await home.click(nodeOf('q0'));
+  await home.dblclick(nodeOf('q0'));
   await homeSettled();
   const oneProcess = await drawing();
   const processSent = (await ledSince(sentBefore)).filter((type) => type !== 'walk');
@@ -121,12 +122,12 @@ try {
       && oneProcess.crumb === 'Home›Processes of Web routes›Answer a book request' && oneProcess.boxes === 3 && oneProcess.names.length === 6 && oneProcess.names.includes('Answer the request9 steps')
       && oneProcess.quiet.join() === 'json' && oneProcess.arrows.join() === '1 make the service,1 write the details,2 pass the answer,2 send the mail,3 shape the request' && processSent.join() === '',
     JSON.stringify({ placeDrawn, placeSent, processWin, oneProcess, processSent }));
-  await home.click(nodeOf('s2'));
+  await home.dblclick(nodeOf('s2'));
   await homeSettled();
   const stepOpened = await drawing();
   const stepWin = await windowOf('s7');
   await away();
-  await home.click(nodeOf('s7'));
+  await home.dblclick(nodeOf('s7'));
   const leafSent = await home.evaluate(() => window.apostilSent.at(-1));
   const leafAt = await home.evaluate(() => Home.at);
   await home.click('#crumb a[data-trail="2"]');
@@ -140,7 +141,7 @@ try {
   const backHome = await crumbOf();
   // A node of an area that holds the first step of one process opens that process at once.
   await homeAt('?diagram=lib-lending');
-  await home.click(nodeOf('requests'));
+  await home.dblclick(nodeOf('requests'));
   await homeSettled();
   const single = await drawing();
   check('a click on a step that holds steps opens its 9 inner steps, two branches dotted with their labels and the steps of other places quiet; the pointer on a step shows its note with its file and lines; a step with no inner steps opens its file at its line; the line leads back up each level; a node that holds the first step of one process opens it at once',
@@ -156,7 +157,7 @@ try {
   await homeAt(`?path=${encodeURIComponent(tasksPath)}`);
   await panelsDrawn();
   const processPanels = await home.$$eval('.pnl', (all) => all.map((el) => ({ line: el.querySelector('.pl .t').textContent, from: el.querySelector('.pl .fr').textContent, where: el.querySelector('.pl .in').textContent, lit: Number(el.querySelector('.pd').dataset.lit) })));
-  await home.click('.pnl[data-panel="2"]');
+  await home.click('.pnl[data-panel="2"] .pl');
   await home.waitForURL(/diagram=process/, { timeout: 5000 }).catch(() => {});
   await homeDrawn();
   const fromPanel = await home.evaluate(() => ({ crumb: document.getElementById('crumb').textContent, lit: [...document.querySelectorAll('#view g.node.lit')].map((g) => nodeKey(g)).sort() }));
@@ -189,7 +190,7 @@ try {
   await home.setViewportSize({ width: 1060, height: 900 });
   const besideSideBar = await home.evaluate(() => { const boxes = [...document.querySelectorAll('.pnl')].map((el) => el.getBoundingClientRect()); return { rows: new Set(boxes.map((box) => Math.round(box.top))).size, width: Math.round(boxes[0].width) }; });
   await home.setViewportSize({ width: 1400, height: 900 });
-  await home.click('.pnl[data-panel="1"]');
+  await home.click('.pnl[data-panel="1"] .pl');
   await home.waitForURL(/diagram=/, { timeout: 5000 }).catch(() => {});
   await homeDrawn();
   const large = await home.evaluate(() => ({ crumb: document.getElementById('crumb').textContent, lit: [...document.querySelectorAll('#view g.node.lit')].map((g) => nodeKey(g)) }));
@@ -213,7 +214,7 @@ try {
   });
   const litNow = () => home.evaluate(() => [...document.querySelectorAll('#view g.node.lit')].map((g) => g.querySelector('[data-part]')?.dataset.part ?? nodeKey(g)).sort().join());
   await homeAt('');
-  await home.click(nodeOf('lending'));
+  await home.dblclick(nodeOf('lending'));
   await homeSettled();
   await home.evaluate(() => walkTo(graphsStep('src/library/lending/hold_service.py'))); // as the icon of a file in the tree "Files" does; a click on a node no longer leads there
   await home.waitForURL(/path=/, { timeout: 5000 }).catch(() => {});
@@ -221,7 +222,7 @@ try {
   await panelsDrawn();
   const walkGraphs = await lineOf();
   const graphsLit = await home.$$eval('.pnl .pd', (all) => all.map((el) => el.dataset.lit).join());
-  await home.click('.pnl[data-panel="2"]');
+  await home.click('.pnl[data-panel="2"] .pl');
   await home.waitForURL(/page\.html/, { timeout: 5000 }).catch(() => {});
   await pageDrawn();
   const walkChange = await lineOf();
@@ -229,7 +230,7 @@ try {
   const changeTitle = await home.evaluate(() => App.page.title);
   const changeBold = await home.textContent('#crumb b');
   const walked = ['Home', 'Lending: holds, requests and mails', servicePath, changeTitle];
-  await home.click('#view b[data-part="hold-service"]');
+  await home.dblclick('#view b[data-part="hold-service"]');
   await pageSettled();
   const walkPart = await lineOf();
   await home.click('.switch a[data-view="diffs"]');
@@ -392,6 +393,7 @@ try {
       presses: [...document.querySelectorAll('[data-write]')].map((a) => a.textContent),
       moves: [line, ...line.querySelectorAll('*'), ...document.querySelectorAll('.nomap .dot')].filter((el) => getComputedStyle(el).animationName !== 'none').length,
       firstLine: document.querySelector('.nomap p')?.textContent, nodes: document.querySelectorAll('#view g.node.go').length, lines: document.querySelectorAll('.maprun').length,
+      underHead: !!document.querySelector('#summary .maprun'),
     };
   });
   await homeAt('?run=desktop');
@@ -406,11 +408,11 @@ try {
   await home.goto(`file://${listFile}?run=1`);
   await home.waitForFunction(() => window.apostilListDone, null, { timeout: 5000 });
   const homeRow = await home.$eval('.cl .home', (row) => ({ text: row.textContent, state: row.querySelector('.state')?.textContent }));
-  check('while a map run writes, Home says in one quiet line which session writes the map and what is saved so far, and nothing in it moves: on the map, for a session of the desktop app with "Open the session", which opens it in its app (a click asks VS Code to open it); for a session in a terminal with "Open the session", which opens a terminal that continues it; in a repo with no map, for the run of Home, in place of the press; and the row "Home" of the list says "writing the map"',
+  check('while a map run writes, Home says in one quiet line which session writes the map and what is saved so far, and nothing in it moves: on the map, for a session of the desktop app with "Open the session", which opens it in its app (a click asks VS Code to open it); for a session in a terminal with "Open the session", which opens a terminal that continues it; in a repo with no map, for the run of Home, under the head in place of the press; and the row "Home" of the list says "writing the map"',
     ownRun?.text === `Writing the map · Claude Code session "Map of library-app" · ${SAVED} · Open the session` && ownRun.lines === 1 && ownRun.nodes === 8 && ownRun.moves === 0 && ownRun.presses.length === 0
       && ownRun.tip === 'Session 1a2b3c4d-0000-4000-8000-00000000cafe\nAreas: Lending, Desk, Catalogue' && ownRun.opens === 'Opens the session in its app' && !!opened
       && terminalRun?.text === `Writing the map · Claude Code session 1a2b3c4d · ${SAVED} · Open the session` && terminalRun.opens === 'Opens a terminal of VS Code that continues the session'
-      && homeRun?.text === `Writing the map · Claude Code session 1a2b3c4d (a session with no window) · ${SAVED}` && homeRun.firstLine === homeRun.text && homeRun.presses.length === 0 && homeRun.moves === 0 && !homeRun.opens
+      && homeRun?.text === `Writing the map · Claude Code session 1a2b3c4d (a session with no window) · ${SAVED}` && homeRun.underHead && homeRun.presses.length === 0 && homeRun.moves === 0 && !homeRun.opens
       && homeRow.state === 'writing the map' && homeRow.text === 'Homelibrary-appwriting the map',
     JSON.stringify({ ownRun, opened, terminalRun, homeRun, homeRow }));
 
@@ -428,6 +430,86 @@ try {
       && stoppedNoMap.presses.join() === 'Map this repo'
       && stoppedOnMap?.text === `${STOPPED} · Open the session · Start again · Another app` && stoppedOnMap.nodes === 8 && stoppedOnMap.lines === 1 && again?.app === 'claude-code',
     JSON.stringify({ stoppedNoMap, stoppedOnMap, again }));
+
+  // Build 84: Home while a run of the whole map writes, from the made-up runs with a plan of the work in example-data.ts (the time left comes from the plan).
+  const runState = () => home.evaluate(() => {
+    const view = document.getElementById('view');
+    const frame = view.getBoundingClientRect();
+    const fill = view.querySelector(':scope > .runbar > i');
+    const time = document.getElementById('runtime');
+    const cards = document.getElementById('cards').hidden ? [] : [...document.querySelectorAll('#cards .ovc')];
+    return {
+      time: time.hidden ? '' : time.querySelector('.rt')?.textContent ?? '', timeRight: Math.round(innerWidth - time.getBoundingClientRect().right),
+      line: document.querySelector('#summary .maprun')?.textContent ?? '', wordmark: !!document.querySelector('.wordmark'),
+      sketch: !!view.querySelector(':scope > svg.sketch'), shimmer: getComputedStyle(view.querySelector('.sketch .sks') ?? view).animationName,
+      bar: fill && { width: fill.style.width, top: Math.round(fill.getBoundingClientRect().top - frame.top), height: Math.round(fill.getBoundingClientRect().height) },
+      nodes: Object.fromEntries([...view.querySelectorAll('g.node')].filter((g) => /\brn-/.test(g.getAttribute('class'))).map((g) => [nodeKey(g), g.classList.contains('rn-working') ? 'working' : 'waiting'])),
+      cards: cards.map((card) => ({
+        title: card.querySelector('.ovn').textContent, state: /run-(\w+)/.exec(card.className)?.[1] ?? 'done', spin: getComputedStyle(card.querySelector('.ovh .spin') ?? card).animationName,
+        bar: card.querySelector('.ovbar i')?.style.width ?? '', sketch: !!card.querySelector('.ovb .sketch'), content: !!card.querySelector('.ovb svg:not(.sketch), .ovf'),
+        edge: getComputedStyle(card).borderTopStyle, empty: !card.querySelector('.ovb').children.length,
+      })),
+      fills: Math.round(frame.bottom) > innerHeight - 40, scrolls: document.documentElement.scrollHeight > innerHeight, rendered: window.apostilRendered,
+    };
+  });
+  const cardsDrawn = () => home.waitForFunction(() => [...document.querySelectorAll('#cards .ovc')].every((card) => card.hasAttribute('data-drawn')), null, { timeout: 10000 }).catch(() => {});
+
+  // Before the overview is saved: the sketch in the frame, the bar on its top edge, the line under the head and the time at the right end of the head.
+  await homeAt('?nomap=1&run=reading');
+  const reading = await runState();
+  await takePicture(home, '84-1-before-the-overview.png');
+  check('before the overview of a run is saved, the frame holds a soft sketch of a map that shimmers slowly in place of the wordmark, with the bar of the run on its top edge; the line of the run stands under the head and "About N min left" at the right end of the head; the page does not scroll',
+    reading.sketch && reading.shimmer === 'sk-pass' && !reading.wordmark && /^About \d+ min left$/.test(reading.time) && reading.timeRight <= 40 && reading.line.startsWith('Writing the map · Claude Code')
+      && reading.bar?.top <= 1 && reading.bar.height === 2 && parseFloat(reading.bar.width) > 0 && reading.fills && !reading.scrolls, JSON.stringify(reading));
+
+  // While the areas load: the states of the nodes of the top map and of their cards, the bar and the time.
+  await homeAt('?run=areas');
+  await cardsDrawn();
+  const loading = await runState();
+  await takePicture(home, '84-2-areas-loading.png');
+  const cardOf = (title) => loading.cards.find((card) => card.title === title) ?? {};
+  const working = ['Web routes', 'Lending'].map(cardOf);
+  const waiting = ['Front desk', 'Database'].map(cardOf);
+  const done = loading.cards.filter((card) => card.state === 'done');
+  check('while the areas load, a node with work left is quiet and the node of an area that writers work on now has an accent edge; its card shows a sketch, a turning mark and its own bar, a card that waits is empty with a dashed edge, a card whose area is done shows its diagram or files; the bar of the run and the time stay',
+    JSON.stringify(loading.nodes) === JSON.stringify({ routes: 'working', lending: 'working', desk: 'waiting', data: 'waiting' })
+      && working.every((card) => card.state === 'working' && card.sketch && card.spin === 'ov-turn' && !card.content) && working.map((card) => card.bar).join() === '45%,20%'
+      && waiting.every((card) => card.state === 'waiting' && card.empty && card.edge === 'dashed') && done.length === 4 && done.every((card) => card.content && card.edge === 'solid')
+      && parseFloat(loading.bar?.width) > 15 && loading.bar.top <= 1 && /^About \d+ min left$/.test(loading.time) && !loading.scrolls, JSON.stringify(loading));
+
+  // After a save the time changes once and calmly; the time that VS Code sends every 30 seconds changes the words and the bar, and draws nothing again.
+  await home.evaluate(() => window.postMessage({ type: 'data', data: { ...Home.data, mapRun: window.APOSTIL_EXAMPLE.mapRuns.later } }, '*'));
+  await home.waitForFunction((count) => window.apostilRendered > count, loading.rendered, { timeout: 5000 }).catch(() => {});
+  const rolling = await home.evaluate(() => {
+    const time = document.getElementById('runtime');
+    return { now: time.querySelector('.rt')?.textContent ?? '', old: time.querySelector('.rt-old')?.textContent ?? '', moves: [...time.children].map((one) => getComputedStyle(one).animationName).join() };
+  });
+  await home.waitForSelector('#runtime .rt-old', { state: 'detached', timeout: 4000 }).catch(() => {});
+  const saved = { ...(await runState()), old: await home.$$eval('#runtime .rt-old', (all) => all.length) };
+  await home.evaluate(() => window.postMessage({ type: 'time', time: { minutes: 0, share: 0.97 } }, '*'));
+  await home.waitForFunction(() => document.querySelector('#runtime .rt')?.textContent === 'Less than a minute left', null, { timeout: 3000 }).catch(() => {});
+  const ticked = await runState();
+  check('after a save the time left changes once and calmly: the old words move up and fade out above the new ones, then only the new ones stay, and the bar moves on; the time that VS Code sends every 30 seconds changes the words and the bar with nothing drawn again, and under a minute it says "Less than a minute left"',
+    rolling.old === loading.time && /^About \d+ min left$/.test(rolling.now) && rolling.now !== rolling.old && rolling.moves === 'rt-in,rt-out' && saved.time === rolling.now && saved.old === 0
+      && parseFloat(saved.bar?.width) > parseFloat(loading.bar.width) && ticked.time === 'Less than a minute left' && ticked.bar?.width === '97%' && ticked.rendered === saved.rendered,
+    JSON.stringify({ rolling, saved, ticked }));
+
+  // In full screen during a run: the top map with the bar and the time, and no cards. When the run ends, the bar and the time go and the page is the normal overview.
+  await home.evaluate(() => Overview.choose(true, () => Home.render()));
+  await homeSettled();
+  const fullRun = await runState();
+  await takePicture(home, '84-3-full-screen-during-a-run.png');
+  await home.evaluate(() => Overview.choose(false, () => Home.render()));
+  await homeSettled();
+  await home.evaluate(() => { const { mapRun, ...rest } = Home.data; window.postMessage({ type: 'data', data: rest }, '*'); });
+  await home.waitForFunction(() => !Home.data.mapRun && document.querySelectorAll('#cards .ovc').length > 0, null, { timeout: 5000 }).catch(() => {});
+  await homeSettled();
+  await cardsDrawn();
+  const ended = await runState();
+  check('in full screen during a run the top map shows with the bar of the run and the time left, and no cards; when the run ends the bar, the time and the states go, and the page is the normal overview with every card filled',
+    fullRun.cards.length === 0 && fullRun.fills && parseFloat(fullRun.bar?.width) > 0 && fullRun.time !== '' && Object.keys(fullRun.nodes).length === 4
+      && !ended.bar && ended.time === '' && ended.line === '' && Object.keys(ended.nodes).length === 0 && ended.cards.length === 8 && ended.cards.every((card) => card.state === 'done' && card.content),
+    JSON.stringify({ fullRun, ended }));
 
   // Comments on the map of Home: a node and an arrow hold one, as on the change page; "@" offers only new sessions; a row of the list after a level down lights its node.
   await homeAt('');
@@ -472,7 +554,7 @@ try {
       && onMapArrow.outline.join() === arrowSpot.rk && /^Arrow "/.test(onMapArrow.where) && arrowTarget?.kind === 'edge' && arrowTarget.diagram === 'lib-top'
       && mapChoices.join() === 'claude-new,codex-new,opencode-new', JSON.stringify({ onMapNode, nodeCard, nodeCircle, nodeTarget, onMapArrow, arrowTarget, mapChoices }));
   await home.mouse.move(2, 2);
-  await home.click(nodeOf('lending'));
+  await home.dblclick(nodeOf('lending'));
   await homeSettled();
   const lowerCrumb = await crumbOf();
   await home.click('[data-comments]');

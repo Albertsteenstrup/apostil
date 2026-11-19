@@ -10,6 +10,7 @@ import { noteGroups } from '../shared/note-groups';
 import { Store } from '../shared/store';
 import { makeTestRepo, tempFolder } from '../shared/test-repo';
 import { runMapCommand } from './map-commands';
+import { areaWork } from './map-run';
 
 const SESSION = '1a2b3c4d-0000-4000-8000-00000000cafe'; // made up
 const AT = '2026-11-17T10:00:00.000Z';
@@ -36,12 +37,18 @@ test('the first save of a writer opens the record with the session from the envi
   assert.deepEqual(opened.agent, { app: 'claude-code', session: SESSION, hostSession: 'made-up-host-0002' });
   assert.deepEqual(opened.parts, { ofAreas: 2, overview: true });
   assert.equal(mapRunState(opened), 'writing');
+  // The record keeps the time of each save, and the plan of the work that is left, made after its first save: the overview counts as done before it.
+  assert.deepEqual(opened.saves, [['o', 0]]);
+  assert.deepEqual([opened.plan?.overview, opened.plan?.notes, opened.plan?.noteFiles, opened.plan!.done > 4], [0, 1, 2, true]);
 
   assert.ok(save('add-diagram', { id: 'one', kind: 'flow', title: 'Area one', mermaid: 'flowchart LR\n  a --> b', parent: 'top', nodePaths: { a: ['src/app.py'], b: ['README.md'] } }));
   const grown = store.mapRun(id)!;
   assert.deepEqual(grown.parts, { ofAreas: 2, overview: true, areas: ['Area one'] });
   assert.equal(grown.startedAt, opened.startedAt);
   assert.equal(grown.endedAt, undefined); // the code files still need notes
+  assert.deepEqual(grown.saves?.map(([kind]) => kind), ['o', 'a']);
+  // The cards of Home: the area "code" has notes to write, so a writer works on it now; "docs" has no code file and is done.
+  assert.deepEqual(areaWork(store, repo.folder, store.getMap(id)!, grown), { code: { state: 'working', share: 0.33 } });
 
   // The notes of every code file: the test repo reaches no service and has no notes for a process, so no writer has work after this save.
   const files = noteGroups(repo.folder, store.getMap(id)).groups.flatMap((group) => group.files.map((file) => file.path));

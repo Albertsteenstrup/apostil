@@ -45,6 +45,47 @@ try {
       && top.files['Guides and notes']?.join() === 'docs/4 files,README.md' && top.files.Tests?.join() === 'tests/4 files' && Object.keys(top.files).length === 4
       && top.shows && top.under >= 16 && top.well !== top.paper, JSON.stringify(top));
 
+  // 1b. Build 84: each card takes the size of its content, from half of the card of build 83 to half again each way, and the cards are packed with no
+  // hole: the card of the first node at the top left, and each point of the block inside a card or in a gap of 12 px; again after the tab gets narrower.
+  // No card is narrower than its content (no file row is cut), no card of files is more than one unit (100 px and a gap) taller than its rows need, and
+  // each drawing fills its card: the tall drawing of "Database" gets a card higher than wide, and every drawing fills at least 60% of its card in its
+  // looser direction (a drawing card takes another size only at 70%; its own size may fill a little less).
+  const packing = () => home.evaluate(() => {
+    const cards = [...document.querySelectorAll('#cards .ovc')].map((card) => { const box = card.getBoundingClientRect(); return { card, title: card.querySelector('.ovn').textContent, units: card.dataset.units, left: box.left, top: box.top, right: box.right, bottom: box.bottom }; });
+    const [left, top, right, bottom] = [Math.min(...cards.map((one) => one.left)), Math.min(...cards.map((one) => one.top)), Math.max(...cards.map((one) => one.right)), Math.max(...cards.map((one) => one.bottom))];
+    const near = (x, y) => Math.min(...cards.map((one) => Math.hypot(Math.max(one.left - x, 0, x - one.right), Math.max(one.top - y, 0, y - one.bottom)))); // 0 inside a card
+    const holes = [];
+    for (let y = top + 1; y < bottom; y += 3) for (let x = left + 1; x < right; x += 3) if (near(x, y) > 12.5) holes.push([Math.round(x), Math.round(y)]);
+    const cut = cards.flatMap(({ card, title }) => [...card.querySelectorAll('.ovf .dir, .ovf .nm')].filter((part) => part.scrollWidth > part.clientWidth + 1).map((part) => `${title}: ${part.textContent}`));
+    const tall = cards.filter(({ card }) => card.querySelector('.ovf a')).map(({ card, title, bottom: to }) => ({ title, empty: Math.round(to - card.querySelector('.ovf a:last-child').getBoundingClientRect().bottom) })).filter((one) => one.empty > 100 + 12 + 12);
+    const fills = Object.fromEntries(cards.filter(({ card }) => card.querySelector('.ovb svg')).map(({ card, title }) => {
+      const svg = card.querySelector('.ovb svg');
+      const drawn = svg.viewBox.baseVal.width / svg.viewBox.baseVal.height;
+      const box = svg.getBoundingClientRect();
+      const room = box.width / box.height;
+      return [title, +Math.min(drawn / room, room / drawn).toFixed(2)];
+    }));
+    const database = cards.find((one) => one.title === 'Database');
+    return { sizes: [...new Set(cards.map((one) => one.units))].sort(), first: cards[0].title, firstAt: cards[0].left === left && cards[0].top === top, holes: holes.length, hole: holes[0], columns: document.getElementById('cards').style.gridTemplateColumns,
+      cut, tall, fills, databaseTall: database.bottom - database.top > database.right - database.left };
+  });
+  /** Waits until the cards were placed again after their drawings came out (drawnShape). */
+  const placed = () => home.waitForFunction(() => !Overview.again, null, { timeout: 5000 }).catch(() => {});
+  await placed();
+  const packed = await packing();
+  await home.setViewportSize({ width: 1000, height: 900 });
+  await home.waitForFunction((before) => document.getElementById('cards').style.gridTemplateColumns !== before, packed.columns, { timeout: 5000 }).catch(() => {});
+  await cardsFilled();
+  await placed();
+  const narrower = await packing();
+  await home.setViewportSize({ width: 1400, height: 900 });
+  const sized = (one) => one.cut.length === 0 && one.tall.length === 0 && Object.values(one.fills).length === 4 && Object.values(one.fills).every((fill) => fill >= 0.6) && one.databaseTall;
+  check('each card of the overview takes the size of its content, so cards of different sizes stand under the map; they are packed with no hole: the card of the first node at the top left, and each point of the block inside a card or in a gap of 12 px; when the tab gets narrower they are placed again, still with no hole',
+    packed.sizes.length >= 3 && packed.first === 'Web pages' && packed.firstAt && packed.holes === 0
+      && narrower.columns !== packed.columns && narrower.first === 'Web pages' && narrower.firstAt && narrower.holes === 0, JSON.stringify({ packed, narrower }));
+  check('no card of the overview is narrower than its content (no folder or file name of a row is cut), no card of files is more than one unit taller than its rows need, and each drawing fills its card: the tall drawing of "Database" gets a card higher than wide, and each drawing fills at least 60% of its card both ways; also when the tab gets narrower',
+    sized(packed) && sized(narrower), JSON.stringify({ packed, narrower }));
+
   // 2. A click on a card goes one level down in the same layout; a click on a file of a card asks VS Code to open that file.
   const card = (title) => home.locator('.ovc', { has: home.locator('.ovh', { hasText: new RegExp(`^${title}$`) }) });
   await card('Lending').click({ timeout: 3000 }).catch(() => {});

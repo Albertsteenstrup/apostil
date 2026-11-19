@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { newRunCommand, resumeCommand, runOptions, WRITER_AGENT, type RunModels } from '../shared/agents';
 import { pickFrom, teamOf, teamRun, teamSentence, type RunPick, type Team } from '../shared/models';
 import { changedBetween, workingFiles } from '../shared/git';
+import { WRITERS_AT_ONCE } from '../shared/map-estimate';
 import { storeFolder, type Store } from '../shared/store';
 import { inboxText } from '../store/inbox';
 
@@ -154,8 +155,20 @@ export function startMapRun(app: string, folder: string, ended: (problem?: strin
   return true;
 }
 
-/** The environment of a run that Apostil starts: the hook `apostil inbox --wait` must not hold it up. */
-export const runEnvironment = (): NodeJS.ProcessEnv => ({ ...process.env, APOSTIL_NO_WAIT: '1' });
+/**
+ * How long Claude Code's print mode waits after the last turn of the lead for writers that still run, before it stops them (its default is 10 minutes,
+ * which cut off a real map run). Not 0, which waits for ever: a writer that hangs must not hold the run for ever.
+ */
+export const WAIT_FOR_WRITERS_MS = 60 * 60_000;
+
+/**
+ * The environment of a run that Apostil starts: the hook `apostil inbox --wait` must not hold it up; Claude Code waits up to 60 minutes for writers after
+ * the last turn of the lead; and it may run WRITERS_AT_ONCE subagents at once (its own default is 20, so only a lower setting of the person is raised).
+ */
+export const runEnvironment = (env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv => ({
+  ...env, APOSTIL_NO_WAIT: '1', CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS: String(WAIT_FOR_WRITERS_MS),
+  ...(Number(env.CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS) < WRITERS_AT_ONCE ? { CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS: String(WRITERS_AT_ONCE) } : {}),
+});
 
 const TAIL = 64 * 1024; // the end of the output that is kept: a failed run says why there
 const ERROR_TAIL = 8 * 1024; // the end of the error output: a program that stops at once says why there

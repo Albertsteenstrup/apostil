@@ -575,6 +575,16 @@ test('the map run gets the skills as text, says in its first words when it also 
   assert.equal(runEnvironment().PATH, process.env.PATH);
 });
 
+test('every Claude Code run that Apostil starts waits up to 60 minutes after the last turn of its lead for writers that still run, and may run 16 subagents at once', () => {
+  // Print mode stops writers 10 minutes after the last turn by default: a real map run lost its last process writers so. 0 would wait for ever.
+  assert.equal(runEnvironment({ PATH: '/bin' }).CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS, '3600000');
+  assert.equal(runEnvironment({ CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS: '0' }).CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS, '3600000');
+  // Claude Code runs 20 subagents at once unless the person set fewer: a lower setting is raised to 16 for the run, and a higher one or none stays.
+  assert.equal(runEnvironment({ CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS: '4' }).CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS, '16');
+  assert.equal(runEnvironment({ CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS: '30' }).CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS, '30');
+  assert.equal(runEnvironment({}).CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS, undefined);
+});
+
 test('the copies of the page are the same as their sources: a count with a comma for thousands, and the logo files of design/logo', () => {
   assert.deepEqual([999, 1000, 12345, 0].map((value) => number(value)), ['999', '1,000', '12,345', '0']);
 

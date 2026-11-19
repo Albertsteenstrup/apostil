@@ -3,6 +3,7 @@
 import { accessSync, closeSync, constants, existsSync, fstatSync, openSync, readdirSync, readFileSync, readSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { delimiter, join } from 'node:path';
+import { WRITERS_AT_ONCE } from './map-estimate';
 
 /** The apps that have a name of their own: claude-code, codex, antigravity and opencode. */
 export interface AgentSession {
@@ -226,8 +227,15 @@ export const runOptions = (folder: string, store: string, models: RunModels = {}
   store, claudeModel: models.claude, codexModel: models.codex, opencodeModel: opencodeSmallModel(folder), claudeMode: claudeDefaultMode(folder), codexSandbox: codexDefaultSandbox(),
 });
 
-/** The words that set the sandbox of a Codex run, its model when one is set, and its effort. */
-const codexWords = (options: RunOptions, withModel = true): string[] => [...codexRights(options.store, options.codexSandbox), ...modelWords('codex', options, withModel)];
+/**
+ * A Codex run with writers may have WRITERS_AT_ONCE agent threads open at once. Codex limits them in its config (`agents.max_threads`, the error "agent
+ * thread limit reached", and `agents.max_concurrent_threads_per_session`); -c sets them for this run alone and writes no config.
+ */
+const codexThreads = (options: RunOptions): string[] => (options.writers?.model
+  ? ['-c', `agents.max_threads=${WRITERS_AT_ONCE}`, '-c', `agents.max_concurrent_threads_per_session=${WRITERS_AT_ONCE}`] : []);
+
+/** The words that set the sandbox of a Codex run, its threads when it has writers, its model when one is set, and its effort. */
+const codexWords = (options: RunOptions, withModel = true): string[] => [...codexRights(options.store, options.codexSandbox), ...codexThreads(options), ...modelWords('codex', options, withModel)];
 
 /**
  * The command and arguments that continue the session with a prompt, or undefined. A comment run gives no model unless the person chose one, so the session

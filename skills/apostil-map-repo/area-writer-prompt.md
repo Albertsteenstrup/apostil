@@ -32,7 +32,7 @@ Read the files that matter: the entry points, the largest files, the files that 
 - Cover the area. Every large file belongs to a node. Put small helper files together in one node that says what they are, for example "Helper libraries". Do not leave half of the area out to keep the diagram small.
 - Draw an arrow only when the code shows it: an import, a call, or a file that one part writes and another reads. Do not draw an arrow from a name. A node may have no arrow.
 - Draw arrows only between the nodes of your diagram. The top diagram shows what the area does with its neighbours.
-- Keep the arrows few: at most 12. When the code shows more, keep the arrows that say how the area works. Draw no arrow to a part that almost every other part uses (a shared library, a client for the server): such a part stands with no arrow, and your report names it.
+- Keep the arrows few: at most 12. When the code shows more, keep the arrows that say how the area works. Draw no arrow to a part that almost every other part uses (a shared library, a client for the server): such a part stands with no arrow.
 - The owner reads the diagram in a tab that is wider than it is tall. For a flow chart, start the Mermaid text with `flowchart LR` when the longest path along the arrows has five nodes or fewer, and with `flowchart TB` when it has more.
 - Give it `parent`: the id of the top diagram. Give it an `id` that is new in the map. When the map already holds a diagram of your area, give yours the same `id` instead: then yours takes its place, and the area has one diagram.
 - Give it `nodePaths`: `{ "nodeId": ["src/web/routes/", "src/web/app.ts"] }`. A folder ends with `/`. A file does not. Every path lies inside the area. Every node has at least one path, and every key of `nodePaths` is a node of the diagram. Do not give one file or folder to two nodes.
@@ -57,4 +57,4 @@ Add again: a diagram with the same `id` replaces the earlier one. Stop when your
 
 ## Your report
 
-Reply with: the id of your diagram, its nodes (one line each), each file or folder of the area that is in no node and why (answer `checks.uncovered` here), and any problem that remains. Nothing else.
+The output of `apostil add-diagram` is the check of your part. Reply with one line: `saved <id of your diagram> with <count> nodes`, and each path of `checks.uncovered` that you kept out, with the reason, or the problem that remains. Nothing else.

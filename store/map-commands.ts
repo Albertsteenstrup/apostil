@@ -3,7 +3,7 @@
 
 import { afterSave, readJson } from './read-input';
 import { fileText, repoId } from '../shared/git';
-import { fileNotesSource, filesNeedingNotes, noteGroups, notesOf, processGroups } from '../shared/note-groups';
+import { fileNotesSource, filesNeedingNotes, groupProcessFacts, noteGroups, notesOf, readyProcessGroups } from '../shared/note-groups';
 import { notesOfFile } from '../shared/notes-beside-code';
 import { processFacts, processWithHandoffs, stepKey } from '../shared/processes';
 import { diagramsOf, noteCount } from '../shared/repo-map';
@@ -11,7 +11,7 @@ import type { Store } from '../shared/store';
 import { DEFAULT_RULES, type Look } from '../shared/look';
 import { lookSlots } from '../shared/look-slots';
 import { mapFit } from '../shared/map-fit';
-import { markFacts, markGroups, SERVICES } from '../shared/marks';
+import { markFacts, readyMarkGroups, SERVICES } from '../shared/marks';
 import { lookChanges } from './look-changes';
 import { mapForWriters, mapMaterial } from './map-material';
 import { mapSaveOf, recordMapSave } from './map-run';
@@ -33,7 +33,7 @@ export const MAP_USAGE: Record<string, string> = {
   notes: 'apostil notes <path>',
   'add-processes': 'apostil add-processes <processes.json> (or - for standard input)',
   'process-groups': 'apostil process-groups [--all]',
-  processes: 'apostil processes',
+  processes: 'apostil processes [--group <name>] (--group: only the files and the processes of that group of process-groups)',
   process: 'apostil process <id>',
   map: 'apostil map [--fit] (--fit: where the notes and the processes do not fit the diagrams)',
   'diagrams-of': 'apostil diagrams-of <path> [--full]',
@@ -45,11 +45,12 @@ export const MAP_USAGE: Record<string, string> = {
   'look-slots': 'apostil look-slots [<area> | --find "<words>" | --all] (no argument: the core and one line for each area)',
 };
 
-/** The flags of a map command: --full, --all, --set <id>, --check, and --find <words> (an empty text when no words follow). */
+/** The flags of a map command: --full, --all, --set <id>, --group <name>, --check, and --find <words> (an empty text when no words follow). */
 export interface MapFlags {
   full?: boolean;
   all?: boolean;
   set?: string;
+  group?: string;
   check?: boolean;
   find?: string;
   fit?: boolean;
@@ -98,11 +99,15 @@ export function runMapCommand(store: Store, command: string, argument: string, f
     }
     case 'process-groups': {
       const stored = store.getMap(repoId(folder));
-      return stored ? { output: processGroups(stored.map, all), ok: true } : NO_MAP;
+      return stored ? { output: readyProcessGroups(folder, stored, all), ok: true } : NO_MAP; // only the areas whose notes are all saved
     }
     case 'processes': {
       const stored = store.getMap(repoId(folder));
-      return stored ? { output: processFacts(stored.map), ok: true } : NO_MAP;
+      if (!stored) return NO_MAP;
+      if (flags.group === undefined) return { output: processFacts(stored.map), ok: true };
+      // The check of one group (build 84, part G): its writer runs it before it reports, and the lead starts its second round from it at once.
+      const facts = groupProcessFacts(stored.map, flags.group);
+      return facts ? { output: facts, ok: true } : { output: { problems: [`No group of the process writers is named "${flags.group}". apostil process-groups --all names them.`] }, ok: false };
     }
     case 'process': {
       const stored = store.getMap(repoId(folder));
@@ -145,7 +150,7 @@ const MARK_COMMANDS: Record<string, (store: Store, folder: string, argument: str
     const { values: _values, ...about } = found;
     // The known values come first, so that a writer reuses their ids; for each, whether Apostil keeps its icon.
     const values = valuesOf(store, repo, found.id).map((value) => ({ id: value.id, name: value.name, ...(value.site ? { site: value.site } : {}), icon: !!value.icon }));
-    return { output: { set: about, values, ...markGroups(folder, store.getMap(repo)?.map, found.id, all) }, ok: true };
+    return { output: { set: about, values, ...readyMarkGroups(folder, store.getMap(repo), found.id, all) }, ok: true }; // only the areas whose notes are all saved
   },
   marks: (store, folder, _argument, { set }) => {
     const repo = repoId(folder);

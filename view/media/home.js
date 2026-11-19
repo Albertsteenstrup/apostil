@@ -29,40 +29,7 @@ const Home = {
 
 const diagramOf = (id) => Home.data.map.diagrams.find((diagram) => diagram.id === id);
 
-// ----- focus on a node (build 64) -----
-
-let focus = null; // { stage, graph, node, diagram }: the drawing with its graph, the node that the focus is on, and on Home the diagram
-
-/**
- * Focuses a node of a drawing, with its arrows and the nodes at their other ends (focusNode); the same node again, or no node, ends the focus.
- * One quiet line names the node, with a × that ends it.
- */
-function focusOn(stage, graph, node, diagram) {
-  const again = focus?.stage === stage && focus.node === node;
-  if (focus) focusNode(focus.stage, focus.graph, null);
-  const name = node && !again ? focusNode(stage, graph, node) : null;
-  focus = name ? { stage, graph, node, diagram } : null;
-  const summary = document.getElementById('summary');
-  summary.querySelector('.fc')?.remove();
-  if (name) summary.insertAdjacentHTML('beforeend', `<span class="mk-filter fc">${summary.textContent.trim() ? ' · ' : ''}Focus: ${esc(name)} · <a data-end-focus title="End the focus (Escape)">×</a></span>`);
-}
-
-/** Option+click on a node of a drawing focuses it; the look wins when it gives that click a target (`lookAlt`). True when the click was taken. */
-function focusClick(event, stage, graph, lookAlt, diagram) {
-  const g = event.altKey && !lookAlt ? nodeAt(stage, event) : null;
-  if (!g || !stage.contains(g)) return false;
-  event.stopImmediatePropagation(); // not also the click of the node, or of the panel that holds it
-  event.preventDefault();
-  Hover.hide();
-  focusOn(stage, graph, nodeKey(g), diagram);
-  return true;
-}
-
-// Escape ends the focus, when no window is open and no comment is being placed (Escape closes those first), and not in a text field.
-document.addEventListener('keydown', (event) => {
-  if (event.key !== 'Escape' || !focus || document.querySelector('.win') || document.body.classList.contains('picking') || event.target.closest?.('[data-field], textarea, input, [contenteditable]')) return;
-  focusOn(null);
-}, true);
+// The focus on a node (build 64; one click since build 84): focusOn() and focusClicks() in diagram-stage.js.
 
 // ----- the steps of the path: a diagram of the map, the graphs of a path, a change -----
 
@@ -232,23 +199,28 @@ function pickMark(thing, one) {
  */
 const leadsSomewhere = (node) => !!node && !node.quiet && (!!diagramOf(node.down) || node.paths.length > 0);
 
-/** The card of a node: its diagram one level down drawn small, as a panel of the graphs page with nothing lit, and its click; else its folders and files. */
-function homeCard(g, node, open, graph) {
+/**
+ * The card of a node: its diagram one level down drawn small, as a panel of the graphs page with nothing lit, and its click; else its folders and files.
+ * While a map is written (build 84), `run` is the state of its area: a card with work left shows that state in place of its content, and takes the size
+ * of its diagram, or of its folders and files, so that it keeps its size when its area is done.
+ */
+function homeCard(g, node, open, graph, run) {
   const title = plainName(graph, nodeKey(g));
   const below = diagramOf(node.down);
-  if (below) return { title, open, draw: (box) => drawPanel(box, { ...below, lit: [] }, true) };
-  return { title, files: node.paths.map(({ path, files }) => ({ path, count: files, line: node.line })) };
+  const own = { title, node: nodeKey(g), ...(run ? { run, areaFiles: node.paths } : {}) };
+  if (below) return { ...own, open, draw: (box) => drawPanel(box, { ...below, lit: [] }, true), shape: { ...drawingShape(below.graph, below.mermaid, below.schema), key: below.id } };
+  const files = node.paths.map(({ path, files }) => ({ path, count: files, line: node.line }));
+  return run ? own : { ...own, files };
 }
 
 /**
  * The repo has no map: the wordmark of Apostil, large and quiet, where VS Code shows its own logo in an empty editor area.
  * Under it the press that maps the repo, one press for the app that Apostil started last (mapPressHtml in tools.js), and the next steps (the set-up step and the example).
- * While a map run writes, the line of the run stands in place of the press (mapRunHtml in tools.js).
+ * While a map run writes, Home shows the frame of the run in its place (runFrame).
  */
 function noMapHtml() {
   const { apps, mapApp, mapRun, needsSetup, team } = Home.data;
   const mark = '<img class="wordmark" src="apostil-wordmark.svg" alt="Apostil">';
-  if (mapRun?.state === 'writing') return `<div class="nomap">${mark}${mapPressHtml(apps, mapRun, mapApp, team)}</div>`;
   // After a map run that stopped, its line says so in place of the first line, above the press that starts again.
   return `<div class="nomap">${mark}${mapRun ? '' : '<p>This repo has no map and no notes yet.</p>'}${mapPressHtml(apps, mapRun, mapApp, team)}<div class="next">${nextStepsHtml(needsSetup)}</div></div>`;
 }
@@ -258,6 +230,8 @@ async function drawHome() {
   const view = document.getElementById('view');
   view.innerHTML = '';
   view.className = 'view';
+  view.style.height = ''; // the frame of a run before its overview took the height of the tab
+  view.sized = null; // and no earlier drawing sets its height again (keepFilled, keepOverview)
   const cards = document.getElementById('cards');
   Overview.cards(cards, []);
   const diagram = map && (diagramOf(Home.at) ?? diagramOf(map.top));
@@ -278,8 +252,13 @@ async function drawHome() {
   // While a map run writes, the map shows what is saved, and this line says which session writes and what is done; after a stop, the press that starts again.
   const run = Home.data.mapRun;
   if (run && diagram) summary.insertAdjacentHTML('beforeend', `${summary.hasChildNodes() ? ' · ' : ''}${mapRunHtml(run, run.state === 'stopped' ? { app: Home.data.mapApp, apps: Home.data.apps } : null)}`);
+  // While a run of the whole map writes (build 84): the time left at the right end of the head, and the bar of the run on the top edge of the frame.
+  const time = run?.state === 'writing' ? run.time : undefined;
+  showTime(time);
+  const areas = time && diagram && diagram.id === map.top ? run.areas ?? {} : null; // the areas of the top map with work left, by node id
   let nodes = 0;
-  if (!diagram) view.innerHTML = noMapHtml();
+  if (!diagram && run?.state === 'writing') runFrame(view, summary, run, time);
+  else if (!diagram) view.innerHTML = noMapHtml();
   else {
     // The look: the slots of each node and arrow, what shows, and the shapes, words and contents that go into the text before Mermaid draws.
     // A step that a rule opens holds its inner steps in place.
@@ -313,6 +292,7 @@ async function drawHome() {
     // A wide map opens where its words read; drawn again with new data, it stays where he left it. The drawing in columns is another drawing.
     makeSurface(view, true, false, laid === diagram ? diagram.id : `${diagram.id}:columns`, overview);
     if (leading.length) Overview.icon(view, !overview, () => Home.render());
+    runBar(view, time);
     const opens = new Map(); // the click of each node, which its card does too
     const joined = { ...drawn.graph, dots: (plain ? diagram : laid).dots }; // for a focus: with the boxes that a drawn process joins by a dot
     frameLook(view, look, diagram.id);
@@ -321,42 +301,93 @@ async function drawHome() {
       if (!node) continue;
       nodes++;
       const thing = things[nodeKey(g)];
-      // The window of the node, with a quiet link that focuses it as Option+click does, and the key beside it as a small clue.
+      // While the map is written: a node with work left is quiet, and the node of an area that writers work on now has a quiet accent edge.
+      const work = areas?.[nodeKey(g)];
+      if (work) g.classList.add(`rn-${work.state}`);
+      // The window of the node, with a quiet link that focuses it as a click does, and the click beside it as a small clue.
       const content = node.note ? noteWindow(node, thing) : nodeWindow(g, node, thing);
       const focusIt = () => focusOn(view, joined, nodeKey(g), diagram.id);
       Hover.attach(g, async () => {
-        const on = focus?.stage === view && focus.node === nodeKey(g);
-        return { ...(await content()), act: { words: on ? 'End the focus' : 'Focus on this node', keys: on ? 'Esc' : MAC ? '⌥ click' : 'Alt+click', run: focusIt } };
+        const on = hasFocus(view, nodeKey(g));
+        return { ...(await content()), act: { words: on ? 'End the focus' : 'Focus on this node', keys: on ? 'Esc' : 'Click', run: focusIt } };
       });
-      g.addEventListener('click', (event) => focusClick(event, view, joined, thing?.slots['input.alt'], diagram.id)); // before the click of the node (Marks.bind)
       const paths = node.paths.map(({ path }) => path);
       // A click on an area with a diagram of its own goes into it, and the tree "Files" of the side bar follows when it shows. An area with none
       // stays on the map and leads to its code: one file opens, and folders open in the tree. A click never opens the graphs of a folder.
       // In a drawn process a step that holds steps goes one level down, and a step with none opens its file at its first line.
       // A call out of the repo leads nowhere: it is a quiet box with its window only. A click of the look goes to its target instead.
+      // Since build 84 this is what two clicks do (focusClicks): one click focuses the node, and the card of the overview does it at once.
       const today = paths.length ? () => {
         if (node.down) { if (!node.note) tell({ type: 'showInTree', paths }); walkTo(mapStep(node.down)); }
         else if (node.line) tell({ type: 'openFile', path: paths[0], line: node.line });
         else if (paths.length === 1 && !paths[0].endsWith('/')) tell({ type: 'openFile', path: paths[0] });
         else tell({ type: 'showInTree', paths, open: true });
       } : null;
+      focusClicks(g, { stage: view, graph: joined, slots: thing?.slots, into: today, diagram: diagram.id }); // before the click of the node (Marks.bind)
       if (Marks.bind(g, thing?.slots ?? {}, today, Marks.nameOf(g))) g.classList.add('go');
       opens.set(g, today);
     }
-    Overview.cards(cards, overview ? leading.map((g) => homeCard(g, nodesOf[nodeKey(g)], opens.get(g), drawn.graph)) : []);
+    Overview.cards(cards, overview ? leading.map((g) => homeCard(g, nodesOf[nodeKey(g)], opens.get(g), drawn.graph, areas?.[nodeKey(g)])) : []);
     lightNodes(view, Home.lit);
     const first = view.querySelector('g.node.lit');
     if (first && !view.surface?.kept) view.surface?.show(first); // not when the same diagram drew again: the view stays where he left it
     // The same diagram drawn again keeps its focus; another diagram has none.
     const focused = focus?.diagram === diagram.id ? focus.node : null;
     focus = null;
+    endFocusLine();
     if (focused) focusOn(view, joined, focused, diagram.id);
     Remarks.paint(view);
   }
-  if (!diagram) focus = null;
+  if (!diagram) { focus = null; endFocusLine(); }
   Remarks.draw();
   tell({ type: 'rendered', kind: 'home', diagram: diagram?.id, nodes, panels: 0, drawn: 0 });
   window.apostilRendered = (window.apostilRendered ?? 0) + 1;
+}
+
+// ----- while a map is written (build 84) -----
+
+/**
+ * Before the overview is saved: the frame holds a soft sketch of a map that shimmers slowly, in place of the wordmark, with the bar of the run on its top
+ * edge; the line of the run stands under the head. The frame takes the height that is left in the tab.
+ */
+function runFrame(view, summary, run, time) {
+  summary.innerHTML = mapRunHtml(run);
+  view.className = 'view runframe';
+  view.innerHTML = sketchHtml();
+  runBar(view, time);
+  keepFilled(view);
+}
+
+/** The bar of the whole run on the top edge of the frame: it fills by the expected work done, out of all, and glides from where it stood before. */
+function runBar(frame, time) {
+  if (!time) return;
+  frame.append(html(`<div class="runbar" aria-hidden="true"><i style="width:${Home.runShare ?? 0}%"></i></div>`));
+  barTo(time.share);
+}
+
+/** The bar glides to a new share. */
+function barTo(share) {
+  const fill = document.querySelector('#view > .runbar > i');
+  if (!fill) return;
+  void fill.offsetWidth; // the width it stands at now, so that it glides from there
+  Home.runShare = Math.round(share * 1000) / 10;
+  fill.style.width = `${Home.runShare}%`;
+}
+
+/**
+ * The time left at the right end of the head: "About 14 min left", in whole minutes. When it changes, it changes once and calmly: the old words move up
+ * and fade out above the new ones (look.css), and with reduced motion they just change. No time: nothing shows.
+ */
+function showTime(time) {
+  const el = document.getElementById('runtime');
+  const words = time ? timeWords(time.minutes) : '';
+  const before = el.dataset.words ?? '';
+  el.hidden = !time;
+  el.dataset.words = words;
+  if (words === before) return;
+  const roll = !!before && !!words && !matchMedia('(prefers-reduced-motion: reduce)').matches;
+  el.innerHTML = words ? `<span class="rt${roll ? ' rt-in' : ''}">${esc(words)}</span>${roll ? `<span class="rt-old" aria-hidden="true">${esc(before)}</span>` : ''}` : '';
+  el.querySelector('.rt-old')?.addEventListener('animationend', (event) => event.target.remove());
 }
 
 // ----- the graphs of a folder or file -----
@@ -426,6 +457,7 @@ async function drawGraphs() {
   view.className = 'view';
   frameDouble = null;
   focus = null;
+  endFocusLine();
   Overview.cards(document.getElementById('cards'), []);
   Trail.show(document.getElementById('crumb'), ownStep(), { look: data.look });
   const { groups, ordered, count } = panelsInLook(data);
@@ -447,9 +479,10 @@ async function drawGraphs() {
     for (const el of view.querySelectorAll('.pnl')) {
       const panel = data.panels[Number(el.dataset.panel)];
       const row = groups.flatMap((group) => group.rows).find((one) => one.panel === panel);
-      // Option+click on a node of a panel focuses it in that panel, in place of the click of the panel (the listener stands before that of Marks.bind).
+      // A click on a node of a panel focuses it in that panel, in place of the click of the panel; a click on the node with the focus, or a double
+      // click on a node, opens the panel as the click of the panel does (the listeners stand before those of Marks.bind).
       const box = el.querySelector('.pd');
-      if (panel.graph) el.addEventListener('click', (event) => focusClick(event, box, panel.graph, row.slots['input.alt']));
+      if (panel.graph) focusClicks(el, { stage: box, graph: panel.graph, slots: row.slots, into: () => walkTo(panel.open), find: (event) => nodeAt(box, event) });
       Marks.bind(el, row.slots, () => walkTo(panel.open), panel.line);
     }
     const seen = new IntersectionObserver((entries) => {
@@ -485,7 +518,6 @@ async function drawPage() {
 document.addEventListener('click', (event) => {
   const target = event.target;
   if (target.closest('[data-clear-filter]')) return walkTo(mapStep(Home.at)); // the same diagram, with nothing lit and no line of a mark
-  if (target.closest('[data-end-focus]')) return focusOn(null);
   const folder = target.closest('[data-tree]');
   if (folder) return tell({ type: 'showInTree', paths: [folder.dataset.tree], open: true });
   const file = target.closest('[data-open]');
@@ -504,6 +536,8 @@ window.addEventListener('message', (event) => {
     Home.render();
   }
   if (message?.type === 'layout' && Overview.heard(message.full)) Home.render(); // he chose on another page
+  // Every 30 seconds while a map is written: the time left and the bar, with nothing drawn again.
+  if (message?.type === 'time' && Home.data?.mapRun?.time) { Home.data.mapRun.time = message.time; showTime(message.time); barTo(message.time.share); }
   if (message?.type === 'trail') Trail.set(message.steps);
   if (message?.type === 'go') Home.goTo(message.go.diagram || null, message.go.lit ?? []);
   if (message?.type === 'remark') (Home.drawing ?? Promise.resolve()).then(() => Remarks.openFromVsCode()); // the comment key

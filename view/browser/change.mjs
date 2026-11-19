@@ -183,6 +183,30 @@ try {
   check('after a close from outside, a pointer event at the old place opens no hover window, and the first real move of the pointer on the same thing opens it again',
     openedFirst && openedAtOldPlace === 0 && openedBySmallMove, JSON.stringify({ openedFirst, openedAtOldPlace, openedBySmallMove }));
 
+  // A close from outside can also come while a window waits its 0.3 s (the tab shows again with the pointer on a thing, and the page closes its
+  // windows): the wait stops, and the next real move of the pointer on that thing asks again. No leave comes first, since the pointer stays on it.
+  await page.$eval(fileName, (el) => { el.dispatchEvent(new MouseEvent('mouseenter')); Hover.hide(); });
+  await page.mouse.move(onName.x - 2, onName.y); // the pointer comes onto the name and rests there
+  const openedAfterStoppedWait = !!(await hoverWindow());
+  await away();
+  check('a close from outside while a hover window waits leaves no wait behind: the next real move of the pointer on the same thing opens its window',
+    openedAfterStoppedWait, JSON.stringify({ openedAfterStoppedWait }));
+
+  // The pointer can cross the edge of a window and its thing twice in a row, as when the window changes its content under the pointer: it leaves the
+  // window, then the thing, then comes back into the window. Only one wait to close runs, and the enter stops it: the window stays.
+  await page.hover(fileName);
+  const openedForEdges = !!(await hoverWindow());
+  await page.$eval(fileName, (thing) => {
+    const win = document.querySelector('.win');
+    win.dispatchEvent(new MouseEvent('mouseleave'));
+    thing.dispatchEvent(new MouseEvent('mouseleave'));
+    win.dispatchEvent(new MouseEvent('mouseenter'));
+  });
+  const staysAfterEdges = await page.waitForSelector('.win', { state: 'detached', timeout: 700 }).then(() => false, () => true); // it would close 0.25 s after a leave
+  await away();
+  check('a window that the pointer leaves and enters again across its edges stays open: the last enter stops every wait to close it',
+    openedForEdges && staysAfterEdges, JSON.stringify({ openedForEdges, staysAfterEdges }));
+
   // A node that a click opens grows a little under the pointer, from its middle. A node that opens nothing does not, and none does under the comment pointer.
   const underPointer = async (title, picking = false) => {
     const shape = page.locator(`${changeSection} g.node:has(${title}) > :first-child`);
@@ -215,7 +239,7 @@ try {
   await page.hover('#view b[data-part="hold-service"]');
   const scrolled = await page.evaluate(() => window.scrollY);
   // A click in place: under the cards of the overview the page scrolls, and a click of Playwright scrolls it to reach a part under its hover window.
-  await drawn(() => page.$eval('#view b[data-part="hold-service"]', (title) => title.closest('g.node').dispatchEvent(new MouseEvent('click', { bubbles: true }))));
+  await drawn(() => page.$eval('#view b[data-part="hold-service"]', (title) => title.closest('g.node').dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))));
   const down = await page.evaluate(() => ({ crumb: document.getElementById('crumb').textContent, tabs: [...document.querySelectorAll('#tabs > :not(.dchg, .dfact, .drepo, .codeswitch)')].map((el) => el.textContent).join(' · ') }));
   await drawn(() => page.click('#tabs [data-diagram="offer-sequence"]'));
   const sequence = await page.$eval('#view svg', (svg) => ({

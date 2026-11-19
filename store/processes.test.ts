@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import type { Note } from '../shared/change-file';
 import { repoId } from '../shared/git';
-import { processGroups } from '../shared/note-groups';
+import { noteGroups, processGroups, readyProcessGroups } from '../shared/note-groups';
 import { placeDrawing, processDrawings } from '../shared/process-diagrams';
 import { isTestPath, parseKey, processFacts, stepKey } from '../shared/processes';
 import { diagramsOf, type RepoMap } from '../shared/repo-map';
@@ -249,6 +249,35 @@ test('process-groups gives one group for each area, splits a large area by folde
   const some = addProcessesToMap(store, repo.folder, { group: first.groups[0].name, processes: [{ id: 'set-a', title: 'Set the first value', summary: 'Sets x0.', steps: ['src/a/big.py:1-1'] }] });
   assert.deepEqual(some.left?.count, 299);
   assert.equal(processGroups(stored()!.map).groups[0].why, '299 notes in no process');
+  store.close();
+  repo.remove();
+});
+
+test('process-groups lists only the groups of areas whose notes are all saved, and says how many areas still wait for notes, so the process writers of an area start when its notes are saved', () => {
+  const repo = makeTestRepo();
+  repo.write('src/run.py', RUN);
+  repo.write('lib/one.py', 'def one():\n    return 1\n');
+  repo.write('lib/two.py', 'def two():\n    return 2\n');
+  repo.commit('two areas');
+  const home = tempFolder('apostil-home-');
+  const store = new Store(home);
+  const map: RepoMap = { format: 1, diagrams: [{ id: 'top', kind: 'flow', title: 'Top', mermaid: 'flowchart LR\n  code["Code"] --> lib["Lib"]', nodePaths: { code: ['src/'], lib: ['lib/'] } }] };
+  assert.equal(saveMapDraft(store, repo.folder, map).saved, true);
+  const stored = () => store.getMap(repoId(repo.folder))!;
+  // The notes of the area "code" are saved (its other files have no code worth a note), and one of the two files of "lib": only the group of "code" is ready, and one area waits.
+  const others = noteGroups(repo.folder, stored()).groups.flatMap((group) => group.files.map((file) => file.path)).filter((path) => !['src/run.py', 'lib/one.py', 'lib/two.py'].includes(path));
+  assert.equal(addNotesToMap(store, repo.folder, { notes: [note('src/run.py', [1, 7], 'Run the rows'), note('lib/one.py', [1, 2], 'Return one')], files: others }).saved, true);
+  assert.deepEqual(noteGroups(repo.folder, stored()).groups.map((group) => [group.area, group.files.map((file) => file.path)]), [['lib', ['lib/two.py']]]);
+  assert.deepEqual(processGroups(stored().map).groups.map((group) => group.area), ['code', 'lib']); // the notes of lib/one.py would make a group of lib
+  const ready = readyProcessGroups(repo.folder, stored());
+  assert.deepEqual([ready.groups.map((group) => group.area), ready.waiting], [['code'], 1]);
+  // The command prints the same.
+  const printed = JSON.parse(runApostil(['process-groups', '--folder', repo.folder], { env: { APOSTIL_HOME: home } }).stdout);
+  assert.deepEqual([printed.groups.map((group: { area: string }) => group.area), printed.waiting], [['code'], 1]);
+  // When the last notes of lib are saved, its group is listed too, and no area waits.
+  assert.equal(addNotesToMap(store, repo.folder, { notes: [note('lib/two.py', [1, 2], 'Return two')] }).saved, true);
+  const all = readyProcessGroups(repo.folder, stored());
+  assert.deepEqual([all.groups.map((group) => group.area), all.waiting], [['lib', 'code'], 0]); // largest first: lib has two notes now
   store.close();
   repo.remove();
 });

@@ -88,13 +88,14 @@ try {
   await one.waitForFunction((at) => window.apostilSent.slice(at).filter((sent) => sent.type === 'target').length >= 3, from, { timeout: 3000 }).catch(() => {});
   await one.evaluate(() => new Promise((done) => setTimeout(done, 400))); // a single click that the double click wrongly left would come by now
   const inputs = await targets(one, from);
+  // A node with no double click of the look does its click at once: since build 84 one click focuses it.
   const noWait = await one.evaluate(() => {
-    const before = window.apostilSent.length;
-    document.querySelector('#view g.node[id*="flowchart-lending-"]').dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
-    return window.apostilSent.length - before; // sent in the same moment as the click
+    const g = document.querySelector('#view g.node[id*="flowchart-lending-"]');
+    g.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+    return g.classList.contains('focused'); // in the same moment as the click
   });
   check('Alt+click, a key while the pointer is on the node and a double click each go to their target, and the double click does no single click; a node with no double click does its click at once',
-    JSON.stringify(inputs) === JSON.stringify([{ file: 'src/library/night_jobs.py', line: 516 }, { change: 'book-holds', part: 'hold-service' }, { folder: 'src/library/jobs/' }]) && noWait > 0,
+    JSON.stringify(inputs) === JSON.stringify([{ file: 'src/library/night_jobs.py', line: 516 }, { change: 'book-holds', part: 'hold-service' }, { folder: 'src/library/jobs/' }]) && noWait,
     JSON.stringify({ inputs, noWait }));
 
   // A right click lists the entries of the look in a small window, and an entry goes to its target.

@@ -1,10 +1,12 @@
-// The work for the notes writers: the code files of a repo that need notes, in groups of about 900 lines, and a long file in ranges.
+// The work for the notes writers: the code files of a repo that need notes, in groups of about 400 lines of whole files (build 84). A file longer than that is a group
+// of its own, whole: one writer has it alone and saves its notes in parts (`ranges` of add-notes), so that nothing is lost when it stops.
+// The groups of each kind of writer are listed largest first (build 84, part G): the longest work starts with the first writers, not at the end.
 
 import { createHash } from 'node:crypto';
 import { fileText, lineCount, repoFiles } from './git';
 import { mapSource, notesOfFile, type NoteSource } from './notes-beside-code';
 import type { Note } from './change-file';
-import { goneSteps, noteKeys, notesInNoProcess, notesNeedingProcess } from './processes';
+import { goneSteps, noteKeys, notesInNoProcess, notesNeedingProcess, processFacts } from './processes';
 import type { RepoMap } from './repo-map';
 import type { StoredMap } from './store';
 
@@ -15,17 +17,17 @@ const GENERATED_MARK = /@generated|auto-?generated|automatically generated|gener
 const DRAFT_NAME = /^apostil-[a-z]+-.*\.json$/; // the draft of a writer is no code
 
 export const MAX_FILE_LINES = 20000; // a file with more lines is left out
-const GROUP_LINES = 900; // the size that a group grows to
-const LONG_FILE = 1200; // a longer file is split
-const RANGE_LINES = 800;
+const GROUP_LINES = 400; // the size that a group grows to; a longer file is a group of its own
 const ENOUGH = 0.8; // a file keeps its notes while this share of them still stands at the text of their lines
 
-/** One file, or one range of a long file, for a writer. `lines` counts the file, or the range. */
+/** Groups largest first, by the size that `size` gives; groups of the same size keep their order (the order of the areas, then of the paths). */
+export const largestFirst = <T>(groups: T[], size: (group: T) => number): T[] => groups.map((group, at) => ({ group, at, size: size(group) }))
+  .sort((a, b) => b.size - a.size || a.at - b.at).map((one) => one.group);
+
+/** One file for a writer, always whole, with its count of lines. */
 export interface NoteFile {
   path: string;
   lines: number;
-  from?: number;
-  to?: number;
 }
 
 export interface NoteGroup {
@@ -48,22 +50,6 @@ export const fileNotesSource = (stored: StoredMap): NoteSource => mapSource({ ..
 
 /** True when the text says in its first lines that a tool wrote it. */
 const isGeneratedText = (text: string): boolean => GENERATED_MARK.test(text.split('\n', 6).join('\n'));
-
-/**
- * The first lines of the ranges of a long file (counted from 1): about 800 lines each, each starting at a line with no indent that follows an empty line, so that no function is cut.
- * A file of 1,200 lines or fewer is one range.
- */
-export function rangeStarts(lines: string[]): number[] {
-  const starts = [1];
-  const startsBlock = (line: number): boolean => /^[^\s})\]]/.test(lines[line - 1]) && lines[line - 2].trim() === '';
-  while (lines.length - starts[starts.length - 1] + 1 > LONG_FILE) {
-    const wanted = starts[starts.length - 1] + RANGE_LINES;
-    let cut: number | undefined; // the line nearest to the wanted one, before it or after it
-    for (let offset = 0; offset <= 400 && cut === undefined; offset++) cut = [wanted - offset, wanted + offset].find((line) => line > starts[starts.length - 1] + 200 && line <= lines.length && startsBlock(line));
-    starts.push(cut ?? wanted);
-  }
-  return starts;
-}
 
 /** The area of a path: the id of the first node of the top diagram whose paths hold it. */
 export function areaOf(map: RepoMap | undefined, path: string): string | undefined {
@@ -89,13 +75,14 @@ export function codeFiles(folder: string): { files: { path: string; text: string
 }
 
 function groupOf(area: string | undefined, files: NoteFile[]): NoteGroup {
-  const name = `${slug(area)}-${fingerprint(files.map((file) => `${file.path}:${file.from ?? ''}-${file.to ?? ''}`).join('\n')).slice(0, 6)}`;
+  const name = `${slug(area)}-${fingerprint(files.map((file) => `${file.path}:-`).join('\n')).slice(0, 6)}`;
   return { name, ...(area ? { area } : {}), files, lines: files.reduce((sum, file) => sum + file.lines, 0) };
 }
 
 /**
  * The code files of the repo that need notes, in groups for the notes writers. A file needs notes when the map has none for it, or fewer than 8 of 10 of its notes still stand at the text of their lines;
- * a file that a writer called empty stays out while its text is the same. With `all`, every code file. A group holds files of one area of the top diagram, in the order of their paths; a long file is split into ranges, each a group of its own.
+ * a file that a writer called empty stays out while its text is the same. With `all`, every code file. A group holds whole files of one area of the top diagram, in the order of their paths,
+ * about 400 lines in sum; a file is never split, and a file of more than 400 lines is a group of its own. The groups are listed largest first.
  */
 export function noteGroups(folder: string, stored: StoredMap | undefined, all = false): NoteGroups {
   const map = stored?.map;
@@ -121,23 +108,13 @@ export function noteGroups(folder: string, stored: StoredMap | undefined, all = 
       current = [];
     };
     for (const { path, text } of wanted.get(area) ?? []) {
-      const lines = text.split('\n');
       const total = lineCount(text);
-      if (total <= LONG_FILE || path.endsWith('.ipynb')) {
-        if (current.length && current.reduce((sum, file) => sum + file.lines, 0) + total > GROUP_LINES) close();
-        current.push({ path, lines: total });
-        continue;
-      }
-      close();
-      const starts = rangeStarts(lines);
-      starts.forEach((from, at) => {
-        const to = (starts[at + 1] ?? total + 1) - 1;
-        groups.push(groupOf(area, [{ path, lines: to - from + 1, from, to }]));
-      });
+      if (current.length && current.reduce((sum, file) => sum + file.lines, 0) + total > GROUP_LINES) close();
+      current.push({ path, lines: total });
     }
     close();
   }
-  return { groups, skipped: { count: skipped, why: 'generated files, files of more than 20,000 lines, and files with no text' } };
+  return { groups: largestFirst(groups, (group) => group.lines), skipped: { count: skipped, why: 'generated files, files of more than 20,000 lines, and files with no text' } };
 }
 
 // ----- the work for the process writers -----
@@ -156,7 +133,8 @@ export interface ProcessGroup {
 /**
  * The work for the process writers: one group for each area of the top diagram, with its code files and their count of notes; an area with more than about 400 notes is
  * split by folder, and the files in no area form their own groups. The notes of test files need no process, so their files are in no group.
- * By default only a group with no process yet, a stale process, or notes in no process; with `all`, every group.
+ * By default only a group with no process yet, a stale process, or notes in no process; with `all`, every group. The groups are listed largest first, by
+ * their notes.
  */
 export function processGroups(map: RepoMap, all = false): { groups: ProcessGroup[]; testNotes: number } {
   const count = new Map<string, number>();
@@ -190,7 +168,7 @@ export function processGroups(map: RepoMap, all = false): { groups: ProcessGroup
   const keys = noteKeys(map);
   const left = new Map<string, number>();
   for (const note of notesInNoProcess(map)) left.set(note.file, (left.get(note.file) ?? 0) + 1);
-  const listed = groups.map((group) => {
+  const listed = largestFirst(groups, (group) => group.notes).map((group) => {
     const own = (map.processes ?? []).filter((process) => process.group === group.name);
     const stale = own.filter((process) => goneSteps(process, keys).length).length;
     const notes = group.files.reduce((total, file) => total + (left.get(file.path) ?? 0), 0);
@@ -200,6 +178,36 @@ export function processGroups(map: RepoMap, all = false): { groups: ProcessGroup
   });
   const testNotes = (map.fileNotes ?? []).length - notesNeedingProcess(map).length;
   return { groups: all ? listed : listed.filter((group) => group.why), testNotes };
+}
+
+/**
+ * The check of one group of the process writers (build 84, part G): what `apostil processes --group <name>` prints. Its writer runs it before it reports,
+ * and the lead starts the second round of that group from it at once: the notes of its files in no process yet, with up to five keys for each file, and
+ * the processes of the group whose steps name notes that are gone. `again`: whether the group needs a second round. Undefined for an unknown group.
+ */
+export function groupProcessFacts(map: RepoMap, name: string) {
+  const group = processGroups(map, true).groups.find((one) => one.name === name);
+  if (!group) return undefined;
+  const facts = processFacts(map);
+  const files = new Set(group.files.map((file) => file.path));
+  const left = facts.notInProcess.files.filter((file) => files.has(file.file));
+  const keys = noteKeys(map);
+  const stale = (map.processes ?? []).filter((process) => process.group === name).map((process) => ({ id: process.id, gone: goneSteps(process, keys).length })).filter((one) => one.gone);
+  const processes = (map.processes ?? []).filter((process) => process.group === name).length;
+  return { group: name, processes, notInProcess: { count: left.reduce((sum, file) => sum + file.count, 0), files: left }, stale, again: left.length > 0 || stale.length > 0 };
+}
+
+/** The areas of the top diagram whose code files still wait for notes (a file in no area counts as the area ''), from the groups of the notes writers. */
+export const areasWaitingForNotes = (groups: NoteGroup[]): Set<string> => new Set(groups.map((group) => group.area ?? ''));
+
+/**
+ * What `apostil process-groups` prints (build 84): the groups of the process writers of the areas whose notes are all saved, so that the process writers of an
+ * area start as soon as its notes are saved, and `waiting`: how many areas still wait for notes. The lead runs it after each notes writer ends.
+ */
+export function readyProcessGroups(folder: string, stored: StoredMap, all = false): ReturnType<typeof processGroups> & { waiting: number } {
+  const waiting = areasWaitingForNotes(noteGroups(folder, stored).groups);
+  const listed = processGroups(stored.map, all);
+  return { ...listed, groups: listed.groups.filter((group) => !waiting.has(group.area ?? '')), waiting: waiting.size };
 }
 
 /** How many code files need notes: what `apostil map` says in its hint. */
