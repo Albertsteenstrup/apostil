@@ -435,14 +435,14 @@ try {
     looked: document.querySelectorAll('#view [class*="lk-"], .mg, .lk-icon, .pgroup').length,
     row: document.querySelector('.sec[data-section="change"] .sh').textContent, order: [...document.querySelectorAll('.switch a')].map((link) => link.dataset.view).join(),
     // The words on the arrows of the diagram of the change; a small drawing of a card under it has the words of its own diagram.
-    side: document.querySelectorAll('#side').length, words: [...document.querySelectorAll('#view g.edgeLabel')].filter((label) => !label.closest('.ovcards')).map((label) => label.textContent.trim()).filter(Boolean).length,
+    words: [...document.querySelectorAll('#view g.edgeLabel')].filter((label) => !label.closest('.ovcards')).map((label) => label.textContent.trim()).filter(Boolean).length,
     rows: document.querySelectorAll('.half.right .dfile').length,
   }));
   await two.goto(`file://${pageFile}?file=src/library/lending/hold_service.py`);
   await two.waitForSelector('.mc .nt', { timeout: 15000 });
   const plainFile = await two.evaluate(() => ({ looked: document.querySelectorAll('#view [class*="lk-"], .mg').length, map: !!document.querySelector('.cmap'), head: document.querySelector('.mc .fn')?.textContent }));
   check('with no look the page of a change and the file tab are drawn plain: no colour, icon or group of a look, every file in the list, the views in their order, the counts and the map',
-    plain.looked === 0 && /^Adds holds for books that are out48 files \+[\d,]+ −[\d,]+(checked|not checked yet)$/.test(plain.row) && plain.order === 'conversation,diagram,diffs' && plain.side === 0 && plain.words === 0
+    plain.looked === 0 && /^Adds holds for books that are out48 files \+[\d,]+ −[\d,]+(checked|not checked yet)$/.test(plain.row) && plain.order === 'conversation,diagram,diffs' && plain.words === 0
       && plain.rows >= 30 && plainFile.looked === 0 && plainFile.map && plainFile.head === 'offer_returned_copies · 3 tests', JSON.stringify({ plain, plainFile }));
   await two.close();
 

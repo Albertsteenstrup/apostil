@@ -551,7 +551,7 @@ try {
       const [file, diagram] = ['#view > .half.right', '#view > .half.left'].map((selector) => document.querySelector(selector).getBoundingClientRect());
       const box = document.querySelector('#view > .half.right .rowsbox').getBoundingClientRect();
       const lit = [...document.querySelectorAll('#view > .half.right .l.step')].map((row) => row.getBoundingClientRect());
-      const [x1, y1, x2, y2] = [numbers[0] + base.left, numbers[1] + base.top, numbers.at(-2) + base.left, numbers.at(-1) + base.top];
+      const [x1, x2, y2] = [numbers[0] + base.left, numbers.at(-2) + base.left, numbers.at(-1) + base.top];
       return {
         startsInDiagram: x1 >= diagram.left - 1 && x1 <= diagram.right + 1, endsInFile: x2 >= file.left && x2 <= file.right + 1 && x2 >= box.right - 2,
         atRows: lit.length > 0 && y2 >= lit[0].top - 1 && y2 <= lit.at(-1).bottom + 1, lit: lit.length,

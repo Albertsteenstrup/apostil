@@ -295,12 +295,10 @@ async function diagramTab(width = 1400) {
     const svg = document.querySelector('.half.left svg');
     const label = svg.querySelector('.nodeLabel');
     const scale = svg.getBoundingClientRect().width / Number(svg.getAttribute('viewBox').split(' ')[2]);
-    const side = document.getElementById('side');
     return {
       split: true, control: control?.textContent ?? '', place, apart: left.right <= right.left, label: label ? +(parseFloat(getComputedStyle(label).fontSize) * scale).toFixed(1) : 0,
       inside: left.left >= 0 && right.right <= innerWidth && left.bottom <= innerHeight + 1 && right.bottom <= innerHeight + 1,
       pageScrolls: document.documentElement.scrollHeight > innerHeight + 1 || document.documentElement.scrollWidth > innerWidth,
-      sideApart: !side, // no side window lies over the halves: a comment opens a card at its place
     };
   });
   // A click on the text of an arrow or a message that starts with `word`; on the middle of the line of a link between two parts.
@@ -327,7 +325,7 @@ async function diagramTab(width = 1400) {
 /** The change on the diagram page: the code beside the diagram on a wide tab, and the change painted into the diagrams of a part. */
 async function twoHalves() {
   const { wide, quiet, when, loaded, open, show, wideShot, pointAt, clickAt, toGutter, away, halves, pointAtLabel, linkAt, pointAtLink, pointNamed } = await diagramTab();
-  const splitOk = (one) => one.split && one.apart && one.inside && !one.pageScrolls && one.sideApart && one.label >= 11;
+  const splitOk = (one) => one.split && one.apart && one.inside && !one.pageScrolls && one.label >= 11;
 
   // The page of the change: its diagram at the right, every changed file as one closed row at the left, under the name of its part.
   await open();
