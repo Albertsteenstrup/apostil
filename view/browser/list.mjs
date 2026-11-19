@@ -331,7 +331,8 @@ try {
   const openBranch = async (commits, files) => {
     await prs.evaluate((counts) => { const row = { ...shown.groups[0].rows[0], id: undefined, branch: 'made-up/open-branch', open: true, ...counts }; shown = { ...shown, groups: [{ rows: [row] }] }; draw(); }, { commits, files });
     const asked = await homeAsks();
-    await prs.click('.row.sel .nm');
+    // A press as a person makes it, with time between the press and the release: the empty search field closes after the click (build 85).
+    await prs.click('.row.sel .nm', { delay: 100 });
     return (await homeAsks()) - asked;
   };
   const emptyBranch = await openBranch(0, 0);

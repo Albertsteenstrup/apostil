@@ -303,7 +303,16 @@ window.addEventListener('message', (event) => {
 document.addEventListener('input', (event) => {
   if (event.target.matches?.('.find .q')) setSearch({ text: event.target.value });
 });
-document.addEventListener('focusout', (event) => { if (event.target.closest?.('.find')) setTimeout(closeSearchIfEmpty); });
+// An empty field closes when the keyboard leaves it. When a press of the pointer took the keyboard, it closes after the click of that press: closed
+// between the press and the release, the list would move up under the pointer and the click would be lost (build 85).
+let pressing = false;
+document.addEventListener('pointerdown', () => { pressing = true; }, true);
+document.addEventListener('pointerup', () => { pressing = false; }, true);
+document.addEventListener('focusout', (event) => {
+  if (!event.target.closest?.('.find')) return;
+  if (pressing) addEventListener('pointerup', () => setTimeout(closeSearchIfEmpty), { once: true });
+  else setTimeout(closeSearchIfEmpty);
+});
 // The icon takes no keyboard on a press: else the field would lose it, close as empty, and the click would open it again.
 document.addEventListener('mousedown', (event) => { if (event.target.closest?.('[data-seek]')) event.preventDefault(); });
 
