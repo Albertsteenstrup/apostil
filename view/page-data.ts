@@ -1,7 +1,6 @@
 // Builds what the page shows for one change, from the store and from Git, and answers what a hover window asks for.
 // VS Code and the example script both use these functions, so the page sees the same data in both.
 
-import { existsSync } from 'node:fs';
 import { basename, dirname } from 'node:path';
 import { opencodeSmallModel, resumeCommand, sessionLink, sessionName, type AgentSession, type RunModels } from '../shared/agents';
 import { menuOf, sessionPick, type ModelMenu, type RunPick } from '../shared/models';
