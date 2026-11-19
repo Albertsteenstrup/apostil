@@ -13,10 +13,9 @@ const Trail = (() => {
     if (step.tab === 'home') return `home:${step.diagram ?? ''}`;
     if (step.tab === 'graphs') return `graphs:${step.path}`;
     if (step.tab === 'pull') return `pull:${step.link}`;
-    if (step.tab === 'page') return `page:${step.page}`; // a page of the look (build 58)
+    if (step.tab === 'page') return `page:${step.page}`; // a page of the look
     const { level = 'change', part, diagram, view } = step.go ?? {};
     if (view === 'diffs') return `change:${step.change}:diffs`;
-    if (view === 'conversation') return `change:${step.change}:conversation`;
     if (view === 'conversation') return `change:${step.change}:conversation`;
     return `change:${step.change}:${level}${level === 'part' ? `:${part}` : level === 'broad' ? `:${diagram}` : ''}`;
   }
@@ -198,7 +197,7 @@ const Trail = (() => {
     move(way);
   });
 
-  return { ...pure, set, show, take, open, here: (opener) => { openHere = opener; }, ownKey: () => (own ? key(own) : null) };
+  return { ...pure, set, show, take, here: (opener) => { openHere = opener; }, ownKey: () => (own ? key(own) : null) };
 })();
 
 if (typeof module === 'object') module.exports = Trail; // for the tests and the extension in Node

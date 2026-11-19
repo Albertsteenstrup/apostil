@@ -58,13 +58,13 @@ function keep(change) {
 
 const MAC = /Mac/.test(navigator.platform);
 
-// One run for one shortcut (build 64). VS Code runs a shortcut from the key that a page passes on to it. While a page has the keyboard, VS Code also
+// One run for one shortcut. VS Code runs a shortcut from the key that a page passes on to it. While a page has the keyboard, VS Code also
 // tells macOS to leave the shortcuts of its menu alone: one switch for the window, which each page sets by its own clock, four times a second. When
-// the keyboard goes from one page of Apostil to another (the list in the side bar and a tab), the "off" of the old page can come after the "on" of the
-// new one. Then the menu runs the shortcut too: Cmd+B hid the side bar and showed it again at once. A key that the page marks as handled never
-// reaches that menu, and VS Code still gets it from the page, so it runs once. This holds for Cmd with a letter or a digit, outside a text field;
-// not for the keys that the page or VS Code's own script of a page handles (select all, copy, cut, paste, undo), and not for those that only macOS
-// runs (hide, minimize, quit).
+// the keyboard goes from one page of Apostil to another (the list in the side bar and a tab), the "off" of the page that loses it can come after the
+// "on" of the page that gets it. Then the menu would run the shortcut too, and Cmd+B would hide the side bar and show it again at once. A key that
+// the page marks as handled never reaches that menu, and VS Code still gets it from the page, so it runs once. This holds for Cmd with a letter or a
+// digit, outside a text field; not for the keys that the page or VS Code's own script of a page handles (select all, copy, cut, paste, undo), and not
+// for those that only macOS runs (hide, minimize, quit).
 if (MAC && vscodeApi) {
   document.addEventListener('keydown', (event) => {
     const own = /^[a-z0-9]$/i.test(event.key) && !'acxvzhmq'.includes(event.key.toLowerCase());
@@ -127,7 +127,7 @@ function mapRunHtml(run, again = null) {
   return `<span class="state maprun" data-run="${esc(run.state)}">${[words, reach, press, again?.app ? anotherAppHtml(again.apps) : ''].filter(Boolean).join(' · ')}</span>`;
 }
 
-/** The words of the time left of a map run (build 84), as timeWords in shared/map-estimate.ts: "About 14 min left", or "Less than a minute left". */
+/** The words of the time left of a map run, as timeWords in shared/map-estimate.ts: "About 14 min left", or "Less than a minute left". */
 const timeWords = (minutes) => (minutes < 1 ? 'Less than a minute left' : `About ${Math.round(minutes)} min left`);
 
 /**
@@ -234,8 +234,7 @@ const RunPick = (() => {
     if (!pick) return undefined;
     return { app: pick.spec.app, model: pick.value.model, effort: pick.value.effort, changed: pick.value.model !== pick.first.model };
   }
-  const isOpen = (key) => !!picks[key]?.open;
-  return { html, value, placeIn, isOpen, close };
+  return { html, value, placeIn, close };
 })();
 
 /**
@@ -325,7 +324,7 @@ const agentHead = (agent, icon = agentIcon(agent)) => {
 const ico = (name, cls = '') => `<i class="ico ${name}${cls ? ` ${cls}` : ''}"></i>`;
 
 /**
- * The icons of files and folders as the Explorer of VS Code shows them, in the file icon theme that he uses (build 85). VS Code sends the CSS of only
+ * The icons of files and folders as the Explorer of VS Code shows them, in the file icon theme that he uses. VS Code sends the CSS of only
  * the icons that the rows of the page use, and the class of each path (view/file-icons.ts). A row starts with FileIcons.html(path). With a theme, a
  * row with no icon keeps the room of one, so the names stand in one column; with no theme, no row has an icon or its room.
  */

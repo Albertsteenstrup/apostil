@@ -75,7 +75,7 @@ i{font-style:normal}
 .switch a{color:var(--muted);padding-bottom:3px}
 .switch a.on{color:var(--ink);font-weight:600;border-bottom:2px solid var(--teal)}
 .summary{margin-top:6px;color:var(--muted);font-size:var(--small)}
-/* the line of a focus on a node, in the head after the path (build 84): on the line of the path, so nothing under the pointer moves when it comes */
+/* the line of a focus on a node, in the head after the path: on the line of the path, so nothing under the pointer moves when it comes */
 .bar > .fc{flex:0 1 auto;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:var(--small)}
 .summary b{color:var(--ink);font-weight:600}
 .summary [data-ask],a.inst{color:var(--tealink)}
@@ -123,7 +123,7 @@ g.node foreignObject{overflow:visible}
 .nodeLabel .ln{display:block;font:400 var(--small) var(--mono);color:var(--muted);margin-top:2px}
 /* The mark of the comments of a thing: a chat bubble with the icon of the agent app that has them; nothing in it moves.
    waiting: the icon faint; working: a small teal dot at its corner; answered and not read yet: tinted with a teal edge; a note to no agent: empty. */
-.cb{position:relative;display:inline-grid;place-items:center;width:24px;height:22px;margin:-5px 0 -5px 6px;vertical-align:-6px;font-style:normal;cursor:pointer;flex:none} /* its margins keep the line as high as before */
+.cb{position:relative;display:inline-grid;place-items:center;width:24px;height:22px;margin:-5px 0 -5px 6px;vertical-align:-6px;font-style:normal;cursor:pointer;flex:none} /* its margins keep the line as high as it is without the mark */
 .cb .cbs{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
 /* the bubble sets its own colours: inside a node of a diagram the rules of Mermaid on its paths would win otherwise */
 .cb{--cb-fill:var(--card);--cb-edge:var(--line2);--cb-width:1.4}
@@ -168,7 +168,6 @@ g.node foreignObject{overflow:visible}
 .win .tb .sub{overflow:hidden;text-overflow:ellipsis}
 .win .tb .sub a:hover,.win .tb .act a:hover{color:var(--ink)}
 .win .tb .act{margin-left:auto;padding-left:14px}
-.win .tb .act a + a{margin-left:12px}
 .win .wc{padding:8px 0;overflow:auto;min-height:0;overscroll-behavior:contain}
 .win .wc.pad{padding:12px}
 .win .stage svg{max-width:100%;max-height:460px;width:auto}
@@ -542,7 +541,7 @@ body.list{--bar:var(--vscode-sideBar-background,var(--paper));background:var(--b
 /* a node lit because it is about the path asked for; the rest quiet in a small panel */
 .stage g.node.lit rect,.stage g.node.lit polygon,.stage g.node.lit path,.stage g.node.lit circle,.stage rect.actor.lit{fill:var(--tealsoft)!important;stroke:var(--teal)!important;stroke-width:2px!important}
 .stage.rest g.node:not(.lit),.stage.rest .edgePaths,.stage.rest .edgeLabels{opacity:.4}
-/* Focus on a node (build 64): the node, its arrows and the nodes at their other ends ("tied") are lit, the node itself with a wider line; the rest grows faint, as around lit nodes. */
+/* Focus on a node: the node, its arrows and the nodes at their other ends ("tied") are lit, the node itself with a wider line; the rest grows faint, as around lit nodes. */
 .stage.focus :is(g.node,g.image-shape):not(.tied),.stage.focus .edgePaths > :not(.tied),.stage.focus .edgeLabels > :not(.tied){opacity:.4}
 .stage.focus g.node.tied :is(rect,polygon,path,circle),.stage.focus .edgePaths > path.tied:not(.hit){stroke:var(--teal)!important}
 .stage.focus g.node.focused :is(rect,polygon,path,circle),.stage.focus .edgePaths > path.tied:not(.hit){stroke-width:2px!important}
@@ -601,16 +600,16 @@ div.nomap .runpick{margin:0 0 8px}
 /* two large panels in a row from the width that a tab has beside the side bar of VS Code (about 1060 px in a window of 1440) */
 @media (min-width:860px){.panels{grid-template-columns:repeat(2,1fr)}.pnl .pd{height:300px}}
 
-/* the overview of a diagram (build 83): under the diagram of a level, one card for each node that leads somewhere, in a quiet well of its own a little
+/* the overview of a diagram: under the diagram of a level, one card for each node that leads somewhere, in a quiet well of its own a little
    apart from the frame: the frame is where this level stands, the cards are what it holds */
-/* build 84: the rows of the grid are half a card high (overview.js places each card over 1 to 3 units each way, 2 units are the card of build 83) */
+/* the rows of the grid are half a card high (overview.js places each card over 1 to 3 units each way, 2 units are a base card) */
 .ovcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(119px,1fr));grid-auto-rows:100px;gap:12px;margin-top:20px;padding:14px;background:var(--region);border-radius:10px}
 .ovcards[hidden]{display:none}
 .ovc{display:flex;flex-direction:column;min-height:0;min-width:0;border:1px solid var(--line);border-radius:8px;background:var(--paper);overflow:hidden}
 .ovc.go{cursor:pointer}
 .ovc.go:hover{border-color:var(--line2)}
 /* the card of the node that has the focus: an accent edge as wide as the line of the focused node (2 px), with no shift of its content; the other
-   cards fade as the other nodes do (build 85) */
+   cards fade as the other nodes do */
 .ovc.focused,.ovc.focused.go:hover{border-color:var(--teal);box-shadow:0 0 0 1px var(--teal)}
 .ovcards.focus .ovc:not(.focused){opacity:.4}
 .ovh{flex:none;display:flex;align-items:center;gap:10px;padding:8px 12px 0;font-size:var(--small);font-weight:600;color:var(--ink);white-space:nowrap}
@@ -660,14 +659,14 @@ div.nomap .runpick{margin:0 0 8px}
 .ovf .dir{flex:0 1 auto;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;direction:rtl;text-align:left;color:var(--muted)}
 .ovf .nm{flex:none;max-width:75%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .ovf .c{flex:none;margin-left:auto;padding-left:10px;color:var(--muted);font-style:normal;white-space:nowrap}
-/* the changes that touch the node of a card, under its content (build 86) */
+/* the changes that touch the node of a card, under its content */
 .ovx{flex:none;margin:0 12px;padding:4px 0 6px;border-top:1px solid var(--line);font-size:var(--small)}
 .ovx a{display:flex;align-items:baseline;gap:10px;padding:2px 0;color:var(--soft);cursor:pointer}
 .ovx a:hover{color:var(--ink)}
 .ovx a:hover .nm{text-decoration:underline;text-underline-offset:3px}
 .ovx .nm{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .ovx .c{flex:none;margin-left:auto;color:var(--muted);font-style:normal;white-space:nowrap}
-/* the icon of a file or a folder as the Explorer shows it (build 85, FileIcons): before the name, at the size of the text, centred on the line; only with a theme */
+/* the icon of a file or a folder as the Explorer shows it (FileIcons): before the name, at the size of the text, centred on the line; only with a theme */
 .fi{display:none}
 .fi-on .fi{display:inline-flex;flex:none;align-self:center;align-items:center;justify-content:center;width:1.25em;height:1.25em;margin-right:6px;font-style:normal;overflow:visible}
 .fi::before{line-height:1}
@@ -758,7 +757,7 @@ div.nomap .runpick{margin:0 0 8px}
 .conv .toggle .sep{color:var(--faint);margin:0 4px}
 .conv .cutline{margin-top:6px;font-size:var(--small);color:var(--muted)}
 .conv .feed{padding-bottom:8px}
-/* Every row of the window is laid out: with content-visibility a window below the view had guessed heights, and opened at a wrong place. 1,500 rows take about 0.2 s. */
+/* Every row of the window is laid out: with content-visibility a window below the view would get guessed heights and open at a wrong place. 1,500 rows take about 0.2 s. */
 .short{display:none;position:fixed;z-index:6;top:0;left:0;right:0;align-items:center;gap:10px;padding:8px 20px;background:var(--paper);border-bottom:1px solid var(--line);box-shadow:0 2px 6px rgba(26,43,36,.06)}
 .short.on{display:flex}
 .short .name{min-width:0;flex:1;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -887,7 +886,7 @@ div.nomap .runpick{margin:0 0 8px}
 }
 
 
-/* ----- what comes with a pull request (build prompt 19) ----- */
+/* ----- what comes with a pull request ----- */
 /* the line of facts under the title wraps between whole facts; no dots hang at the line ends */
 .conv .meta{gap:4px 16px}
 .conv .meta .fact{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;max-width:100%}
@@ -1145,7 +1144,7 @@ div.nomap .runpick{margin:0 0 8px}
 .conv.messages .row .who{flex:none}
 .conv.classic .time{margin-left:0}
 
-/* ----- a stack of pull requests (build prompt 21) ----- */
+/* ----- a stack of pull requests ----- */
 /* where the pull request stands: one quiet line under the title; in "Messages" a click opens the list of the stack */
 .conv .stack,.conv .splace{margin:8px 0 0;font-size:var(--small);color:var(--muted)}
 .conv .splace{display:flex;align-items:center}
@@ -1170,9 +1169,9 @@ a.srow:hover{background:var(--seg)}
 .cl .pr .place{flex:none;font-style:normal;color:var(--faint);font-variant-numeric:tabular-nums}
 .conv .sline .chev{margin-left:5px;color:var(--faint);font-size:10px}
 
-/* ----- the change on the diagram page (build prompt 23) ----- */
-/* What the change did to a diagram of a part. The owner chose (12 November): nothing in the drawing is coloured by the change, no node and
-   no arrow; only the diff is, the numbers that stand where the line number of a node stood and beside the text of an arrow. A removed node
+/* ----- the change on the diagram page ----- */
+/* What the change did to a diagram of a part: nothing in the drawing is coloured by the change, no node and
+   no arrow; only the diff is, the numbers in a node and beside the text of an arrow. A removed node
    or arrow is back in the drawing, dashed, with quiet text. Mermaid draws in light colours in a dark theme too, so these colours are the light ones. */
 .stage g.node.d-removed :is(rect,polygon,path,circle),.stage rect.actor.d-removed,.stage :is(path,line).d-removed{stroke-dasharray:5 4!important}
 .stage g.node.d-removed > :is(rect,polygon,path,circle),.stage rect.actor.d-removed{stroke:var(--d-removed)!important} /* in a dark theme the dashed line must show */
@@ -1238,7 +1237,7 @@ a.srow:hover{background:var(--seg)}
 /* the part whose diff is at the top of the right half: a darker border, no colour */
 .stage g.node.here > :is(rect,path,polygon){stroke:var(--soft)!important;stroke-width:1.6px!important}
 
-/* ----- the diffs tied to the nodes (build prompt 24) ----- */
+/* ----- the diffs tied to the nodes ----- */
 /* a click on the head of a file opens its diff, with a short animation, and closes it again; the small mark turns */
 .dh .tw{flex:none;width:10px;font-style:normal;color:var(--faint)}
 .dh .tw::before{content:"›";display:inline-block;transition:transform .2s ease-out}
@@ -1249,7 +1248,7 @@ a.srow:hover{background:var(--seg)}
 .nodeLabel .f.more.shows{font:var(--code-weight) var(--code)/1.6 var(--mono);color:var(--soft);overflow:hidden;text-overflow:ellipsis}
 @media (prefers-reduced-motion:reduce){.nodeLabel .f,.dh .tw::before{transition:none}}
 
-/* ----- "Diffs" beside the graph that follows them (build prompt 27) ----- */
+/* ----- "Diffs" beside the graph that follows them ----- */
 /* the left half: the diagrams of the code at the reading line, one under the other, each with a quiet title; it scrolls when they are taller */
 .split > .half.beside{overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain}
 .half.beside .gcard .sh{padding-bottom:4px}
@@ -1259,7 +1258,7 @@ a.srow:hover{background:var(--seg)}
 /* the counter over the whole list, in the form of the control of a file tab, left of "Open all" and "Hide code" or "Hide files" */
 .tabs .nav{position:static;float:right;padding:0;margin-left:16px;background:none;border-radius:0}
 
-/* ----- "Diffs": the file with its notes, and beside it the list of the files as closed rows (build prompt 42) ----- */
+/* ----- "Diffs": the file with its notes, and beside it the list of the files as closed rows ----- */
 /* the file: as the file view shows it, its notes as cards; it fills its box and scrolls by itself */
 :is(.split > .half,.view > .alone).file-left{border:1px solid var(--line);border-radius:8px;background:var(--card);overflow:hidden}
 .file-left > .cvw,.file-left .cv{height:100%}
@@ -1271,7 +1270,7 @@ a.srow:hover{background:var(--seg)}
 .diffs.rows .dh .c{flex:none;padding-left:10px}
 .diffs.rows .dfile.here .dh{background:var(--tealsoft);box-shadow:inset 2px 0 var(--teal)}
 
-/* ----- the code of each node and arrow (build prompt 25) ----- */
+/* ----- the code of each node and arrow ----- */
 /* beside the title: the changed lines in no node and no arrow, and whether a second agent read the diagram; quiet words, no colour */
 .dfact,.drepo{color:var(--muted);font-size:var(--small);font-weight:400;white-space:nowrap;margin-left:12px}
 .dfact.nothing::before{content:"";display:inline-block;width:3px;height:.9em;margin-right:6px;vertical-align:-1px;background:var(--line2)}
@@ -1367,7 +1366,7 @@ body:not(.picking) .stage g.image-shape.go:hover > :not(.mk-holder){scale:1.03}
 .lk-play{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:30px;height:30px;border-radius:15px;border:0;background:rgba(255,255,255,.9);color:#1a2b24;font:12px/30px var(--sans);
   padding:0 0 0 2px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.3)}
 .lk-play[hidden]{display:none}
-.lk-play::before{content:'▶'} /* the mark is drawn here: as words of the button it went into the name of the box in its window */
+.lk-play::before{content:'▶'} /* the mark is drawn here: as words of the button it would go into the name of the box in its window */
 /* The words of the look: their size and the place of an icon before them are there while Mermaid measures, the icon comes after the drawing (--lk-icon). */
 .lkSmall .nodeLabel,span.lkSmall{font-size:.85em}
 .lkLarge .nodeLabel,span.lkLarge{font-size:1.25em}
@@ -1380,7 +1379,7 @@ body:not(.picking) .stage g.image-shape.go:hover > :not(.mk-holder){scale:1.03}
 .rows.lk-menu a{font:var(--size)/1.6 var(--sans);cursor:pointer}
 /* A thing with a key of the look takes the keyboard; a click of the mouse draws no ring round it */
 .stage [data-lk-keys]:focus:not(:focus-visible){outline:none}
-/* Build 59. The box of a group of nodes (an area box, a file box), the frame of Home, a lit node of a panel, and a line of words of a page in the look. */
+/* The box of a group of nodes (an area box, a file box), the frame of Home, a lit node of a panel, and a line of words of a page in the look. */
 .stage g.cluster.lk-fill > rect{fill:var(--lk-fill)!important}
 .stage g.cluster.lk-line > rect{stroke:var(--lk-line)!important}
 .stage g.cluster.lk-wide > rect{stroke-width:var(--lk-width)!important}
@@ -1394,7 +1393,7 @@ span.lk-words{color:var(--lk-words)}
 .lk-picture{display:block;max-height:48px;max-width:100%}
 .panels .pgp{grid-column:1/-1;color:var(--muted);font-size:var(--small);margin-top:4px}
 
-/* ----- blocks of a look (media/blocks.js, build 58): a page of the look, a section of its own in a window, the window of a target -----
+/* ----- blocks of a look (media/blocks.js): a page of the look, a section of its own in a window, the window of a target -----
    The class of a block's kind (.block-<kind>) and the classes of its inner parts (.bk-…) have different names, so that a block inside a row keeps its own layout.
    No box is lighter than the page: in a dark theme the code stands in a darker well, and a button has only its line. */
 body{--bk-well:var(--region)}
@@ -1445,7 +1444,7 @@ body:where(.vscode-dark,.vscode-high-contrast) .bk-press{background:transparent}
 .bk-cols > .bk{flex:1 1 260px}
 .bk-from{margin-top:6px;color:var(--muted);font-size:var(--small);overflow-wrap:anywhere}
 .bk-quiet{color:var(--muted);font-size:var(--small)}
-/* in a window: a section of its own among the sections of today, and the window of a target */
+/* in a window: a section of its own among the default sections, and the window of a target */
 .win .bk-sec{padding:6px 12px 8px}
 .bk-sectitle{font:600 var(--small) var(--sans);color:var(--muted);padding:2px 0 6px}
 .win .bks{gap:12px}
@@ -1454,7 +1453,7 @@ body:where(.vscode-dark,.vscode-high-contrast) .bk-press{background:transparent}
 /* a page of the look: one column that reads well, under the line at the top */
 .bk-page{max-width:1040px}
 .bk-head{margin:2px 0 18px;font-size:calc(var(--size) + 7px);font-weight:600;color:var(--ink);line-height:1.25}
-/* The look on the page of a change and in the file tab (build 60). A box of a page (the card of the change, the comments window, a thread) takes the
+/* The look on the page of a change and in the file tab. A box of a page (the card of the change, the comments window, a thread) takes the
    colours of one colour of a rule, as a node does; the lines beside the notes take its colour, width and dashes; the comment mark and the "?" of an
    open point take the colour of its words and an icon; the margin of the code shows the icon of a mark. */
 :is(.sec, .cml, .cbox, .cml .cmr).lk-fill{background:var(--lk-fill)}
@@ -1474,7 +1473,7 @@ body:where(.vscode-dark,.vscode-high-contrast) .bk-press{background:transparent}
 .cn .code .n{position:relative}
 .cn .code .mg{position:absolute;left:4px;top:calc((var(--row) - 16px) / 2);width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 0 0 1px var(--line2);display:flex;align-items:center;justify-content:center;font:600 10px/1 var(--sans);color:#1f2328;cursor:pointer}
 .cn .code .mg img{width:12px;height:12px;object-fit:contain}
-/* The look of a repo on parts drawn as HTML (media/part-look.js, build 61): the colour of a box, of its line and of words, and an icon of the look before words. */
+/* The look of a repo on parts drawn as HTML (media/part-look.js): the colour of a box, of its line and of words, and an icon of the look before words. */
 .lk-box.lk-fill{background:var(--lk-fill)!important}
 .lk-box.lk-ink,.lk-box.lk-ink .nm{color:var(--lk-ink)}
 .lk-box.lk-line{border-color:var(--lk-line)!important}

@@ -238,7 +238,7 @@ const Remarks = (() => {
   /** The open threads, in the order of their places on the page. */
   const openThreads = () => threads().filter((thread) => !isResolved(thread)).sort((a, b) => byPlace(a[0].target, b[0].target));
 
-  // ----- the look of the list, its threads, its open points and the comment marks (build 60, mapped to the card and the list in build 80) -----
+  // ----- the look of the list, its threads, its open points and the comment marks -----
 
   const lookOf = (thing) => Marks.slotsIn(App.page?.look, thing);
   /** Rows in the order that a rule of the look gives them ("order"), with their things; with no rule, as they came. Returns [{ group, rows }]. */
@@ -413,7 +413,7 @@ const Remarks = (() => {
   // ----- the place of a thread on the page -----
 
   // Code lines, notes and tests are places in the code; the code view lights them with a mark, since its rows are drawn as he scrolls.
-  // A thing that the change file no longer holds points to the nearest thing that is still there.
+  // A thing that is gone from the change file points to the nearest thing that is there.
   const placeOf = (target) => (Places.isGone(target) ? Places.nearest(target) : target);
   const inCode = (target) => !!target && Places.viewOf(target) === 'code';
   const codeShows = (target) => inCode(target) && Code.shown?.path === target.file;
@@ -457,7 +457,7 @@ const Remarks = (() => {
     for (let at = 0; at < frames && !test(); at++) await new Promise((done) => requestAnimationFrame(done));
   }
 
-  /** Goes to the place of a thread and opens its card there, at its mark; a thing that is not on the page any more opens it at the nearest thing. */
+  /** Goes to the place of a thread and opens its card there, at its mark; a thing that is gone from the page opens it at the nearest thing. */
   async function goToThread(id) {
     const thread = threadOf(id);
     if (!thread) return;
@@ -750,7 +750,7 @@ const Remarks = (() => {
     return ['part', 'node', 'diagram', 'note'].includes(target.kind) && quoted ? quoted[1] : words;
   }
 
-  /** The name of a thing in quiet words, the full words in its tooltip; a thing that the change file no longer holds says so. */
+  /** The name of a thing in quiet words, the full words in its tooltip; a thing that is gone from the change file says so. */
   const whereHtml = (target) => {
     const gone = !!App.page && target.kind !== 'message' && Places.isGone(target);
     // A thing that is gone, or names another thing now, keeps the title that it had when the comment was put on it.
@@ -1164,5 +1164,5 @@ const Remarks = (() => {
     open();
   }
 
-  return { open, openFromVsCode, boxOn, paint, paintNotes, draw, show: showAndOpen, goToThread };
+  return { openFromVsCode, boxOn, paint, paintNotes, draw, show: showAndOpen };
 })();

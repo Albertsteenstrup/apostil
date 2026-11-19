@@ -1,4 +1,4 @@
-// What a drawn process adds to its Mermaid drawing on Home (build 67): a long chain in columns, a quiet dot at a box that calls a box without an arrow,
+// What a drawn process adds to its Mermaid drawing on Home: a long chain in columns, a quiet dot at a box that calls a box without an arrow,
 // the light on the callers of a box that many boxes call, and the window that lists those callers. The text of the drawing, its numbers and its dots
 // are made in shared/process-diagrams.ts; here the page chooses the drawing and draws what Mermaid cannot.
 'use strict';

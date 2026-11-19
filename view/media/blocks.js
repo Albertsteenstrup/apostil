@@ -1,4 +1,4 @@
-// The blocks of a look (build 58): what a page of the look or a section of a window shows, drawn by Apostil in its own style, in both themes.
+// The blocks of a look: what a page of the look or a section of a window shows, drawn by Apostil in its own style, in both themes.
 // The data comes from view/look-blocks.ts. Every text is escaped, a picture is an address of Apostil's store, and a link or a button goes to a
 // target of the one list through Marks.act. One function draws a block wherever it stands: a page, a section of a window, the window of a target.
 'use strict';

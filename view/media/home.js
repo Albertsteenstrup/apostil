@@ -1,6 +1,6 @@
 // Home: the map of the repo, one level at a time: the diagram of the level, which he moves and zooms, with a card for each of its nodes under it (overview.js).
 // The graphs page: one small panel for each diagram that a folder or file is a part of, drawn when it comes into view.
-// A page of the look (build 58): the blocks of one page of the look of the repo, in a tab of its own.
+// A page of the look: the blocks of one page of the look of the repo, in a tab of its own.
 'use strict';
 
 const Home = {
@@ -29,7 +29,7 @@ const Home = {
 
 const diagramOf = (id) => Home.data.map.diagrams.find((diagram) => diagram.id === id);
 
-// The focus on a node (build 64; one click since build 84): focusOn() and focusClicks() in diagram-stage.js.
+// The focus on a node, by one click: focusOn() and focusClicks() in diagram-stage.js.
 
 // ----- the steps of the path: a diagram of the map, the graphs of a path, a change -----
 
@@ -81,7 +81,7 @@ const mapPage = (data) => (data.kind === 'home' && data.map
 const hiddenMarks = (thing) => (thing ? Home.data.look.sets.filter((set) => !thing.cornered?.has(set.id)).map((set) => [set, Marks.stackOf(thing.marks, set.id)]).filter(([, stack]) => stack.length) : []);
 
 /**
- * The counts of a path of a node in the changes that touch it (build 86): a file has those of the first change that edits it, a folder the sum of its
+ * The counts of a path of a node in the changes that touch it: a file has those of the first change that edits it, a folder the sum of its
  * changed files. Nothing when no change edits it.
  */
 function diffOf(node) {
@@ -96,7 +96,7 @@ function diffOf(node) {
 /**
  * The window of a node, from its sections: the folders and files it stands for with their counts and those of the changes ("files"), the changes that
  * touch it ("changes"), and the marks of a set that stands in no corner of the node ("marks": a rule put something else there), each value with its
- * count of places; the rows of a card show the same (build 86). A rule of the look orders the sections and leaves some out. A folder opens in the tree
+ * count of places; the rows of a card show the same. A rule of the look orders the sections and leaves some out. A folder opens in the tree
  * "Files" of the side bar; a file opens in VS Code.
  */
 function nodeWindow(g, node, thing) {
@@ -148,7 +148,7 @@ function noteWindow(node, thing) {
       wrap: (inner) => `<div class="mk-note">${inner}</div>`,
     }, thing?.slots);
     const marks = content.ids.includes('marks');
-    // A section of its own can stand between sections of today: the look of the note goes to the part that holds the marks.
+    // A section of its own can stand between the default sections: the look of the note goes to the part that holds the marks.
     const note = (body) => body.querySelector('.mk-note:has(> .mk-lines)') ?? body.querySelector('.mk-note');
     return { ...content, ready: async (body) => { await content.ready(body); if (look && thing) await Marks.decorateNote(note(body), look, { ...thing, kind: 'note', marks: marks ? thing.marks : [] }, openAt); } };
   };
@@ -165,7 +165,7 @@ const openAt = (path, line) => tell({ type: 'openFile', path, line });
 Marks.useHere({
   walk: (step) => {
     const onHome = step.tab === 'home' && Home.data.kind === 'home';
-    if (onHome && !diagramOf(step.diagram)) return true; // a diagram that the map no longer has: nothing opens
+    if (onHome && !diagramOf(step.diagram)) return true; // a diagram that the map does not have: nothing opens
     walkTo(onHome ? mapStep(step.diagram, step.lit) : step);
     return true;
   },
@@ -210,7 +210,7 @@ function pickMark(thing, one) {
   return false;
 }
 
-// ----- the overview: a card under the diagram for each node that leads somewhere (build 83) -----
+// ----- the overview: a card under the diagram for each node that leads somewhere -----
 
 /**
  * True when a click on the node leads somewhere: a diagram one level down (an area, the processes of a place, a process, a step that holds steps), or
@@ -220,13 +220,13 @@ const leadsSomewhere = (node) => !!node && !node.quiet && (!!diagramOf(node.down
 
 /**
  * The card of a node: its diagram one level down drawn small, as a panel of the graphs page with nothing lit, and its click; else its folders and files.
- * While a map is written (build 84), `run` is the state of its area: a card with work left shows that state in place of its content, and takes the size
+ * While a map is written, `run` is the state of its area: a card with work left shows that state in place of its content, and takes the size
  * of its diagram, or of its folders and files, so that it keeps its size when its area is done.
  */
 function homeCard(g, node, open, graph, run) {
   const title = plainName(graph, nodeKey(g));
   const below = diagramOf(node.down);
-  // The changes that touch the node stand at the bottom of its card, and its rows have their counts (build 86); not while its area is written.
+  // The changes that touch the node stand at the bottom of its card, and its rows have their counts; not while its area is written.
   const own = { title, node: nodeKey(g), ...(run ? { run, areaFiles: node.paths } : { changes: node.changes }) };
   if (below) return { ...own, open, draw: (box) => drawPanel(box, { ...below, lit: [] }, true), shape: { ...drawingShape(below.graph, below.mermaid, below.schema), key: below.id } };
   const diff = diffOf(node);
@@ -273,7 +273,7 @@ async function drawHome() {
   // While a map run writes, the map shows what is saved, and this line says which session writes and what is done; after a stop, the press that starts again.
   const run = Home.data.mapRun;
   if (run && diagram) summary.insertAdjacentHTML('beforeend', `${summary.hasChildNodes() ? ' · ' : ''}${mapRunHtml(run, run.state === 'stopped' ? { app: Home.data.mapApp, apps: Home.data.apps } : null)}`);
-  // While a run of the whole map writes (build 84): the time left at the right end of the head, and the bar of the run on the top edge of the frame.
+  // While a run of the whole map writes: the time left at the right end of the head, and the bar of the run on the top edge of the frame.
   const time = run?.state === 'writing' ? run.time : undefined;
   showTime(time);
   const areas = time && diagram && diagram.id === map.top ? run.areas ?? {} : null; // the areas of the top map with work left, by node id
@@ -306,7 +306,7 @@ async function drawHome() {
       }
     }
     if (svg) ProcessDrawing.decorate(svg, laid, diagram);
-    // The overview (build 83): a card under the diagram for each node that leads somewhere, in the reading order of the drawing, unless he chose the
+    // The overview: a card under the diagram for each node that leads somewhere, in the reading order of the drawing, unless he chose the
     // diagram alone. With no such node the diagram stands alone and has no icon.
     const leading = Overview.inReadingOrder([...view.querySelectorAll('g.node, g.image-shape')]).filter((g) => leadsSomewhere(nodesOf[nodeKey(g)]));
     const overview = leading.length > 0 && !Overview.isFull();
@@ -330,23 +330,23 @@ async function drawHome() {
       // stays on the map and leads to its code: one file opens, and folders open in the tree. A click never opens the graphs of a folder.
       // In a drawn process a step that holds steps goes one level down, and a step with none opens its file at its first line.
       // A call out of the repo leads nowhere: it is a quiet box with its window only. A click of the look goes to its target instead.
-      // Since build 84 this is what two clicks do (focusClicks): one click focuses the node, and the card of the overview does it at once. Where the
-      // cards show, only the card and "Open" in the window do it (build 85).
-      const today = paths.length ? () => {
+      // Two clicks do this (focusClicks): one click focuses the node, and the card of the overview does it at once. Where the cards show, only the
+      // card and "Open" in the window do it.
+      const open = paths.length ? () => {
         if (node.down) { if (!node.note) tell({ type: 'showInTree', paths }); walkTo(mapStep(node.down)); }
         else if (node.line) tell({ type: 'openFile', path: paths[0], line: node.line });
         else if (paths.length === 1 && !paths[0].endsWith('/')) tell({ type: 'openFile', path: paths[0] });
         else tell({ type: 'showInTree', paths, open: true });
       } : null;
-      // The window of the node, with "Open" for a node with a way in (build 85): it goes where the card goes. Where its card shows, the node has it only
-      // with the rule "window" of the look or marks in no corner (build 86); else, as a note card, only the lines of what a click of the look does.
+      // The window of the node, with "Open" for a node with a way in: it goes where the card goes. Where its card shows, the node has it only
+      // with the rule "window" of the look or marks in no corner; else, as a note card, only the lines of what a click of the look does.
       const content = node.note ? noteWindow(node, thing) : nodeWindow(g, node, thing);
       const carded = overview && leading.includes(g) && !node.note && !Marks.hasWindow(thing?.slots) && !hiddenMarks(thing).length;
       if (carded) Marks.inputWindow(g, thing?.slots ?? {}, Marks.nameOf(g));
-      else Hover.attach(g, async () => ({ ...(await content()), ...(today ? { open: today } : {}) }));
-      focusClicks(g, { stage: view, graph: joined, slots: thing?.slots, into: today, diagram: diagram.id }); // before the click of the node (Marks.bind)
-      if (Marks.bind(g, thing?.slots ?? {}, today, Marks.nameOf(g))) g.classList.add('go');
-      opens.set(g, today);
+      else Hover.attach(g, async () => ({ ...(await content()), ...(open ? { open } : {}) }));
+      focusClicks(g, { stage: view, graph: joined, slots: thing?.slots, into: open, diagram: diagram.id }); // before the click of the node (Marks.bind)
+      if (Marks.bind(g, thing?.slots ?? {}, open, Marks.nameOf(g))) g.classList.add('go');
+      opens.set(g, open);
     }
     Overview.cards(cards, overview ? leading.map((g) => homeCard(g, nodesOf[nodeKey(g)], opens.get(g), drawn.graph, areas?.[nodeKey(g)])) : []);
     lightNodes(view, Home.lit);
@@ -365,7 +365,7 @@ async function drawHome() {
   window.apostilRendered = (window.apostilRendered ?? 0) + 1;
 }
 
-// ----- while a map is written (build 84) -----
+// ----- while a map is written -----
 
 /**
  * Before the overview is saved: the frame holds a soft sketch of a map that shimmers slowly, in place of the wordmark, with the bar of the run on its top
@@ -520,7 +520,7 @@ async function drawGraphs() {
 
 // ----- a page of the look -----
 
-/** A page of the look: its title and its blocks, drawn by blocks.js; a page that the look no longer has says so in one quiet line. */
+/** A page of the look: its title and its blocks, drawn by blocks.js; a page that the look does not have says so in one quiet line. */
 async function drawPage() {
   const { data } = Home;
   const view = document.getElementById('view');
@@ -554,7 +554,7 @@ window.addEventListener('message', (event) => {
     Home.data = message.data;
     if (message.trail) Trail.set(message.trail);
     Overview.heard(message.full); // the overview or the diagram alone, as he chose last
-    FileIcons.set(message.icons); // the icons of the rows, in his file icon theme (build 85)
+    FileIcons.set(message.icons); // the icons of the rows, in his file icon theme
     Home.render();
   }
   if (message?.type === 'icons') { FileIcons.set(message.icons); Overview.relayout(); } // he changed the icon theme or the colour theme
@@ -572,7 +572,7 @@ new ResizeObserver(drawIfWaiting).observe(document.body);
 
 // Start: inside VS Code ask for the data; as a file in a browser, load example-data.js:
 // "?path=<path>" is the graphs page of that path, "?nomap=1" Home with no map, "?run=<name>" Home with the line of a made-up map run, "?diagram=<id>&lit=<ids>" Home at that diagram, "?look=<name>" Home with a
-// made-up look of the example: "?look=1" the look of build 51 (look.json), "?look=shared" look-shared.json; "?look=blocks&page=<id>" a page of that look;
+// made-up look of the example: "?look=1" look.json, "?look=shared" look-shared.json; "?look=blocks&page=<id>" a page of that look;
 // "?look=home" look-home.json, also with "?path="; "?icons=none" with no file icon theme.
 if (vscodeApi) {
   tell({ type: 'ready' });

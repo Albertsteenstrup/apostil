@@ -460,14 +460,14 @@ const Marks = (() => {
     const shown = order ? order.map((id, at) => (id && typeof id === 'object' ? ownSection(id, at) : sections.find((one) => one.id === id))).filter(Boolean) : sections;
     const does = inputWords(slots);
     const lines = does.length ? `<div class="lk-does">${does.map((line) => `<p>${escapeHtml(line).replace(/"/g, '&quot;')}</p>`).join('')}</div>` : '';
-    // The sections of today stand in their frame (`wrap`); a section of its own stands outside it, at its place among them.
+    // The default sections stand in their frame (`wrap`); a section of its own stands outside it, at its place among them.
     const runs = [];
     for (const one of shown) {
       if (one.own) runs.push(one);
       else if (runs.length && !runs.at(-1).own) runs.at(-1).list.push(one);
       else runs.push({ list: [one] });
     }
-    if (!runs.some((run) => !run.own)) runs.unshift({ list: [] }); // the frame is there also with no section of today in it
+    if (!runs.some((run) => !run.own)) runs.unshift({ list: [] }); // the frame is there also with no default section in it
     return {
       title, width: slots['window.width'] ?? width, ids: shown.map((one) => one.id),
       sub: [sub, ...shown.map((one) => one.sub)].filter(Boolean).join(' · '),
@@ -476,11 +476,11 @@ const Marks = (() => {
     };
   }
 
-  /** True when a rule of the look gives the thing the slot "window": where cards show, a thing with a card has its window only then (build 86). */
+  /** True when a rule of the look gives the thing the slot "window": where cards show, a thing with a card has its window only then. */
   const hasWindow = (slots = {}) => !!(slots['window.sections'] || slots['window.width']);
 
   /**
-   * A section of its own in a window (build 58): its quiet title, and its blocks, which the page asks for when the window opens and Blocks draws
+   * A section of its own in a window: its quiet title, and its blocks, which the page asks for when the window opens and Blocks draws
    * (media/blocks.js). `section.ref` names the blocks; the page carries no blocks before that.
    */
   function ownSection(section, at) {
@@ -565,7 +565,7 @@ const Marks = (() => {
     return { light: stand(PAPER.light, [0, 0, 0]), dark: stand(PAPER.dark, [255, 255, 255]) };
   }
 
-  // ----- the things of the page of a change and of a file tab (build 60): what a rule picks there, with their fields -----
+  // ----- the things of the page of a change and of a file tab: what a rule picks there, with their fields -----
 
   const DATA_FILE = /\.(json|csv|tsv|lock)$|(^|\/)(go\.sum|[^/]*-lock\.ya?ml)$/i; // data files: the list of diffs folds them
   const POINT_TYPES = { 'note-not-supported': 'note', 'no-note': 'no-note', 'thing-not-supported': 'thing' };
@@ -594,7 +594,7 @@ const Marks = (() => {
   });
 
   /**
-   * The steps of the drawing of a part as things, by node id: each with the files of its places, its counts, and the marks inside its lines (build 63).
+   * The steps of the drawing of a part as things, by node id: each with the files of its places, its counts, and the marks inside its lines.
    * A step holds a mark as a step of a drawn process does (holds), by the lines of its places in the files as the change has them (`now`); a place of a
    * whole file holds all of the file, a removed place nothing. Only a flow chart: in a sequence, a schema or a state diagram no box stands for lines of code.
    */
@@ -618,7 +618,7 @@ const Marks = (() => {
    * part, the links between parts, the files of the list of diffs, the views, the diagrams of the parts and their steps, the comments window, the threads,
    * the open points and the comment marks (one for each place with open threads). Each with its kind, its id, its paths and its fields. Worked out each time:
    * a page changes its data in place. A part holds the marks under its files, as a node of Home holds those under its paths, and a step of a flow chart
-   * those inside its lines (build 63); `marks` are those of the files of the change, from the look of the page.
+   * those inside its lines; `marks` are those of the files of the change, from the look of the page.
    */
   function changeThings(page, kind, marks = page.look?.marks ?? []) {
     const fileOf = (path) => page.files.find((file) => file.path === path);
@@ -707,9 +707,9 @@ const Marks = (() => {
   const shownInOrder = (rows, look) => (look ? orderRows(rows.filter((row) => slotsIn(look, row)['show.shown'] !== false), listOrder(rows, look))[0].rows : rows);
 
   const pure = {
-    covers, keyOf, holds, marksIn, picks, rankOf, resolve, fieldsOf, fillText, fillWords, orderRows, thingsOf, arrowMarks, edgesOf, flowWithout, shownFlow, targetWords, inputWords, windowOf, hasWindow, setPages,
+    covers, keyOf, holds, marksIn, picks, resolve, fieldsOf, fillText, fillWords, orderRows, thingsOf, edgesOf, shownFlow, targetWords, inputWords, windowOf, hasWindow, setPages,
     spreadOf, stackOf, namedThings, boxColors, lineColors, contrast, parse, SHOWN, READS,
-    flowArrows, groupsOf, boxesOf, drawingOf, openSteps, headOf, wordsHtml,
+    boxesOf, drawingOf, openSteps, headOf, wordsHtml,
     DATA_FILE, slotsIn, threadsOf, threadThing, pointThing, stepThings, diagramThing, changeThings, lineThing, marginThings, fileThings, listOrder, shownInOrder,
     marginIcons,
   };
@@ -947,7 +947,7 @@ const Marks = (() => {
   /** The name of a drawn node as its words say it, without the letters of the chips in its corners. */
   const nameOf = (g) => (g.querySelector?.('.nodeLabel, .label') ?? g).textContent.trim();
 
-  /** The window of a target (build 58): it opens beside the thing at once, and its blocks come when it opens. It closes as a window of the pointer does, or with Escape. */
+  /** The window of a target: it opens beside the thing at once, and its blocks come when it opens. It closes as a window of the pointer does, or with Escape. */
   function openWindow(win, el) {
     const name = win.title || nameOf(el) || 'Window';
     Hover.now(el, () => ({
@@ -969,19 +969,19 @@ const Marks = (() => {
   const DOUBLE_WAIT = 250; // a thing with a double click waits this long before its single click
 
   /**
-   * The input of a thing in the look: its click goes to the target of the rule, else to `today` (today's click, or none); a click with Alt or Shift,
-   * a double click, a key and a right click with a menu go to their targets. Only a thing with a double click waits before its single click.
-   * `name` is the title of its menu. Returns true when a click does something.
+   * The input of a thing in the look: its click goes to the target of the rule, else to `plain` (the click of the page with no rule, or none); a
+   * click with Alt or Shift, a double click, a key and a right click with a menu go to their targets. Only a thing with a double click waits before
+   * its single click. `name` is the title of its menu. Returns true when a click does something.
    */
-  function bind(el, slots, today, name = '') {
+  function bind(el, slots, plain, name = '') {
     const [alt, shift, double, keys, menu] = ['alt', 'shift', 'double', 'key', 'menu'].map((field) => slots[`input.${field}`]);
     const click = slots.click;
     let timer = 0;
-    if (click || today || alt || shift || double) {
+    if (click || plain || alt || shift || double) {
       el.addEventListener('click', (event) => {
         const held = event.altKey ? alt : event.shiftKey ? shift : null;
         if (held) { event.stopPropagation(); return act(held, el); }
-        const single = () => (click ? act(click, el) : today?.(event));
+        const single = () => (click ? act(click, el) : plain?.(event));
         if (!double) return single();
         clearTimeout(timer);
         timer = setTimeout(single, DOUBLE_WAIT);
@@ -995,7 +995,7 @@ const Marks = (() => {
       el.setAttribute('data-lk-keys', '');
       el.setAttribute('tabindex', '0');
     }
-    return !!(click || today);
+    return !!(click || plain);
   }
 
   /** The menu of a right click: a small window with one row for each entry; VS Code's own menu does not open here. */
@@ -1193,7 +1193,7 @@ const Marks = (() => {
     });
   }
 
-  // ----- the page of a change and the file tab (build 60) -----
+  // ----- the page of a change and the file tab -----
 
   /** The colour of the words of a rule ("text.color") on an element, in both themes, at a contrast that reads; and an icon before them ("text.icon"). */
   function paintText(el, look, slots) {
@@ -1202,7 +1202,7 @@ const Marks = (() => {
     if (icon && !el.querySelector(':scope > .lk-icon')) el.insertAdjacentHTML('afterbegin', `<img class="lk-icon" src="${esc(icon)}" alt="">`);
   }
 
-  return { ...pure, lookText, decorate, decorateNote, stackWindow, placesHtml, doesWords, act, useHere, bind, inputWindow, nameOf, paint, paintBox, paintText };
+  return { ...pure, lookText, decorate, decorateNote, placesHtml, act, useHere, bind, inputWindow, nameOf, paint, paintBox, paintText };
 })();
 
 if (typeof module === 'object') module.exports = Marks; // for the tests in Node

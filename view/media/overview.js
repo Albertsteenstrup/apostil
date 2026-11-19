@@ -1,20 +1,20 @@
-// The overview of a diagram (build 83), on Home and on "Diagram" of a change: the diagram of a level large on top, and under it one card for each
+// The overview of a diagram, on Home and on "Diagram" of a change: the diagram of a level large on top, and under it one card for each
 // node that leads somewhere, its own diagram drawn small or its files. A quiet icon at the top right of the frame shows the diagram alone, filling the
 // tab; that choice holds for every diagram on every page until he picks the overview again with the same icon.
-// Build 84: each card takes the size that its content needs, within half of the size of build 83 each way, and the cards are packed with no gaps
-// (placeCards); while a map is written, a card shows the state of its area.
+// Each card takes the size that its content needs, from half of a base card (250 × 212 px) to one and a half each way, and the cards are packed
+// with no gaps (placeCards); while a map is written, a card shows the state of its area.
 'use strict';
 
 const FULL_KEY = 'apostil.diagramFull'; // as a file in a browser, the storage of the browser stands in for the state of VS Code
 const GROW = 1.4; // in the overview a small diagram is drawn up to this much larger, so that it fills the width; a drawing card grows only so far
 const OVERVIEW_LEAST = 220; // the least height of its frame
 const OVERVIEW_ROOM = 24; // the room between the drawing and each edge of its frame
-const PEEK_CONTENT = 36; // under the head of the first row of cards, this much of their content shows at the bottom of the tab (build 85)
+const PEEK_CONTENT = 36; // under the head of the first row of cards, this much of their content shows at the bottom of the tab
 const PEEK_FIRST = 96; // the peek before the first cards are written: their head is measured when they are (Overview.peek)
 const CARD_GAP = 12; // the gap between two cards
-const UNIT_LEAST = (250 - CARD_GAP) / 2; // a unit is half a card of build 83 each way: two units and the gap between them are its size
+const UNIT_LEAST = (250 - CARD_GAP) / 2; // a unit is half a base card each way: two units and the gap between them are a base card
 const UNIT_HIGH = (212 - CARD_GAP) / 2;
-const MOST_UNITS = 3; // a card is 1, 2 or 3 units across and down: half of build 83's size, its size, or half again
+const MOST_UNITS = 3; // a card is 1, 2 or 3 units across and down: half a base card, a base card, or one and a half
 const TRIM_MOST = 0.15; // a page that is less than this share of its frame too high for its tab takes it off the frame, so it does not scroll
 const FILL_LEAST = 0.7; // a drawing card takes another size than its own only when its drawing still fills this share of it in its looser direction
 const SETTLE_MS = 3000; // while the cards have just opened, a drawing that came out of another shape than guessed places them again
@@ -275,7 +275,7 @@ function fillOf(ratio, w, h, unit, head) {
   return Math.min(card / ratio, ratio / card);
 }
 
-/** The soft sketch of a map that shimmers slowly, while its diagram is not written yet (build 84): large in the frame of Home, small in a card. */
+/** The soft sketch of a map that shimmers slowly, while its diagram is not written yet: large in the frame of Home, small in a card. */
 let sketches = 0;
 function sketchHtml(small = false) {
   const id = `sk${++sketches}`;
@@ -348,7 +348,7 @@ const Overview = {
   /**
    * The cards under the diagram, into `holder`: one for each item, in its order. An item is { title, draw(box), shape, open() } for a node with a diagram
    * of its own, drawn small and read only (`shape`: drawingShape() of its drawing), or { title, files: [{ path, line?, folder?, count?, counts?, diff? }] }
-   * for a node that leads to files; `changes`: the changes that touch the node, as rows at its bottom; `node` is the id of its node, and `run` ({ state, share }) the state of its area while a map is written (build 84): a card
+   * for a node that leads to files; `changes`: the changes that touch the node, as rows at its bottom; `node` is the id of its node, and `run` ({ state, share }) the state of its area while a map is written: a card
    * that a writer works on shows a sketch that shimmers, a turning mark and its own bar; a card that waits is empty, with a dashed edge and a faint name.
    * A card with a drawing is filled when it comes into view, so a level with many nodes opens at once. A click on a card with a diagram goes one level
    * down (open); a click on a file row does what the page does for that row. The cards take the sizes of their contents and are placed with no gaps.
@@ -424,7 +424,7 @@ const Overview = {
     else this.trim();
   },
 
-  /** The rows of the cards changed their width (an icon came or went, build 85): the cards are placed again. */
+  /** The rows of the cards changed their width (an icon came or went): the cards are placed again. */
   relayout() {
     if (this.held?.holder.isConnected) this.layout(this.held.holder, this.held.items);
   },
@@ -440,7 +440,7 @@ const Overview = {
    */
   sizeOf(card, item, unit, columns) {
     const work = card.querySelector('.ovw');
-    // The rows of the changes at the bottom count as the head does (build 86): whole across, and their height taken from the room of the content.
+    // The rows of the changes at the bottom count as the head does: whole across, and their height taken from the room of the content.
     const changes = [...card.querySelectorAll('.ovx a')].map((row) => row.querySelector('.nm').scrollWidth + 10 + row.querySelector('.c').offsetWidth);
     const named = unitsFor(Math.max(card.querySelector('.ovn').scrollWidth + (work ? work.offsetWidth + 10 : 0), ...changes) + 24 + 2, unit);
     const head = card.querySelector('.ovh').offsetHeight + (card.querySelector('.ovx')?.offsetHeight ?? 0);
@@ -448,7 +448,7 @@ const Overview = {
       const fill = (w, h) => fillOf(item.shape.ratio, w, h, unit, head);
       // How much larger than its own size the drawing is drawn in a card of w by h units (its width as guessed, or as it came out).
       const scale = (w, h) => (item.shape.width ? Math.min((unitsPx(w, unit) - 26) / item.shape.width, ((unitsPx(h, UNIT_HIGH) - head - 18) * item.shape.ratio) / item.shape.width) : 1);
-      const least = item.shape.nodes <= 3 && !item.changes?.length ? 1 : 2; // over the rows of its changes a drawing needs two units to read (build 86)
+      const least = item.shape.nodes <= 3 && !item.changes?.length ? 1 : 2; // over the rows of its changes a drawing needs two units to read
       const own = drawingUnits(item.shape, least);
       const w = Math.max(own.w, named);
       const downs = [1, 2, 3].filter((h) => h >= least);
@@ -461,7 +461,7 @@ const Overview = {
     const rows = [...card.querySelectorAll('.ovf a')];
     const rowHigh = rows[0]?.offsetHeight || 21;
     const need = head + 16 + 2 + files.length * rowHigh; // the head, the room of the body above and under its rows, the borders, and the rows
-    // A row whole: its icon with the room after it (build 85, FileIcons), its folder, its name and its count (the name takes at most 75% of a row).
+    // A row whole: its icon with the room after it (FileIcons), its folder, its name and its count (the name takes at most 75% of a row).
     const icon = rows[0]?.querySelector('.fi');
     const iconRoom = icon?.offsetWidth ? icon.offsetWidth + parseFloat(getComputedStyle(icon).marginRight) : 0;
     const wide = rows.length ? Math.max(...rows.map((row) => { const name = row.querySelector('.nm').scrollWidth; return Math.max(name / 0.75, iconRoom + (row.querySelector('.dir')?.scrollWidth ?? 0) + name + row.querySelector('.c').offsetWidth + 2); })) : 0;
@@ -497,7 +497,7 @@ const Overview = {
   },
 
   /**
-   * A page that is a little too high for its tab does not scroll: the frame of the diagram gives up those pixels (build 84). A page much higher than its
+   * A page that is a little too high for its tab does not scroll: the frame of the diagram gives up those pixels. A page much higher than its
    * tab keeps its frame and scrolls to its cards. A drawing that the surface does not make smaller than READABLE keeps its whole height (`least`).
    */
   trim() {
@@ -510,7 +510,7 @@ const Overview = {
   },
 
   /**
-   * How much of the cards shows under a frame that fills the tab (build 85): the room above the well and inside it, the head of the first row of
+   * How much of the cards shows under a frame that fills the tab: the room above the well and inside it, the head of the first row of
    * cards and a little of their content. Before the cards are written, the peek measured last.
    */
   peek() {
@@ -524,7 +524,7 @@ const Overview = {
   },
 
   /**
-   * The card of the node that has the focus is focused too (build 85): its accent edge, and the other cards fade as the other nodes do; no card has it
+   * The card of the node that has the focus is focused too: its accent edge, and the other cards fade as the other nodes do; no card has it
    * when no node has the focus. With `reveal`, the page scrolls smoothly, by the least amount, when no part of the card is in view.
    */
   focused(node, reveal = false) {
@@ -559,15 +559,15 @@ function fileRowHtml(file) {
   return `<a ${attrs} title="${esc(file.path)}">${FileIcons.html(file.path)}<span class="dir"><bdi dir="ltr">${esc(at)}</bdi></span><span class="nm">${esc(name)}</span><i class="c">${count}</i></a>`;
 }
 
-/** The count of a row of the map, in a card and in the window of a node: the counts of the changes that touch it (build 86), then a folder's count of files. */
+/** The count of a row of the map, in a card and in the window of a node: the counts of the changes that touch it, then a folder's count of files. */
 const mapCountHtml = (diff, files) => [countsHtml(diff), files ? plural(files, 'file') : ''].filter(Boolean).join(' · ');
 
-/** One row for each change that touches a node, in its card and in its window (build 86): the branch, and how many files of the node it changes. A click opens the change. */
+/** One row for each change that touches a node, in its card and in its window: the branch, and how many files of the node it changes. A click opens the change. */
 const changeRowsHtml = (changes = []) => changes.map((change) =>
   `<a data-change-id="${change.id}" data-title="${esc(change.title)}"><span class="nm">${esc(change.branch)}</span><i class="c">${plural(change.files.length, 'file')} changed</i></a>`).join('');
 
 /**
- * The height of the frame of a diagram in the overview (build 85): the height of the drawing ({ width, height }) at the scale that the surface really
+ * The height of the frame of a diagram in the overview: the height of the drawing ({ width, height }) at the scale that the surface really
  * draws it at in a frame `across` px wide, with its room to the edges. That scale fits the drawing to the width, at most GROW, and not below `floor`
  * where the surface opens a wide drawing readable (READABLE). The frame is at least OVERVIEW_LEAST high, and at most `room` (the height of the tab
  * under the top of the frame) less `peek`, so that the head of the first row of cards and a little of their content still show under it.
@@ -601,4 +601,4 @@ function keepOverview(stage, width, height, readable) {
   addEventListener('resize', again);
 }
 
-if (typeof module === 'object') module.exports = { placeCards, drawingShape, drawingUnits, fillOf, frameHeight, GROW, OVERVIEW_LEAST, OVERVIEW_ROOM }; // for the tests in Node
+if (typeof module === 'object') module.exports = { placeCards, drawingUnits, fillOf, frameHeight, GROW, OVERVIEW_LEAST, OVERVIEW_ROOM }; // for the tests in Node

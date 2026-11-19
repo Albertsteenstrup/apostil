@@ -1,6 +1,6 @@
 # Icons for pull requests
 
-The owner asked for the same icons that he knows from GitHub and from the Claude app (11 November 2026). The icons for the state of a pull request are `git-pull-request-draft`, `git-pull-request`, `git-pull-request-closed`, `git-merge` and `git-merge-conflict`. The others are for the rows of a conversation, the checks, the side facts and the search of the list.
+Most icons are the ones that GitHub and the Claude app show; the table names where each file comes from. The icons for the state of a pull request are `git-pull-request-draft`, `git-pull-request`, `git-pull-request-closed`, `git-merge` and `git-merge-conflict`. The others are for the rows of a conversation, the checks, the side facts and the search of the list.
 
 | File | From | Licence |
 |---|---|---|
@@ -9,7 +9,7 @@ The owner asked for the same icons that he knows from GitHub and from the Claude
 | `filter.svg` | Drawn for Apostil: three lines, each shorter than the one above, for "Sort and filter" in the list of the side bar | The licence of Apostil |
 | `search.svg` | Drawn for Apostil: a ring and a handle, for the search of the list of the side bar | The licence of Apostil |
 
-The files are unchanged, apart from the size attributes and the removed class of the Lucide icon. An Octicon is drawn with `fill: currentColor`, the Lucide icon with `stroke: currentColor`.
+The files are as their packages give them, without their size attributes, and the Lucide icon without its class. An Octicon is drawn with `fill: currentColor`, the Lucide icon with `stroke: currentColor`.
 
 ## MIT License (Octicons)
 

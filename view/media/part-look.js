@@ -1,6 +1,6 @@
-// The look of a repo on the parts that a page draws as HTML: the rows of the list "Repo" and the parts of the page of a pull request (build 61).
+// The look of a repo on the parts that a page draws as HTML: the rows of the list "Repo" and the parts of the page of a pull request.
 // Which rule wins a slot of a part is decided as for a thing of a drawing (Marks.resolve in marks.js). This file reads the fields of a part, orders
-// rows, and gives the colours and the icons of a rule as HTML. With no look, or no rule for a part, the part gets no slot and is drawn as before.
+// rows, and gives the colours and the icons of a rule as HTML. With no look, or no rule for a part, the part gets no slot and keeps its own style.
 // Nothing here draws, so that the tests read it in Node.
 'use strict';
 
@@ -69,7 +69,7 @@ const PartLook = (() => {
   }
 
   /**
-   * The rows of the list in the order of a rule, from the groups of the sessions (the order of today inside each): grouped by its field "group";
+   * The rows of the list in the order of a rule, from the groups of the sessions (in their default order inside each): grouped by its field "group";
    * with "by" and no group in one group, as a sort makes one flat list; else under the heads of their sessions, the group of a row that comes first first.
    * Returns [{ by, value, agent, rows }]: `by` is the field of the groups ("session", another field, or none).
    */
@@ -101,7 +101,7 @@ const PartLook = (() => {
   /** The bits of the status strip in their order: the rule's, else the reviewers (or the review in words when none is asked), the checks and the blocker. */
   const stripBits = (look, pull) => slotsOf(look, 'status-strip', { state: pull.state }).content?.fields ?? [pull.reviewers.length ? 'reviewers' : 'review', 'checks', 'blocker'];
 
-  /** The sections of the side column that show, in their order: the ones of "order.first" first, then the others as before (Marks.shownInOrder). */
+  /** The sections of the side column that show, in their order: the ones of "order.first" first, then the others in their default order (Marks.shownInOrder). */
   const sideSections = (look, ids) => Look.shownInOrder(ids.map((id) => ({ kind: 'side-section', id, fields: { id } })), look).map((one) => one.id);
 
   // The kind of an event (EVENT_KINDS in shared/look.ts), by the icon that the reader gives it (shared/read-pull-request.ts).
@@ -115,7 +115,7 @@ const PartLook = (() => {
   const messageType = (item, author = item.author) => (item.kind === 'review' ? 'review' : author?.bot ? 'bot' : 'comment');
 
   return {
-    slotsOf, colorAttrs, boxAttrs, wordsAttrs, iconHtml, labelColor, shows, NONE,
+    slotsOf, boxAttrs, wordsAttrs, iconHtml, labelColor, shows, NONE,
     rowFields, checksWord, startSearch, rowOrder, rowGroups,
     checkFields, checkShown, checkGroups, stripBits, sideSections, eventOf, messageType,
   };
