@@ -153,7 +153,8 @@ const leftAt = { page: null, views: new Map() };
  * With `stack` (one of several diagrams one under the other in a half that scrolls), the card takes the height of the diagram fit to its width, or at the size
  * where its words read, and at most most of the half; a scroll that the drawing cannot take (all of it shows that way) scrolls the half.
  * With `key` (the name of the diagram in its view), the same diagram drawn again keeps the zoom and the place that he left it at (leftAt); a fit forgets them.
- * With `overview` (build 83: cards stand under it), the card takes the upper part of the tab, and a small diagram is drawn larger, up to GROW, to fill its width.
+ * With `overview` (build 83: cards stand under it), the card takes the height of the drawing at the scale that it is drawn at, at most the tab down to the
+ * peek of the cards (keepOverview, build 85), and a small diagram is drawn larger, up to GROW, to fill its width.
  */
 function makeSurface(stage, readable = false, stack = false, key = undefined, overview = false) {
   const page = typeof Trail === 'object' ? Trail.ownKey() : null;
@@ -172,8 +173,11 @@ function makeSurface(stage, readable = false, stack = false, key = undefined, ov
     stage.style.height = `${Math.round(Math.min(height * scale, stage.closest('.half').clientHeight * 0.8))}px`;
   };
   delete stage.dataset.height; // the height of the frame in an overview, which Overview.trim reads
+  delete stage.dataset.least;
+  // In a half of the page a diagram too large for it, wide or tall, opens readable at its start too.
+  const half = !!stage.closest('.split');
   if (stack) stackHeight();
-  else if (overview) keepOverview(stage, width, height);
+  else if (overview) keepOverview(stage, width, height, readable || half);
   else keepFilled(stage);
   let view = { x: x0, y: y0, scale: 1 };
   let moved = false; // he moved or zoomed it, so a new size of the card keeps his view
@@ -185,8 +189,6 @@ function makeSurface(stage, readable = false, stack = false, key = undefined, ov
     if (moved) leftAt.views.set(key, view);
     else leftAt.views.delete(key);
   };
-  // In a half of the page a diagram too large for it, wide or tall, opens readable at its start too.
-  const half = !!stage.closest('.split');
   const fit = (whole = false) => {
     const [w, h] = [stage.clientWidth, stage.clientHeight];
     if (!w || !h) return;

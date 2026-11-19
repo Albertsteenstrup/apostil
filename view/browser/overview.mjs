@@ -33,14 +33,26 @@ try {
     };
   });
 
+  /** The frame of the diagram, the drawing in it, and the head of the first card under it (build 85). */
+  const frameNow = () => home.evaluate(() => {
+    const view = document.getElementById('view').getBoundingClientRect();
+    const drawn = (document.querySelector('#view svg g.root') ?? document.querySelector('#view svg > g'))?.getBoundingClientRect();
+    const head = document.querySelector('#cards .ovc .ovh')?.getBoundingClientRect();
+    const svg = document.querySelector('#view svg');
+    return {
+      top: Math.round(view.top), bottom: Math.round(view.bottom), drawn: drawn && [Math.round(drawn.top), Math.round(drawn.bottom)], cut: !drawn || drawn.top < view.top - 1 || drawn.bottom > view.bottom + 1,
+      scale: +(svg.getBoundingClientRect().width / svg.viewBox.baseVal.width).toFixed(2), head: head && Math.round(head.bottom), tab: innerHeight, scrolled: scrollY,
+    };
+  });
   // 1. Home opens in the overview: the top map large in the upper part of the tab, and a card for each of its 8 areas in the reading order of the map,
   // an area with a diagram under it drawn small, an area with folders and files as their list; the cards in a quiet well of their own under the frame.
   await homeAt();
   await cardsFilled();
   const top = await shown();
+  const smallTop = await frameNow();
   await takePicture(home, 'overview-1-home.png');
   check('Home opens in the overview: the top map in the upper part of the tab as large as its width allows, the icon "Full screen" at its top right, and under it one card for each of the 8 areas in the reading order of the map: an area with a diagram under it drawn small, an area that leads to folders and files with their list; the cards stand a little apart from the frame, on a surface of their own',
-    top.crumb === 'Home' && top.icon === 'Full screen' && top.frame.height < 900 * 0.62 && top.scale > 1 && top.wide > 1200
+    top.crumb === 'Home' && top.icon === 'Full screen' && top.frame.height < 900 * 0.5 && top.scale > 1 && top.wide > 1200
       && top.titles.join() === 'Web pages,Web routes,Guides and notes,Night jobs,Lending,Database,Front desk,Tests' && top.drawings.join() === 'Web pages,Web routes,Lending,Database'
       && top.files['Guides and notes']?.join() === 'docs/4 files,README.md' && top.files.Tests?.join() === 'tests/4 files' && Object.keys(top.files).length === 4
       && top.shows && top.under >= 16 && top.well !== top.paper, JSON.stringify(top));
@@ -85,6 +97,21 @@ try {
       && narrower.columns !== packed.columns && narrower.first === 'Web pages' && narrower.firstAt && narrower.holes === 0, JSON.stringify({ packed, narrower }));
   check('no card of the overview is narrower than its content (no folder or file name of a row is cut), no card of files is more than one unit taller than its rows need, and each drawing fills its card: the tall drawing of "Database" gets a card higher than wide, and each drawing fills at least 60% of its card both ways; also when the tab gets narrower',
     sized(packed) && sized(narrower), JSON.stringify({ packed, narrower }));
+
+  // 1c. Build 85: the frame takes the height of the drawing at the scale that the surface draws it at, and a tall drawing fills the tab down to the peek
+  // of the cards: the head of their first row and a little of their content. A wide map that opens readable (900 px) is not cut.
+  const tallAt = async (width, height) => { await home.setViewportSize({ width, height }); await homeAt('?diagram=process:answer-request/2'); return frameNow(); };
+  const tall1400 = await tallAt(1400, 900);
+  const tall900 = await tallAt(900, 700);
+  await home.setViewportSize({ width: 900, height: 700 });
+  await homeAt();
+  const readable900 = await frameNow();
+  await home.setViewportSize({ width: 1400, height: 900 });
+  // The peek: the bottom of the frame, the room above the well and in it, the head of a card (about 25 px) and 36 px of content.
+  const peeked = (one) => !one.cut && one.bottom >= one.tab - 100 && one.bottom <= one.tab - 90 && one.head <= one.tab - 30;
+  check('the frame of the diagram takes the height of the drawing at the scale that it is drawn at: the small top map keeps a small frame and is whole; a tall drawing fills the tab down to the peek of the cards, the head of their first row and a little of their content, at 1400 by 900 and at 900 by 700; at 900 px the wide top map opens readable and is not cut',
+    !smallTop.cut && smallTop.drawn[0] - smallTop.top <= 40 && smallTop.bottom - smallTop.drawn[1] <= 40 && peeked(tall1400) && peeked(tall900)
+      && !readable900.cut && readable900.scale === 0.85 && readable900.head < 700, JSON.stringify({ smallTop, tall1400, tall900, readable900 }));
 
   // 2. A click on a card goes one level down in the same layout; a click on a file of a card asks VS Code to open that file.
   const card = (title) => home.locator('.ovc', { has: home.locator('.ovh', { hasText: new RegExp(`^${title}$`) }) });

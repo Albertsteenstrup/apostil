@@ -7,10 +7,10 @@
 
 const FULL_KEY = 'apostil.diagramFull'; // as a file in a browser, the storage of the browser stands in for the state of VS Code
 const GROW = 1.4; // in the overview a small diagram is drawn up to this much larger, so that it fills the width; a drawing card grows only so far
-const OVERVIEW_SHARE = 0.58; // the share of the height of the tab that the diagram takes, so that the cards show under it
-const OVERVIEW_MOST = 0.85; // the share that it takes at most, for a drawing that would be smaller than its own size in the share above
 const OVERVIEW_LEAST = 220; // the least height of its frame
 const OVERVIEW_ROOM = 24; // the room between the drawing and each edge of its frame
+const PEEK_CONTENT = 36; // under the head of the first row of cards, this much of their content shows at the bottom of the tab (build 85)
+const PEEK_FIRST = 96; // the peek before the first cards are written: their head is measured when they are (Overview.peek)
 const CARD_GAP = 12; // the gap between two cards
 const UNIT_LEAST = (250 - CARD_GAP) / 2; // a unit is half a card of build 83 each way: two units and the gap between them are its size
 const UNIT_HIGH = (212 - CARD_GAP) / 2;
@@ -417,7 +417,10 @@ const Overview = {
       Object.assign(card.style, { gridColumn: `${x + 1} / span ${w}`, gridRow: `${y + 1} / span ${h}` });
       Object.assign(card.dataset, { units: `${w}x${h}` });
     });
-    if (!again) this.trim();
+    // The head of the cards gives the peek under the frame (keepOverview), so the frame takes its height again now that they are written.
+    if (again) return;
+    if (this.frame?.isConnected && this.frame.dataset.height && this.frame.sized) this.frame.sized();
+    else this.trim();
   },
 
   /**
@@ -485,7 +488,7 @@ const Overview = {
 
   /**
    * A page that is a little too high for its tab does not scroll: the frame of the diagram gives up those pixels (build 84). A page much higher than its
-   * tab keeps its frame and scrolls to its cards.
+   * tab keeps its frame and scrolls to its cards. A drawing that the surface does not make smaller than READABLE keeps its whole height (`least`).
    */
   trim() {
     const frame = this.frame;
@@ -493,7 +496,21 @@ const Overview = {
     const set = Number(frame.dataset.height);
     frame.style.height = `${set}px`;
     const over = document.documentElement.scrollHeight - innerHeight;
-    if (over > 0 && over <= set * TRIM_MOST && set - over >= OVERVIEW_LEAST) frame.style.height = `${set - over}px`;
+    if (over > 0 && over <= set * TRIM_MOST && set - over >= Math.max(OVERVIEW_LEAST, Number(frame.dataset.least ?? 0))) frame.style.height = `${set - over}px`;
+  },
+
+  /**
+   * How much of the cards shows under a frame that fills the tab (build 85): the room above the well and inside it, the head of the first row of
+   * cards and a little of their content. Before the cards are written, the peek measured last.
+   */
+  peek() {
+    const holder = this.held?.holder;
+    const head = holder && !holder.hidden ? holder.querySelector('.ovc .ovh') : null;
+    if (!head) return this.peeked ?? PEEK_FIRST;
+    const style = getComputedStyle(holder);
+    const card = getComputedStyle(head.parentElement);
+    this.peeked = Math.round(parseFloat(style.marginTop) + parseFloat(style.paddingTop) + parseFloat(card.borderTopWidth) + head.offsetHeight + PEEK_CONTENT);
+    return this.peeked;
   },
 
   /** The card of the node that has the focus gets a quiet accent edge (build 84); no card has it when no node has the focus. */
@@ -517,20 +534,29 @@ function fileRowHtml(file) {
 }
 
 /**
- * Gives the frame of a diagram in the overview its height, also when the tab changes its size: the upper part of the tab, as large as the width
- * allows, and no taller than the drawing needs at that size. A drawing that would then be smaller than the diagram alone shows it may take more of
- * the tab, up to OVERVIEW_MOST, so that its words keep their size. `width` and `height` are the size of the drawing. The room is counted from the top
- * of the frame with nothing scrolled. A page that is then a little too high for its tab takes it off the frame (Overview.trim).
+ * The height of the frame of a diagram in the overview (build 85): the height of the drawing ({ width, height }) at the scale that the surface really
+ * draws it at in a frame `across` px wide, with its room to the edges. That scale fits the drawing to the width, at most GROW, and not below `floor`
+ * where the surface opens a wide drawing readable (READABLE). The frame is at least OVERVIEW_LEAST high, and at most `room` (the height of the tab
+ * under the top of the frame) less `peek`, so that the head of the first row of cards and a little of their content still show under it.
  */
-function keepOverview(stage, width, height) {
+function frameHeight({ width, height, across, room, peek, floor = 0 }) {
+  const scale = Math.max(floor, Math.min(GROW, (across - 2 * OVERVIEW_ROOM) / width));
+  return Math.round(Math.max(OVERVIEW_LEAST, Math.min(height * scale + 2 * OVERVIEW_ROOM, room - peek)));
+}
+
+/**
+ * Gives the frame of a diagram in the overview its height (frameHeight), also when the tab changes its size and when the cards under it are written:
+ * a small diagram keeps a small frame, and a large one may fill the tab down to the peek of the cards. `width` and `height` are the size of the
+ * drawing; `readable`: the surface opens a wide drawing at the size where its words read. The room is counted from the top of the frame with nothing
+ * scrolled. A page that is then a little too high for its tab takes it off the frame (Overview.trim).
+ */
+function keepOverview(stage, width, height, readable) {
   const set = () => {
     let top = stage.getBoundingClientRect().top + scrollY;
     for (let el = stage.parentElement; el; el = el.parentElement) top += el.scrollTop;
-    const room = innerHeight - top;
-    const across = (stage.clientWidth - 2 * OVERVIEW_ROOM) / width;
-    const tall = (scale) => height * scale + 2 * OVERVIEW_ROOM; // the height of the frame for the drawing at this scale
-    const most = Math.max(room * OVERVIEW_SHARE, Math.min(tall(Math.min(1, across)), room * OVERVIEW_MOST));
-    stage.dataset.height = String(Math.round(Math.max(OVERVIEW_LEAST, Math.min(tall(Math.min(GROW, across)), most))));
+    const floor = readable ? READABLE : 0;
+    stage.dataset.height = String(frameHeight({ width, height, across: stage.clientWidth, room: innerHeight - top, peek: Overview.peek(), floor }));
+    stage.dataset.least = String(floor * width + 2 * OVERVIEW_ROOM > stage.clientWidth ? Math.ceil(height * floor) : 0); // opened readable: not cut by a trim
     stage.style.height = `${stage.dataset.height}px`;
     Overview.frame = stage;
     Overview.trim();
@@ -542,4 +568,4 @@ function keepOverview(stage, width, height) {
   addEventListener('resize', again);
 }
 
-if (typeof module === 'object') module.exports = { placeCards, drawingShape, drawingUnits, fillOf }; // for the tests in Node
+if (typeof module === 'object') module.exports = { placeCards, drawingShape, drawingUnits, fillOf, frameHeight, GROW, OVERVIEW_LEAST, OVERVIEW_ROOM }; // for the tests in Node
