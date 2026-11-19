@@ -192,6 +192,21 @@ try {
   check('a close from outside while a hover window waits leaves no wait behind: the next real move of the pointer on the same thing opens its window',
     openedAfterStoppedWait, JSON.stringify({ openedAfterStoppedWait }));
 
+  // The pointer can cross the edge of a window and its thing twice in a row, as when the window changes its content under the pointer: it leaves the
+  // window, then the thing, then comes back into the window. Only one wait to close runs, and the enter stops it: the window stays.
+  await page.hover(fileName);
+  const openedForEdges = !!(await hoverWindow());
+  await page.$eval(fileName, (thing) => {
+    const win = document.querySelector('.win');
+    win.dispatchEvent(new MouseEvent('mouseleave'));
+    thing.dispatchEvent(new MouseEvent('mouseleave'));
+    win.dispatchEvent(new MouseEvent('mouseenter'));
+  });
+  const staysAfterEdges = await page.waitForSelector('.win', { state: 'detached', timeout: 700 }).then(() => false, () => true); // it would close 0.25 s after a leave
+  await away();
+  check('a window that the pointer leaves and enters again across its edges stays open: the last enter stops every wait to close it',
+    openedForEdges && staysAfterEdges, JSON.stringify({ openedForEdges, staysAfterEdges }));
+
   // A node that a click opens grows a little under the pointer, from its middle. A node that opens nothing does not, and none does under the comment pointer.
   const underPointer = async (title, picking = false) => {
     const shape = page.locator(`${changeSection} g.node:has(${title}) > :first-child`);

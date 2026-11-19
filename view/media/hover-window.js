@@ -42,6 +42,8 @@ const Hover = (() => {
   let waiting = null; // the element whose window the open timer waits for: each stop of the timer clears it, so no wait stays asked for with no timer
   let hideTimer = 0;
   const stopWait = () => { clearTimeout(openTimer); waiting = null; };
+  // The pointer left the window or its thing: the window closes in 0.25 s, unless it comes back. Only one such wait runs, so the next enter stops it.
+  const hideSoon = () => { clearTimeout(hideTimer); hideTimer = setTimeout(hide, 250); };
   let turn = 0; // goes up with each window that is asked for and each close from outside: content that comes late for an older turn opens no window
   // A tab that shows again gets pointer events at the place where the pointer was before, though the pointer is elsewhere now.
   // So after a close from outside no window opens until the pointer has really moved.
@@ -80,7 +82,7 @@ const Hover = (() => {
     await content.ready?.(frame.body); // for a diagram that is drawn after the window opens
     placeWindow(frame.el, (around ?? anchor).getBoundingClientRect());
     frame.el.addEventListener('mouseenter', () => clearTimeout(hideTimer));
-    frame.el.addEventListener('mouseleave', () => { hideTimer = setTimeout(hide, 250); });
+    frame.el.addEventListener('mouseleave', hideSoon);
     // "Open" of the title bar only: a row of the body may carry data-open for a click of its own.
     if (content.open) frame.el.querySelector('.tb .act [data-open]')?.addEventListener('click', () => { hide(); content.open(); });
     if (content.act) frame.el.querySelector('.tb .act [data-act]')?.addEventListener('click', () => { hide(); content.act.run(); });
@@ -108,7 +110,7 @@ const Hover = (() => {
     anchor.addEventListener('mouseleave', () => {
       clicked = false;
       stopWait();
-      hideTimer = setTimeout(hide, 250);
+      hideSoon();
     });
     anchor.addEventListener('click', () => { clicked = true; stopWait(); });
   }
