@@ -601,4 +601,4 @@ function keepOverview(stage, width, height, readable) {
   addEventListener('resize', again);
 }
 
-if (typeof module === 'object') module.exports = { placeCards, drawingShape, drawingUnits, fillOf, frameHeight, GROW, OVERVIEW_LEAST, OVERVIEW_ROOM }; // for the tests in Node
+if (typeof module === 'object') module.exports = { placeCards, drawingUnits, fillOf, frameHeight, GROW, OVERVIEW_LEAST, OVERVIEW_ROOM }; // for the tests in Node

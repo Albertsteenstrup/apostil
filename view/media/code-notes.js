@@ -349,15 +349,6 @@ function codeToColor(code) {
   return code.lines.map((text, at) => (blank.has(at + 1) ? '' : text));
 }
 
-/** The rows of a range of lines of the file now, with the removed rows that stand before its first line and among its lines. */
-function rowsOfLines(rows, [first, last]) {
-  let start = rows.findIndex((row) => row.now === first);
-  const end = rows.findIndex((row) => row.now === last);
-  if (start < 0 || end < start) return [];
-  while (start > 0 && rows[start - 1].kind === 'del') start--;
-  return rows.slice(start, end + 1);
-}
-
 /** The rows of a diff: its changed lines with the lines around them, and a quiet row where the lines jump. Rows as in fileRows. */
 function diffRows(lines, cells) {
   const rows = [];
@@ -1331,4 +1322,4 @@ function diffSteps(into, scroller, { nav = null, moved = null, open = async () =
   };
 }
 
-if (typeof module === 'object') module.exports = { noteThing, lanesOf, cardPlaces, fileRows, diffRows, cellRows, changeRuns, spanOf, filesByPart, partOfFile, holdsRow, narrowestAt, thingsAt, focusRows, nextChange, changeNumber, stepPlace }; // for the tests in Node
+if (typeof module === 'object') module.exports = { noteThing, lanesOf, cardPlaces, fileRows, diffRows, changeRuns, spanOf, filesByPart, partOfFile, holdsRow, narrowestAt, thingsAt, focusRows, nextChange, changeNumber, stepPlace }; // for the tests in Node

@@ -149,7 +149,7 @@ const Search = (() => {
     return Object.fromEntries(KEYS.map((key) => [key, [...found[key].values()].sort((a, b) => b.count - a.count || a.value.localeCompare(b.value))]));
   }
 
-  return { KEYS, SORTS, DEFAULT, NO_PULL, parse, active, defaultSort, isOn, toggle, match, modifiedOf, createdOf, sortRows, menuValues };
+  return { KEYS, SORTS, DEFAULT, parse, active, defaultSort, isOn, toggle, match, modifiedOf, createdOf, sortRows, menuValues };
 })();
 
 if (typeof module === 'object') module.exports = Search; // for the tests in Node

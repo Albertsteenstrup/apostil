@@ -306,7 +306,6 @@ function drawStrip() {
   const link = App.tab ? null : App.pullLink();
   const full = link && App.read[link]?.pull;
   const short = App.page.pullOnly ? full : App.pull();
-  const height = el.offsetHeight;
   el.innerHTML = link && short ? Conversation.stripHtml(short, full, App.page.pullOnly ? 0 : App.pulls.length - 1) : '';
   Conversation.bindStrip(el);
 

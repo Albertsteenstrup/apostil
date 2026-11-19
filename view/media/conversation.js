@@ -1894,5 +1894,5 @@ const Conversation = (() => {
     picture.outerHTML = `<a class="nopic" data-link="${esc(picture.src)}">Picture: ${esc(picture.alt || 'a picture')}</a>`;
   }, true);
 
-  return { draw, refresh, writing, writesStarted, stripHtml, bindStrip, icon, problemHtml, ago, entriesOf, checksLine, codeLine, githubChoice, sendCode, messageChoice, sendOnMessage, WRITE };
+  return { draw, refresh, writing, writesStarted, stripHtml, bindStrip, icon, problemHtml, codeLine, githubChoice, sendCode, messageChoice, sendOnMessage, WRITE };
 })();

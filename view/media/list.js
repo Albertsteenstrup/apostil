@@ -124,7 +124,7 @@ function repoPullsHtml(order) {
   const ordered = order ? PartLook.rowGroups([{ rows }], pullsOf, { ...order, group: undefined })[0]?.rows ?? [] : rows;
   const all = unfolded.has('repo-pulls');
   return `<div class="eyebrow">${esc(States.WORDS.pullRequests)}${pullCount()}</div>${ordered.slice(0, all ? Infinity : SHOWN_PULLS).map((row) => pullRow(row.only)).join('')}`
-    + (ordered.length > SHOWN_PULLS ? foldLine('repo-pulls', all, all ? States.WORDS.fewer : States.WORDS.nMore(ordered.length - SHOWN_PULLS)) : '');
+    + (ordered.length > SHOWN_PULLS ? foldLine('repo-pulls', all ? States.WORDS.fewer : States.WORDS.nMore(ordered.length - SHOWN_PULLS)) : '');
 }
 
 /** The head of a session; a rule gives it other words (with {name} and {app}) and an icon in place of the icon of its app. */
@@ -136,7 +136,7 @@ function sessionHead(agent) {
 }
 
 /** A line that opens or folds a set of rows: its words say it ("2 more", "Fewer"), with no arrow. */
-const foldLine = (key, open, words, tip = '') => `<a class="fold" data-unfold="${esc(key)}"${tip ? ` title="${esc(tip)}"` : ''}>${esc(words)}</a>`;
+const foldLine = (key, words, tip = '') => `<a class="fold" data-unfold="${esc(key)}"${tip ? ` title="${esc(tip)}"` : ''}>${esc(words)}</a>`;
 
 /**
  * The rows of one agent session under its head: at most two with an open pull request, and a line that shows the others.
@@ -148,8 +148,8 @@ function groupHtml(group, index) {
   const all = unfolded.has(`more:${index}`), old = unfolded.has(`history:${index}`);
   return `<div class="grp">${group.agent ? sessionHead(group.agent) : ''}`
     + rows.filter((row) => sets.shown.includes(row) || (all && sets.more.includes(row))).map((row) => listRow(row)).join('')
-    + (sets.more.length ? foldLine(`more:${index}`, all, all ? States.WORDS.fewer : States.WORDS.morePulls(sets.more.length)) : '')
-    + (sets.history.length ? foldLine(`history:${index}`, old, States.WORDS.history(sets.history.length), States.WORDS.historyTip) : '')
+    + (sets.more.length ? foldLine(`more:${index}`, all ? States.WORDS.fewer : States.WORDS.morePulls(sets.more.length)) : '')
+    + (sets.history.length ? foldLine(`history:${index}`, States.WORDS.history(sets.history.length), States.WORDS.historyTip) : '')
     + (old ? sets.history.map((row) => listRow(row)).join('') : '')
     + '</div>';
 }

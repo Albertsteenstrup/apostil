@@ -332,7 +332,7 @@ async function drawHome() {
       // A call out of the repo leads nowhere: it is a quiet box with its window only. A click of the look goes to its target instead.
       // Two clicks do this (focusClicks): one click focuses the node, and the card of the overview does it at once. Where the cards show, only the
       // card and "Open" in the window do it.
-      const today = paths.length ? () => {
+      const open = paths.length ? () => {
         if (node.down) { if (!node.note) tell({ type: 'showInTree', paths }); walkTo(mapStep(node.down)); }
         else if (node.line) tell({ type: 'openFile', path: paths[0], line: node.line });
         else if (paths.length === 1 && !paths[0].endsWith('/')) tell({ type: 'openFile', path: paths[0] });
@@ -343,10 +343,10 @@ async function drawHome() {
       const content = node.note ? noteWindow(node, thing) : nodeWindow(g, node, thing);
       const carded = overview && leading.includes(g) && !node.note && !Marks.hasWindow(thing?.slots) && !hiddenMarks(thing).length;
       if (carded) Marks.inputWindow(g, thing?.slots ?? {}, Marks.nameOf(g));
-      else Hover.attach(g, async () => ({ ...(await content()), ...(today ? { open: today } : {}) }));
-      focusClicks(g, { stage: view, graph: joined, slots: thing?.slots, into: today, diagram: diagram.id }); // before the click of the node (Marks.bind)
-      if (Marks.bind(g, thing?.slots ?? {}, today, Marks.nameOf(g))) g.classList.add('go');
-      opens.set(g, today);
+      else Hover.attach(g, async () => ({ ...(await content()), ...(open ? { open } : {}) }));
+      focusClicks(g, { stage: view, graph: joined, slots: thing?.slots, into: open, diagram: diagram.id }); // before the click of the node (Marks.bind)
+      if (Marks.bind(g, thing?.slots ?? {}, open, Marks.nameOf(g))) g.classList.add('go');
+      opens.set(g, open);
     }
     Overview.cards(cards, overview ? leading.map((g) => homeCard(g, nodesOf[nodeKey(g)], opens.get(g), drawn.graph, areas?.[nodeKey(g)])) : []);
     lightNodes(view, Home.lit);

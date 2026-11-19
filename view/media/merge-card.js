@@ -230,7 +230,7 @@ const MergeCard = (() => {
     }
   }
 
-  return { WORDS, METHODS, LOOKS, of, merging, meters, canMerge, firstMethod, commitText, after, threadsOf };
+  return { WORDS, METHODS, LOOKS, of, merging, canMerge, firstMethod, commitText, after, threadsOf };
 })();
 
 if (typeof module === 'object') module.exports = MergeCard; // for the tests in Node

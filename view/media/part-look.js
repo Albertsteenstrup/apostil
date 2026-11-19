@@ -115,7 +115,7 @@ const PartLook = (() => {
   const messageType = (item, author = item.author) => (item.kind === 'review' ? 'review' : author?.bot ? 'bot' : 'comment');
 
   return {
-    slotsOf, colorAttrs, boxAttrs, wordsAttrs, iconHtml, labelColor, shows, NONE,
+    slotsOf, boxAttrs, wordsAttrs, iconHtml, labelColor, shows, NONE,
     rowFields, checksWord, startSearch, rowOrder, rowGroups,
     checkFields, checkShown, checkGroups, stripBits, sideSections, eventOf, messageType,
   };

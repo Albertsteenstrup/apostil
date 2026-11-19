@@ -707,9 +707,9 @@ const Marks = (() => {
   const shownInOrder = (rows, look) => (look ? orderRows(rows.filter((row) => slotsIn(look, row)['show.shown'] !== false), listOrder(rows, look))[0].rows : rows);
 
   const pure = {
-    covers, keyOf, holds, marksIn, picks, rankOf, resolve, fieldsOf, fillText, fillWords, orderRows, thingsOf, arrowMarks, edgesOf, flowWithout, shownFlow, targetWords, inputWords, windowOf, hasWindow, setPages,
+    covers, keyOf, holds, marksIn, picks, resolve, fieldsOf, fillText, fillWords, orderRows, thingsOf, edgesOf, shownFlow, targetWords, inputWords, windowOf, hasWindow, setPages,
     spreadOf, stackOf, namedThings, boxColors, lineColors, contrast, parse, SHOWN, READS,
-    flowArrows, groupsOf, boxesOf, drawingOf, openSteps, headOf, wordsHtml,
+    boxesOf, drawingOf, openSteps, headOf, wordsHtml,
     DATA_FILE, slotsIn, threadsOf, threadThing, pointThing, stepThings, diagramThing, changeThings, lineThing, marginThings, fileThings, listOrder, shownInOrder,
     marginIcons,
   };
@@ -969,19 +969,19 @@ const Marks = (() => {
   const DOUBLE_WAIT = 250; // a thing with a double click waits this long before its single click
 
   /**
-   * The input of a thing in the look: its click goes to the target of the rule, else to `today` (today's click, or none); a click with Alt or Shift,
-   * a double click, a key and a right click with a menu go to their targets. Only a thing with a double click waits before its single click.
-   * `name` is the title of its menu. Returns true when a click does something.
+   * The input of a thing in the look: its click goes to the target of the rule, else to `plain` (the click of the page with no rule, or none); a
+   * click with Alt or Shift, a double click, a key and a right click with a menu go to their targets. Only a thing with a double click waits before
+   * its single click. `name` is the title of its menu. Returns true when a click does something.
    */
-  function bind(el, slots, today, name = '') {
+  function bind(el, slots, plain, name = '') {
     const [alt, shift, double, keys, menu] = ['alt', 'shift', 'double', 'key', 'menu'].map((field) => slots[`input.${field}`]);
     const click = slots.click;
     let timer = 0;
-    if (click || today || alt || shift || double) {
+    if (click || plain || alt || shift || double) {
       el.addEventListener('click', (event) => {
         const held = event.altKey ? alt : event.shiftKey ? shift : null;
         if (held) { event.stopPropagation(); return act(held, el); }
-        const single = () => (click ? act(click, el) : today?.(event));
+        const single = () => (click ? act(click, el) : plain?.(event));
         if (!double) return single();
         clearTimeout(timer);
         timer = setTimeout(single, DOUBLE_WAIT);
@@ -995,7 +995,7 @@ const Marks = (() => {
       el.setAttribute('data-lk-keys', '');
       el.setAttribute('tabindex', '0');
     }
-    return !!(click || today);
+    return !!(click || plain);
   }
 
   /** The menu of a right click: a small window with one row for each entry; VS Code's own menu does not open here. */
@@ -1202,7 +1202,7 @@ const Marks = (() => {
     if (icon && !el.querySelector(':scope > .lk-icon')) el.insertAdjacentHTML('afterbegin', `<img class="lk-icon" src="${esc(icon)}" alt="">`);
   }
 
-  return { ...pure, lookText, decorate, decorateNote, stackWindow, placesHtml, doesWords, act, useHere, bind, inputWindow, nameOf, paint, paintBox, paintText };
+  return { ...pure, lookText, decorate, decorateNote, placesHtml, act, useHere, bind, inputWindow, nameOf, paint, paintBox, paintText };
 })();
 
 if (typeof module === 'object') module.exports = Marks; // for the tests in Node

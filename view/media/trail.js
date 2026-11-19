@@ -17,7 +17,6 @@ const Trail = (() => {
     const { level = 'change', part, diagram, view } = step.go ?? {};
     if (view === 'diffs') return `change:${step.change}:diffs`;
     if (view === 'conversation') return `change:${step.change}:conversation`;
-    if (view === 'conversation') return `change:${step.change}:conversation`;
     return `change:${step.change}:${level}${level === 'part' ? `:${part}` : level === 'broad' ? `:${diagram}` : ''}`;
   }
   const same = (a, b) => key(a) === key(b);
@@ -198,7 +197,7 @@ const Trail = (() => {
     move(way);
   });
 
-  return { ...pure, set, show, take, open, here: (opener) => { openHere = opener; }, ownKey: () => (own ? key(own) : null) };
+  return { ...pure, set, show, take, here: (opener) => { openHere = opener; }, ownKey: () => (own ? key(own) : null) };
 })();
 
 if (typeof module === 'object') module.exports = Trail; // for the tests and the extension in Node

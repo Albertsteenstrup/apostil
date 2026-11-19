@@ -234,8 +234,7 @@ const RunPick = (() => {
     if (!pick) return undefined;
     return { app: pick.spec.app, model: pick.value.model, effort: pick.value.effort, changed: pick.value.model !== pick.first.model };
   }
-  const isOpen = (key) => !!picks[key]?.open;
-  return { html, value, placeIn, isOpen, close };
+  return { html, value, placeIn, close };
 })();
 
 /**

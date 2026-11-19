@@ -1164,5 +1164,5 @@ const Remarks = (() => {
     open();
   }
 
-  return { open, openFromVsCode, boxOn, paint, paintNotes, draw, show: showAndOpen, goToThread };
+  return { openFromVsCode, boxOn, paint, paintNotes, draw, show: showAndOpen };
 })();
