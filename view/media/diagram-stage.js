@@ -715,6 +715,7 @@ async function drawChange(into, fromPart, tie) {
   if (svg) Places.mark(svg, { kind: 'diagram' });
   // The graph of the drawing for a focus (build 84): the parts by the ids of their nodes, and the links in the order of their drawn arrows.
   const graph = { nodes: Object.fromEntries(page.parts.map((one, at) => [`ap${at}`, one.name])), edges: links };
+  const carded = !Overview.isFull(); // each part has a card of the overview (changeCards): its window only with the rule "window" (build 86)
   for (const title of into.querySelectorAll('b[data-part]')) {
     const node = title.closest('g.node');
     const id = title.dataset.part;
@@ -727,7 +728,8 @@ async function drawChange(into, fromPart, tie) {
     focusClicks(node, { stage: into, graph, slots, into: open });
     Marks.bind(node, slots, (event) => { if (!event.target.closest('.f')) open(); }, thePart.name);
     if (tie) Hover.after(node, () => tie.part(id));
-    else Hover.attach(title, partWindow(thePart, slots), node);
+    else if (!carded || Marks.hasWindow(slots)) Hover.attach(title, partWindow(thePart, slots), node);
+    else Marks.inputWindow(title, slots, thePart.name);
   }
   const noPart = into.querySelector('b[data-nopart]');
   if (noPart) {
@@ -738,7 +740,7 @@ async function drawChange(into, fromPart, tie) {
     if (tie?.click) focusClicks(box, { stage: into, graph, into: () => tie.click('no-part') });
     if (tie?.click) box.addEventListener('click', (event) => { if (!event.target.closest('.f')) tie.click('no-part'); });
     if (tie) Hover.after(noPart.closest('g.node'), () => tie.part('no-part'));
-    else Hover.attach(noPart, filesWindow('In no part', page.checks.filesInNoPart), noPart.closest('g.node'));
+    else if (!carded) Hover.attach(noPart, filesWindow('In no part', page.checks.filesInNoPart), noPart.closest('g.node'));
   }
   for (const span of into.querySelectorAll('.f[data-file]')) {
     const path = span.dataset.file;

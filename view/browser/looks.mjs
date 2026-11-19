@@ -143,14 +143,16 @@ try {
       once?.type === 'openFile' && once.path === 'src/library/lending/notices.py' && once.line === 35 && down.crumb === 'Home›Lending: holds, requests and mails · PostgreSQL' && down.lit.join() === 'service,requests'
         && down.line === 'PostgreSQL · 27 places in Lending ×' && !cleared.lit && !cleared.line && cleared.crumb === 'Home›Lending: holds, requests and mails', JSON.stringify({ once, down, cleared }));
     // The contents and the button of the look: a picture node opens on a click like any node, a film plays with no sound only on a click, a button does its action.
-    // Where cards show (build 85), one click on it focuses it as any node, and "Open" in its window goes in.
+    // Where cards show (build 85), one click on it focuses it as any node; alone (build 86: where cards show it has no window) "Open" in its window goes in.
     await drawnAt(homeFile, '?look=1');
     await one.click(node('writing'));
     const pictureFocus = await one.evaluate(() => document.querySelector('#cards .ovc.focused')?.dataset.node ?? '');
-    await one.mouse.move(2, 2);
+    await one.evaluate(() => localStorage.setItem('apostil.diagramFull', '1'));
+    await drawnAt(homeFile, '?look=1');
     await one.hover(node('writing'));
     await one.click('.win .tb .act [data-open]', { timeout: 3000 }).catch(() => {});
     const picture = await sent();
+    await one.evaluate(() => localStorage.removeItem('apostil.diagramFull'));
     await one.click(`${node('jobs')} .mk-button`);
     const button = await sent();
     await drawnAt(homeFile, '?look=1&diagram=member-areas');
@@ -158,7 +160,7 @@ try {
     await one.click('#view .lk-play');
     await one.waitForFunction(() => !document.querySelector('#view video').paused, null, { timeout: 5000 });
     const playing = await one.evaluate(() => ({ muted: document.querySelector('#view video').muted, crumb: document.getElementById('crumb').textContent }));
-    check('a picture in place of a node takes a click like any node: one click focuses it and its card, and "Open" in its window opens it; a film shows its first frame and plays, with no sound, only on a click, and its play mark is no word of the name of the node; a button opens its file at its line',
+    check('a picture in place of a node takes a click like any node: one click focuses it and its card, and alone "Open" in its window opens it; a film shows its first frame and plays, with no sound, only on a click, and its play mark is no word of the name of the node; a button opens its file at its line',
       pictureFocus === 'writing' && picture?.type === 'showInTree' && picture.paths.join() === 'docs/,README.md' && button?.type === 'target' && button.target.file === 'src/library/night_jobs.py' && button.target.line === 516
         && still.paused && still.at === 0 && still.name === 'Holds: books to wait for' && playing.muted && playing.crumb === 'Home›The areas of the member page', JSON.stringify({ pictureFocus, picture, button, still, playing }));
     // A service icon shows in one place only (the owner: "only show service icon in one place. left side and aligned with line so middle is same height as middle as text"):
@@ -249,7 +251,7 @@ try {
     await look('a file tab with its notes');
     await one.goto(`file://${homeFile}`);
     await drawn(one);
-    await pointAt(one, '#view g.node');
+    await pointAt(one, '#view g.node[id*="flowchart-jobs-"] .mk-stack .mk-more'); // where cards show a node has no window (build 86); its stack of marks has
     const homeWindow = await one.waitForSelector('.win', { timeout: 3000 }).then(() => true, () => false);
     await look('Home with the map and a hover window', homeWindow, ['dark', 'light'].includes(key) ? '8-home' : ''); // in the two default themes
     await one.goto(`file://${homeFile}?diagram=${encodeURIComponent('process:answer-request/2')}`);
@@ -460,14 +462,15 @@ try {
     await one.goto(`file://${homeFile}?diagram=lib-tables`);
     await drawn(one);
     const home = await one.evaluate(() => ({ tables: document.querySelectorAll('#view svg.schema g.node.go').length, crumb: document.querySelector('#crumb')?.textContent }));
+    await one.evaluate(() => localStorage.setItem('apostil.diagramFull', '1')); // alone: where cards show a part has no window (build 86)
     await one.goto(`file://${pageFile}`);
     await drawn(one);
     await one.evaluate(() => Split.setHidden('code', true));
     await pointAt(one, '#view b[data-part="tables"]');
     await one.waitForSelector('.win svg.schema g.node', { timeout: 4000 }).catch(() => {});
     const window = await one.evaluate(() => ({ tables: document.querySelectorAll('.win svg.schema g.node').length, sub: document.querySelector('.win .tb .sub')?.textContent ?? '' }));
-    await one.evaluate(() => Split.setHidden('code', false));
-    check('a schema draws where a diagram draws: on the graphs page of the migration (the schema of the map and of the change, with the tables of the path lit), on Home at the schema of an area, and in the window on its part',
+    await one.evaluate(() => { Split.setHidden('code', false); localStorage.removeItem('apostil.diagramFull'); });
+    check('a schema draws where a diagram draws: on the graphs page of the migration (the schema of the map and of the change, with the tables of the path lit), on Home at the schema of an area, and alone in the window on its part',
       panels.join() === 'The tables of holds:2,Holds in the database:2' && home.tables === 2 && window.tables === 7 && /\+2 tables −2 tables/.test(window.sub), JSON.stringify({ panels, home, window }));
     await one.close();
   }

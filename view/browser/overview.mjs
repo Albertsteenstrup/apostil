@@ -54,7 +54,7 @@ try {
   check('Home opens in the overview: the top map in the upper part of the tab as large as its width allows, the icon "Full screen" at its top right, and under it one card for each of the 8 areas in the reading order of the map: an area with a diagram under it drawn small, an area that leads to folders and files with their list; the cards stand a little apart from the frame, on a surface of their own',
     top.crumb === 'Home' && top.icon === 'Full screen' && top.frame.height < 900 * 0.5 && top.scale > 1 && top.wide > 1200
       && top.titles.join() === 'Web pages,Web routes,Guides and notes,Night jobs,Lending,Database,Front desk,Tests' && top.drawings.join() === 'Web pages,Web routes,Lending,Database'
-      && top.files['Guides and notes']?.join() === 'docs/4 files,README.md' && top.files.Tests?.join() === 'tests/4 files' && Object.keys(top.files).length === 4
+      && top.files['Guides and notes']?.join() === 'docs/+26 −9 · 4 files,README.md' && top.files.Tests?.join() === 'tests/+105 −67 · 4 files' && Object.keys(top.files).length === 4
       && top.shows && top.under >= 16 && top.well !== top.paper, JSON.stringify(top));
 
   // 1b. Build 84: each card takes the size of its content, from half of the card of build 83 to half again each way, and the cards are packed with no
@@ -66,10 +66,14 @@ try {
     const cards = [...document.querySelectorAll('#cards .ovc')].map((card) => { const box = card.getBoundingClientRect(); return { card, title: card.querySelector('.ovn').textContent, units: card.dataset.units, left: box.left, top: box.top, right: box.right, bottom: box.bottom }; });
     const [left, top, right, bottom] = [Math.min(...cards.map((one) => one.left)), Math.min(...cards.map((one) => one.top)), Math.max(...cards.map((one) => one.right)), Math.max(...cards.map((one) => one.bottom))];
     const near = (x, y) => Math.min(...cards.map((one) => Math.hypot(Math.max(one.left - x, 0, x - one.right), Math.max(one.top - y, 0, y - one.bottom)))); // 0 inside a card
+    // A hole has a card under it in its column: the room under the bottom edge of a column is none (build 86: with the rows of the changes no placing
+    // of the top map ends flush, and the last row gives way first, as placeCards says).
+    const over = (x, y) => cards.some((one) => one.left <= x && x <= one.right && one.top > y);
     const holes = [];
-    for (let y = top + 1; y < bottom; y += 3) for (let x = left + 1; x < right; x += 3) if (near(x, y) > 12.5) holes.push([Math.round(x), Math.round(y)]);
-    const cut = cards.flatMap(({ card, title }) => [...card.querySelectorAll('.ovf .dir, .ovf .nm')].filter((part) => part.scrollWidth > part.clientWidth + 1).map((part) => `${title}: ${part.textContent}`));
-    const tall = cards.filter(({ card }) => card.querySelector('.ovf a')).map(({ card, title, bottom: to }) => ({ title, empty: Math.round(to - card.querySelector('.ovf a:last-child').getBoundingClientRect().bottom) })).filter((one) => one.empty > 100 + 12 + 12);
+    for (let y = top + 1; y < bottom; y += 3) for (let x = left + 1; x < right; x += 3) if (near(x, y) > 12.5 && over(x, y)) holes.push([Math.round(x), Math.round(y)]);
+    const cut = cards.flatMap(({ card, title }) => [...card.querySelectorAll('.ovf .dir, .ovf .nm, .ovx .nm')].filter((part) => part.scrollWidth > part.clientWidth + 1).map((part) => `${title}: ${part.textContent}`));
+    // The room under the last file row, down to the rows of the changes (build 86) or the bottom of the card.
+    const tall = cards.filter(({ card }) => card.querySelector('.ovf a')).map(({ card, title, bottom: to }) => ({ title, empty: Math.round((card.querySelector('.ovx')?.getBoundingClientRect().top ?? to) - card.querySelector('.ovf a:last-child').getBoundingClientRect().bottom) })).filter((one) => one.empty > 100 + 12 + 12);
     const fills = Object.fromEntries(cards.filter(({ card }) => card.querySelector('.ovb svg')).map(({ card, title }) => {
       const svg = card.querySelector('.ovb svg');
       const drawn = svg.viewBox.baseVal.width / svg.viewBox.baseVal.height;
@@ -92,10 +96,10 @@ try {
   const narrower = await packing();
   await home.setViewportSize({ width: 1400, height: 900 });
   const sized = (one) => one.cut.length === 0 && one.tall.length === 0 && Object.values(one.fills).length === 4 && Object.values(one.fills).every((fill) => fill >= 0.6) && one.databaseTall;
-  check('each card of the overview takes the size of its content, so cards of different sizes stand under the map; they are packed with no hole: the card of the first node at the top left, and each point of the block inside a card or in a gap of 12 px; when the tab gets narrower they are placed again, still with no hole',
+  check('each card of the overview takes the size of its content, so cards of different sizes stand under the map; they are packed with no hole: the card of the first node at the top left, and each point of the block above the bottom edge of its column inside a card or in a gap of 12 px; when the tab gets narrower they are placed again, still with no hole',
     packed.sizes.length >= 3 && packed.first === 'Web pages' && packed.firstAt && packed.holes === 0
       && narrower.columns !== packed.columns && narrower.first === 'Web pages' && narrower.firstAt && narrower.holes === 0, JSON.stringify({ packed, narrower }));
-  check('no card of the overview is narrower than its content (no folder or file name of a row is cut), no card of files is more than one unit taller than its rows need, and each drawing fills its card: the tall drawing of "Database" gets a card higher than wide, and each drawing fills at least 60% of its card both ways; also when the tab gets narrower',
+  check('no card of the overview is narrower than its content (no folder, file name or branch of a row is cut), no card of files is more than one unit taller than its rows need, and each drawing fills its card: the tall drawing of "Database" gets a card higher than wide, and each drawing fills at least 60% of its card both ways; also when the tab gets narrower',
     sized(packed) && sized(narrower), JSON.stringify({ packed, narrower }));
 
   // 1c. Build 85: the frame takes the height of the drawing at the scale that the surface draws it at, and a tall drawing fills the tab down to the peek
@@ -126,7 +130,7 @@ try {
   const stayed = await home.evaluate(() => Home.at);
   check('a click on a card goes one level down, in the same layout: the diagram of Lending on top and a card for each of its 7 nodes, files for those with files and the process of book requests drawn small; a click on a file of a card asks VS Code to open that file and Home stays',
     down.crumb === 'Home›Lending: holds, requests and mails' && down.icon === 'Full screen' && down.shows && down.titles.length === 7 && down.drawings.join() === 'Book requests'
-      && down.files['Queue and notices']?.join() === 'src/library/lending/notices.py,src/library/lending/queue.py'
+      && down.files['Queue and notices']?.join() === 'src/library/lending/notices.py+9 −3,src/library/lending/queue.py+6'
       && opened.length === 1 && opened[0].type === 'openFile' && opened[0].path === 'src/library/lending/queue.py' && stayed === 'lib-lending', JSON.stringify({ down, opened, stayed }));
 
   // 3. The icon shows the diagram alone, filling the tab; the choice holds after a reload and on the page of a change; the icon in the same place brings the overview back.
@@ -214,10 +218,17 @@ try {
   await homeAt();
   await cardsFilled();
   const homeIcons = await iconRows('#cards .ovf a');
+  await takePicture(home, 'overview-7-icons.png');
+  // The window of a node, alone: where its card shows it has none (build 86).
+  await home.click('#view > .ovt', { timeout: 3000 }).catch(() => {});
+  await settled();
   await home.locator('#view g.node[id*="flowchart-lending-"]').hover();
   await home.waitForSelector('.win .rows a[data-tree] .fi', { timeout: 5000 }).catch(() => {});
   const windowIcons = await iconRows('.win .rows a[data-tree], .win .rows a[data-open]');
-  await takePicture(home, 'overview-7-icons.png');
+  await home.mouse.move(2, 2);
+  await home.click('#view > .ovt', { timeout: 3000 }).catch(() => {});
+  await settled();
+  await cardsFilled();
   // A new theme while Home shows (the message of VS Code): one where every file and folder has the fallback icon, then no theme, then the made-up
   // theme again; the rows keep their place and take their new icons.
   const swapped = await home.evaluate(async () => {
@@ -256,6 +267,70 @@ try {
       && /^file(,file)+$/.test(swapped.plain) && /^no icon(,no icon)+$/.test(swapped.none) && swapped.back === Object.values(homeIcons).join() && swapped.same
       && Object.keys(noTheme).length > 0 && Object.values(noTheme).every((one) => one === 'no icon') && noRoom,
     JSON.stringify({ homeIcons, windowIcons, changeIcons, changeCut, swapped, noTheme, noRoom }));
+
+  // 7. Build 86: the cards show the diff of the changes that touch their node: a file row its counts, a folder row the sum of its changed files before
+  // its count of files, and one row for each change at the bottom of the card, of a card of files and of a card with a drawing. A click on that row
+  // opens the change and does not go into the card.
+  await homeAt();
+  await cardsFilled();
+  await placed();
+  const diffCards = await home.evaluate(() => Object.fromEntries([...document.querySelectorAll('#cards .ovc')].map((card) => [card.querySelector('.ovn').textContent, {
+    rows: [...card.querySelectorAll('.ovf a')].map((row) => row.textContent), colours: [...card.querySelectorAll('.ovf .c i')].map((one) => one.className).join(),
+    changes: [...card.querySelectorAll('.ovx a')].map((row) => `${row.querySelector('.nm').textContent}|${row.querySelector('.c').textContent}`),
+  }])));
+  await takePicture(home, 'overview-8-cards-diff.png');
+  const changeRow = '#cards .ovc[data-node="lending"] .ovx a[data-change-id]';
+  const changeTitle = await home.$eval(changeRow, (row) => row.dataset.title).catch(() => '');
+  await home.click(changeRow, { timeout: 3000 }).catch(() => {});
+  await home.waitForURL(/page\.html/, { timeout: 5000 }).catch(() => {});
+  await loaded();
+  const fromRow = await home.evaluate(() => document.getElementById('crumb').textContent);
+  const jobsCard = diffCards['Night jobs'] ?? {};
+  check('the cards show the diff of the changes that touch their node: a changed file its counts in the colours of the change page, a folder the sum of its changed files before its count of files, and at the bottom of a card of files and of a card with a drawing one row for each change with its branch and "n files changed"; a click on that row opens the change and does not go into the card',
+    jobsCard.rows?.join() === 'src/library/night_jobs.py+14 −18,src/library/dev_clock.py+11,src/library/jobs/1 file' && jobsCard.colours === 'p,m,p' && jobsCard.changes?.join() === 'book-holds|2 files changed'
+      && diffCards.Tests?.rows.join() === 'tests/+105 −67 · 4 files' && diffCards.Lending?.changes.join() === 'book-holds|9 files changed' && diffCards.Lending?.rows.length === 0
+      && !!changeTitle && fromRow === `Home›${changeTitle}`, JSON.stringify({ diffCards, changeTitle, fromRow }));
+
+  // Build 86: where cards show, a node with a card has no window of the pointer, unless the look gives it the rule "window" or its window has marks
+  // in no corner; a part of "Diagram" of a change with a card has none either. Alone, the window of a node shows the rows and counts of its card.
+  /** The groups of the window that the pointer on `selector` opens ("none" when none opens), else its title. */
+  const windowOn = async (selector) => {
+    await home.mouse.move(2, 2);
+    await home.waitForSelector('.win', { state: 'detached', timeout: 3000 }).catch(() => {});
+    await home.hover(selector, { timeout: 3000 }).catch(() => {});
+    return home.waitForSelector('.win', { timeout: 1500 }).then(() => home.evaluate(() => [...document.querySelectorAll('.win .gp')].map((one) => one.textContent).join('|') || document.querySelector('.win .tb b').textContent), () => 'none');
+  };
+  const jobs = '#view g.node[id*="flowchart-jobs-"]';
+  const holdPart = '#view b[data-part="hold-service"]';
+  await homeAt();
+  const plain = await windowOn(jobs);
+  await homeAt('?look=blocks');
+  const ruled = await windowOn(jobs);
+  await homeAt('?look=home&diagram=lib-tables');
+  const marked = { groups: await windowOn('#view g.node[id*="flowchart-book_hold-"]'), cards: await home.$$eval('#cards .ovc', (all) => all.length) };
+  await home.goto(`file://${pageFile}`);
+  await loaded();
+  const partWin = await windowOn(holdPart);
+  check('where cards show, a node with a card opens no window of the pointer: "Night jobs" has none; with the rule "window" of a look it has its window, and so has a node whose window has marks in no corner; a part of "Diagram" of a change with a card has none',
+    plain === 'none' && ruled === 'Folders and files|Changes' && marked.groups === 'Folders and files|Changes|Services' && marked.cards > 1 && partWin === 'none', JSON.stringify({ plain, ruled, marked, partWin }));
+
+  await homeAt();
+  await home.click('#view > .ovt', { timeout: 3000 }).catch(() => {});
+  await settled();
+  const aloneGroups = await windowOn(jobs);
+  const alone = await home.evaluate(() => ({
+    rows: [...document.querySelectorAll('.win .rows a[data-tree], .win .rows a[data-open]')].map((row) => row.textContent),
+    changes: [...document.querySelectorAll('.win .rows a[data-change-id]')].map((row) => `${row.querySelector('.nm').textContent}|${row.querySelector('.c').textContent}`),
+    colours: [...document.querySelectorAll('.win .rows a[data-tree] .c i, .win .rows a[data-open] .c i')].map((one) => one.className).join(),
+  }));
+  await takePicture(home, 'overview-9-alone-window.png');
+  await home.goto(`file://${pageFile}`);
+  await loaded();
+  const alonePart = await windowOn(holdPart);
+  await home.evaluate(() => localStorage.removeItem('apostil.diagramFull')); // the overview again
+  check('alone, the window of "Night jobs" shows the same rows and counts as its card, and its change with "n files changed"; a part of a change has its window',
+    aloneGroups === 'Folders and files|Changes' && alone.rows.join() === jobsCard.rows?.join() && alone.colours === jobsCard.colours && alone.changes.join() === jobsCard.changes?.join() && alonePart === 'Hold service',
+    JSON.stringify({ aloneGroups, alone, jobsCard, alonePart }));
 
   // Pictures for a person: the dark theme of VS Code.
   await homeAt();

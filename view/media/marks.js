@@ -476,6 +476,9 @@ const Marks = (() => {
     };
   }
 
+  /** True when a rule of the look gives the thing the slot "window": where cards show, a thing with a card has its window only then (build 86). */
+  const hasWindow = (slots = {}) => !!(slots['window.sections'] || slots['window.width']);
+
   /**
    * A section of its own in a window (build 58): its quiet title, and its blocks, which the page asks for when the window opens and Blocks draws
    * (media/blocks.js). `section.ref` names the blocks; the page carries no blocks before that.
@@ -704,7 +707,7 @@ const Marks = (() => {
   const shownInOrder = (rows, look) => (look ? orderRows(rows.filter((row) => slotsIn(look, row)['show.shown'] !== false), listOrder(rows, look))[0].rows : rows);
 
   const pure = {
-    covers, keyOf, holds, marksIn, picks, rankOf, resolve, fieldsOf, fillText, fillWords, orderRows, thingsOf, arrowMarks, edgesOf, flowWithout, shownFlow, targetWords, inputWords, windowOf, setPages,
+    covers, keyOf, holds, marksIn, picks, rankOf, resolve, fieldsOf, fillText, fillWords, orderRows, thingsOf, arrowMarks, edgesOf, flowWithout, shownFlow, targetWords, inputWords, windowOf, hasWindow, setPages,
     spreadOf, stackOf, namedThings, boxColors, lineColors, contrast, parse, SHOWN, READS,
     flowArrows, groupsOf, boxesOf, drawingOf, openSteps, headOf, wordsHtml,
     DATA_FILE, slotsIn, threadsOf, threadThing, pointThing, stepThings, diagramThing, changeThings, lineThing, marginThings, fileThings, listOrder, shownInOrder,

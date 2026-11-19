@@ -578,7 +578,7 @@ export const LOOK_PARTS = {
       example: { pick: ONE_NODE, input: { alt: { file: '<file>' }, menu: [{ name: 'Show the folder in Files', target: { folder: '<folder>/' } }] } },
     },
     window: {
-      what: 'the window of the pointer on the thing: its width, and which of its sections show, in their order; a section that "sections" does not name is not shown',
+      what: 'the window of the pointer on the thing: its width, and which of its sections show, in their order; a section that "sections" does not name is not shown; where cards show, a thing with a card shows it only with this or with marks in no corner',
       area: 'windows', fields: { width: 'pixels', sections: 'sections' },
       words: ['pop-up', 'popup', 'hover', 'tooltip', 'window', 'sections', 'wider'], gets: { width: 'a window width', sections: 'window sections' },
       example: { pick: ONE_NODE, window: { width: 440, sections: ['changes', 'files'] } },

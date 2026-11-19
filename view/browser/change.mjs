@@ -226,11 +226,15 @@ try {
   check('a part grows a little under the pointer and stays in its place; the node for files in no part does not, and no node does under the comment pointer',
     grows.part.scale === '1.03' && grows.part.wider > 1.02 && grows.part.wider < 1.05 && grows.part.moved < 0.6 && grows.noPart.scale === 'none' && grows.picking.scale === 'none', JSON.stringify(grows));
 
+  // Alone: where cards show, a part has no window (build 86).
+  await page.evaluate(() => { localStorage.setItem('apostil.diagramFull', '1'); return App.render(); });
   await page.hover('#view b[data-part="hold-service"]');
   await hoverWindow();
   await page.waitForFunction(() => document.querySelectorAll('.win svg g.node').length >= 8, null, { timeout: 5000 }).catch(() => {});
   const nextDiagram = await page.$$eval('.win svg g.node', (nodes) => nodes.length);
-  check('a hover on a part shows its next diagram down', nextDiagram >= 8, `${nextDiagram} nodes`);
+  await away();
+  await page.evaluate(() => { localStorage.removeItem('apostil.diagramFull'); return App.render(); }); // the overview again
+  check('alone, a hover on a part shows its next diagram down', nextDiagram >= 8, `${nextDiagram} nodes`);
   await shot('3-hover-on-part');
   await away();
 

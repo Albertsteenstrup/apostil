@@ -121,7 +121,7 @@ function lookOfNote(card, note, marks = []) {
   Marks.bind(card, slots, null, note.title);
   // Its window of the pointer when a rule gives it one: what a check found ("check"), and what a click does.
   const found = note.check ? `Check: ${note.check}` : note.failed ? `Line check: ${note.failed}` : '';
-  if (slots['window.sections'] || slots['window.width']) Hover.attach(card, () => ({ ...Marks.windowOf({ title: note.title, width: 320, sections: [{ id: 'check', html: found && `<p class="stepnote">${esc(found)}</p>` }] }, slots), pad: true }));
+  if (Marks.hasWindow(slots)) Hover.attach(card, () => ({ ...Marks.windowOf({ title: note.title, width: 320, sections: [{ id: 'check', html: found && `<p class="stepnote">${esc(found)}</p>` }] }, slots), pad: true }));
   else Marks.inputWindow(card, slots, note.title);
   return card;
 }

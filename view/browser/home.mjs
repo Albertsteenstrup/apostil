@@ -26,6 +26,8 @@ try {
   const sentCount = () => home.evaluate(() => window.apostilSent.length);
   /** The messages sent since `count` that lead somewhere: a step of the path, the tree "Files", a file. */
   const ledSince = (count) => home.evaluate((from) => window.apostilSent.slice(from).map((one) => one.type).filter((type) => /^(walk|showInTree|openFile)$/.test(type)), count);
+  /** The diagram alone (full screen) or the overview with its cards, for the next page that opens. */
+  const alone = (on) => home.evaluate((on) => (on ? localStorage.setItem('apostil.diagramFull', '1') : localStorage.removeItem('apostil.diagramFull')), on);
   /** The pointer leaves for a corner, and the hover window closes. */
   const away = async () => { await home.mouse.move(2, 2); await home.waitForSelector('.win', { state: 'detached', timeout: 3000 }); };
   /** The hover window of a node: its title, its sub title, its rows and the note of a step. */
@@ -47,6 +49,9 @@ try {
     names: [...document.querySelectorAll('#view g.node.go')].map((g) => g.textContent.trim()).filter(Boolean).length, crumb: document.getElementById('crumb').textContent,
   }));
   await takePicture(home, '30-home-with-a-map.png');
+  // The window of a node, alone: where its card shows it has none (build 86).
+  await alone(true);
+  await homeAt('');
   const nodeWin = await windowOf('lending');
   const grows = await home.$eval(`${nodeOf('lending')} > :first-child`, (el) => getComputedStyle(el).scale);
   const iconsStay = await home.$eval(`${nodeOf('lending')} > .mk-holder`, (el) => getComputedStyle(el).scale).catch(() => 'no icons'); // grown, they would shake under a resting pointer
@@ -63,10 +68,12 @@ try {
   const bigWin = await windowOf('lending');
   await away();
   await bigDraw(...smallCounts);
-  check('Home draws the top map as one surface: 8 named areas, no dot on any node, the line "Home" alone; an area grows a little under the pointer (the icons at its corner stay where they are) and opens a window with its folders and files, the count of files and the change that touches it; a large repo has commas in its counts',
+  await alone(false);
+  await homeAt('');
+  check('Home draws the top map as one surface: 8 named areas, no dot on any node, the line "Home" alone; an area grows a little under the pointer (the icons at its corner stay where they are) and alone opens a window with its folders and files, the count of files and the counts of the change that touches it; a large repo has commas in its counts',
     top.nodes === 8 && top.names === 8 && top.dots === 0 && top.surface && top.crumb === 'Home' && grows === '1.03' && iconsStay === 'none'
-      && nodeWin.title === 'Lending' && nodeWin.sub === '9 files · 1 change' && nodeWin.rows?.[0] === 'src/library/lending/9 files' && /^book-holds/.test(nodeWin.rows?.[1] ?? '')
-      && bigWin.sub === '2,339 files · 1 change' && bigWin.first === '5,132 files', JSON.stringify({ top, grows, iconsStay, nodeWin, bigWin }));
+      && nodeWin.title === 'Lending' && nodeWin.sub === '9 files · 1 change' && nodeWin.rows?.[0] === 'src/library/lending/+593 −83 · 9 files' && /^book-holds/.test(nodeWin.rows?.[1] ?? '')
+      && bigWin.sub === '2,339 files · 1 change' && bigWin.first === '+593 −83 · 5,132 files', JSON.stringify({ top, grows, iconsStay, nodeWin, bigWin }));
 
   // A click on a node goes down and "Home" goes up; a node with no diagram under it asks for its folder in the tree "Files" and never opens the graphs
   // of the folder; the window of a node of an area lists its files, and a click on a file asks VS Code to open it (build prompt 43).
@@ -82,6 +89,7 @@ try {
   const toTree = await home.evaluate(() => window.apostilSent.at(-1));
   const deskLed = await ledSince(sentBefore);
   const stillHome = await home.evaluate(() => Home.data.kind === 'home' && !/path=/.test(location.search) && document.getElementById('crumb').textContent === 'Home');
+  await alone(true);
   await homeAt('?diagram=lib-lending');
   await home.hover(nodeOf('queue'));
   const areaWin = await home.waitForSelector('.win', { timeout: 3000 }).then(() => home.evaluate(() => ({
@@ -91,7 +99,8 @@ try {
   await home.click('.win .rows a[data-open="src/library/lending/queue.py"]');
   const openFile = await home.evaluate(() => window.apostilSent.at(-1));
   const stayed = await home.evaluate(() => Home.data.kind === 'home' && Home.at);
-  check('the card of a node goes one level down ("Home › that diagram") and "Home" goes back up; a node with no diagram under it stays on the map and its card asks for its folder in the tree "Files", never the graphs of the folder; the window of a node of an area lists its files, and a click on one asks VS Code to open it',
+  await alone(false);
+  check('the card of a node goes one level down ("Home › that diagram") and "Home" goes back up; a node with no diagram under it stays on the map and its card asks for its folder in the tree "Files", never the graphs of the folder; alone, the window of a node of an area lists its files, and a click on one asks VS Code to open it',
     downCrumb === 'Home›Lending: holds, requests and mails' && downNodes === 7 && upCrumb === 'Home'
       && stillHome && deskLed.join() === 'showInTree' && toTree?.type === 'showInTree' && toTree.paths.join() === 'src/library/desk/' && toTree.open === true
       && areaWin.title === 'Queue and notices' && areaWin.group === 'Folders and files' && areaWin.files?.join() === 'src/library/lending/notices.py,src/library/lending/queue.py' && areaWin.folders === 0
