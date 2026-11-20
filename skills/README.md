@@ -20,12 +20,13 @@ In VS Code, answer the first question of Apostil with "This repo" or "All repos"
     apostil setup          # for the repo of this folder
     apostil setup --all    # for every repo
 
-Setup does two things:
+Setup does three things:
 
 - It puts the command `apostil` on the path (VS Code only; in a terminal the command is there already).
 - It copies the skills to the folders where each agent app reads them. For one repo: `.claude/skills/` (Claude Code) and `.agents/skills/` (Codex) of the repo. For all repos: `~/.claude/skills/` and `~/.agents/skills/`. It does this only for an app that is on the computer: its command (`claude`, `codex`) is on the path, or its folder (`~/.claude`, `~/.codex`) is there.
+- For Claude Code, it adds a hook to `.claude/settings.local.json` of the repo (for all repos: `~/.claude/settings.json`) that runs `apostil hint` at the start of each session: in a repo with a map, it tells the agent to use the map before it searches or reads files. It also allows the commands that only read the map (`apostil overview`, `find`, `notes`, `process`, `diagram`, `diagrams`, `tests` and `why`), so that you are not asked for each. `apostil links off` turns the hint off.
 
-Setup does not add the hook of Claude Code. That is a step of its own (`connect-claude-code.md`).
+Setup does not add the hook that brings your comments into a session of Claude Code. That is a step of its own (`connect-claude-code.md`).
 
 For one repo, Git does not show what setup adds: setup lists it in `.git/info/exclude`, which is not shared. When `.claude/skills` or `.agents/skills` is a link to another folder of the repo, the lines name that folder, where the copies really are.
 

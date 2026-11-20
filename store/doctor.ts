@@ -9,7 +9,7 @@ import { findOnPath } from '../shared/agents';
 import { repoId, tryGit } from '../shared/git';
 import { Store } from '../shared/store';
 import { ownTarget } from '../view/install-command';
-import { hasWaitHook, settingsFile } from './connect-claude-code';
+import { hasHook, settingsFile, WAIT_HOOK } from './connect-claude-code';
 import { appIsHere, SETUP_APPS, short, skillsSeen, type Install, type Machine } from './setup';
 import { setUpRepos } from './setup-record';
 
@@ -98,7 +98,7 @@ export function doctor({ folder, machine, install, cli, store, node = process.ve
 
   if (appIsHere(SETUP_APPS[0], machine)) {
     const files = [...(repo ? [{ file: settingsFile(repo), scope: 'this repo' }, { file: join(repo, '.claude', 'settings.json'), scope: 'this repo' }] : []), { file: settingsFile(undefined, machine.home), scope: 'all repos' }];
-    const hook = files.find((one) => hasWaitHook(one.file));
+    const hook = files.find((one) => hasHook(one.file, WAIT_HOOK));
     lines.push(`${'ok'.padEnd(8)} The hook of Claude Code: ${hook ? `added (for ${hook.scope})` : 'not added (optional)'}. It brings the comments that you send into a session.`);
   }
 

@@ -6,29 +6,29 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { git } from '../shared/git';
 import { makeTestRepo, runApostil, tempFolder } from '../shared/test-repo';
-import { addAllowRules, addWaitHook, removeWaitHook, settingsFile } from './connect-claude-code';
+import { addAllowRules, addHook, removeHook, settingsFile, WAIT_HOOK } from './connect-claude-code';
 
 const read = (file: string) => JSON.parse(readFileSync(file, 'utf8'));
 const commands = (settings: any, event: string): string[] => settings.hooks[event].flatMap((group: any) => group.hooks.map((hook: any) => hook.command));
 
 test('the hook goes into an empty settings file as the page about it shows it, a second time adds nothing, what a settings file holds stays, and a file in another form is not changed', () => {
   const empty = join(tempFolder('apostil-settings-'), '.claude', 'settings.json');
-  assert.deepEqual(addWaitHook(empty), { file: empty, added: true });
+  assert.deepEqual(addHook(empty, WAIT_HOOK), { file: empty, added: true });
   const page = readFileSync(join(__dirname, '..', '..', 'skills', 'connect-claude-code.md'), 'utf8');
   assert.deepEqual(read(empty), JSON.parse(/```json\n([\s\S]*?)```/.exec(page)![1]));
-  assert.deepEqual(addWaitHook(empty), { file: empty, added: false });
+  assert.deepEqual(addHook(empty, WAIT_HOOK), { file: empty, added: false });
   assert.deepEqual(commands(read(empty), 'Stop'), ['apostil inbox --wait']);
 
   const file = join(tempFolder('apostil-settings-'), 'settings.json');
   writeFileSync(file, JSON.stringify({ permissions: { allow: ['Bash(npm test)'] }, hooks: { Stop: [{ hooks: [{ type: 'command', command: 'say done' }] }] } }));
-  assert.equal(addWaitHook(file).added, true);
+  assert.equal(addHook(file, WAIT_HOOK).added, true);
   const settings = read(file);
   assert.deepEqual(settings.permissions, { allow: ['Bash(npm test)'] });
   assert.deepEqual(commands(settings, 'Stop'), ['say done', 'apostil inbox --wait']);
   assert.deepEqual(commands(settings, 'SessionStart'), ['apostil inbox --wait']);
   for (const text of ['not json', '[]', '{ "hooks": { "Stop": "x" } }']) {
     writeFileSync(file, text);
-    const result = addWaitHook(file);
+    const result = addHook(file, WAIT_HOOK);
     assert.equal(result.added, false);
     assert.match(result.problem ?? '', /Nothing was changed/);
     assert.equal(readFileSync(file, 'utf8'), text);
@@ -39,7 +39,7 @@ test('taking the hook out keeps a hook of the person that stands in the same gro
   const file = join(tempFolder('apostil-settings-'), 'settings.json');
   const mine = { type: 'command', command: 'say done' };
   writeFileSync(file, JSON.stringify({ hooks: { Stop: [{ hooks: [mine, { type: 'command', command: 'apostil inbox --wait' }] }], SessionStart: [{ hooks: [{ type: 'command', command: 'apostil inbox --wait' }] }] } }));
-  assert.equal(removeWaitHook(file), true);
+  assert.equal(removeHook(file, WAIT_HOOK), true);
   assert.deepEqual(read(file), { hooks: { Stop: [{ hooks: [mine] }] } });
 });
 

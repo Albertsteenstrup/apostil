@@ -19,6 +19,7 @@ import { Store, storeFolder, type NewOpenPoint } from '../shared/store';
 import { cleanup } from './cleanup';
 import { connectClaudeCode } from './connect-claude-code';
 import { doctor } from './doctor';
+import { hintCommand } from './hint';
 import { runIssue } from './issue';
 import { setup, thisInstall } from './setup';
 import { uninstall } from './uninstall';
@@ -66,6 +67,7 @@ const USAGE: Record<string, string> = {
   icon: 'apostil icon <service id> <https address> [--site <its site>] [--other-site] (keeps the picture of the service\'s own site as its icon; an address of a web page gives its link rel="icon")',
   ...MAP_USAGE,
   why: 'apostil why <path> [<path> ...] (plain lines: whether each file gets notes or only its path, and why: the line of .apostilignore that decides, else the rule of the code files)',
+  hint: 'apostil hint [--text] (for the SessionStart hook of Claude Code: in a repo with a map, the JSON that tells the agent which commands read the map; --text: the text alone; else nothing, and never exit code 1)',
   ...PROMPT_USAGE,
 };
 const POINT_KINDS = ['note-not-supported', 'no-note', 'thing-not-supported'];
@@ -265,6 +267,13 @@ export async function main(args: string[]): Promise<void> {
   if (command === '--version' || command === 'version') return console.log(thisInstall().version);
   if (['setup', 'doctor', 'uninstall'].includes(command) && !args.includes('--help')) return runForPerson(command, words);
   if (command === 'issue' && !args.includes('--help')) return runIssue(words, __filename);
+  // Run by a hook at the start of each session: it prints the hint or nothing, reads no standard input, and never fails.
+  if (command === 'hint' && !args.includes('--help')) {
+    const at = words.indexOf('--folder');
+    const hint = hintCommand(words, resolve((at >= 0 && words[at + 1]) || process.cwd()));
+    if (hint) console.log(hint);
+    return;
+  }
   // link, links and prompt print text, not JSON; a problem goes to the error output, with exit code 1.
   if (['link', 'links', 'prompt'].includes(command) && !args.includes('--help')) {
     const at = words.indexOf('--folder');

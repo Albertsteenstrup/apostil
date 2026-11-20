@@ -192,4 +192,7 @@ test('the skill apostil-read-diagrams starts at the overview, then find and --te
   for (const words of ['apostil overview', 'apostil find', '--text', 'name: apostil-read-diagrams']) assert.ok(skill.includes(words), words);
   assert.ok(skill.trimEnd().split('\n').length <= 60, `${skill.trimEnd().split('\n').length} lines`);
   assert.ok(skill.includes('## Broader diagrams and a change')); // the describe skill points to it
+  // Its description holds ": ", so it stands in quotes: else a strict YAML reader refuses the head of the skill, and the app does not load it.
+  const description = /^description: (.*)$/m.exec(skill)?.[1] ?? '';
+  assert.ok(!description.includes(': ') || /^"[^"\\]*"$/.test(description), description);
 });

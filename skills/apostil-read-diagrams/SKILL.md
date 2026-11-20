@@ -1,6 +1,6 @@
 ---
 name: apostil-read-diagrams
-description: Use before you search or read files to find or understand code in a repo with an Apostil map. Read the overview, find by the words of your task, and read the code only at the lines that the notes name.
+description: "Use first, before Grep, Glob or reading files, in a repo with an Apostil map: to find the code for a task, and to understand how the repo is set up. Read the overview, find by the words of the task, and read the code only at the lines that the notes name."
 ---
 
 # Find and understand code with the map

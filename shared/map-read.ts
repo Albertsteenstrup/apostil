@@ -9,7 +9,7 @@ import { diagramGraph } from './diagram-graph';
 import { fileText } from './git';
 import { linesNow, noteKey } from './notes-beside-code';
 import { isTestPath, parentsOf, parseKey, stepKey, type Process } from './processes';
-import { FILE_NOTES_PART, noteCount } from './repo-map';
+import { FILE_NOTES_PART, noteCount, notedFileCount } from './repo-map';
 import type { StoredMap } from './store';
 
 const CHANGED = '(changed since the map)';
@@ -29,7 +29,7 @@ const NEXT = [
 ];
 
 /** "1 note", "3 notes". */
-const count = (n: number, one: string, many = `${one}s`): string => `${n} ${n === 1 ? one : many}`;
+export const count = (n: number, one: string, many = `${one}s`): string => `${n} ${n === 1 ? one : many}`;
 
 /** At most `most` items, then "and <n> more". */
 const shortList = (items: string[], most: number): string => [...items.slice(0, most), ...(items.length > most ? [`and ${items.length - most} more`] : [])].join(', ');
@@ -149,11 +149,10 @@ export function mapOverview(stored: StoredMap): string {
   });
   const arrows = graph.edges.map((edge) => `${edge.from} -> ${edge.to}${edge.label ? `: ${edge.label}` : ''}`);
   const others = map.diagrams.filter((diagram) => diagram !== top).map((diagram) => `diagram ${diagram.id}  ${diagram.title}`);
-  const files = new Set([...(map.fileNotes ?? []), ...map.diagrams.flatMap((diagram) => diagram.notes ?? [])].map((note) => note.file)).size;
   return [
     `diagram ${top.id}  ${top.title}`, 'Its nodes, with their folders and files:', ...nodes, ...(arrows.length ? ['Its arrows:', ...arrows] : []),
     ...(others.length ? ['', 'The diagrams of its areas:', ...others.slice(0, AREAS), ...(others.length > AREAS ? [`and ${others.length - AREAS} more: apostil diagrams lists them`] : [])] : []),
-    '', `${count((map.processes ?? []).length, 'process', 'processes')} and ${count(noteCount(map), 'note')} in ${count(files, 'file')}.`,
+    '', `${count((map.processes ?? []).length, 'process', 'processes')} and ${count(noteCount(map), 'note')} in ${count(notedFileCount(map), 'file')}.`,
     '', 'Next:', ...NEXT,
   ].join('\n');
 }
