@@ -10,6 +10,8 @@ import { withEnd, withSave, type AreaWork, type MapRun, type MapSave } from '../
 import { lineFor, readScope } from '../shared/map-scope';
 import { markGroups } from '../shared/marks';
 import { areaOf, areasWaitingForNotes, codeFiles, noteGroups, processGroups } from '../shared/note-groups';
+import { parseKey } from '../shared/processes';
+import type { RepoMap } from '../shared/repo-map';
 import type { Store, StoredMap } from '../shared/store';
 import { setsOf } from './marks-save';
 import { notesWithCode, withFileNotes } from './note-code';
@@ -104,7 +106,7 @@ export function recordMapSave(store: Store, folder: string, save: MapSave, env: 
   let run: MapRun | undefined;
   store.changeMapRun(repo, (stored) => (run = withSave(stored, save, agentFromEnv(env), Object.keys(top?.nodePaths ?? {}).length, at)));
   if (!run) return;
-  if (run.saves?.length === 1) dropNotesOfGoneFiles(store, folder); // the first save of a run, before the plan counts the work
+  if (run.saves?.length === 1) dropGoneFiles(store, folder); // the first save of a run, before the plan counts the work
   const fresh = run.startedAt === at; // this save started the record
   const overviewNow = 'overview' in save && (run.saves ?? []).filter(([kind]) => kind === 'o').length === 1;
   const notesDone = 'noteFiles' in save && !!run.plan?.notes && noteGroups(folder, store.getMap(repo)).groups.length === 0;
@@ -117,27 +119,48 @@ export function recordMapSave(store: Store, folder: string, save: MapSave, env: 
 }
 
 /**
- * The notes of files that the map no longer holds, removed at the first save of a run (recordMapSave), never outside a run: the notes of a file that Git
- * no longer lists (deleted, or ignored now) and of a file that a plain line of .apostilignore now leaves out. So apostil find, apostil overview and the view
- * stop showing them, and the processes that named them count as stale. The skips of these files and their mark "no notes" go with them.
+ * What the map holds of the files that it no longer covers, removed at the first save of a run (recordMapSave), never outside a run. A file is gone when
+ * Git no longer lists it (deleted, or ignored now) or a plain line of .apostilignore now leaves it out. Its notes, skips, mark "no notes", set-aside notes
+ * and marks go, and so does each process whose every step lies in gone files, with its handoffs: no writer could redo it. A process with only some steps
+ * there stays, counts as stale, and its writer redoes it. So apostil find, apostil overview and the view stop showing any of it.
  */
-export function dropNotesOfGoneFiles(store: Store, folder: string): void {
+export function dropGoneFiles(store: Store, folder: string): void {
   const listed = repoFiles(folder);
   if (!listed) return; // no Git repo: nothing is known to be gone
   const known = new Set(listed);
   const scope = readScope(folder) ?? [];
   const gone = (file: string): boolean => !known.has(file) || lineFor(scope, file)?.notes === false;
+  const goneStep = (key: string): boolean => gone(parseKey(key)?.file ?? key);
   store.updateMap(repoId(folder), headCommit(folder), (stored) => {
     if (!stored) return undefined;
     const notes = notesWithCode(stored).filter((one) => !gone(one.note.file));
-    const skips = (stored.skips ?? []).filter((skip) => !gone(skip.file));
-    const noNotes = Object.entries(stored.noNotes ?? {}).filter(([path]) => !gone(path));
-    const same = notes.length === (stored.fileNotes ?? []).length && skips.length === (stored.skips ?? []).length && noNotes.length === Object.keys(stored.noNotes ?? {}).length;
-    if (same) return undefined; // nothing is gone: the map is not written again
-    const { noNotes: _none, skips: _skips, ...rest } = stored;
-    return withFileNotes({ ...rest, ...(noNotes.length ? { noNotes: Object.fromEntries(noNotes) } : {}), ...(skips.length ? { skips } : {}) }, notes);
+    const processes = (stored.processes ?? []).filter((process) => !process.steps.every(goneStep));
+    const kept = new Set(processes.map((process) => process.id));
+    const { noNotes, skips, handoffs, notInProcess, marks, markedFiles, ...rest } = stored;
+    const left = withFileNotes({
+      ...rest,
+      ...nonEmpty({
+        noNotes: Object.fromEntries(Object.entries(noNotes ?? {}).filter(([path]) => !gone(path))),
+        skips: (skips ?? []).filter((skip) => !gone(skip.file)),
+        processes,
+        handoffs: (handoffs ?? []).filter((one) => kept.has(one.from) && kept.has(one.to) && !gone(one.fromLine.file) && !gone(one.toLine.file)),
+        notInProcess: (notInProcess ?? []).filter((aside) => !goneStep(aside.note)),
+        marks: (marks ?? []).filter((mark) => !gone(mark.file)),
+        markedFiles: Object.fromEntries(Object.entries(markedFiles ?? {}).map(([set, read]) => [set, Object.fromEntries(Object.entries(read).filter(([path]) => !gone(path)))])),
+      }),
+    }, notes);
+    return sizes(left) === sizes(stored) ? undefined : left; // nothing is gone: the map is not written again
   });
 }
+
+/** The fields whose list or record holds something. */
+const nonEmpty = (fields: Partial<RepoMap>): Partial<RepoMap> =>
+  Object.fromEntries(Object.entries(fields).filter(([, value]) => (Array.isArray(value) ? value.length : Object.keys(value ?? {}).length)));
+
+/** How many things of files a map holds, in one line: equal lines mean that nothing was dropped. */
+const sizes = (map: RepoMap): string =>
+  [map.fileNotes, map.skips, Object.keys(map.noNotes ?? {}), map.processes, map.handoffs, map.notInProcess, map.marks, Object.values(map.markedFiles ?? {}).flatMap(Object.keys)]
+    .map((list) => list?.length ?? 0).join();
 
 /** The plan of a run that the press of Home starts: the whole work of the repo as it is now. */
 export const homePlan = (store: Store, folder: string, run: MapRun): MapRun => ({ ...run, plan: workPlan(store, folder, run) });

@@ -115,7 +115,24 @@ const ProcessDrawing = (() => {
     return `<div class="rows"><div class="gp">Called by ${node.callers.length} steps</div>${rows}</div>`;
   }
 
-  return { columnsOn, laidOut, link, decorate, callersHtml };
+  /**
+   * The key of a drawn process, quiet in the top left corner of its frame: a row for each kind of box it shows, and the numbers of the calls when
+   * an arrow has one. Only where something needs it: a drawing with no dashed box and no number has none.
+   */
+  function key(frame, diagram) {
+    frame.querySelector(':scope > .pd-key')?.remove();
+    const nodes = Object.values(diagram.nodes ?? {});
+    if (!nodes.some((node) => node.kind)) return; // not a drawn process
+    const elsewhere = nodes.some((node) => node.quiet && node.kind === 'step');
+    const outside = nodes.some((node) => node.kind === 'call');
+    const numbered = Object.keys(diagram.order ?? {}).length > 0;
+    if (!elsewhere && !outside && !numbered) return;
+    const box = (dashed) => `<i class="${dashed ? 'dash' : ''}"></i>`;
+    const rows = [`${box(false)}a step here`, elsewhere && `${box(true)}a step it calls elsewhere`, outside && `${box(true)}outside the repo`, numbered && '<b>1 2 3</b>the order of the calls'].filter(Boolean);
+    frame.insertAdjacentHTML('beforeend', `<div class="pd-key">${rows.map((row) => `<span>${row}</span>`).join('')}</div>`);
+  }
+
+  return { columnsOn, laidOut, link, decorate, callersHtml, key };
 })();
 
 if (typeof module === 'object') module.exports = ProcessDrawing; // for the tests in Node

@@ -374,6 +374,7 @@ async function drawHome() {
     // A wide map opens where its words read; drawn again with new data, it stays where he left it. The drawing in columns is another drawing.
     makeSurface(view, true, false, laid === diagram ? diagram.id : `${diagram.id}:columns`, overview);
     if (leading.length) Overview.icon(view, !overview, () => Home.render());
+    ProcessDrawing.key(view, plain ? diagram : laid); // what the dashed boxes and the numbers of a drawn process are
     runBar(view, time);
     const opens = new Map(); // the click of each node, which its card does too
     const joined = { ...drawn.graph, dots: (plain ? diagram : laid).dots }; // for a focus: with the boxes that a drawn process joins by a dot

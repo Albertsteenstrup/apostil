@@ -85,6 +85,13 @@ try {
     Object.keys(top.tags).length === 8 && top.under === 8 && top.tags.web === 'web/' && top.tags.routes === 'library/web/' && top.tags.jobs === 'jobs/ +2 files' && top.tags.data === 'db/ · scripts/',
     JSON.stringify({ tags: top.tags, under: top.under }));
 
+  // The key of a drawn process: a quiet row for each kind of box it shows, top left in its frame; a written diagram has none.
+  const keyOf = async (query) => { await homeAt(query); return home.evaluate(() => [...document.querySelectorAll('#view > .pd-key > span')].map((row) => row.textContent)); };
+  const keys = { step: await keyOf('?diagram=process:answer-request/2'), process: await keyOf('?diagram=process:answer-request'), map: await keyOf('?diagram=lib-lending') };
+  await homeAt('');
+  check('a drawn process has a quiet key in the top left corner of its frame, with a row only for what it shows: a step here, a step it calls elsewhere, outside the repo, the order of the calls; a written diagram has none',
+    keys.step.join('|') === 'a step here|a step it calls elsewhere|outside the repo' && keys.process.join('|') === 'a step here|outside the repo|1 2 3the order of the calls' && keys.map.length === 0, JSON.stringify(keys));
+
   // A click on a node goes down and "Home" goes up; a node with no diagram under it asks for its folder in the tree "Files" and never opens the graphs
   // of the folder; the window of a node of an area lists its files, and a click on a file asks VS Code to open it.
   await into('lending');
