@@ -1,7 +1,7 @@
 // Tests for the store of the map, add-diagram, and the map commands through the command line.
 
 import assert from 'node:assert/strict';
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { headCommit, repoId } from '../shared/git';
@@ -114,4 +114,17 @@ test('the map commands print what the contract says', () => {
   assert.deepEqual(JSON.parse(added.stdout).checks.badPaths.length, 1);
   assert.equal(JSON.parse(apostil('map').stdout).map.diagrams.length, 2);
   repo.remove();
+});
+
+test('every writer gets the rule of plain commands, and the lead starts a writer again after a refused command and never tells it to stop', () => {
+  const skill = (path: string): string => readFileSync(join(__dirname, '..', '..', 'skills', path), 'utf8');
+  const rules = skill('apostil-describe-change/text-rules.md');
+  // The last section of the text rules, which every writer of a map run and of a description gets in full.
+  assert.match(rules, /## How to run commands\n[^#]*one command alone[^#]*Never stop before your part is saved[^#]*$/);
+  assert.ok(rules.includes('`apostil notes` takes several paths at once'));
+  const lead = skill('apostil-map-repo/SKILL.md');
+  assert.ok(lead.includes('Run each of your own commands alone, as its own Bash call'));
+  assert.ok(lead.includes('    Run each command as its own plain Bash call: one `apostil` command alone, no `;`, no pipe, no loop.\n'));
+  assert.ok(lead.includes('Never tell a writer to stop.'));
+  assert.ok(skill('apostil-map-repo/notes-writer-prompt.md').includes('`skipsLeftOut`')); // the name that add-notes prints
 });

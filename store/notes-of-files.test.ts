@@ -111,7 +111,7 @@ test('add-notes refuses each fault with a sentence and saves nothing, keeps at m
   done();
 });
 
-test('add-notes lists the gaps of its files, the most used first; a skip answers a gap until a new save of its file, and a skip with no why or with no function is refused', () => {
+test('add-notes lists the gaps of its files, the most used first; a skip answers a gap until a new save of its file, and a skip with no why or with no function is left out while the notes are saved', () => {
   const { repo, store, id, done } = setup();
   repo.write('src/shop.py', 'def total(items):\n    sum = 0\n    for item in items:\n        sum += item\n    return sum\n\n\ndef unused(x):\n    y = x + 1\n    y = y * 2\n    return y\n\n\ndef label(name):\n    text = name.strip()\n    text = text.title()\n    return text\n');
   repo.write('src/a.py', 'from shop import label, total\nprint(label("x"), total([1]))\n');
@@ -129,8 +129,22 @@ test('add-notes lists the gaps of its files, the most used first; a skip answers
   assert.deepEqual(addNotesToMap(store, repo.folder, { notes: [note('src/shop.py', [1, 5], 'Add the items'), note('src/shop.py', [14, 17], 'Tidy the name')] }).gaps?.map((gap) => gap.name), ['unused']);
   assert.equal(store.getMap(id)?.map.skips, undefined);
 
-  assert.match(addNotesToMap(store, repo.folder, { notes: [], skip: [{ file: 'src/shop.py', lines: [8, 11] }] }).problems.join(' '), /Skip of src\/shop\.py 8-11: give "why"/);
-  assert.match(addNotesToMap(store, repo.folder, { notes: [], skip: [{ ...skip, lines: [6, 9] }] }).problems.join(' '), /Skip of src\/shop\.py 6-9: these lines are no function, method or class of the file/);
+  // A bad skip never blocks the save: the notes and the good skip are kept, and each bad skip is listed with its reason.
+  const notes = [note('src/shop.py', [1, 5], 'Add the items')];
+  const skips = [{ file: 'src/shop.py', lines: [14, 17] }, { ...skip, lines: [6, 9] }, skip, { file: 'src/shop.py' }, { ...skip, lines: [14, 17], why: 'Short. Two sentences.' }];
+  const bad = addNotesToMap(store, repo.folder, { notes, skip: skips });
+  assert.equal(bad.saved, true, bad.problems.join(' '));
+  assert.deepEqual(bad.skipsLeftOut, [
+    { file: 'src/shop.py', lines: [14, 17], reason: 'It has no "why", one short sentence that says why the code needs no note.' },
+    { file: 'src/shop.py', lines: [6, 9], reason: 'These lines are no function, method or class of the file, so they are no item of "gaps".' },
+    { file: 'src/shop.py', lines: undefined, reason: 'It needs "file" and "lines": [first, last], copied from an item of "gaps".' },
+    { file: 'src/shop.py', lines: [14, 17], reason: 'Its "why" is not one sentence of at most 20 words with no semicolon.' },
+  ]);
+  assert.deepEqual(store.getMap(id)?.map.fileNotes?.map((one) => one.title), ['Add the items']);
+  assert.deepEqual(store.getMap(id)?.map.skips, [skip]);
+  assert.deepEqual(bad.gaps?.map((gap) => gap.name), ['label']); // the gap of the skip with no why is still open
+  // A problem of a note still blocks the save, with its skips.
+  assert.equal(addNotesToMap(store, repo.folder, { notes: [note('src/shop.py', [1, 99], 'Too far')], skip: [skip] }).saved, false);
   done();
 });
 
@@ -271,7 +285,7 @@ test('two writers of two parts of one file save at the same time, and each keeps
   repo.remove();
 });
 
-test('the commands: add-notes removes its draft, apostil map prints counts and no notes of files, and apostil notes prints one file', () => {
+test('the commands: add-notes removes its draft, apostil map prints counts and no notes of files, and apostil notes prints one file, or one entry for each of several paths', () => {
   const repo = makeTestRepo();
   repo.write('src/app.py', Array.from({ length: 12 }, (_, at) => `line_${at + 1} = ${at + 1}`).join('\n') + '\n');
   repo.write('src/tool.py', 'def tool():\n    return 1\n');
@@ -294,8 +308,12 @@ test('the commands: add-notes removes its draft, apostil map prints counts and n
   assert.match(shown.hint, /2 code files need notes/); // new_tool.py and tool.py have none
 
   const one = JSON.parse(apostil('notes', 'src/app.py').stdout);
+  assert.equal(one.file, 'src/app.py');
   assert.deepEqual(one.notes.map((entry: Note) => entry.title), ['First half', 'Second half']);
   assert.equal(one.standing, 2);
+  const several = JSON.parse(apostil('notes', 'src/app.py', 'src/tool.py').stdout);
+  assert.deepEqual(several, { files: [one, JSON.parse(apostil('notes', 'src/tool.py').stdout)] });
+  assert.deepEqual(several.files[1].notes, []);
 
   const groups = JSON.parse(apostil('note-groups').stdout);
   assert.deepEqual(groups.groups.map((group: { files: { path: string }[] }) => group.files.map((file) => file.path)), [['src/new_tool.py', 'src/tool.py']]);

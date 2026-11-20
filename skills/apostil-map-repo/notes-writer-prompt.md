@@ -55,7 +55,7 @@ When it is saved, the command removes the file.
 
 Run `apostil note-groups` in the top folder of the repo. No file of your group may be in it: a file that is listed has no notes yet, or its save failed. Save the notes of each listed file of your group, or put it in `"files"`, and run the check again. Files of other groups are not yours.
 
-A save may also print `gaps`: functions, methods and classes of your files that have no note, the most used first. Answer each one once: write its note, or add `{ "file", "lines", "why" }` to a list `"skip"` next to `"notes"`, with `why` in one short sentence. Write your JSON again with all its notes and these answers, and save once more.
+A save may also print `gaps`: functions, methods and classes of your files that have no note, the most used first. Answer each one once: write its note, or add `{ "file", "lines", "why" }` to a list `"skip"` next to `"notes"`, with `why` in one short sentence. Skip only an item of `gaps`, and copy its `file` and `lines`: a skip of anything else is left out, and the save lists it in `skipsLeftOut`. Write your JSON again with all its notes and these answers, and save once more.
 
 ## Your report
 

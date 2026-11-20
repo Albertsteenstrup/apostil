@@ -58,6 +58,14 @@ Start several writers in one message: one tool call for each writer, at most 10 
 
 Each writer checks its own part before it reports, and reports one line: what it saved, or the problem. When a writer ends, run at most one command for it (the steps below name it), and start the next writers in the same message.
 
+Run each of your own commands alone, as its own Bash call, with no `;`, `&&`, `|`, loop or `$?`: the run refuses any other command.
+
+When a writer reports that a command was refused and its part is not saved, start that writer again at once, with the same things and this line added:
+
+    Run each command as its own plain Bash call: one `apostil` command alone, no `;`, no pipe, no loop.
+
+Never tell a writer to stop.
+
 The run waits for its writers. End your turn only when no writer runs, or when you wait for writers that you started: each writer reports to you when it ends, and you then check its save and start the next. Never end the run while a writer still works. In an app whose run ends with your turn (Codex), wait for the writers inside your turn, with its tool that waits for agents.
 
 ## Step 2: Start one area writer for each named area

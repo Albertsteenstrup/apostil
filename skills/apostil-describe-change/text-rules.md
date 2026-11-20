@@ -36,3 +36,11 @@ These rules apply to every title, name, note and reason that you write for Apost
 - note `title`: 2 to 6 words, a bare verb first. Note `text`: one sentence of at most 20 words. For a change it is optional: add it only when the title does not say enough.
 
 `apostil add-notes` refuses a note of a file whose title starts with an -s form or has more than 6 words, and a text with more than one sentence, a semicolon or more than 20 words. It also prints `style`: words that may be passive or -ing words. Change those when you can.
+
+## How to run commands
+
+- Run each command as its own Bash call: one command alone, with no `;`, `&&`, `||`, `|`, loop, `$( )`, `$?` or redirect. The run refuses such a command.
+- Read a file with Read, and search with Grep or Glob. Write or change a draft with Write or Edit, never with a script.
+- `apostil notes` takes several paths at once: `apostil notes a.py b.py`.
+- When a command is refused, do the same work again with plain commands and these tools. Never stop before your part is saved.
+- Report a refusal only when a plain `apostil` command alone is refused.
