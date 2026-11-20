@@ -543,10 +543,14 @@ test('the output of a run: its session, why it failed or stopped, and the comman
   assert.deepEqual(deniedRules('{"type":"result","permission_denials":[]}\n'), []);
 });
 
-test('the map run gets the skills as text, says in its first words when it also describes the change, has APOSTIL_NO_WAIT, and its draft file leaves the repo when it ends', async () => {
+test('the map run gets as text the files of the skills that its lead reads and no writer prompt, says in its first words when it also describes the change, has APOSTIL_NO_WAIT, and its draft file leaves the repo when it ends', async () => {
   const prompt = mapPrompt();
-  for (const words of ['# Map a repo', '# Write the overview of a repo', '# Write the diagram of one area', '# Write the notes of files', '"format": 1', MAP_DRAFT]) assert.ok(prompt.includes(words), words);
+  for (const words of ['# Map a repo', '# Write the look of a repo', MAP_DRAFT]) assert.ok(prompt.includes(words), words);
   assert.ok(prompt.includes(readFileSync(join(__dirname, '..', '..', 'skills', 'apostil-describe-change', 'text-rules.md'), 'utf8')));
+  // Each writer prints its own prompt and example with apostil prompt, so the lead never copies them into its briefs: it gets only the files that it reads itself.
+  const lead = ['----- apostil-map-repo/SKILL.md -----', '----- apostil-map-repo/look-writer-prompt.md -----', '----- apostil-describe-change/text-rules.md -----'];
+  assert.deepEqual(prompt.match(/^----- .+ -----$/gm), lead);
+  assert.ok(!prompt.includes('# Write the notes of files') && !prompt.includes('"format": 1'));
 
   // A stand-in for the agent app writes the draft file, as a writer does, and ends.
   const bin = tempFolder('apostil-bin-');
@@ -566,9 +570,9 @@ test('the map run gets the skills as text, says in its first words when it also 
   const both = mapPrompt(true);
   assert.ok(plain.startsWith('Write the map of this repo for Apostil Home, with the notes of its code files and its processes, as the skill apostil-map-repo says. The files'));
   assert.ok(!plain.includes('# Describe a change'));
-  assert.ok(plain.includes('----- apostil-map-repo/process-writer-prompt.md -----\n# Write the processes of a group of files')); // the prompt of the process writers
   assert.ok(both.startsWith(`Write the map of this repo for Apostil Home, with the notes of its code files and its processes, as the skill apostil-map-repo says. ${DESCRIBE_AFTER_MAP}`));
-  for (const words of ['# Describe a change', '----- apostil-describe-change/writer-prompt.md -----', '----- apostil-describe-change/fresh-check-prompt.md -----']) assert.ok(both.includes(words), words);
+  assert.deepEqual(both.match(/^----- .+ -----$/gm), [...lead, '----- apostil-describe-change/SKILL.md -----']); // the writer and the checkers print their prompts
+  assert.ok(both.includes('# Describe a change'));
 
   // A run that Apostil starts has APOSTIL_NO_WAIT in its environment, and keeps the rest.
   assert.equal(runEnvironment().APOSTIL_NO_WAIT, '1');

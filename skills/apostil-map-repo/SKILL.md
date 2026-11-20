@@ -31,6 +31,8 @@ The top diagram is drawn first, from folders and a few files, so the owner sees 
 
 You are the lead. You start the writers, check what they save, and correct them by starting a writer again. You never write a part of the map yourself.
 
+A brief to a writer is short: the line "First run `apostil prompt <kind>` and follow what it prints." with the kind of that writer, the path of the repo folder, and its group or the other things that its step names. The writer prints its prompt, the text rules and its example itself, so never copy a prompt or another file of this skill into a brief.
+
 When Apostil starts the run, its prompt names the model and the effort of every writer: use the model that Apostil names for each writer below, also for the overview writer and the process writers. You check their work with `apostil map --fit` (Step 6) and with the commands of each step.
 
 When no model is named (a person started this skill by hand), choose by the work. The overview needs judgment about the whole repo: what belongs together, and what flows between the areas. A medium or large model does that better. The diagram of one area, and the notes of one group of files, are local work: read the files, write what they hold. A small model does that well, and many writers can run at the same time. A process follows calls across files and must judge what a job is, so a medium model writes it. Use the newest model of each size that the app offers.
@@ -41,8 +43,7 @@ Use the model that Apostil names. When it names none, use a medium or large mode
 
 Give the writer:
 
-- the full text of `overview-writer-prompt.md` and of `../apostil-describe-change/text-rules.md`,
-- the full text of `example-map.json`,
+- the line "First run `apostil prompt overview` and follow what it prints.",
 - the path of the repo folder,
 - one line of the owner's wish, if he gave one (for example "focus on the server").
 
@@ -74,8 +75,7 @@ Use the model that Apostil names. When it names none, use a small model. Start t
 
 Give each writer:
 
-- the full text of `area-writer-prompt.md` and of `../apostil-describe-change/text-rules.md`,
-- the full text of `example-area-diagram.json`,
+- the line "First run `apostil prompt area` and follow what it prints.",
 - the path of the repo folder,
 - the id of the node of its area, the paths of that node, and the id of the top diagram.
 
@@ -85,11 +85,11 @@ Each writer adds its diagram with `apostil add-diagram`. It writes no notes. The
 
 Run `apostil note-groups` in the repo. It prints `{ "groups": [ ... ], "skipped": { ... } }`: each group has a `name` and its `files`, about 400 lines in sum, largest first. A file of 400 to 600 lines is a group of its own, whole. A longer file is cut into parts of about 400 lines, never inside a function: each part is a group of its own, its file has `part` (its first and last line), and the writers of the parts of one file run at the same time. It lists only the files and parts that need notes. When it lists more than 80 groups, tell the owner the count of groups and of lines (the sum of `lines` of the files) and ask whether to map all of it or only the paths that he names. Use `apostil note-groups --all` only when the owner wants the notes of every file written again.
 
-Use the model that Apostil names. When it names none, use a small model. Start one notes writer for each group, in the order listed: up to 16 at once with the area writers, and the next when one ends.
+Use the model that Apostil names. When it names none, use a small model. Start one notes writer for each group, in the order listed: up to 16 at once with the area writers, and the next when one ends. The number of groups is no reason to stop: start them all, 16 at a time, until `apostil note-groups` lists none. Only more than 80 groups asks the owner first, as above.
 
 Give each writer:
 
-- the full text of `notes-writer-prompt.md` and of `../apostil-describe-change/text-rules.md`,
+- the line "First run `apostil prompt notes` and follow what it prints.",
 - the path of the repo folder,
 - its group: the `name` and the `files` of that group, as the command printed them.
 
@@ -103,7 +103,7 @@ When all notes writers have ended, run `apostil note-groups`: when it lists a gr
 
 Use the model that Apostil names. When it names none, use a medium model. Give each writer:
 
-- the full text of `process-writer-prompt.md` and of `../apostil-describe-change/text-rules.md`,
+- the line "First run `apostil prompt process` and follow what it prints.",
 - the path of the repo folder,
 - its group: the `name` and the `files` of that group, as the command printed them.
 
@@ -139,11 +139,11 @@ Run `apostil mark-groups --set services` when `apostil process-groups` shows tha
 
 Use the model that Apostil names. When it names none, use a small model. Start one service writer for each group that it lists and that you have not started yet, in the order listed, in the places that are free, and the next when one ends. Give each writer:
 
-- the full text of `service-writer-prompt.md` and of `../apostil-describe-change/text-rules.md`,
+- the line "First run `apostil prompt service` and follow what it prints.",
 - the path of the repo folder,
 - its group: the `name` and the `files` of that group with their candidates, as the command printed them.
 
-Then, for each set of `apostil look` other than `services`, run `apostil mark-groups --set <id of the set>` at the same times, and start one mark writer for each group it lists that you have not started yet, on the model that Apostil names, else a small model. Give each writer the full text of `mark-writer-prompt.md` and of `../apostil-describe-change/text-rules.md`, the path of the repo folder, its group as the command printed it, and the id, the name, the rule and the values of the set, as `apostil look` printed them, in place of the words in `<…>` of the prompt.
+Then, for each set of `apostil look` other than `services`, run `apostil mark-groups --set <id of the set>` at the same times, and start one mark writer for each group it lists that you have not started yet, on the model that Apostil names, else a small model. Give each writer the line "First run `apostil prompt mark` and follow what it prints.", the path of the repo folder, its group as the command printed it, and the id, the name, the rule and the values of the set, as `apostil look` printed them: the writer reads them in place of the words in `<…>` of its prompt.
 
 Each writer saves its marks with `apostil add-marks`. The command keeps the marks of the other writers. If `groups` is empty, skip that set.
 

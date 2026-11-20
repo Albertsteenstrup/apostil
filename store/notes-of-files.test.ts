@@ -240,7 +240,7 @@ const LONG_PARTS = [[1, 408], [409, 816], [817, 1020]];
 /** The note of the function `at` of that file. */
 const stepNote = (at: number): Note => note('src/long.py', [51 * at + 1, 51 * at + 50], `Run step ${at}`);
 
-test('note-groups: a file of more than 600 lines is cut into parts, each a group of its own; a part is listed while no note or skip starts in it, every part while the file needs notes, and none of a set-aside file', () => {
+test('note-groups: a file of more than 600 lines is cut into parts, each a group of its own; a part is listed while no note or skip starts in it, and every part while the file needs notes', () => {
   const { repo, store, id, done } = setup();
   repo.write('src/long.py', LONG);
   const groups = (all = false) => noteGroups(repo.folder, store.getMap(id), all).groups.filter((group) => group.files[0].path === 'src/long.py');
@@ -261,9 +261,25 @@ test('note-groups: a file of more than 600 lines is cut into parts, each a group
   // When fewer than 8 of 10 notes of the file stand, every part is listed.
   repo.write('src/long.py', LONG.replace(/value_(\d+) = /g, 'other_$1 = '));
   assert.deepEqual(listed(), LONG_PARTS);
-  // A file that a writer set aside has no part listed.
-  addNotesToMap(store, repo.folder, { notes: [], files: ['src/long.py'] });
-  assert.deepEqual(listed(), []);
+  // A writer of one part cannot set the whole file aside (the next test), so every part stays listed.
+  assert.equal(addNotesToMap(store, repo.folder, { notes: [], files: ['src/long.py'] }).saved, false);
+  assert.deepEqual(listed(), LONG_PARTS);
+  done();
+});
+
+test('add-notes refuses notes or a set-aside of a file cut into parts with no range of it, so the notes of the other parts stay; a long file of one part is saved whole', () => {
+  const { repo, store, id, done } = setup();
+  repo.write('src/long.py', LONG);
+  repo.write('src/table.py', Array.from({ length: 700 }, (_, at) => `value_${at} = ${at}`).join('\n') + '\n'); // no function, so no place to cut: one part
+  const middle = [8, 9, 10, 11, 12, 13, 14, 15].map(stepNote);
+  assert.equal(addNotesToMap(store, repo.folder, { notes: middle, ranges: [{ file: 'src/long.py', from: 409, to: 816 }] }).saved, true);
+  // The writer of the first part forgets "ranges": its save would replace every note of the file.
+  const whole = 'src/long.py is cut into parts (1-408, 409-816, 817-1020): save with "ranges" inside your part, never the whole file.';
+  assert.deepEqual(addNotesToMap(store, repo.folder, { notes: [0, 1, 2, 3, 4, 5, 6, 7].map(stepNote) }), { saved: false, problems: [whole] });
+  assert.deepEqual(addNotesToMap(store, repo.folder, { notes: [], files: ['src/long.py'] }), { saved: false, problems: [whole] });
+  assert.deepEqual(store.getMap(id)?.map.fileNotes?.map((one) => one.title), middle.map((one) => one.title));
+  const table = addNotesToMap(store, repo.folder, { notes: [note('src/table.py', [1, 10], 'Set the first values')] });
+  assert.equal(table.saved, true, table.problems.join(' '));
   done();
 });
 

@@ -26,6 +26,7 @@ import { compactJson } from '../shared/look-slots';
 import { saveIcon } from './icon';
 import { MAP_USAGE, runMapCommand } from './map-commands';
 import { openInApp } from './open-in-app';
+import { PROMPT_USAGE, promptCommand } from './prompt-command';
 import { afterSave, readJson } from './read-input';
 import { baseFor, checkDraft, namedBase, saveDraft } from './save';
 
@@ -61,6 +62,7 @@ const USAGE: Record<string, string> = {
   ...LINK_USAGE,
   icon: 'apostil icon <service id> <https address> [--site <its site>] [--other-site] (keeps the picture of the service\'s own site as its icon; an address of a web page gives its link rel="icon")',
   ...MAP_USAGE,
+  ...PROMPT_USAGE,
 };
 const POINT_KINDS = ['note-not-supported', 'no-note', 'thing-not-supported'];
 
@@ -247,9 +249,11 @@ export async function main(args: string[]): Promise<void> {
   if (command === '--version' || command === 'version') return console.log(thisInstall().version);
   if (['setup', 'doctor', 'uninstall'].includes(command) && !args.includes('--help')) return runForPerson(command, words);
   if (command === 'issue' && !args.includes('--help')) return runIssue(words, __filename);
-  if ((command === 'link' || command === 'links') && !args.includes('--help')) {
+  // link, links and prompt print text, not JSON; a problem goes to the error output, with exit code 1.
+  if (['link', 'links', 'prompt'].includes(command) && !args.includes('--help')) {
     const at = words.indexOf('--folder');
-    const { line, problem } = command === 'link' ? linkCommand(words, resolve(at >= 0 ? words[at + 1] : process.cwd())) : linksCommand(words[0]);
+    const { line, problem } = command === 'prompt' ? promptCommand(words[0])
+      : command === 'link' ? linkCommand(words, resolve(at >= 0 ? words[at + 1] : process.cwd())) : linksCommand(words[0]);
     if (line) console.log(line);
     if (problem) {
       console.error(problem);
