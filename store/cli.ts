@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// The "apostil" command: each command prints JSON. Exit code 1 means the command did not do its work.
+// The "apostil" command: each command prints JSON, but overview, find and --text, which print plain text for an agent. Exit code 1 means the command did not do its work.
 
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -8,6 +8,7 @@ import { agentFromEnv, definedFields } from '../shared/agents';
 import type { ChangeFile } from '../shared/change-file';
 import { changeRows } from '../shared/change-rows';
 import { linksMark } from '../shared/diagram-code';
+import { diagramAsText } from '../shared/map-read';
 import { diagramGraph } from '../shared/diagram-graph';
 import { changeOfFolder, diagramTitles, reviewContext, showDiagram } from '../shared/context';
 import { findTests } from '../shared/find-tests';
@@ -47,7 +48,7 @@ const USAGE: Record<string, string> = {
   resolve: 'apostil resolve <remark id> [--agent <app>]',
   remarks: 'apostil remarks',
   diagrams: 'apostil diagrams [--path <prefix>] (the diagrams of the map, the drawings of its processes, and the diagrams of stored changes)',
-  diagram: 'apostil diagram <id> (a diagram of the map or a drawing of the map first, else of a stored change)',
+  diagram: 'apostil diagram <id> [--text] (a diagram of the map or a drawing of the map first, else of a stored change; --text: plain lines, with the code of each node)',
   tests: 'apostil tests <symbol>',
   list: 'apostil list',
   usage: 'apostil usage',
@@ -89,6 +90,7 @@ interface Done {
   output: unknown;
   ok: boolean;
   compact?: true; // printed with compactJson: an agent reads it, and pays for each character
+  text?: true; // plain text, printed as it is: the reads of the map for an agent (shared/map-read.ts)
 }
 
 const done = (output: unknown, ok = true): Done => ({ output, ok });
@@ -98,7 +100,10 @@ function run(store: Store, command: string, [argument = '', ...more]: string[], 
   const part = typeof flags.part === 'string' ? flags.part : undefined;
   if (command in MAP_USAGE) {
     const find = 'find' in flags ? (flagText(flags.find) ?? '') : undefined;
-    return runMapCommand(store, command, argument, folder, { full: flags.full === true, all: flags.all === true, set: flagText(flags.set), group: flagText(flags.group), check: flags.check === true, find, fit: flags.fit === true, more });
+    return runMapCommand(store, command, argument, folder, {
+      full: flags.full === true, all: flags.all === true, set: flagText(flags.set), group: flagText(flags.group), check: flags.check === true, find, fit: flags.fit === true,
+      text: flags.text === true, limit: 'limit' in flags ? (flagText(flags.limit) ?? '') : undefined, more,
+    });
   }
   // --base <commit>: on a main branch, the change is every commit after that one. The save stores it, so later commands need it no more.
   const named = typeof flags.base === 'string' ? namedBase(folder, flags.base) : undefined;
@@ -172,7 +177,8 @@ function run(store: Store, command: string, [argument = '', ...more]: string[], 
     case 'diagrams': return done(diagramTitles(store, folder, typeof flags.path === 'string' ? flags.path : ''));
     case 'diagram': {
       const shown = showDiagram(store, folder, argument);
-      return shown ? done(shown) : failed(`No diagram "${argument}" in this repo.`);
+      if (!shown) return failed(`No diagram "${argument}" in this repo.`);
+      return flags.text === true ? { output: diagramAsText(shown), ok: true, text: true } : done(shown);
     }
     case 'tests': return done(findTests(folder, argument));
     case 'connect': {
@@ -283,13 +289,13 @@ export async function main(args: string[]): Promise<void> {
   const flags: Record<string, string | true> = {};
   const rest: string[] = [];
   for (let index = 0; index < words.length; index++) {
-    if (['--folder', '--path', '--part', '--base', '--agent', '--session', '--session-name', '--account', '--timeout', '--set', '--group', '--find', '--site'].includes(words[index])) flags[words[index].slice(2)] = words[++index];
+    if (['--folder', '--path', '--part', '--base', '--agent', '--session', '--session-name', '--account', '--timeout', '--set', '--group', '--find', '--site', '--limit'].includes(words[index])) flags[words[index].slice(2)] = words[++index];
     else if (words[index] === '--mark-sent') flags['mark-sent'] = true;
     else if (words[index] === '--wait') flags.wait = true;
     else if (words[index] === '--full') flags.full = true;
     else if (words[index] === '--all') flags.all = true;
     else if (words[index] === '--check') flags.check = true;
-    else if (words[index] === '--fit' || words[index] === '--other-site') flags[words[index].slice(2)] = true;
+    else if (words[index] === '--fit' || words[index] === '--other-site' || words[index] === '--text') flags[words[index].slice(2)] = true;
     else if (words[index] === '--all-repos') flags['all-repos'] = true;
     else if (words[index] === '--remove' || words[index] === '--no-open') flags[words[index].slice(2)] = true;
     else rest.push(words[index]);
@@ -297,8 +303,8 @@ export async function main(args: string[]): Promise<void> {
 
   const store = new Store();
   try {
-    const { output, ok, compact } = command === 'inbox' ? await runInbox(store, flags) : command === 'icon' ? await runIcon(store, rest, resolve(String(flags.folder ?? process.cwd())), flags) : run(store, command, rest, resolve(String(flags.folder ?? process.cwd())), flags);
-    if (output !== undefined) console.log(compact ? compactJson(output) : JSON.stringify(output, null, 1));
+    const { output, ok, compact, text } = command === 'inbox' ? await runInbox(store, flags) : command === 'icon' ? await runIcon(store, rest, resolve(String(flags.folder ?? process.cwd())), flags) : run(store, command, rest, resolve(String(flags.folder ?? process.cwd())), flags);
+    if (output !== undefined) console.log(text ? output : compact ? compactJson(output) : JSON.stringify(output, null, 1));
     if (!ok) process.exitCode = 1;
   } catch (error) {
     console.log(JSON.stringify({ problems: [error instanceof Error ? error.message : String(error)] }, null, 1));

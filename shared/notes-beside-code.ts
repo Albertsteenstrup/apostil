@@ -98,9 +98,8 @@ export function notesOfFile(changes: NoteSource[], path: string, text: string, o
         const words = [note.title, note.text ?? '', ...code].join('\n');
         if (seen.has(words)) return;
         seen.add(words);
-        const at = findBlock(lines, code, nearLine(note, lines));
-        if (at < 0) return void older++;
-        const range: [number, number] = [at + 1, at + code.length];
+        const range = linesNow(note, code, lines);
+        if (!range) return void older++;
         if (change.map) {
           if (notes.some((other) => !other.change.map && other.lines[0] === range[0] && other.lines[1] === range[1])) return;
           return void notes.push({ note, key: `map/${noteKey(part.id, index)}`, lines: range, change: { id: 0, title: part.id === FILE_NOTES_PART ? '' : part.name ?? part.id, branch: '', map: true } });
@@ -114,6 +113,15 @@ export function notesOfFile(changes: NoteSource[], path: string, text: string, o
   const hasOwn = notes.some(ofFile);
   const shown = notes.filter((here) => !here.change.map || ofFile(here) || !hasOwn);
   return { notes: shown.sort((a, b) => a.lines[0] - b.lines[0]), older };
+}
+
+/**
+ * Where the lines of a note stand in a text now (`lines`: the text split in lines), found by the text of its lines at its save (`code`): the one rule of
+ * notesOfFile. Undefined when that text is no longer in the file. In a notebook the lines count in the text of its cells.
+ */
+export function linesNow(note: Note, code: string[], lines: string[]): [number, number] | undefined {
+  const at = findBlock(lines, code, nearLine(note, lines));
+  return at < 0 ? undefined : [at + 1, at + code.length];
 }
 
 /** Where the lines of a note stood at its save, as an index from 0 in the text now: for a note in a cell, its lines in that cell now, so that the nearest cell counts when its text is there twice. */

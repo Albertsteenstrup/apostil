@@ -12,7 +12,8 @@ export const MAX_DRAWN_LINES = 80; // the lines of a drawing as text: one for ea
 
 const linesWords = (lines?: [number, number]): string => (!lines ? '' : lines[0] === lines[1] ? ` line ${lines[0]}` : ` lines ${lines[0]}-${lines[1]}`);
 const placeText = (place: Place): string => `${place.file}${place.lines ? `:${place.lines[0] === place.lines[1] ? place.lines[0] : `${place.lines[0]}-${place.lines[1]}`}` : ''}`;
-const codeText = (code?: ThingCode): string => (code?.places ?? []).slice(0, 2).map(placeText).join(', ');
+/** The first two places of the code of a thing, as "<file>:<lines>". */
+export const codeText = (code?: ThingCode): string => (code?.places ?? []).slice(0, 2).map(placeText).join(', ');
 
 /** A drawing of the map by its id: a written diagram, or a drawn process, which the map makes from its data when it is read (it is never stored). */
 export function mapDrawing(map: RepoMap | undefined, id?: string): { diagram: Diagram; process?: ProcessDiagram } | undefined {
