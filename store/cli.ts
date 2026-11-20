@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// The "apostil" command: each command prints JSON, but overview, find and --text, which print plain text for an agent. Exit code 1 means the command did not do its work.
+// The "apostil" command: each command prints JSON, but overview, find, why and --text, which print plain text for an agent. Exit code 1 means the command did not do its work.
 
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -12,7 +12,9 @@ import { diagramAsText } from '../shared/map-read';
 import { diagramGraph } from '../shared/diagram-graph';
 import { changeOfFolder, diagramTitles, reviewContext, showDiagram } from '../shared/context';
 import { findTests } from '../shared/find-tests';
-import { repoId, tryGit, untrackedInRepo } from '../shared/git';
+import { repoFiles, repoId, tryGit, untrackedInRepo } from '../shared/git';
+import { readScope } from '../shared/map-scope';
+import { whyLine } from '../shared/note-groups';
 import { Store, storeFolder, type NewOpenPoint } from '../shared/store';
 import { cleanup } from './cleanup';
 import { connectClaudeCode } from './connect-claude-code';
@@ -63,6 +65,7 @@ const USAGE: Record<string, string> = {
   ...LINK_USAGE,
   icon: 'apostil icon <service id> <https address> [--site <its site>] [--other-site] (keeps the picture of the service\'s own site as its icon; an address of a web page gives its link rel="icon")',
   ...MAP_USAGE,
+  why: 'apostil why <path> [<path> ...] (plain lines: whether each file gets notes or only its path, and why: the line of .apostilignore that decides, else the rule of the code files)',
   ...PROMPT_USAGE,
 };
 const POINT_KINDS = ['note-not-supported', 'no-note', 'thing-not-supported'];
@@ -181,6 +184,13 @@ function run(store: Store, command: string, [argument = '', ...more]: string[], 
       return flags.text === true ? { output: diagramAsText(shown), ok: true, text: true } : done(shown);
     }
     case 'tests': return done(findTests(folder, argument));
+    case 'why': {
+      const paths = [argument, ...more].filter(Boolean).map((path) => path.replace(/^\.\//, '')); // a path from the top of the repo
+      if (!paths.length) return { output: `Usage: ${USAGE.why}`, ok: false, text: true };
+      const known = new Set(repoFiles(folder) ?? []);
+      const scope = readScope(folder) ?? [];
+      return { output: paths.map((path) => whyLine(folder, path, known, scope)).join('\n'), ok: true, text: true };
+    }
     case 'connect': {
       const result = connectClaudeCode(flags['all-repos'] === true ? undefined : folder);
       return done(result.problem ? result : { ...result, note: 'The hook was not yet seen working in a session with a person. A run that Apostil starts never waits for it.' }, !result.problem);
