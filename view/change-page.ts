@@ -16,6 +16,7 @@ import { githubRepoOf, pullRequestFrom, readPullRequest, runGh, type PullRequest
 import { writePullRequest, type Write } from '../shared/write-pull-request';
 import type { AppState, RemarkTarget, RemarkTo, Store } from '../shared/store';
 import { startRun } from './agent-run';
+import { idOf } from './home-data';
 import { askRunOf, askView, startAsk } from './ask-run';
 import { connectedApps } from './new-repo-steps';
 import type { PullHead } from './pull-folder';
@@ -201,6 +202,16 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
     private changeOfFolder: () => number | undefined = () => undefined, // for a file tab that VS Code opens by itself
   ) {}
 
+  /** The file tab of a branch with no change: the code with the notes of the repo, and the comments of the repo on files, which go to new sessions. */
+  private plainPage(): PageData {
+    return filePage(this.openFolder(), this.connected(), this.store, runModels());
+  }
+
+  /** The file tab shows a branch with no change: its comments are comments of the repo. */
+  private get plain(): boolean {
+    return this.changeId === undefined && !!this.page?.plain && !this.pullOnly && !this.branchOnly;
+  }
+
   /** The agent apps that are connected in the open folder: the picker of a card and "@" offer only these. */
   private connected(): string[] {
     return connectedApps(this.apps, this.openFolder());
@@ -306,7 +317,7 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
     if (this.changeId === undefined && !this.pullOnly && !this.branchOnly) {
       this.changeId = this.changeOfFolder();
       // With no change on the branch, the tab shows the code as it is, with the notes of the other changes of the repo beside it.
-      this.page = this.changeId !== undefined ? pageData(this.store, this.changeId, this.openFolder(), this.connected(), runModels()) : filePage(this.openFolder());
+      this.page = this.changeId !== undefined ? pageData(this.store, this.changeId, this.openFolder(), this.connected(), runModels()) : this.plainPage();
       if (this.page) this.page.look = lookOfPage(this.store, this.page, lookAddress(panel.webview));
     }
     const folder = this.page?.folder ?? this.openFolder();
@@ -573,6 +584,12 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
   reload(): void {
     const described = this.branchOnly ? this.changeOfFolder() : undefined;
     if (described !== undefined) return this.open(described);
+    if (this.plain && this.views.size) {
+      this.signature = this.signatureNow();
+      this.page = { ...this.plainPage(), look: this.page?.look };
+      for (const view of this.views) this.post(view, this.dataFor(view));
+      return;
+    }
     if (!this.views.size || this.changeId === undefined) return;
     reopenStaleRuns(this.store, this.changeId);
     // The signature is taken first: reading the page takes a moment, and an answer that lands in that moment must still cause the next load.
@@ -588,10 +605,14 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
 
   /** Loads again when the store holds something new for this change. Our own writes of the app state change nothing here. */
   reloadIfChanged(): void {
-    if (this.views.size && this.changeId !== undefined && this.signatureNow() !== this.signature) this.reload();
+    if (this.views.size && (this.changeId !== undefined || this.plain) && this.signatureNow() !== this.signature) this.reload();
   }
 
   private signatureNow(): string {
+    if (this.plain) {
+      const repo = idOf(this.openFolder());
+      return JSON.stringify(repo ? this.store.repoRemarks(repo).map((remark) => [remark.id, remark.sentAt, remark.state, remark.answeredAt, remark.run?.startedAt]) : []);
+    }
     if (this.changeId === undefined) return '';
     const change = this.store.getChange(this.changeId);
     const remarks = this.store.remarks(this.changeId).map((remark) => [remark.id, remark.sentAt, remark.state, remark.answeredAt, remark.run?.startedAt]);
@@ -610,7 +631,7 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
 
   /** What the owner did with a thread: resolve it or open it again; or start a run for one sent remark, with the model and the effort of its control. */
   act(id: number, action: RemarkAction, run?: unknown): void {
-    if (this.changeId === undefined) return;
+    if (this.changeId === undefined && !this.plain) return;
     if (action === 'resolve') this.store.closeThread(id);
     if (action === 'reopen') this.store.reopenThread(id);
     if (action === 'start') this.run(id, undefined, pickFrom(run));
@@ -622,7 +643,7 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
     startRun(this.store, id, (problem) => {
       if (problem) showRunProblem(problem, { app: newApp });
       this.reloadIfChanged();
-    }, newApp, undefined, runModels(), commentRuns(), pick);
+    }, newApp, this.plain ? this.openFolder() : undefined, runModels(), commentRuns(), pick); // a comment of the repo runs in the open folder
   }
 
   /**
@@ -630,6 +651,7 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
    * that session at once; a session that listens takes the comment by itself, and one that cannot be continued waits for the owner.
    */
   saveRemark(message: NewRemark, changeId = this.changeId): void {
+    if (changeId === undefined && this.plain) return this.saveRepoRemark(message);
     if (changeId === undefined) return;
     const stored = this.store.getChange(changeId);
     const id = this.store.addRemark(changeId, stored ? withKept(message.target, keptInChange(stored, message.target)) : message.target, message.text, message.thread); // it keeps what its thing is now
@@ -639,6 +661,22 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
     else if (message.to?.kind === 'session') this.run(id); // another session that Apostil knows: a run continues it in the folder of the change
     else if (message.to && agent && !isListening(this.store, agent) && resumeCommand(agent, '')) this.run(id);
     if (message.point) this.store.markOpenPointUsed(message.point);
+    this.reload();
+  }
+
+  /** A comment in the file tab of a branch with no change: a comment of the repo. Sent to a session, a run starts in the open folder. */
+  private saveRepoRemark(message: NewRemark): void {
+    const repo = idOf(this.openFolder());
+    if (!repo) return;
+    const id = this.store.addRepoRemark(repo, message.target, message.text, message.thread);
+    if (message.to) this.store.sendRemark(id, message.to);
+    if (message.to?.kind === 'new' || message.to?.kind === 'session') {
+      const app = message.to.kind === 'new' ? message.to.app : undefined;
+      startRun(this.store, id, (problem) => {
+        if (problem) showRunProblem(problem, { app });
+        this.reloadIfChanged();
+      }, app, this.openFolder(), runModels(), commentRuns());
+    }
     this.reload();
   }
 

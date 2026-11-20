@@ -374,6 +374,29 @@ try {
 
   await denseRound();
   await mapRound();
+
+  // A click on a note card focuses it: it stands whole and moves the card under it down, where it lay over it before. A click on the code ends the focus.
+  const focusPage = await openPage({ viewport: { width: 1400, height: 900 } });
+  await focusPage.goto(`file://${pageFile}?file=src/library/lending/requests.py`);
+  await focusPage.waitForSelector('.mc .nt', { timeout: 15000 });
+  const cardOf = (title) => `.mc:has(.nt:text-is("${title}"))`;
+  const focusNow = () => focusPage.evaluate(() => {
+    const cards = [...document.querySelectorAll('.mc')];
+    const at = (title) => cards.find((mc) => mc.querySelector('.nt').textContent === title);
+    return { cur: cards.filter((mc) => mc.classList.contains('cur')).map((mc) => mc.querySelector('.nt').textContent).join(), brief: at('Answer the request').classList.contains('brief'),
+      gap: Math.round(at('Lock the requests for the book').getBoundingClientRect().top - at('Answer the request').getBoundingClientRect().bottom), lines: App.state.lines };
+  });
+  const briefBefore = (await focusNow()).brief;
+  await focusPage.$eval(cardOf('Answer the request'), (el) => el.scrollIntoView({ block: 'center' }));
+  await focusPage.click(cardOf('Answer the request'));
+  await focusPage.mouse.move(5, 5);
+  const focusedNote = await focusNow();
+  await focusPage.click('.rowsbox [data-row="3"]');
+  const endedNote = await focusNow();
+  check('a click on a note card focuses it: it stands whole and moves the card under it down, so it covers no card; a click on the code ends the focus',
+    briefBefore && focusedNote.cur === 'Answer the request' && !focusedNote.brief && focusedNote.gap >= 0 && focusedNote.lines?.length === 2 && endedNote.cur === '' && endedNote.brief && endedNote.lines === null,
+    JSON.stringify({ briefBefore, focusedNote, endedNote }));
+  await focusPage.close();
 } catch (error) {
   check('the checks ran to the end', false, error.message.split('\n').slice(0, 14).join(' / '));
 }

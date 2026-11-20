@@ -82,8 +82,9 @@ let drawCount = 0;
  * With `plain`, a text that does not draw is drawn as `plain` instead (a diagram of a part without its removed things); the SVG then has data-plain.
  * With `schema` (the tables of a schema diagram, from the page data), the page draws the tables itself (schema.js); `key` names the diagram.
  */
-async function drawMermaid(into, text, plain, schema, key) {
+async function drawMermaid(into, text, plain, schema, key, again = false) {
   into.classList.add('stage');
+  await document.fonts?.ready; // Mermaid sizes each box by the words it measures: in a font that is not ready yet, they come out narrower
   if (schema) {
     into.classList.remove('across');
     const svg = drawSchema(into, schema, key);
@@ -110,8 +111,23 @@ async function drawMermaid(into, text, plain, schema, key) {
     svg.classList.toggle('litnames', /^\s*classDef lit\b/m.test(text)); // a drawing of change-diagram.ts: its lit nodes have their names in teal (look.css)
     cutLifelines(svg);
     fitToContent(svg);
+    // Words wider than their box: the measure of Mermaid was off (the font changed while it drew). Drawn once more, they fit.
+    if (!again && wordsOverflow(svg)) return drawMermaid(into, text, plain, schema, key, true);
   }
   return svg;
+}
+
+/** True when the words of some box of a drawing on screen are wider than the box that Mermaid made for them. */
+function wordsOverflow(svg) {
+  for (const object of svg.querySelectorAll('g.node > g.label > foreignObject, g.node foreignObject')) {
+    const room = object.getBoundingClientRect().width;
+    const label = object.querySelector('.nodeLabel');
+    if (!room || !label || label.querySelector('.f')) continue; // not on screen; or rows of files, which may run wide
+    const range = document.createRange();
+    range.selectNodeContents(label);
+    if (range.getBoundingClientRect().width > room + 1) return true;
+  }
+  return false;
 }
 
 /**

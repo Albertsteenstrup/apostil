@@ -400,6 +400,7 @@ const Remarks = (() => {
 
   /** Resolve, Reopen or Start a run; a run takes the model and the effort of the control after "Start a run". As a file in a browser the page changes the states itself. */
   function act(id, action) {
+    if (action === 'resolve') leave(id);
     const run = action === 'start' ? RunPick.value(`start:${id}`) : undefined;
     tell({ type: 'remarkAction', id, action, ...(run ? { run: { ...(run.changed ? { model: run.model } : {}), ...(run.effort ? { effort: run.effort } : {}) } } : {}) });
     if (vscodeApi || action === 'start') return;
@@ -408,6 +409,26 @@ const Remarks = (() => {
       if (action === 'reopen' && remark.state === 'closed') remark.state = remark.answer ? 'done' : 'open';
     }
     App.render();
+  }
+
+  const LEAVE_MS = 420;
+
+  /** A resolved thread goes calmly: its card shows the check, shrinks and fades, and its mark on the page shrinks and fades with it. */
+  function leave(id) {
+    const marks = [...document.querySelectorAll('.cb[data-threads]')].filter((el) => el.dataset.threads.split(' ').includes(String(id)));
+    const gone = card?.threads.includes(id) ? card.el : null;
+    if (gone) { card.el = null; closeCard(); document.body.append(gone); }
+    for (const el of [gone, ...marks].filter(Boolean)) {
+      el.classList.add('leaving');
+      setTimeout(() => el.remove(), matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : LEAVE_MS);
+    }
+  }
+
+  /** The marks of the comments drawn again on a view that stays as it is, when only the comments changed: no new drawing, so nothing blinks. */
+  function repaint(view) {
+    view.querySelectorAll('.cb:not(.leaving)').forEach((el) => el.remove());
+    paint(view);
+    draw();
   }
 
   // ----- the place of a thread on the page -----
@@ -1191,5 +1212,5 @@ const Remarks = (() => {
     open();
   }
 
-  return { openFromVsCode, boxOn, paint, paintNotes, draw, show: showAndOpen };
+  return { openFromVsCode, boxOn, paint, repaint, paintNotes, draw, show: showAndOpen };
 })();

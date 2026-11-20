@@ -22,7 +22,7 @@ import { connectedApps } from './new-repo-steps';
 import type { Remark, StoredChange, Store } from '../shared/store';
 import type { SendTo } from './page-data';
 import { changeMermaid, nodeId, partMermaid } from './change-diagram';
-import { repoName } from './page-data';
+import { repoName, repoRemarksOnFiles } from './page-data';
 import type { Step } from './trail';
 
 /** A file that a change changes, with its counts from Git; with no counts when Git cannot read them. */
@@ -187,7 +187,7 @@ export function homeData(store: Store, folder: string, apps: string[] = [], addr
   const stored = id ? store.getMap(id) : undefined;
   const mapRun = mapRunOf(store, id, writing);
   const mapApp = appToStart(store.startedRuns(), id, apps, connected);
-  const base: HomeData = { kind: 'home', repo: repoName(folder), folder, apps, ...(mapApp ? { mapApp, team: teamOf(mapApp) } : {}), remarks: id ? store.repoRemarks(id) : [], ...(mapRun ? { mapRun } : {}), ...(id ? {} : { noCommit: true as const }) };
+  const base: HomeData = { kind: 'home', repo: repoName(folder), folder, apps, ...(mapApp ? { mapApp, team: teamOf(mapApp) } : {}), remarks: id ? remarksOnMap(store.repoRemarks(id)) : [], ...(mapRun ? { mapRun } : {}), ...(id ? {} : { noCommit: true as const }) };
   if (!id || !stored) {
     const scope = id && scopeCounts(folder); // counted by path only, so Home stays fast on a large repo
     return scope ? { ...base, scope } : base;
@@ -280,6 +280,9 @@ export function nodeTags(nodePaths: Record<string, string[]>): Record<string, st
   }
   return tags;
 }
+
+/** The threads of the repo on the map: those on files show in the file tab of a branch with no change (repoRemarksOnFiles). */
+const remarksOnMap = (remarks: Remark[]): Remark[] => { const onFiles = new Set(repoRemarksOnFiles(remarks)); return remarks.filter((remark) => !onFiles.has(remark)); };
 
 /** The step of Home at the main diagram of a folder (ending with "/") or a file, with its nodes lit (see mainDiagramOf); undefined when no map has it. */
 export function mainStepOf(store: Store, folder: string, path: string): Extract<Step, { tab: 'home' }> | undefined {

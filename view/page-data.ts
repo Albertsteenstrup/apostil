@@ -443,14 +443,23 @@ export function branchPage(folder: string, apps: string[] = []): PageData {
 }
 
 /** The page of a file tab when the branch has no stored change: no change and no diff, only the code and the notes of other changes beside it. */
-export function filePage(folder: string): PageData {
+export function filePage(folder: string, apps: string[] = [], store?: Store, models: RunModels = {}): PageData {
+  const repo = store ? (() => { try { return repoId(folder); } catch { return undefined; } })() : undefined;
   return {
     changeId: 0, repo: repoName(folder), folder, branch: tryGit(folder, 'branch', '--show-current') || 'detached', base: tryGit(folder, 'rev-parse', 'HEAD') ?? '', title: '', reason: '', outOfDate: false,
     checks: { filesInNoPart: [], filesInTwoParts: [], filesNotChanged: [], generated: [], badNotes: [] },
-    files: [], parts: [], links: [], linksChecked: false, diagrams: [], changeDiagram: '', altered: [], notes: [], functionTests: {}, openPoints: [], remarks: [],
-    listening: false, apps: [], onHome: {}, plain: true,
+    files: [], parts: [], links: [], linksChecked: false, diagrams: [], changeDiagram: '', altered: [], notes: [], functionTests: {}, openPoints: [],
+    // With no change, a comment on code is one of the repo, as a comment on the map is: the threads on files show here, the others on Home.
+    remarks: store && repo ? repoRemarksOnFiles(store.repoRemarks(repo)) : [],
+    listening: false, apps, onHome: {}, plain: true, ...(store && repo ? { sendTo: sendToOf(store, repo, folder, apps, models) } : {}),
   };
 }
+
+/** The threads of the repo whose first comment is on a file (lines of code, a note beside it): the file tab shows them, Home does not. */
+export const repoRemarksOnFiles = (remarks: Remark[]): Remark[] => {
+  const onFile = new Set(remarks.filter((remark) => !remark.thread && 'file' in remark.target && !!remark.target.file).map((remark) => remark.id));
+  return remarks.filter((remark) => onFile.has(remark.thread ?? remark.id));
+};
 
 /**
  * The notes of other saved changes of the repo beside a file of a page, found by the text of their lines (shared/notes-beside-code.ts).

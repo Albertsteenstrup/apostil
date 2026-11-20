@@ -603,6 +603,28 @@ try {
     onMapNode.outline.join() === 'node:lib-top:lending' && /^Node "Lending", diagram "The library app and its parts"$/.test(onMapNode.where) && nodeCard === 1 && nodeCircle === 1 && nodeTarget?.node === 'lending'
       && onMapArrow.outline.join() === arrowSpot.rk && /^Arrow "/.test(onMapArrow.where) && arrowTarget?.kind === 'edge' && arrowTarget.diagram === 'lib-top'
       && mapChoices.join() === 'claude-new,codex-new,opencode-new', JSON.stringify({ onMapNode, nodeCard, nodeCircle, nodeTarget, onMapArrow, arrowTarget, mapChoices }));
+
+  // ✓ on a card: the card and the mark of its thread shrink and fade. New data from VS Code where only the comments changed draws no new diagram.
+  await home.evaluate(() => { window.keptRemarks = Home.data.remarks.map((remark) => ({ ...remark })); });
+  await home.click(`${nodeOf('lending')} .cb`).catch(() => {});
+  await home.locator('.cbox.card [data-resolve]').click({ timeout: 3000 }).catch(() => {});
+  const leaving = await home.evaluate(() => ({ card: document.querySelectorAll('.cbox.leaving').length, open: document.querySelectorAll('.cbox:not(.leaving)').length }));
+  await home.waitForTimeout(500);
+  const leftGone = await home.evaluate(() => document.querySelectorAll('.cbox, .cb.leaving').length);
+  const quietData = await home.evaluate(async () => {
+    const svg = document.querySelector('#view svg');
+    const drawn = window.apostilRendered;
+    const remarks = Home.data.remarks.map((remark) => ({ ...remark, state: 'closed' }));
+    const before = document.querySelectorAll('#view .cb').length;
+    window.postMessage({ type: 'data', data: { ...Home.data, remarks } }, '*');
+    await new Promise((done) => setTimeout(done, 150));
+    const after = { same: document.querySelector('#view svg') === svg, drawn: window.apostilRendered - drawn, before, marks: document.querySelectorAll('#view .cb').length };
+    window.postMessage({ type: 'data', data: { ...Home.data, remarks: window.keptRemarks } }, '*'); // the threads open again for the checks after this one
+    await new Promise((done) => setTimeout(done, 150));
+    return after;
+  });
+  check('✓ on the card of a comment on the map: the card and its mark shrink and fade, then go; new data where only the comments changed draws no new diagram, so nothing blinks, and the marks follow',
+    leaving.card === 1 && leaving.open === 0 && leftGone === 0 && quietData.same && quietData.drawn === 0 && quietData.before > 0 && quietData.marks === 0, JSON.stringify({ leaving, leftGone, quietData }));
   await home.mouse.move(2, 2);
   await into('lending');
   await homeSettled();

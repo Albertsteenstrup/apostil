@@ -556,7 +556,8 @@ function codeWithNotes(holder, options) {
     column.querySelectorAll('.mk, [data-join]').forEach((mark, at) => mark.classList.toggle('cur', at === index));
     view.mark('lit', index >= 0 ? sorted[index] : currentFocus && { lines: currentFocus });
   };
-  view.focusNote = (lines) => { currentFocus = lines; resting = findNote(lines); lit = null; light(resting); };
+  // The focused note stands whole in the column and moves the cards under it down (view.place); a note that the pointer opens lies over them.
+  view.focusNote = (lines) => { currentFocus = lines; resting = findNote(lines); lit = null; view.place(); light(resting); };
   // The cards stand in the column; the rows start lower than the column when something stands above them (the control of a file tab).
   const shift = () => box.getBoundingClientRect().top - column.getBoundingClientRect().top;
   if (narrow) {
@@ -593,7 +594,8 @@ function codeWithNotes(holder, options) {
       const shortHeight = cards[0].offsetHeight;
       cards[0].classList.remove('brief');
       const full = cards.map((card) => card.offsetHeight);
-      const placed = cardPlaces(spansInOrder.map(([first]) => down + list.top(first)), full, shortHeight, room, top(), looks.rank ? (index) => index + 1 < sorted.length && looks.rank(sorted[index]) < looks.rank(sorted[index + 1]) : undefined);
+      const ranked = (index) => !!looks.rank && index + 1 < sorted.length && looks.rank(sorted[index]) < looks.rank(sorted[index + 1]);
+      const placed = cardPlaces(spansInOrder.map(([first]) => down + list.top(first)), full, shortHeight, room, top(), (index) => index === resting || ranked(index));
       cards.forEach((card, index) => {
         card.classList.toggle('brief', placed.short[index]);
         card.classList.toggle('open', index === lit && placed.short[index]);
@@ -613,6 +615,15 @@ function codeWithNotes(holder, options) {
     });
     attachTestWindows(column);
   }
+  // A click on a note focuses it; a click anywhere else in the file ends the focus (not while he picks a thing to comment on or selects words).
+  holder.querySelector('.cn').addEventListener('click', (event) => {
+    if (document.body.classList.contains('picking') || getSelection()?.toString() || event.target.closest('a, [data-mg], [data-unfold], [data-linked], [data-tests], .cb, .more')) return;
+    const index = cards.indexOf(event.target.closest('.mc'));
+    if (index === resting || (index < 0 && resting < 0)) return;
+    const lines = index >= 0 ? sorted[index].lines ?? null : null;
+    if (typeof App === 'object' && App.state) App.state.lines = lines;
+    view.focusNote(lines);
+  });
   addMap(spansInOrder);
   view.place();
   // The pointer on rows lights their note, removed rows too.

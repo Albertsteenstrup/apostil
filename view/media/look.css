@@ -160,6 +160,12 @@ g.node foreignObject{overflow:visible}
 .dot{display:inline-block;width:6px;height:6px;border-radius:3px;background:var(--teal);margin-right:6px;vertical-align:1px}
 .dot.pulse{animation:pulse 2.4s ease-in-out infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+/* a resolved thread: its card and its marks shrink and fade (leave() in remarks.js) */
+.cbox.leaving{animation:cb-leave .42s ease-in forwards;pointer-events:none}
+.cbox.leaving [data-resolve]{color:var(--teal)}
+.cb.leaving{animation:cb-leave .42s ease-in forwards;transform-box:fill-box;transform-origin:center;pointer-events:none}
+@keyframes cb-leave{30%{opacity:1;transform:scale(1.04)}to{opacity:0;transform:scale(.85)}}
+@media (prefers-reduced-motion:reduce){.cbox.leaving,.cb.leaving{animation:none}}
 @media (prefers-reduced-motion:reduce){.dot.pulse{animation:none;opacity:.6}}
 
 /* one window frame: hover windows, the file picker, the card of a comment, the list of comments */

@@ -624,6 +624,15 @@ document.addEventListener('click', (event) => {
 window.addEventListener('message', (event) => {
   const message = event.data;
   if (message?.type === 'data') {
+    // Only the comments changed (one saved, resolved or answered): their marks and the card change, and the drawing stays, so nothing blinks.
+    const view = document.getElementById('view');
+    const others = (data) => JSON.stringify({ ...data, remarks: undefined });
+    if (Home.data?.kind === 'home' && message.data.kind === 'home' && App.page?.map && view.querySelector('svg') && others(Home.data) === others(message.data)) {
+      Home.data = message.data;
+      App.page = mapPage(Home.data);
+      if (message.trail) Trail.set(message.trail);
+      return Remarks.repaint(view);
+    }
     Home.data = message.data;
     if (message.trail) Trail.set(message.trail);
     Overview.heard(message.full); // the overview or the diagram alone, as he chose last
