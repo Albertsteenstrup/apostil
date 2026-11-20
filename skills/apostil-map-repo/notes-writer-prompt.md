@@ -36,7 +36,8 @@ Write one JSON file named `apostil-notes-<name of your group>.json` in the top f
     { "notes": [ { "file": "...", "lines": [1, 9], "title": "...", "text": "..." } ] }
 
 - A file with no code worth a note: put its path in `"files": ["path"]`, next to `"notes"`.
-- A long file (more than about 400 lines) is yours alone: no other writer has a part of it. Save its notes in parts as you go, so that nothing is lost when you stop: write the notes of its first lines (about 400), save them with `"ranges": [{ "file": "path", "from": 1, "to": 400 }]`, then the next lines with the next range, until the last line. A range replaces only the notes that start in it, so the parts that you saved before stay. Each range starts at a line where a function or a block starts.
+- A long file (more than about 400 lines) that your group has whole is yours alone. Save its notes in pieces as you go, so that nothing is lost when you stop: write the notes of its first lines (about 400), save them with `"ranges": [{ "file": "path", "from": 1, "to": 400 }]`, then the next lines with the next range, until the last line. A range replaces only the notes that start in it, so the pieces that you saved before stay. Each range starts at a line where a function or a block starts.
+- A file with `"part": [from, to]` is one part of a longer file: only those lines are yours, and other writers write the rest of the file at the same time. Read your lines, and the lines just above them when you need them to understand. Write only the notes that start in your part. A class that goes on after your part gets a note that ends at the last line of your part. Save with `"ranges"` inside your part, in pieces of about 400 lines or less as above. Never put a part in `"files"`.
 
 Then run this in the top folder of the repo:
 
