@@ -396,6 +396,20 @@ try {
   check('a click on a note card focuses it: it stands whole and moves the card under it down, so it covers no card; a click on the code ends the focus',
     briefBefore && focusedNote.cur === 'Answer the request' && !focusedNote.brief && focusedNote.gap >= 0 && focusedNote.lines?.length === 2 && endedNote.cur === '' && endedNote.brief && endedNote.lines === null,
     JSON.stringify({ briefBefore, focusedNote, endedNote }));
+  // New data for the same file (a comment saved, an answer) draws it again where he scrolled to, not at the lines that it opened at.
+  const kept = await focusPage.evaluate(async () => {
+    await App.showCode(App.tab, [43, 82]);
+    await new Promise((done) => setTimeout(done, 300));
+    const scroller = () => document.querySelector('.cv');
+    scroller().scrollTop = 0;
+    await new Promise((done) => setTimeout(done, 100));
+    const before = scroller().scrollTop;
+    window.postMessage({ type: 'data', page: App.page, file: App.tab }, '*');
+    await new Promise((done) => setTimeout(done, 600));
+    return { before, after: scroller().scrollTop, opened: String(App.state.lines) };
+  });
+  check('new data for a file tab draws it again where he scrolled to, not back at the lines that it opened at',
+    kept.after === kept.before, JSON.stringify(kept));
   await focusPage.close();
 } catch (error) {
   check('the checks ran to the end', false, error.message.split('\n').slice(0, 14).join(' / '));

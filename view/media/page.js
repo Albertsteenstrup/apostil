@@ -225,6 +225,8 @@ const App = {
     drawStrip();
     const tabs = document.getElementById('tabs');
     const view = document.getElementById('view');
+    // Where the code of a file stood: the same file drawn again with the same lines (new data) opens there (drawCode).
+    Code.left = Code.shown?.scroller?.isConnected ? { path: Code.shown.path, focus: Code.shown.focus, top: Code.shown.scroller.scrollTop } : null;
     tabs.innerHTML = '';
     view.innerHTML = '';
     view.className = 'view'; // a diagram drawn here before made it a stage, or two halves
@@ -593,6 +595,7 @@ window.addEventListener('message', (event) => {
   if (message?.type === 'lines') {
     if (App.tab && Code.shown?.path === App.tab && !message.at) {
       App.state.lines = message.lines ?? null;
+      Code.shown.focus = App.state.lines;
       Code.shown.view?.focusNote?.(App.state.lines);
       if (App.state.lines) Code.reveal(App.state.lines);
     } else App.showCode(App.tab, message.lines ?? null, message.at ?? null);

@@ -184,6 +184,10 @@ try {
   await page.click(`${theCard} .pick`);
   const menu = await page.$$eval(`${theCard} .pmenu > *`, (rows) => rows.map((row) => row.innerText.replace(/\s+/g, ' ').replace(/used \d+ min ago/, 'used n min ago').trim()).filter(Boolean)); // the example data is written a few minutes before
   await shot('11-picker-of-a-new-comment');
+  // A click elsewhere closes the menu and does nothing else: the card stays; the menu opens again for the choice below.
+  await page.mouse.click(5, 300);
+  const menuGone = { menus: await page.$$eval(`${theCard} .pmenu`, (all) => all.length), cards: await page.$$eval(theCard, (all) => all.length) };
+  await page.click(`${theCard} .pick`);
   await page.click(`${theCard} .pi[data-choice="claude-code:session:made-up-session-0002"]`, { timeout: 3000 }).catch(() => {}); // a missing choice fails the check below, not the run
   const pickedWords = await page.textContent(`${theCard} .pick`);
   await page.keyboard.type('Why is the pickup day set before the mail is sent?');
@@ -192,6 +196,8 @@ try {
   const toSession = (await sentRemarks()).pop();
   const afterSend = { ...(await cardNow()), mark: await page.$eval(`${service} .cb`, (el) => el.className).catch(() => ''), count: await page.textContent('[data-comments] .n').catch(() => '') };
   await closeCard();
+  check('a click outside the open menu of the picker closes it and does nothing else: the card stays open',
+    menuGone.menus === 0 && menuGone.cards === 1, JSON.stringify(menuGone));
   check('a new comment opens the same card, empty, beside its thing, with the cursor in its box; the picker lists each connected app with this session, a known session of the repo and a new session, each with the model and effort of its run, then "No agent"; the choice sends it there with the effort and no model, and the card stays open on its thread with no flight while the mark and the count show',
     fresh.where === 'Part "Hold service"' && fresh.threads === 0 && !/url/.test(fresh.cursor) && fresh.beside
       && JSON.stringify(menu) === JSON.stringify(['Claude Code', 'This session made this change · Opus 5.5 · Extra', 'Tests for holds used n min ago · Sonnet 5.5 · Medium', 'New session Haiku 5.5 · High', 'Codex', 'New session Luna 6 · High', 'OpenCode', "New session OpenCode's own model", 'No agent: keep it as a note'])

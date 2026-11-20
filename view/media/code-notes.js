@@ -622,6 +622,7 @@ function codeWithNotes(holder, options) {
     if (index === resting || (index < 0 && resting < 0)) return;
     const lines = index >= 0 ? sorted[index].lines ?? null : null;
     if (typeof App === 'object' && App.state) App.state.lines = lines;
+    if (Code.shown?.path === path) Code.shown.focus = lines; // new data draws the file again where it is, with this focus
     view.focusNote(lines);
   });
   addMap(spansInOrder);
@@ -775,6 +776,10 @@ async function fileView(into, path, { focus = null, nav = false, head = false, f
  */
 async function drawCode(into, path, focus, at) {
   const page = App.page;
+  // The same file drawn again with the same lines asked for (new data: a comment saved, an answer): it stays where he scrolled to.
+  const left = Code.left;
+  Code.left = null;
+  const before = left?.path === path && String(left.focus) === String(focus) && at == null ? left.top : null;
   into.innerHTML = `<div class="cvw" data-file="${esc(path)}"></div>`;
   const shown = await fileView(into.firstChild, path, { focus, nav: true });
   if (!shown) return;
@@ -787,7 +792,7 @@ async function drawCode(into, path, focus, at) {
   const steps = fileSteps(holder, scroller, path, view, {
     nav: page.plain ? null : into.querySelector('.nav .steps'), past: (direction) => App.step(direction, direction > 0 ? 'first' : 'last'),
   });
-  Code.shown = { path, rows, runs: changeRuns(rows), scroller, box: view.box, list: view.list, view, steps };
+  Code.shown = { path, rows, runs: changeRuns(rows), scroller, box: view.box, list: view.list, view, steps, focus };
   // "Edit" and a double click on a line: VS Code changes this tab to its editor, at the first line in view or at that line (the key of the notes).
   into.querySelector('[data-edit]')?.addEventListener('click', () => tell({ type: 'edit', line: firstLineInView() }));
   if (App.tab) holder.addEventListener('dblclick', (event) => { const line = Number(event.target.closest('[data-line]')?.dataset.line); if (line) tell({ type: 'edit', line }); });
@@ -795,7 +800,8 @@ async function drawCode(into, path, focus, at) {
   view.place(); // the control of the files has its height now
 
   // Where the file opens: at the lines asked for, else as a key that comes into it from the file before (its first change) or after it (its last change).
-  if (focus) Code.reveal({ lines: focus });
+  if (before !== null) scroller.scrollTop = before;
+  else if (focus) Code.reveal({ lines: focus });
   else steps.enter(at === 'last' ? -1 : 1);
   steps.ready.catch((error) => console.error(error));
 }

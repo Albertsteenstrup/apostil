@@ -36,6 +36,15 @@ const Remarks = (() => {
     swallow = false;
     const inside = (el) => el?.contains(event.target);
     if (list && !inside(list.el) && !event.target.closest?.('[data-comments]')) closeList();
+    if (mentions && !inside(mentions.el)) closeMentions(); // the names after "@" close on a click elsewhere, as a menu does
+    // An open menu of the card (where it goes, or ⋯) closes on a click outside it; a click outside the card then does nothing else.
+    if (card && (card.menu || card.moreOpen) && !event.target.closest?.('.pmenu, [data-pick], .moremenu, [data-more]')) {
+      const more = card.moreOpen;
+      Object.assign(card, { menu: false, moreOpen: false });
+      if (more) drawCard();
+      else redrawPicker();
+      if (!inside(card.el)) { event.preventDefault(); swallow = true; return; }
+    }
     if (!card || card.sending || inside(card.el) || inside(mentions?.el) || inside(asking)) return;
     const field = card.el.querySelector('[data-field="new"]');
     const typedNow = field?.innerText.trim();
@@ -417,7 +426,7 @@ const Remarks = (() => {
   function leave(id) {
     const marks = [...document.querySelectorAll('.cb[data-threads]')].filter((el) => el.dataset.threads.split(' ').includes(String(id)));
     const gone = card?.threads.includes(id) ? card.el : null;
-    if (gone) { card.el = null; closeCard(); document.body.append(gone); }
+    if (gone) { card.el = null; closeCard(); gone.classList.remove('card'); document.body.append(gone); } // no longer the card: only a picture of it that goes
     for (const el of [gone, ...marks].filter(Boolean)) {
       el.classList.add('leaving');
       setTimeout(() => el.remove(), matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : LEAVE_MS);
