@@ -1,8 +1,10 @@
-// Tests of the parts of a long file for the notes writers: made-up files.
+// Tests of the parts of a long file for the notes writers, and of the size of the groups of the process writers: made-up files and maps.
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { partsOf } from './note-groups';
+import type { Note } from './change-file';
+import { partsOf, processGroups } from './note-groups';
+import type { RepoMap } from './repo-map';
 
 /** The text of lines, with a last newline as a file has. */
 const textOf = (lines: string[]): string => `${lines.join('\n')}\n`;
@@ -48,4 +50,16 @@ test('a file that the finder knows nothing of stays whole, and a last part of fe
   assert.deepEqual(partsOf('src/two.ts', textOf([...tsFunction('first', 470), ...tsFunction('second', 136)])), [[1, 614]]);
   // A file of 600 lines is not cut at all.
   assert.deepEqual(partsOf('src/short.ts', textOf(Array.from({ length: 12 }, (_, at) => tsFunction(`short${at}`, 46)).flat())), [[1, 600]]);
+});
+
+test('process-groups splits an area of more than about 200 notes by folder, into groups of about 150 notes', () => {
+  const notes = (file: string, count: number): Note[] => Array.from({ length: count }, (_, at) => ({ file, lines: [at + 1, at + 1], title: `Set value ${at}`, text: 'Sets one value.' }));
+  const map = (fileNotes: Note[]): RepoMap => ({ format: 1, diagrams: [{ id: 'top', kind: 'flow', title: 'Top', mermaid: 'flowchart LR\n  code["Code"]', nodePaths: { code: ['src/'] } }], fileNotes });
+  const groups = (fileNotes: Note[]) => processGroups(map(fileNotes)).groups.map((group) => [group.files.map((file) => file.path), group.notes]);
+  // 210 notes: the two files of one folder stay together (140 notes), the file of the other folder is a group of its own.
+  assert.deepEqual(groups([...notes('src/a/one.py', 80), ...notes('src/a/two.py', 60), ...notes('src/b/three.py', 70)]), [[['src/a/one.py', 'src/a/two.py'], 140], [['src/b/three.py'], 70]]);
+  // 200 notes: one group for the area.
+  assert.deepEqual(groups([...notes('src/a/one.py', 80), ...notes('src/a/two.py', 50), ...notes('src/b/three.py', 70)]), [[['src/a/one.py', 'src/a/two.py', 'src/b/three.py'], 200]]);
+  // A folder too large for one group is cut in the order of its paths; the groups are listed largest first.
+  assert.deepEqual(groups([...notes('src/a/one.py', 100), ...notes('src/a/two.py', 60), ...notes('src/a/three.py', 70)]), [[['src/a/three.py', 'src/a/two.py'], 130], [['src/a/one.py'], 100]]);
 });

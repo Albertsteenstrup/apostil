@@ -200,8 +200,8 @@ export function noteGroups(folder: string, stored: StoredMap | undefined, all = 
 
 // ----- the work for the process writers -----
 
-const GROUP_NOTES = 400; // the size of a group of a split area
-const SPLIT_NOTES = 500; // an area with more notes than this (about 400) is split by folder
+const GROUP_NOTES = 150; // the size of a group of a split area, so that no process writer has a long tail
+const SPLIT_NOTES = 200; // an area with more notes than this is split by folder
 
 export interface ProcessGroup {
   name: string; // letters, digits and "-"; the same for the same files
@@ -212,8 +212,8 @@ export interface ProcessGroup {
 }
 
 /**
- * The work for the process writers: one group for each area of the top diagram, with its code files and their count of notes; an area with more than about 400 notes is
- * split by folder, and the files in no area form their own groups. The notes of test files need no process, so their files are in no group.
+ * The work for the process writers: one group for each area of the top diagram, with its code files and their count of notes; an area with more than about 200 notes is
+ * split by folder into groups of about 150 notes, and the files in no area form their own groups. The notes of test files need no process, so their files are in no group.
  * By default only a group with no process yet, a stale process, or notes in no process; with `all`, every group. The groups are listed largest first, by
  * their notes.
  */
