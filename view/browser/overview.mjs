@@ -36,7 +36,9 @@ try {
   /** The frame of the diagram, the drawing in it, and the head of the first card under it. */
   const frameNow = () => home.evaluate(() => {
     const view = document.getElementById('view').getBoundingClientRect();
-    const drawn = (document.querySelector('#view svg g.root') ?? document.querySelector('#view svg > g'))?.getBoundingClientRect();
+    // The drawing: its root and the tags of folders and files under its nodes, which stand in a layer of their own.
+    const parts = [document.querySelector('#view svg g.root') ?? document.querySelector('#view svg > g'), document.querySelector('#view svg > .ptags')].filter(Boolean).map((el) => el.getBoundingClientRect());
+    const drawn = parts.length ? { top: Math.min(...parts.map((one) => one.top)), bottom: Math.max(...parts.map((one) => one.bottom)) } : undefined;
     const head = document.querySelector('#cards .ovc .ovh')?.getBoundingClientRect();
     const svg = document.querySelector('#view svg');
     return {

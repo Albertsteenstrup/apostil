@@ -47,6 +47,12 @@ try {
     nodes: document.querySelectorAll('#view g.node.go').length, dots: document.querySelectorAll('#view g.node circle').length,
     surface: document.getElementById('view').classList.contains('surface'),
     names: [...document.querySelectorAll('#view g.node.go')].map((g) => g.textContent.trim()).filter(Boolean).length, crumb: document.getElementById('crumb').textContent,
+    // The tag of each area: under the lower-left corner of its node, inside the drawing.
+    tags: Object.fromEntries([...document.querySelectorAll('#view .ptag')].map((tag) => [tag.dataset.node, tag.textContent])),
+    under: [...document.querySelectorAll('#view .ptag')].filter((tag) => {
+      const [node, own, svg] = [document.querySelector(`#view g.node[id*="flowchart-${tag.dataset.node}-"] > :first-child`), tag, document.querySelector('#view svg')].map((el) => el.getBoundingClientRect());
+      return own.top >= node.bottom - 1 && own.top < node.bottom + 20 && own.left > node.left && own.left < node.left + 30 && own.bottom <= svg.bottom && own.left >= svg.left;
+    }).length,
   }));
   await takePicture(home, '30-home-with-a-map.png');
   // The window of a node, alone: where its card shows it has none.
@@ -74,6 +80,10 @@ try {
     top.nodes === 8 && top.names === 8 && top.dots === 0 && top.surface && top.crumb === 'Home' && grows === '1.03' && iconsStay === 'none'
       && nodeWin.title === 'Lending' && nodeWin.sub === '9 files · 1 change' && nodeWin.rows?.[0] === 'src/library/lending/+593 −83 · 9 files' && /^book-holds/.test(nodeWin.rows?.[1] ?? '')
       && bigWin.sub === '2,339 files · 1 change' && bigWin.first === '+593 −83 · 5,132 files', JSON.stringify({ top, grows, iconsStay, nodeWin, bigWin }));
+
+  check('under each area of the map stands a quiet tag of its folders and files, at its lower-left corner and inside the drawing: a folder by its last name, with the name above it when two folders would read the same; a few files after the folders as "+2 files"; at most two, then "+N"',
+    Object.keys(top.tags).length === 8 && top.under === 8 && top.tags.web === 'web/' && top.tags.routes === 'library/web/' && top.tags.jobs === 'jobs/ +2 files' && top.tags.data === 'db/ · scripts/',
+    JSON.stringify({ tags: top.tags, under: top.under }));
 
   // A click on a node goes down and "Home" goes up; a node with no diagram under it asks for its folder in the tree "Files" and never opens the graphs
   // of the folder; the window of a node of an area lists its files, and a click on a file asks VS Code to open it.

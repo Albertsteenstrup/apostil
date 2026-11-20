@@ -267,6 +267,31 @@ function noMapHtml() {
   return `<div class="nomap">${mark}${mapRun ? '' : '<p>This repo has no map and no notes yet.</p>'}${mapPressHtml(apps, mapRun, mapApp, team, scope)}<div class="next">${nextStepsHtml(needsSetup)}</div></div>`;
 }
 
+/**
+ * The folders and files of each node of a written diagram, as a quiet tag under its lower-left corner. The tags stand in a layer of their own, so that
+ * the box of a node, where its comment and its marks stand, stays the box of its shape. True when it drew one.
+ */
+function tagNodes(svg, nodesOf) {
+  const layer = document.createElementNS(SVG_NS, 'g');
+  layer.setAttribute('class', 'ptags');
+  svg.append(layer);
+  const toLayer = layer.getScreenCTM()?.inverse();
+  for (const g of toLayer ? svg.querySelectorAll('g.node') : []) {
+    const key = nodeKey(g);
+    const tag = nodesOf[key]?.tag;
+    const toNode = tag && g.getScreenCTM();
+    if (!toNode) continue;
+    const box = Marks.boxOf(g);
+    const at = new DOMPoint(box.x + 10, box.y + box.height + 15).matrixTransform(toLayer.multiply(toNode));
+    const text = document.createElementNS(SVG_NS, 'text');
+    Object.entries({ class: 'ptag', x: at.x, y: at.y, 'data-node': key }).forEach(([name, value]) => text.setAttribute(name, value));
+    text.textContent = tag;
+    layer.append(text);
+  }
+  if (!layer.hasChildNodes()) layer.remove();
+  return layer.isConnected;
+}
+
 async function drawHome() {
   const { map } = Home.data;
   const view = document.getElementById('view');
@@ -327,6 +352,7 @@ async function drawHome() {
       }
     }
     if (svg) ProcessDrawing.decorate(svg, laid, diagram);
+    if (svg && tagNodes(svg, nodesOf)) fitToContent(svg);
     // The overview: a card under the diagram for each node that leads somewhere, in the reading order of the drawing, unless he chose the
     // diagram alone. With no such node the diagram stands alone and has no icon.
     const leading = Overview.inReadingOrder([...view.querySelectorAll('g.node, g.image-shape')]).filter((g) => leadsSomewhere(nodesOf[nodeKey(g)]));

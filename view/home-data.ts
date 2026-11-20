@@ -15,7 +15,7 @@ import { scopeCounts } from '../shared/note-groups';
 import { mapRunLine, type MapRunLine } from '../shared/map-run';
 import { areaWork } from '../store/map-run';
 import { teamOf, type Team } from '../shared/models';
-import { diagramsOf, touches, type DiagramOfPath } from '../shared/repo-map';
+import { diagramsOf, downOf, mainDiagramOf, touches, type DiagramOfPath } from '../shared/repo-map';
 import { allProcessDrawings, placeDiagramId, placeDrawing, processDiagramId, processesStartingIn, type LineOf, type ProcessDiagram, type ProcessNode, type Span } from '../shared/process-diagrams';
 import { lookData, type LookData } from './look-data';
 import { connectedApps } from './new-repo-steps';
@@ -53,6 +53,7 @@ export interface HomeNode {
   process?: true; // a process in the drawing of a place
   names?: string[]; // a call out of the repo: the names that the code calls it by
   callers?: ProcessNode['callers']; // a box that three or more boxes call: who calls it, and where
+  tag?: string; // a node of a written diagram: its folders and files in a few words, which stand under its lower-left corner
 }
 
 export interface HomeDiagram {
@@ -165,16 +166,6 @@ export function writtenLine(folder: string, commit: string): string | undefined 
   return behind > 0 ? `written ${behind} commit${behind === 1 ? '' : 's'} ago` : 'written at another commit';
 }
 
-/** The diagram one level down from a node: the child of the diagram whose paths meet the paths of the node the most. */
-function downOf(diagrams: Diagram[], parent: string, paths: string[]): string | undefined {
-  let best: { id: string; score: number } | undefined;
-  for (const child of diagrams.filter((diagram) => diagram.parent === parent)) {
-    const score = Object.values(child.nodePaths ?? {}).flat().filter((entry) => paths.some((path) => touches(path, entry))).length;
-    if (score > 0 && (!best || score > best.score)) best = { id: child.id, score };
-  }
-  return best?.id;
-}
-
 /**
  * The line of the map run of a repo, for Home and for the row "Home" of the list: from the record of the store, with the name of the session from the
  * files of its app. `writing` is the app of the run that this window started and that still runs.
@@ -208,18 +199,21 @@ export function homeData(store: Store, folder: string, apps: string[] = [], addr
   const changes = store.listChanges(id).map((change) => ({ id: change.id, branch: change.branch, title: change.file.title, files: filesOfChange(change, folder) }));
   const count = (path: string): number => files.filter((file) => touches(path, file)).length;
   const { diagrams } = stored.map;
-  const homeDiagrams: HomeDiagram[] = diagrams.map((diagram) => ({
-    id: diagram.id, kind: diagram.kind, title: diagram.title, parent: diagram.parent, mermaid: diagram.mermaid, graph: diagramGraph(diagram), ...schemaOf(diagram),
-    nodes: Object.fromEntries(Object.entries(diagram.nodePaths ?? {}).map(([node, paths]) => {
-      const under = files.filter((file) => paths.some((path) => touches(path, file)));
-      return [node, {
-        paths: paths.map((path) => ({ path, files: count(path) })), files: under.length,
-        // Each change that touches the node, with only the files of the node that it changes.
-        changes: changes.map((change) => ({ ...change, files: change.files.filter((file) => paths.some((path) => touches(path, file.path))) })).filter((change) => change.files.length),
-        down: downOf(diagrams, diagram.id, paths), graphs: paths.find((path) => path.endsWith('/')) ?? paths[0],
-      }];
-    })),
-  }));
+  const homeDiagrams: HomeDiagram[] = diagrams.map((diagram) => {
+    const tags = diagram.kind === 'schema' ? {} : nodeTags(diagram.nodePaths ?? {}); // the page draws the tables of a schema itself
+    return {
+      id: diagram.id, kind: diagram.kind, title: diagram.title, parent: diagram.parent, mermaid: diagram.mermaid, graph: diagramGraph(diagram), ...schemaOf(diagram),
+      nodes: Object.fromEntries(Object.entries(diagram.nodePaths ?? {}).map(([node, paths]) => {
+        const under = files.filter((file) => paths.some((path) => touches(path, file)));
+        return [node, {
+          paths: paths.map((path) => ({ path, files: count(path) })), files: under.length,
+          // Each change that touches the node, with only the files of the node that it changes.
+          changes: changes.map((change) => ({ ...change, files: change.files.filter((file) => paths.some((path) => touches(path, file.path))) })).filter((change) => change.files.length),
+          down: downOf(diagrams, diagram.id, paths), graphs: paths.find((path) => path.endsWith('/')) ?? paths[0], ...(tags[node] ? { tag: tags[node] } : {}),
+        }];
+      })),
+    };
+  });
   // A node with no diagram under it goes down to the processes that start in its paths: one process opens that process, several open the processes of that node.
   const drawn: ProcessDiagram[] = allProcessDrawings(stored.map);
   for (const diagram of homeDiagrams) {
@@ -263,6 +257,39 @@ const processHomeNode = (node: ProcessNode): HomeNode => ({
 
 /** The tables of a schema diagram, which the page draws itself; nothing for the other kinds. */
 const schemaOf = (diagram: Diagram): { schema?: SchemaDrawing } => (diagram.kind === 'schema' ? { schema: schemaDrawing(diagram) } : {});
+
+/**
+ * The folders and files of each node of a diagram in a few words, for the tag under its lower-left corner: each path by its last name, with the names
+ * above it when another path of the diagram has the same last name; two at most, then "+3"; the folders first, then the files as "+2 files".
+ */
+export function nodeTags(nodePaths: Record<string, string[]>): Record<string, string> {
+  const nameOf = (path: string, deep: number): string => `${path.replace(/\/$/, '').split('/').slice(-deep).join('/')}${path.endsWith('/') ? '/' : ''}`;
+  const all = [...new Set(Object.values(nodePaths).flat())];
+  const short = (path: string): string => {
+    let deep = 1;
+    while (deep < path.split('/').length && all.some((other) => other !== path && nameOf(other, deep) === nameOf(path, deep))) deep++;
+    return nameOf(path, deep);
+  };
+  const few = (names: string[]): string => `${names.slice(0, 2).join(' · ')}${names.length > 2 ? ` +${names.length - 2}` : ''}`;
+  const tags: Record<string, string> = {};
+  for (const [node, paths] of Object.entries(nodePaths)) {
+    const folders = paths.filter((path) => path.endsWith('/')).map(short);
+    const files = paths.filter((path) => !path.endsWith('/')).map(short);
+    if (folders.length && files.length) tags[node] = `${few(folders)} +${files.length} file${files.length === 1 ? '' : 's'}`;
+    else if (paths.length) tags[node] = few(folders.length ? folders : files);
+  }
+  return tags;
+}
+
+/** The step of Home at the main diagram of a folder (ending with "/") or a file, with its nodes lit (see mainDiagramOf); undefined when no map has it. */
+export function mainStepOf(store: Store, folder: string, path: string): Extract<Step, { tab: 'home' }> | undefined {
+  const id = idOf(folder);
+  const map = id ? store.getMap(id)?.map : undefined;
+  const at = !path.endsWith('/') && isFolder(join(folder, path)) ? `${path}/` : path;
+  const main = map && mainDiagramOf(map.diagrams, at);
+  if (!main) return undefined;
+  return main.diagram.parent ? { tab: 'home', diagram: main.diagram.id, lit: main.lit, name: main.diagram.title } : { tab: 'home', diagram: '', lit: main.lit, name: 'Home' };
+}
 
 /** The graphs page of a folder (ending with "/") or a file: one panel for each diagram that it is a part of, the widest first. */
 export function graphsData(store: Store, folder: string, path: string, address: (file: string) => string = (file) => file): GraphsData {

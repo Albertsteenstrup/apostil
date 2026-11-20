@@ -16,7 +16,7 @@ import { registerFirstStart } from './first-start';
 import { registerReportIssue } from './report-issue';
 import { rowOfFileInFront, treeSteps } from './files-follow';
 import { FilesTree } from './files-tree';
-import { idOf } from './home-data';
+import { idOf, mainStepOf } from './home-data';
 import { HomePages } from './home-page';
 import { fileIcons } from './icon-theme';
 import { lookPages } from './look-blocks';
@@ -129,10 +129,18 @@ export function activate(context: vscode.ExtensionContext) {
   notes.register(context);
   const files = new FilesTree(theStore, openFolder);
 
-  /** The graphs of a folder or file: a row of the Files tree, a file or folder of the Explorer, or the file of the editor. */
+  /**
+   * The graphs of a folder or file: a row of the Files tree, a file or folder of the Explorer, or the file of the editor. The icon of a row of "Files" opens
+   * Home at the main diagram of its path, big, with the path lit; the Explorer and the editor open the page of every diagram of the path.
+   */
   const graphsOf = (target?: unknown): void => {
     const own = typeof target === 'string' ? files.graphsIconClick(target) : undefined; // the graphs icon of a row of "Files": a click of the look goes to its target
     if (own) return void answerTarget(own, places);
+    const main = typeof target === 'string' ? mainStepOf(theStore, openFolder(), target) : undefined;
+    if (main) {
+      trail.start(main);
+      return void home.openHome({ diagram: main.diagram, lit: main.lit });
+    }
     const uri = target instanceof vscode.Uri ? target : typeof target === 'string' ? undefined : vscode.window.activeTextEditor?.document.uri;
     const path = typeof target === 'string' ? target : uri && inFolder(uri)?.split(sep).join('/');
     if (!path) return;

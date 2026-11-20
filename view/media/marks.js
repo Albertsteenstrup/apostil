@@ -1202,7 +1202,7 @@ const Marks = (() => {
     if (icon && !el.querySelector(':scope > .lk-icon')) el.insertAdjacentHTML('afterbegin', `<img class="lk-icon" src="${esc(icon)}" alt="">`);
   }
 
-  return { ...pure, lookText, decorate, decorateNote, placesHtml, act, useHere, bind, inputWindow, nameOf, paint, paintBox, paintText };
+  return { ...pure, lookText, decorate, decorateNote, placesHtml, act, useHere, bind, inputWindow, nameOf, paint, paintBox, paintText, boxOf };
 })();
 
 if (typeof module === 'object') module.exports = Marks; // for the tests in Node

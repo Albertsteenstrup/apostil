@@ -214,6 +214,38 @@ const nodePathsOf = (diagram: Diagram): string[] => Object.values(diagram.nodePa
 export const touches = (entry: string, path: string): boolean =>
   entry === path || (entry.endsWith('/') && path.startsWith(entry)) || (path.endsWith('/') && entry.startsWith(path));
 
+/** The ids of the nodes whose paths touch the path asked for. */
+const nodesAt = (diagram: Diagram, path: string): string[] =>
+  Object.entries(diagram.nodePaths ?? {}).filter(([, paths]) => paths.some((entry) => touches(entry, path))).map(([node]) => node);
+
+/** The diagram one level down from a node: the child of the diagram whose paths meet the paths of the node the most. */
+export function downOf(diagrams: Diagram[], parent: string, paths: string[]): string | undefined {
+  let best: { id: string; score: number } | undefined;
+  for (const child of diagrams.filter((diagram) => diagram.parent === parent)) {
+    const score = Object.values(child.nodePaths ?? {}).flat().filter((entry) => paths.some((path) => touches(path, entry))).length;
+    if (score > 0 && (!best || score > best.score)) best = { id: child.id, score };
+  }
+  return best?.id;
+}
+
+/**
+ * The main diagram of a folder (ending with "/") or a file, with its nodes to light: from the top map, one level down through the one lit node while the
+ * diagram under it has a node at the path. A folder whose diagram shows only its inside lights no node; a path in no node of the top map has none.
+ */
+export function mainDiagramOf(diagrams: Diagram[], at: string): { diagram: Diagram; lit: string[] } | undefined {
+  let diagram = diagrams.find((one) => !one.parent);
+  let lit = diagram ? nodesAt(diagram, at) : [];
+  if (!diagram || !lit.length) return undefined;
+  for (let depth = 0; lit.length === 1 && depth < diagrams.length; depth++) { // depth: parents that loop end here
+    const id = downOf(diagrams, diagram.id, diagram.nodePaths?.[lit[0]] ?? []);
+    const down = diagrams.find((one) => one.id === id);
+    const downLit = down ? nodesAt(down, at) : [];
+    if (!down || !downLit.length) break;
+    [diagram, lit] = [down, downLit];
+  }
+  return { diagram, lit: lit.length === Object.keys(diagram.nodePaths ?? {}).length ? [] : lit };
+}
+
 /** How many levels a diagram sits below the top map, or undefined when its parents loop or break. */
 function depthOf(byId: Map<string, Diagram>, diagram: Diagram): number | undefined {
   let depth = 0;
@@ -299,10 +331,6 @@ const isFolder = (full: string): boolean => {
     return false;
   }
 };
-
-/** The ids of the nodes whose paths touch the path asked for. */
-const nodesAt = (diagram: Diagram, path: string): string[] =>
-  Object.entries(diagram.nodePaths ?? {}).filter(([, paths]) => paths.some((entry) => touches(entry, path))).map(([node]) => node);
 
 /** The ids of the nodes of a diagram of a part that have a place in the path asked for. */
 const placed = (diagram: Diagram, path: string): string[] => (diagram.broad ? [] : thingsOf(diagram).things

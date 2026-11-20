@@ -508,7 +508,7 @@ try {
   await shot('2a-a-comment-sent-to-the-stand-in-gh');
   await conv?.locator('.switch a[data-view="diagram"]').first().click();
 
-  // The Home row opens Home; the icon of a row of the tree "Files" and the icon in the title bar of a file open the graphs of that file.
+  // The Home row opens Home; the icon of a row of the tree "Files" opens Home at the main diagram of that file, and the icon in the title bar of a file opens its graphs.
   await list?.locator('.home').click();
   const home = await homeFrame();
   check('the Home row opens the Home tab with the top map of its 8 areas', !!home && /^Home/.test(await activeTab() ?? ''), await activeTab());
@@ -522,14 +522,16 @@ try {
   const rowIcon = rowOf('hold_service.py').locator('.actions .action-label');
   await rowIcon.first().click();
   const graphsOf = (wanted, panels = 0) => frameWhere(({ wanted, panels }) => typeof Home === 'object' && Home.data?.path === wanted && document.querySelectorAll('.pnl .pd svg').length > panels, { wanted, panels });
-  const graphs = await graphsOf(servicePath);
-  const panels = graphs ? await graphs.evaluate(() => document.querySelectorAll('.pnl').length) : 0;
+  const mainOf = await frameWhere(() => typeof Home === 'object' && Home.data?.kind === 'home' && Home.at === 'lib-lending' && Home.lit?.join() === 'service' && !!document.querySelector('#view svg'));
+  const mainTab = await activeTab();
+  await shot('2c-home-at-the-main-diagram-of-a-file');
   await rowOf('permissions.py').click();
   const editorTab = await until(async () => { const now = await activeTab(); return /^permissions\.py/.test(now ?? '') && now; });
   await page.locator('.editor-group-container.active .editor-actions .action-label[aria-label*="Graphs of this folder or file"]').first().click();
   const titleGraphs = await graphsOf('src/library/lending/permissions.py');
-  check('the icon of a row in the tree "Files" opens the graphs of that file as panels in a tab of its own; a click on a file name opens the file, and the icon in its title bar opens its graphs',
-    panels === 5 && !!editorTab && !!titleGraphs, `${panels} panels; editor ${editorTab}; graphs ${!!titleGraphs}`);
+  const panels = titleGraphs ? await titleGraphs.evaluate(() => document.querySelectorAll('.pnl').length) : 0;
+  check('the icon of a row in the tree "Files" opens Home at the main diagram of that file with its node lit; a click on a file name opens the file, and the icon in its title bar opens its graphs as panels in a tab of its own',
+    !!mainOf && /^Home/.test(mainTab ?? '') && !!editorTab && panels > 1, `main ${!!mainOf} in ${mainTab}; editor ${editorTab}; ${panels} panels`);
   await shot('2c-graphs-of-a-file');
   await command('View: Close All Editors');
 

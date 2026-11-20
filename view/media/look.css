@@ -95,6 +95,8 @@ a.inst:hover{text-decoration:underline;text-underline-offset:3px}
 .stage .node rect,.stage .node path{rx:6px;ry:6px}
 .stage .cluster rect{rx:8px;ry:8px}
 .stage .edgeLabel{font-size:var(--small)}
+.stage .ptags{pointer-events:none}
+.stage .ptag{font:11px var(--mono);fill:var(--muted)} /* the folders and files of a node, under its lower-left corner */
 .stage .err{color:var(--del);font:var(--small) var(--mono);white-space:pre-wrap}
 /* Mermaid draws in the colours of the look (lookColors in diagram-stage.js), but for a few light greys of its own: in another theme of VS Code they are the look's */
 body:where(.vscode-light:not([data-vscode-theme-id="Apostil Light"]),.vscode-dark,.vscode-high-contrast) :is(.stage,.mmd) :is(.node circle.state-end,.composit,.alt-composit){stroke:var(--d-region)!important}

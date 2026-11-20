@@ -7,7 +7,7 @@ import { after, test } from 'node:test';
 import { shapeProblems, type Diagram } from './change-file';
 import { checkChangeFile } from './checks';
 import { repoId } from './git';
-import { checkMap, diagramsOf, mapProblems, type RepoMap } from './repo-map';
+import { checkMap, diagramsOf, mainDiagramOf, mapProblems, type RepoMap } from './repo-map';
 import { Store } from './store';
 import { makeTestRepo, tempFolder, testChangeFile } from './test-repo';
 
@@ -177,3 +177,25 @@ test('diagramsOf gives the diagrams of a file, a folder and a path in nothing, t
 });
 
 
+
+test('mainDiagramOf goes down from the top map through the one lit node: a file to the deepest diagram that has it, a folder to the diagram of its inside, a folder of two nodes stays with both lit', () => {
+  const diagram = (id: string, nodePaths: Record<string, string[]>, parent?: string): Diagram => ({ id, kind: 'flow', title: id, mermaid: 'flowchart LR', nodePaths, ...(parent ? { parent } : {}) });
+  const diagrams = [
+    diagram('top', { store: ['store/'], view: ['view/'], docs: ['README.md'] }),
+    diagram('inside-store', { db: ['store/db.ts'], cli: ['store/cli.ts', 'store/cli/'] }, 'top'),
+    diagram('inside-cli', { args: ['store/cli/args.ts'] }, 'inside-store'),
+    diagram('inside-view', { home: ['view/home.ts'], media: ['view/media/'] }, 'top'),
+  ];
+  const main = (at: string): [string, string[]] | undefined => {
+    const found = mainDiagramOf(diagrams, at);
+    return found && [found.diagram.id, found.lit];
+  };
+  assert.deepEqual(main('store/cli/args.ts'), ['inside-cli', []], 'a file in the one node of the deepest diagram');
+  assert.deepEqual(main('store/db.ts'), ['inside-store', ['db']], 'no diagram under the node of the file');
+  assert.deepEqual(main('store/'), ['inside-store', []], 'the inside of a folder');
+  assert.deepEqual(main('view/media/x.js'), ['inside-view', ['media']]);
+  assert.deepEqual(main('README.md'), ['top', ['docs']]);
+  assert.deepEqual(main('nothing.txt'), undefined);
+  const wide = [diagram('top', { a: ['src/a.ts'], b: ['src/b.ts'], c: ['web/'] })];
+  assert.deepEqual(mainDiagramOf(wide, 'src/')?.lit, ['a', 'b'], 'a folder across two nodes lights both');
+});
