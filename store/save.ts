@@ -246,12 +246,12 @@ function sortSkips(folder: string, skips: unknown[]): { kept: Skip[]; leftOut: S
   return { kept, leftOut };
 }
 
-/** A note of a file with ranges must lie inside one of them. */
+/** A note of a file with ranges must start inside one of them: a class that starts in a part of a long file and goes on after it keeps its last line. */
 function outsideRanges(notes: Note[], ranges: NonNullable<NotesDraft['ranges']>): string[] {
   return notes.flatMap((note) => {
     const own = ranges.filter((range) => range.file === note.file);
-    return own.length && !own.some((range) => note.lines[0] >= range.from && note.lines[1] <= range.to)
-      ? [`Note "${note.title}": its lines ${note.lines[0]}-${note.lines[1]} of ${note.file} are outside your lines (${own.map((range) => `${range.from}-${range.to}`).join(', ')}). Write notes only for your lines.`] : [];
+    return own.length && !own.some((range) => note.lines[0] >= range.from && note.lines[0] <= range.to)
+      ? [`Note "${note.title}": its lines ${note.lines[0]}-${note.lines[1]} of ${note.file} start outside your lines (${own.map((range) => `${range.from}-${range.to}`).join(', ')}). Write only the notes that start in your lines.`] : [];
   });
 }
 

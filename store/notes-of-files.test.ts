@@ -58,10 +58,14 @@ test('add-notes saves notes by file, replaces only the files it names, keeps the
   // A range replaces only the notes inside its lines, and a note outside the range is refused.
   addNotesToMap(store, repo.folder, { notes: [note('src/app.py', [1, 4], 'Old one'), note('src/app.py', [5, 8], 'Old two'), note('src/app.py', [9, 12], 'Old three')] });
   const outside = addNotesToMap(store, repo.folder, { notes: [note('src/app.py', [3, 6], 'Across')], ranges: [{ file: 'src/app.py', from: 5, to: 12 }] });
-  assert.match(outside.problems.join(' '), /outside your lines \(5-12\)/);
+  assert.match(outside.problems.join(' '), /start outside your lines \(5-12\)/);
   const inside = addNotesToMap(store, repo.folder, { notes: [note('src/app.py', [5, 12], 'New range')], ranges: [{ file: 'src/app.py', from: 5, to: 12 }] });
   assert.equal(inside.saved, true);
   assert.deepEqual(store.getMap(id)?.map.fileNotes?.map((one) => one.title), ['Old one', 'New range']);
+  // A note that starts in the range may end after it: the note of a class that goes on after a part of a long file.
+  const after = addNotesToMap(store, repo.folder, { notes: [note('src/app.py', [3, 8], 'Class goes on')], ranges: [{ file: 'src/app.py', from: 1, to: 4 }] });
+  assert.equal(after.saved, true, after.problems.join(' '));
+  assert.deepEqual(store.getMap(id)?.map.fileNotes?.map((one) => one.title), ['Class goes on', 'New range']);
   done();
 });
 
