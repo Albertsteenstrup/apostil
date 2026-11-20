@@ -52,6 +52,9 @@ export function mapAsChange(diagrams: Diagram[], fileNotes: Note[] = []): Change
 /** All notes of a map: of its diagrams and of its files. */
 export const noteCount = (map: RepoMap): number => map.diagrams.reduce((sum, diagram) => sum + (diagram.notes?.length ?? 0), map.fileNotes?.length ?? 0);
 
+/** How many files of the repo have a note in the map. */
+export const notedFileCount = (map: RepoMap): number => new Set([...(map.fileNotes ?? []), ...map.diagrams.flatMap((diagram) => diagram.notes ?? [])].map((note) => note.file)).size;
+
 const wordCount = (text: string): number => text.trim().split(/\s+/).filter(Boolean).length;
 
 /** Irregular verbs whose -s form does not end in a plain "s" on the bare verb. */

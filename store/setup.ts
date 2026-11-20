@@ -1,4 +1,5 @@
-// "apostil setup": the skills where each agent app of this machine reads them. The hook of Claude Code is a step of its own; undo still takes it away. No `vscode` import.
+// "apostil setup": the skills where each agent app of this machine reads them, and for Claude Code the hint at the start of a session and the rules that allow
+// the commands that read the map. The wait hook of Claude Code is a step of its own (apostil connect); undo still takes it away. No `vscode` import.
 // Every function takes the home folder and the path, so that a test can give folders of its own. A setup for a repo adds the repo to the record in the store; its undo takes it out.
 
 import { cpSync, existsSync, lstatSync, readdirSync, readFileSync, realpathSync, rmdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -6,7 +7,7 @@ import { dirname, isAbsolute, join, relative, sep } from 'node:path';
 import { APP_PROGRAMS, findOnPath } from '../shared/agents';
 import { tryGit } from '../shared/git';
 import { storeFolder } from '../shared/store';
-import { addExcludeLine, DRAFT_LINES, keepOutOfGit, letGitSee, removeWaitHook, settingsFile } from './connect-claude-code';
+import { addAllowRules, addExcludeLine, addHook, DRAFT_LINES, HINT_HOOK, keepOutOfGit, letGitSee, READ_MAP_RULES, removeAllowRules, removeHook, settingsFile, WAIT_HOOK } from './connect-claude-code';
 import { recordRepo } from './setup-record';
 
 /** The home folder and the PATH of the person. */
@@ -155,7 +156,7 @@ export function setup({ install, machine, repo, undo, dryRun, store = storeFolde
   const scope = repo ? short(repo, machine.home) : 'all repos';
   const write = !(undo && dryRun);
   const lines: string[] = [];
-  const ok = true;
+  let ok = true;
 
   const seenUndo = new Set<string>();
   for (const app of SETUP_APPS) {
@@ -205,16 +206,32 @@ export function setup({ install, machine, repo, undo, dryRun, store = storeFolde
   }
 
   const settings = settingsFile(repo, machine.home);
+  const HINT = 'Claude Code: a hint at the start of each session that points the agent to the map';
+  const RULES = 'Claude Code: permission for the commands that read the map';
+  const where = short(settings, machine.home);
   if (undo) {
-    if (removeWaitHook(settings, write)) {
-      lines.push(line('removed', `Claude Code: the hook in ${short(settings, machine.home)}`));
-      if (write && repo && !existsSync(settings)) {
-        letGitSee(repo, ['.claude/settings.local.json']);
-        removeIfEmpty(dirname(settings), 1);
-      }
+    const removed = [
+      removeHook(settings, WAIT_HOOK, write) && 'Claude Code: the hook',
+      removeHook(settings, HINT_HOOK, write) && `${HINT},`,
+      removeAllowRules(settings, READ_MAP_RULES, write) && `${RULES},`,
+    ].filter(Boolean);
+    for (const what of removed) lines.push(line('removed', `${what} in ${where}`));
+    // A settings file that held only what Apostil added is gone: Git may list the path again, and an empty .claude goes too.
+    if (removed.length && write && repo && !existsSync(settings)) {
+      letGitSee(repo, ['.claude/settings.local.json']);
+      removeIfEmpty(dirname(settings), 1);
     }
     if (!lines.length) lines.push(line('nothing', `Apostil had set up nothing for ${scope}.`));
     return { lines, ok };
+  }
+  if (appIsHere(SETUP_APPS[0], machine)) {
+    const hint = addHook(settings, HINT_HOOK);
+    const rules = hint.problem ? undefined : addAllowRules(settings, READ_MAP_RULES);
+    const problem = hint.problem ?? rules?.problem;
+    if (repo && (hint.added || rules?.added.length)) keepOutOfGit(repo);
+    if (problem) lines.push(line('left', `${HINT}: ${problem.replace(settings, where)}`));
+    else lines.push(line(hint.added ? 'added' : 'there', HINT), line(rules?.added.length ? 'added' : 'there', RULES));
+    ok = !problem;
   }
   if (!SETUP_APPS.some((app) => appIsHere(app, machine))) {
     lines.push(line('missing', 'No agent app on this machine. Install Claude Code, Codex or Antigravity, then run apostil setup again.'));

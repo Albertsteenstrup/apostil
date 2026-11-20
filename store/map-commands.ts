@@ -7,7 +7,7 @@ import { codeFiles, fileNotesSource, filesNeedingNotes, groupProcessFacts, noteG
 import { findInMap, mapOverview, NO_MAP_WORDS, notesNow, notesText, processText } from '../shared/map-read';
 import { notesOfFile } from '../shared/notes-beside-code';
 import { processFacts, processWithHandoffs, stepKey } from '../shared/processes';
-import { diagramsOf, noteCount } from '../shared/repo-map';
+import { diagramsOf, noteCount, notedFileCount } from '../shared/repo-map';
 import type { Store } from '../shared/store';
 import { DEFAULT_RULES, type Look } from '../shared/look';
 import { lookSlots } from '../shared/look-slots';
@@ -160,7 +160,7 @@ export function runMapCommand(store: Store, command: string, argument: string, f
       // How many notes the map holds and in how many files, and what to do when code files lack notes: an agent that is asked for notes reads this, and does not ask for a commit.
       // The notes of files are not printed: an area writer reads this, and it must stay short.
       const notes = noteCount(stored.map);
-      const notedFiles = new Set([...(stored.map.fileNotes ?? []), ...stored.map.diagrams.flatMap((diagram) => diagram.notes ?? [])].map((note) => note.file)).size;
+      const notedFiles = notedFileCount(stored.map);
       const needing = filesNeedingNotes(folder, stored);
       // The notes come first: a process is made of notes. Then the hint of the processes, when work is left for the process writers.
       const flow = processFacts(stored.map);

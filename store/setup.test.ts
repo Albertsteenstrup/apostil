@@ -1,4 +1,5 @@
-// Tests for "apostil setup": the skills (and no hook) for one repo or for all repos, a second run, an older copy, a folder of someone else, and --undo.
+// Tests for "apostil setup": the skills, and for Claude Code the hint and the rules that allow the reads of the map, for one repo or for all repos,
+// a second run, an older copy, a folder of someone else, and --undo.
 // Each test gives setup a home folder and a path of its own.
 
 import assert from 'node:assert/strict';
@@ -7,7 +8,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { git } from '../shared/git';
 import { makeTestRepo, runApostil, tempFolder, testMachine } from '../shared/test-repo';
-import { connectClaudeCode } from './connect-claude-code';
+import { connectClaudeCode, READ_MAP_RULES } from './connect-claude-code';
 import { hasOlderCopy, NEXT_STEP, setup, skillNames, someAppSeesSkills, thisInstall, VERSION_FILE } from './setup';
 
 const install = thisInstall();
@@ -16,15 +17,19 @@ const names = skillNames(install);
 const words = (lines: string[]): string[] => lines.filter(Boolean).map((line) => line.split(' ')[0]);
 const status = (folder: string): string => git(folder, 'status', '--porcelain', '--untracked-files=all');
 const exclude = (folder: string): string => readFileSync(join(folder, '.git', 'info', 'exclude'), 'utf8');
+const HINT = { hooks: [{ type: 'command', command: 'apostil hint', timeout: 10 }] }; // the SessionStart hook of the hint, as Claude Code reads it
+const readJson = (file: string) => JSON.parse(readFileSync(file, 'utf8'));
 
-test('setup for a repo: the skills that ship with the install for each app that is there, none for an app that is not, no hook, Git shows no change, and a second run does no harm', () => {
+test('setup for a repo: the skills that ship with the install for each app that is there, none for an app that is not, the hint and the rules for Claude Code, Git shows no change, and a second run adds nothing twice', () => {
   assert.deepEqual(names, ['apostil-describe-change', 'apostil-map-repo', 'apostil-read-diagrams', 'apostil-report-issue', 'apostil-review-remarks', 'apostil-uninstall']);
   const repo = makeTestRepo();
   const machine = testMachine({ claude: 'command', codex: 'folder' });
   const before = status(repo.folder);
   const { lines, ok } = setup({ install, machine, repo: repo.folder });
   assert.equal(ok, true);
-  assert.deepEqual(words(lines), [...Array(names.length * 2).fill('added'), 'skipped', 'Now']);
+  assert.deepEqual(words(lines), [...Array(names.length * 2).fill('added'), 'skipped', 'added', 'added', 'Now']);
+  assert.ok(lines.includes('added    Claude Code: a hint at the start of each session that points the agent to the map'), lines.join('\n'));
+  assert.ok(lines.includes('added    Claude Code: permission for the commands that read the map'));
   assert.equal(lines.at(-1), NEXT_STEP);
   for (const folder of ['.claude/skills', '.agents/skills']) {
     for (const name of names) {
@@ -32,7 +37,8 @@ test('setup for a repo: the skills that ship with the install for each app that 
       assert.equal(readFileSync(join(repo.folder, folder, name, VERSION_FILE), 'utf8').trim(), install.version);
     }
   }
-  assert.equal(existsSync(join(repo.folder, '.claude', 'settings.local.json')), false); // setup adds no hook
+  const settings = join(repo.folder, '.claude', 'settings.local.json');
+  assert.deepEqual(readJson(settings), { hooks: { SessionStart: [HINT] }, permissions: { allow: READ_MAP_RULES } });
   assert.equal(status(repo.folder), before);
   assert.deepEqual(readdirSync(machine.home).sort(), ['.apostil', '.codex']); // in the home folder only the record of the store
   assert.deepEqual(JSON.parse(readFileSync(join(machine.home, '.apostil', 'repos-set-up.json'), 'utf8')), [repo.folder]);
@@ -40,19 +46,20 @@ test('setup for a repo: the skills that ship with the install for each app that 
   // A second run does no harm: everything is there, and the exclude file gets no line twice.
   const kept = exclude(repo.folder);
   const again = setup({ install, machine, repo: repo.folder });
-  assert.deepEqual(words(again.lines), [...Array(names.length * 2).fill('there'), 'skipped', 'Now']);
+  assert.deepEqual(words(again.lines), [...Array(names.length * 2).fill('there'), 'skipped', 'there', 'there', 'Now']);
+  assert.deepEqual(readJson(settings), { hooks: { SessionStart: [HINT] }, permissions: { allow: READ_MAP_RULES } }); // the hook and each rule once
   assert.equal(exclude(repo.folder), kept);
   assert.equal(status(repo.folder), before);
 
   // With Claude Code only, Codex only, Antigravity only, or no app.
   const claudeOnly = makeTestRepo();
   const claude = setup({ install, machine: testMachine({ claude: 'folder' }), repo: claudeOnly.folder });
-  assert.deepEqual(words(claude.lines), [...Array(names.length).fill('added'), 'skipped', 'skipped', 'Now']);
+  assert.deepEqual(words(claude.lines), [...Array(names.length).fill('added'), 'skipped', 'skipped', 'added', 'added', 'Now']);
   assert.equal(existsSync(join(claudeOnly.folder, '.agents')), false);
   const codexOnly = makeTestRepo();
   const codex = setup({ install, machine: testMachine({ codex: 'command' }), repo: codexOnly.folder });
   assert.deepEqual(words(codex.lines), ['skipped', ...Array(names.length).fill('added'), 'skipped', 'Now']);
-  assert.equal(existsSync(join(codexOnly.folder, '.claude')), false); // no skills and no hook for Claude Code
+  assert.equal(existsSync(join(codexOnly.folder, '.claude')), false); // no skills, no hint and no rules for Claude Code
   const agyOnly = makeTestRepo();
   const agy = setup({ install, machine: testMachine({ agy: 'command' }), repo: agyOnly.folder });
   assert.deepEqual(words(agy.lines), ['skipped', 'skipped', ...Array(names.length).fill('added'), 'Now']);
@@ -66,22 +73,28 @@ test('setup for a repo: the skills that ship with the install for each app that 
   for (const one of [repo, claudeOnly, codexOnly, agyOnly, none]) one.remove();
 });
 
-test('setup for a repo keeps the draft files out of the list of new files, and --undo takes away what setup added and nothing else', () => {
+test('setup for a repo keeps the draft files out of the list of new files, and --undo takes away what setup added and nothing else, also in a settings file with a hook and a rule of the person', () => {
   const repo = makeTestRepo();
   const machine = testMachine({ claude: 'command', codex: 'command' });
   const foreign = join(repo.folder, '.agents', 'skills', 'apostil-map-repo');
   mkdirSync(foreign, { recursive: true });
   writeFileSync(join(foreign, 'SKILL.md'), 'mine');
   mkdirSync(join(repo.folder, '.claude'));
-  writeFileSync(join(repo.folder, '.claude', 'settings.local.json'), '{ "permissions": { "allow": ["Bash(ls)"] } }');
+  const mine = { permissions: { allow: ['Bash(ls)'] }, hooks: { SessionStart: [{ hooks: [{ type: 'command', command: 'echo mine' }] }] } };
+  writeFileSync(join(repo.folder, '.claude', 'settings.local.json'), JSON.stringify(mine));
   writeFileSync(join(repo.folder, '.git', 'info', 'exclude'), '# mine\n.claude/settings.local.json\n.agents/skills/apostil-map-repo/\n');
   const before = { status: status(repo.folder), exclude: exclude(repo.folder) };
 
   setup({ install, machine, repo: repo.folder });
-  connectClaudeCode(repo.folder, machine.home); // setup adds no hook; this one is from an earlier version
+  setup({ install, machine, repo: repo.folder });
+  connectClaudeCode(repo.folder, machine.home); // setup adds no wait hook; this one is from an earlier version, or from apostil connect
+  const added = readJson(join(repo.folder, '.claude', 'settings.local.json'));
+  assert.deepEqual(added.hooks.SessionStart.slice(0, 2), [mine.hooks.SessionStart[0], HINT]);
+  assert.deepEqual(added.permissions.allow, ['Bash(ls)', ...READ_MAP_RULES]);
   const { lines } = setup({ install, machine, repo: repo.folder, undo: true });
-  assert.deepEqual(words(lines), [...names.map(() => 'removed'), ...names.map((name) => (name === 'apostil-map-repo' ? 'left' : 'removed')), 'removed']);
-  assert.deepEqual(JSON.parse(readFileSync(join(repo.folder, '.claude', 'settings.local.json'), 'utf8')), { permissions: { allow: ['Bash(ls)'] } });
+  assert.deepEqual(words(lines), [...names.map(() => 'removed'), ...names.map((name) => (name === 'apostil-map-repo' ? 'left' : 'removed')), 'removed', 'removed', 'removed']);
+  assert.ok(lines.includes(`removed  Claude Code: a hint at the start of each session that points the agent to the map, in ${join(repo.folder, '.claude', 'settings.local.json')}`), lines.join('\n'));
+  assert.deepEqual(readJson(join(repo.folder, '.claude', 'settings.local.json')), mine);
   assert.equal(readFileSync(join(foreign, 'SKILL.md'), 'utf8'), 'mine');
   assert.equal(existsSync(join(repo.folder, '.claude', 'skills')), false);
   assert.equal(status(repo.folder), before.status);
@@ -140,7 +153,7 @@ test('an older copy is brought up to date, a folder that Apostil did not put the
   other.remove();
 });
 
-test('setup --all puts the skills, and no hook, into the home folder and leaves the repo alone', () => {
+test('setup --all puts the skills, the hint and the rules into the home folder and leaves the repo alone; --undo leaves the settings of the person as they were', () => {
   const machine = testMachine({ claude: 'command', codex: 'command', agy: 'command' });
   mkdirSync(join(machine.home, '.claude'));
   writeFileSync(join(machine.home, '.claude', 'settings.json'), '{ "model": "made-up" }');
@@ -149,12 +162,12 @@ test('setup --all puts the skills, and no hook, into the home folder and leaves 
   assert.ok(lines.includes(`added    Claude Code: the skill apostil-map-repo in ~/.claude/skills`), lines.join('\n'));
   assert.ok(lines.includes(`added    Codex: the skill apostil-map-repo in ~/.agents/skills`));
   assert.ok(lines.includes(`added    Antigravity: the skill apostil-map-repo in ~/.gemini/config/skills`));
-  assert.equal(lines.some((one) => one.includes('hook')), false);
-  assert.deepEqual(JSON.parse(readFileSync(join(machine.home, '.claude', 'settings.json'), 'utf8')), { model: 'made-up' });
+  assert.ok(lines.includes('added    Claude Code: a hint at the start of each session that points the agent to the map'));
+  assert.deepEqual(readJson(join(machine.home, '.claude', 'settings.json')), { model: 'made-up', hooks: { SessionStart: [HINT] }, permissions: { allow: READ_MAP_RULES } });
   connectClaudeCode(undefined, machine.home); // a hook from an earlier version, or from the step of its own
 
   const undone = setup({ install, machine, undo: true });
-  assert.deepEqual(words(undone.lines), Array(names.length * 3 + 1).fill('removed')); // the skills of all three apps and the hook
+  assert.deepEqual(words(undone.lines), Array(names.length * 3 + 3).fill('removed')); // the skills of all three apps, the wait hook, the hint and the rules
   assert.deepEqual(JSON.parse(readFileSync(join(machine.home, '.claude', 'settings.json'), 'utf8')), { model: 'made-up' });
   assert.deepEqual(readdirSync(machine.home).sort(), ['.claude']);
   assert.deepEqual(readdirSync(join(machine.home, '.claude')), ['settings.json']);
