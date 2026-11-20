@@ -63,6 +63,21 @@ test('the first save of a writer opens the record with the session from the envi
   repo.remove();
 });
 
+test('the cards of Home count a long file that is cut into parts as one file that needs notes', () => {
+  const store = new Store(tempFolder('apostil-home-'));
+  const repo = makeTestRepo();
+  repo.write('src/long.py', Array.from({ length: 20 }, (_, at) => [`def step${at}():`, ...Array.from({ length: 49 }, (_, line) => `    value_${line} = ${line}`), ''].join('\n')).join('\n'));
+  const id = repoId(repo.folder);
+  const drafts = tempFolder('apostil-draft-');
+  writeFileSync(join(drafts, 'map.json'), JSON.stringify({ format: 1, diagrams: [{ id: 'top', kind: 'flow', title: 'The test repo', mermaid: 'flowchart LR\n  code --> docs', nodePaths: { code: ['src/'], docs: ['README.md'] } }] }));
+  assert.ok(runMapCommand(store, 'save-map', join(drafts, 'map.json'), repo.folder, {}, { CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: SESSION }).ok);
+  assert.equal(noteGroups(repo.folder, store.getMap(id)).groups.filter((group) => group.files[0].part).length, 3);
+  // Its three code files all need notes: a third of the work of the area is done (its marks), as with whole files.
+  assert.deepEqual(areaWork(store, repo.folder, store.getMap(id)!, store.mapRun(id)!), { code: { state: 'working', share: 0.33 } });
+  store.close();
+  repo.remove();
+});
+
 test('an open record with no save for 30 minutes counts as stopped; a run that wrote only a part of a map is then done; a save after a stop goes on with the whole map', () => {
   const whole = withSave(undefined, { overview: true }, { app: 'claude-code', session: SESSION }, 8, AT);
   assert.equal(mapRunState(whole, later(30)), 'writing');

@@ -135,7 +135,8 @@ export function areaWork(store: Store, folder: string, stored: StoredMap, run: M
   for (const file of codeFiles(folder).files) total.set(areaOf(map, file.path) ?? '', (total.get(areaOf(map, file.path) ?? '') ?? 0) + 1);
   const notes = noteGroups(folder, stored).groups;
   const needing = new Map<string, number>();
-  for (const group of notes) needing.set(group.area ?? '', (needing.get(group.area ?? '') ?? 0) + group.files.length);
+  const areaOfPath = new Map(notes.flatMap((group) => group.files.map((file) => [file.path, group.area ?? ''] as const))); // a file with parts counts once
+  for (const area of areaOfPath.values()) needing.set(area, (needing.get(area) ?? 0) + 1);
   const noProcess = new Set(processGroups(map).groups.filter((group) => group.why?.includes('no process yet')).map((group) => group.area ?? ''));
   const marking = new Set(setsOf(store, repoId(folder)).flatMap((set) => markGroups(folder, map, set.id).groups.map((group) => group.area ?? '')));
   const areas: Record<string, AreaWork> = {};
