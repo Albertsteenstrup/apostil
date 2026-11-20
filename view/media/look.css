@@ -353,7 +353,9 @@ p.fact{margin:0;padding:8px 12px;color:var(--muted)} /* what a file is, in one l
 
 /* The card of a comment, beside its thing: a quiet head with the place and the tools, the threads as a small chat, the box with the picker under it. */
 .cbox{position:fixed;z-index:25;width:min(344px,calc(100vw - 16px));box-sizing:border-box;padding:10px 14px 12px;border-radius:14px;border-color:var(--line);color:var(--ink);line-height:1.45}
-.cbox .ch{display:flex;align-items:center;gap:8px;margin:0 0 4px;font-size:var(--small);color:var(--muted)}
+.cbox .ch{display:flex;align-items:center;gap:8px;margin:0 0 4px;font-size:var(--small);color:var(--muted);cursor:grab;user-select:none}
+.cbox .ch .tools{cursor:auto}
+.cbox.dragging,.cbox.dragging .ch{cursor:grabbing}
 .where{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .where .gone-place{color:var(--faint)}
 .cbox .tools{display:flex;gap:2px;margin-left:auto;margin-right:-6px;flex:none}
@@ -375,7 +377,8 @@ p.fact{margin:0;padding:8px 12px;color:var(--muted)} /* what a file is, in one l
 .cbox .who{line-height:24px;font-size:var(--small);color:var(--soft)}
 .cbox .who b{font-weight:600}
 .cbox .msg.agent .tx{margin-top:0}
-.cbox .st{margin:8px 0 0 33px}
+.cbox .st{margin:8px 0 0}
+.cbox .msg.agent + .st{margin-left:33px}
 .cbox .st:empty{display:none}
 .cbox .toreply{display:inline-block;margin:4px 0 0 33px;font-size:var(--small);color:var(--muted)}
 .cbox .changed{margin-top:6px;padding:6px 9px;border:1px solid var(--line);border-radius:8px;font-size:var(--small)}

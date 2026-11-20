@@ -808,6 +808,7 @@ const Remarks = (() => {
       + `<p class="cbline"${github ? '' : ' hidden'}>${esc(github)}</p>`;
     if (!card.el) {
       card.el = html('<div class="cbox card"></div>');
+      card.el.addEventListener('pointerdown', dragCard);
       document.body.append(card.el);
     }
     card.el.innerHTML = body;
@@ -858,8 +859,14 @@ const Remarks = (() => {
   function placeCard() {
     if (!card?.el) return;
     const el = card.el;
-    const rect = anchorRect();
     const [width, height, gap, edge] = [el.offsetWidth, el.offsetHeight, 12, 8];
+    // A card that he moved stays where he put it, inside the tab, until it closes.
+    if (card.moved) {
+      el.style.left = `${Math.max(edge, Math.min(card.moved.left, innerWidth - width - edge))}px`;
+      el.style.top = `${Math.max(edge, Math.min(card.moved.top, innerHeight - height - edge))}px`;
+      return;
+    }
+    const rect = anchorRect();
     let left;
     let top = rect.top - 10;
     if (rect.right + gap + width <= innerWidth - edge) left = rect.right + gap;
@@ -871,6 +878,26 @@ const Remarks = (() => {
     }
     el.style.left = `${Math.max(edge, Math.min(left, innerWidth - width - edge))}px`;
     el.style.top = `${Math.max(edge, Math.min(top, innerHeight - height - edge))}px`;
+  }
+  /** The head of the card is its handle: a drag there moves the card; its tools keep their clicks. */
+  function dragCard(event) {
+    if (event.button !== 0 || !event.target.closest('.ch') || event.target.closest('.tools, a')) return;
+    const own = card;
+    const box = own.el.getBoundingClientRect();
+    const from = { x: event.clientX - box.left, y: event.clientY - box.top };
+    own.el.classList.add('dragging');
+    event.preventDefault(); // no text selection while it moves
+    const move = (step) => {
+      own.moved = { left: step.clientX - from.x, top: step.clientY - from.y };
+      if (card === own) placeCard();
+    };
+    const stop = () => {
+      own.el?.classList.remove('dragging');
+      removeEventListener('pointermove', move);
+      removeEventListener('pointerup', stop);
+    };
+    addEventListener('pointermove', move);
+    addEventListener('pointerup', stop);
   }
   addEventListener('resize', () => { placeCard(); placeList(); });
   addEventListener('scroll', () => placeCard(), true);

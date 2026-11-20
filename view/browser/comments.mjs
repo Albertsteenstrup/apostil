@@ -339,6 +339,19 @@ try {
     running: (await page.textContent(`${theCard} .st`).catch(() => '')).trim(), links: await page.locator(`${theCard} .st [data-session]`).count(),
     exact: await page.getAttribute(`${theCard} .st .ago`, 'title').catch(() => ''),
   };
+  // The working line starts at the left edge of the card's text (only under an agent's answer does it stand in, under the answer); the head is the handle that moves the card.
+  const handle = await page.evaluate(() => {
+    const el = document.querySelector('.cbox.card');
+    const head = el.querySelector('.ch').getBoundingClientRect();
+    return { indent: Math.round(el.querySelector('.st').getBoundingClientRect().left - head.left), cursor: getComputedStyle(el.querySelector('.ch')).cursor, x: head.left + 20, y: head.top + head.height / 2, left: el.getBoundingClientRect().left, top: el.getBoundingClientRect().top };
+  });
+  await page.mouse.move(handle.x, handle.y);
+  await page.mouse.down();
+  await page.mouse.move(handle.x - 60, handle.y + 40, { steps: 4 });
+  await page.mouse.up();
+  const dragged = await page.evaluate(() => document.querySelector('.cbox.card').getBoundingClientRect());
+  check('the working line of a comment starts at the left edge of the card\'s text; the head of the card has the grab pointer and no icon for it, and a drag there moves the card with the pointer',
+    Math.abs(handle.indent) <= 3 && handle.cursor === 'grab' && Math.round(dragged.left - handle.left) === -60 && Math.round(dragged.top - handle.top) === 40, JSON.stringify({ handle, moved: [dragged.left - handle.left, dragged.top - handle.top] }));
   await page.click(`${theCard} .st [data-session]`);
   states.opened = await page.evaluate(() => window.apostilSent.filter((message) => message.type === 'openSession').pop()?.id);
   await closeCard();
