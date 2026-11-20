@@ -1,6 +1,6 @@
 # The Apostil helper
 
-A small program that an agent app starts. It speaks MCP over standard input and output and has four tools:
+A small program that an agent app starts. It speaks MCP over standard input and output and has six tools:
 
 | Tool | Gives |
 |---|---|
@@ -8,6 +8,8 @@ A small program that an agent app starts. It speaks MCP over standard input and 
 | `review_context` | The open change, what the owner has open and selected, the unsent remarks, the open points. |
 | `diagram_titles` | One short entry for each diagram of the repo. |
 | `show_diagram` | One diagram in full, with its code lines. |
+| `map_overview` | The plain text of `apostil overview`: the top diagram of the map, its other diagrams, the counts and the next commands. |
+| `find_in_map` | The plain text of `apostil find <words>`: the notes, processes and diagrams of the map that match, best first (`limit`: the most notes, 20 by default). |
 
 Each tool takes `folder`, the worktree of the agent. The agent calls a tool when it needs the answer; nothing is pushed.
 

@@ -1,9 +1,10 @@
 // The commands for the map of a repo: map-material, check-map, save-map, add-diagram, add-notes, note-groups, notes, add-processes, process-groups, processes, process, map and diagrams-of;
-// and the marks and the look: add-marks, mark-groups, marks, set-look, look and look-slots.
+// what an agent reads of the map as plain text: overview and find; and the marks and the look: add-marks, mark-groups, marks, set-look, look and look-slots.
 
 import { afterSave, readJson } from './read-input';
 import { fileText, repoId } from '../shared/git';
 import { codeFiles, fileNotesSource, filesNeedingNotes, groupProcessFacts, noteGroups, notesOf, readyProcessGroups } from '../shared/note-groups';
+import { findInMap, mapOverview, NO_MAP_WORDS, notesNow, notesText, processText } from '../shared/map-read';
 import { notesOfFile } from '../shared/notes-beside-code';
 import { processFacts, processWithHandoffs, stepKey } from '../shared/processes';
 import { diagramsOf, noteCount } from '../shared/repo-map';
@@ -30,11 +31,13 @@ export const MAP_USAGE: Record<string, string> = {
   'add-diagram': 'apostil add-diagram <diagram.json> (or - for standard input)',
   'add-notes': 'apostil add-notes <notes.json> (or - for standard input)',
   'note-groups': 'apostil note-groups [--all]',
-  notes: 'apostil notes <path> [<path> ...] (several paths print { "files": [ ... ] }, one entry for each)',
+  notes: 'apostil notes <path> [<path> ...] [--text] (several paths print { "files": [ ... ] }, one entry for each; a note has "now": [from, to] when its lines moved, and "changed": true when their text is no longer in the file; --text: plain lines, each note at its lines now)',
   'add-processes': 'apostil add-processes <processes.json> (or - for standard input)',
   'process-groups': 'apostil process-groups [--all]',
   processes: 'apostil processes [--group <name>] (--group: only the files and the processes of that group of process-groups)',
-  process: 'apostil process <id>',
+  process: 'apostil process <id> [--text] (--text: plain lines, each step at its lines now)',
+  overview: 'apostil overview (plain text: the top diagram of the map, its other diagrams, the counts, and the commands to read next; read it first)',
+  find: 'apostil find <words> [--limit <n>] (plain text: the notes, processes and diagrams of the map that match the words, best first; at most n notes, 20 by default)',
   map: 'apostil map [--fit] (--fit: where the notes and the processes do not fit the diagrams, and the used code with no note)',
   'diagrams-of': 'apostil diagrams-of <path> [--full]',
   'add-marks': 'apostil add-marks <marks.json> (or - for standard input)',
@@ -54,7 +57,9 @@ export interface MapFlags {
   check?: boolean;
   find?: string;
   fit?: boolean;
-  more?: string[]; // the words after the first argument: the other paths of apostil notes
+  text?: boolean; // plain lines in place of JSON: apostil notes and apostil process
+  limit?: string; // apostil find: the most notes to print
+  more?: string[]; // the words after the first argument: the other paths of apostil notes, the other words of apostil find
 }
 
 /**
@@ -72,6 +77,9 @@ export function runMapCommand(store: Store, command: string, argument: string, f
     return { output: result.saved ? afterSave(result, folder, argument) : result, ok: result.saved };
   };
   const NO_MAP = { output: { problems: ['This repo has no saved map. Save one with apostil save-map.'] }, ok: false };
+  // The plain text commands: a problem is one plain line too.
+  const said = (output: string, ok = true): Done => ({ output, ok, text: true });
+  const NO_MAP_TEXT = said(NO_MAP_WORDS, false);
   if (command in MARK_COMMANDS) return MARK_COMMANDS[command](store, folder, argument, flags);
   switch (command) { // the five saves of the writers first
     case 'map-material': return { output: mapMaterial(store, folder), ok: true };
@@ -89,15 +97,21 @@ export function runMapCommand(store: Store, command: string, argument: string, f
       const stored = store.getMap(repoId(folder));
       const paths = [argument, ...(flags.more ?? [])].filter(Boolean);
       if (!paths.length) return { output: { problems: [`Usage: ${MAP_USAGE.notes}`] }, ok: false };
-      if (!stored) return NO_MAP;
+      if (!stored) return flags.text ? NO_MAP_TEXT : NO_MAP;
+      if (flags.text) return said(notesText(folder, stored, paths));
       const source = fileNotesSource(stored);
       // The notes of one file: how many still stand at the text of their lines, and each with its key, as a step of a process names it, and the processes that it is a step of.
+      // A note whose lines moved has "now", its lines now; a note whose text is no longer in the file has "changed".
       const notesOfPath = (path: string) => {
-        const standing = notesOfFile([source], path, fileText(folder, path) ?? '', () => undefined);
+        const text = fileText(folder, path);
+        const standing = notesOfFile([source], path, text ?? '', () => undefined);
+        const now = new Map(notesNow(stored, path, text).map((here) => [stepKey(here.note), here]));
         const notes = notesOf(stored.map, path).map((note) => {
           const key = stepKey(note);
           const processes = (stored.map.processes ?? []).filter((process) => process.steps.includes(key)).map((process) => process.id);
-          return { key, ...note, ...(processes.length ? { processes } : {}) };
+          const here = now.get(key);
+          const moved = here && !here.changed && (here.lines[0] !== note.lines[0] || here.lines[1] !== note.lines[1]);
+          return { key, ...note, ...(processes.length ? { processes } : {}), ...(moved ? { now: here.lines } : {}), ...(here?.changed ? { changed: true } : {}) };
         });
         return { file: path, notes, standing: standing.notes.length, older: standing.older };
       };
@@ -118,9 +132,26 @@ export function runMapCommand(store: Store, command: string, argument: string, f
     }
     case 'process': {
       const stored = store.getMap(repoId(folder));
-      if (!stored) return NO_MAP;
+      if (!stored) return flags.text ? NO_MAP_TEXT : NO_MAP;
+      const problem = `The map has no process "${argument}". apostil find <words> finds processes, and apostil notes <path> names the processes of each note.`;
+      if (flags.text) {
+        const lines = processText(folder, stored, argument);
+        return lines ? said(lines) : said(problem, false);
+      }
       const process = processWithHandoffs(stored.map, argument);
-      return process ? { output: process, ok: true } : { output: { problems: [`The map has no process "${argument}". apostil processes counts them, and apostil notes <path> names the processes of each note.`] }, ok: false };
+      return process ? { output: process, ok: true } : { output: { problems: [problem] }, ok: false };
+    }
+    case 'overview': {
+      const stored = store.getMap(repoId(folder));
+      return stored ? said(mapOverview(stored)) : NO_MAP_TEXT;
+    }
+    case 'find': {
+      const words = [argument, ...(flags.more ?? [])].join(' ').trim();
+      const limit = Number(flags.limit ?? 20);
+      if (!words) return said(`Usage: ${MAP_USAGE.find}`, false);
+      if (!Number.isInteger(limit) || limit < 1) return said('--limit takes a whole number above 0.', false);
+      const stored = store.getMap(repoId(folder));
+      return stored ? said(findInMap(folder, stored, words, limit)) : NO_MAP_TEXT;
     }
     case 'map': {
       const stored = store.getMap(repoId(folder));
@@ -146,7 +177,7 @@ export function runMapCommand(store: Store, command: string, argument: string, f
   }
 }
 
-type Done = { output: unknown; ok: boolean; compact?: true };
+type Done = { output: unknown; ok: boolean; compact?: true; text?: true }; // text: the output is plain text, printed as it is
 
 /** The commands of marks and of the look, but the save of marks (add-marks, with the saves of the other writers). */
 const MARK_COMMANDS: Record<string, (store: Store, folder: string, argument: string, flags: MapFlags) => Done> = {

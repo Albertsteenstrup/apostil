@@ -8,6 +8,7 @@ import { checkChangeFile } from '../shared/checks';
 import { headCommit, repoId } from '../shared/git';
 import { Store } from '../shared/store';
 import { makeTestRepo, tempFolder, testChangeFile } from '../shared/test-repo';
+import { addNotesToMap, saveMapDraft } from '../store/save';
 
 const repo = makeTestRepo();
 const home = tempFolder('apostil-home-');
@@ -43,16 +44,16 @@ after(() => {
   repo.remove();
 });
 
-test('the protocol: initialize names the server and the tools capability, tools/list gives the four tools with input schemas, an unknown method gets -32601, ping answers and a notification gets no answer', async () => {
+test('the protocol: initialize names the server and the tools capability, tools/list gives the six tools with input schemas, an unknown method gets -32601, ping answers and a notification gets no answer', async () => {
   const { result } = await ask('initialize', { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'test', version: '1' } });
   assert.equal(result.protocolVersion, '2025-11-25');
   assert.deepEqual(result.capabilities, { tools: {} });
   assert.equal(result.serverInfo.name, 'apostil');
 
-  // Tools/list gives the four tools, each with an input schema.
+  // Tools/list gives the six tools, each with an input schema.
   {
     const { result } = await ask('tools/list');
-    assert.deepEqual(result.tools.map((tool: any) => tool.name), ['review_context', 'diagram_titles', 'show_diagram', 'answer_remark']);
+    assert.deepEqual(result.tools.map((tool: any) => tool.name), ['review_context', 'diagram_titles', 'show_diagram', 'map_overview', 'find_in_map', 'answer_remark']);
     for (const tool of result.tools) assert.equal(tool.inputSchema.type, 'object');
   }
 
@@ -97,8 +98,15 @@ test('the tools: review_context gives a remark once, diagram_titles lists withou
   assert.equal((await call('review_context', {})).isError, true);
 });
 
-
-
-
-
-
+test('the tools of the map: map_overview and find_in_map give the plain text of apostil overview and apostil find, and say when the repo has no map', async () => {
+  assert.equal((await call('map_overview', { folder: repo.folder })).isError, true); // no map yet
+  const store = new Store(home);
+  saveMapDraft(store, repo.folder, { format: 1, diagrams: [{ id: 'top', kind: 'flow', title: 'The test repo', mermaid: 'flowchart LR\n  code --> docs', nodePaths: { code: ['src/'], docs: ['README.md'] } }] });
+  assert.equal(addNotesToMap(store, repo.folder, { notes: [{ file: 'src/app.py', lines: [5, 6], title: 'Stop the app', text: 'Returns zero.' }] }).saved, true);
+  store.close();
+  const overview = await call('map_overview', { folder: repo.folder });
+  assert.equal(overview.isError, false);
+  assert.match(overview.content[0].text, /^diagram top  The test repo\n/);
+  assert.equal((await call('find_in_map', { folder: repo.folder, words: 'stop' })).content[0].text, 'Notes (1 of 1 that match):\nsrc/app.py:5-6  Stop the app: Returns zero.');
+  assert.equal((await call('find_in_map', { folder: repo.folder })).isError, true);
+});
