@@ -42,10 +42,18 @@ test('a Python class may span a cut only between two of its methods, a decorator
   assert.equal(lines[416], '    @cached(');
 });
 
-test('a file that the finder knows nothing of stays whole, and a last part of fewer than 150 lines joins the part before', () => {
+test('a file that the finder knows nothing of stays whole, a call that the finder does not see is never cut, and a last part of fewer than 150 lines joins the part before', () => {
   const plain = Array.from({ length: 1000 }, (_, at) => `  value_${at} = ${at}`);
   assert.deepEqual(partsOf('lib/store.ex', textOf(['defmodule Store do', ...plain, 'end'])), [[1, 1002]]); // a language that the finder does not know
   assert.deepEqual(partsOf('lib/values.py', textOf(plain)), [[1, 1000]]); // no definition, so no safe cut
+  // The finder sees the route handlers, not the calls of the tests around them: no cut falls inside those calls.
+  const handler = (at: number): string[] => [`  await t.test('case ${at}', async (t) => {`, `    app.get('/${at}', (req, reply) => {`, ...Array.from({ length: 45 }, () => '      reply.send(1)'), '    })', '  })', ''];
+  const suite = ["t.test('all cases', async (t) => {", ...Array.from({ length: 20 }, (_, at) => handler(at)).flat(), '})'];
+  assert.deepEqual(partsOf('test/routes.test.js', textOf(suite)), [[1, suite.length]]);
+  // The same inside a class: the route handlers stand in a call that the finder does not see, deeper than the method of the class.
+  const route = (at: number): string[] => [`    app.get('/${at}', (req, reply) => {`, ...Array.from({ length: 45 }, () => '      reply.send(1)'), '    })', ''];
+  const server = ['export class Server {', '  start(): void {', '    listen();', '    log();', '    ready();', '  }', '', '  routes = register((app) => {', ...Array.from({ length: 20 }, (_, at) => route(at)).flat(), '  })', '}'];
+  assert.deepEqual(partsOf('src/server.ts', textOf(server)), [[1, server.length]]);
   // The one safe cut (before the second function, at line 475) would leave a last part of 140 lines: the file stays one part.
   assert.deepEqual(partsOf('src/two.ts', textOf([...tsFunction('first', 470), ...tsFunction('second', 136)])), [[1, 614]]);
   // A file of 600 lines is not cut at all.

@@ -119,18 +119,27 @@ function blockStart(lines: string[], first: number, floor: number): number {
 /**
  * The lines where a long file may be cut, each the first line of a new part. A cut stands between two definitions of the finder (definitionsOf), on the
  * first line of the comments or decorators right above the next one. No function or method spans it; a class spans it only when it falls between two of
- * its methods.
+ * its methods. The next definition stands at the left edge, or as deep as the methods of the class: so no cut falls inside a function that the finder
+ * does not see, such as a test inside a call of another test.
  */
 function cutsOf(path: string, text: string): number[] {
   const lines = text.split('\n');
+  const indent = (line: number): number => lines[line - 1].length - lines[line - 1].trimStart().length;
   const found = definitionsOf(path, text);
   const cuts = new Set<number>();
   for (const next of found) {
     const before = found.filter((one) => one.lines[1] < next.lines[0]);
     if (!before.length) continue; // the first definition: nothing to cut from
     const cut = blockStart(lines, next.lines[0], Math.max(...before.map((one) => one.lines[1])));
+    const depth = indent(next.lines[0]);
     const across = found.filter((one) => one.lines[0] < cut && one.lines[1] >= cut);
-    if (across.every((one) => one.kind === 'class' && next.lines[1] <= one.lines[1] && found.some((method) => method.lines[0] > one.lines[0] && method.lines[1] < cut))) cuts.add(cut);
+    // A class that spans the cut holds the next definition as one of its methods (a definition inside it as deep as the least deep), and one before the cut.
+    const betweenMethods = (type: (typeof found)[number]): boolean => {
+      const methods = found.filter((one) => one.lines[0] > type.lines[0] && one.lines[1] <= type.lines[1]);
+      return type.kind === 'class' && methods.includes(next) && depth === Math.min(...methods.map((one) => indent(one.lines[0])))
+        && methods.some((one) => one.lines[1] < cut && indent(one.lines[0]) === depth);
+    };
+    if (across.length ? across.every(betweenMethods) : depth === 0) cuts.add(cut);
   }
   return [...cuts].sort((a, b) => a - b);
 }
