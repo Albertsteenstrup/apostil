@@ -430,29 +430,36 @@ export function pullOnlyPage(folder: string, pull: PullRequestView, apps: string
 }
 
 /** The page of the open branch with no change file: its changed files against its base, committed or not, with their diffs, all in no part. */
-export function branchPage(folder: string, apps: string[] = []): PageData {
+export function branchPage(folder: string, apps: string[] = [], store?: Store, models: RunModels = {}): PageData {
   const branch = tryGit(folder, 'branch', '--show-current') || 'detached';
   const base = baseOf(folder, branch);
   const files = describeFiles(folder, base, changedFiles(folder, base));
   return {
     changeId: 0, repo: repoName(folder), folder, branch, base, title: '', reason: '', outOfDate: false,
     checks: { filesInNoPart: files.map((file) => file.path), filesInTwoParts: [], filesNotChanged: [], generated: [], badNotes: [] },
-    files, parts: [], links: [], linksChecked: false, diagrams: [], changeDiagram: '', altered: [], notes: [], functionTests: {}, openPoints: [], remarks: [],
-    listening: false, apps, onHome: {}, branchOnly: true,
+    files, parts: [], links: [], linksChecked: false, diagrams: [], changeDiagram: '', altered: [], notes: [], functionTests: {}, openPoints: [],
+    listening: false, apps, onHome: {}, branchOnly: true, ...repoComments(folder, apps, store, models),
   };
 }
 
 /** The page of a file tab when the branch has no stored change: no change and no diff, only the code and the notes of other changes beside it. */
 export function filePage(folder: string, apps: string[] = [], store?: Store, models: RunModels = {}): PageData {
-  const repo = store ? (() => { try { return repoId(folder); } catch { return undefined; } })() : undefined;
   return {
     changeId: 0, repo: repoName(folder), folder, branch: tryGit(folder, 'branch', '--show-current') || 'detached', base: tryGit(folder, 'rev-parse', 'HEAD') ?? '', title: '', reason: '', outOfDate: false,
     checks: { filesInNoPart: [], filesInTwoParts: [], filesNotChanged: [], generated: [], badNotes: [] },
     files: [], parts: [], links: [], linksChecked: false, diagrams: [], changeDiagram: '', altered: [], notes: [], functionTests: {}, openPoints: [],
-    // With no change, a comment on code is one of the repo, as a comment on the map is: the threads on files show here, the others on Home.
-    remarks: store && repo ? repoRemarksOnFiles(store.repoRemarks(repo)) : [],
-    listening: false, apps, onHome: {}, plain: true, ...(store && repo ? { sendTo: sendToOf(store, repo, folder, apps, models) } : {}),
+    listening: false, apps, onHome: {}, plain: true, ...repoComments(folder, apps, store, models),
   };
+}
+
+/**
+ * The comments of a page with no change (a file tab, the open branch), and where a new one can go.
+ * With no change, a comment on code is one of the repo, as a comment on the map is: the threads on files show on these pages, the others on Home.
+ */
+function repoComments(folder: string, apps: string[], store?: Store, models: RunModels = {}): Pick<PageData, 'remarks' | 'sendTo'> {
+  const repo = store ? (() => { try { return repoId(folder); } catch { return undefined; } })() : undefined;
+  if (!store || !repo) return { remarks: [] };
+  return { remarks: repoRemarksOnFiles(store.repoRemarks(repo)), sendTo: sendToOf(store, repo, folder, apps, models) };
 }
 
 /** The threads of the repo whose first comment is on a file (lines of code, a note beside it): the file tab shows them, Home does not. */

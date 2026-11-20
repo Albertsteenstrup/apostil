@@ -561,6 +561,7 @@ document.addEventListener('keydown', (event) => {
 window.addEventListener('message', (event) => {
   const message = event.data;
   if (message?.type === 'data') {
+    if (onlyCommentsChanged(message)) return;
     const changed = App.page?.changeId !== message.page.changeId || App.page?.pullOnly?.link !== message.page.pullOnly?.link;
     App.page = message.page;
     App.tab = message.file ?? null;
@@ -623,6 +624,25 @@ window.addEventListener('message', (event) => {
   }
   if (message?.type === 'remark') (App.drawing ?? Promise.resolve()).then(() => Remarks.openFromVsCode());
 });
+
+/**
+ * New data in which only the comments changed (one saved, resolved or answered), on a page that is drawn: the marks, the list and the card change,
+ * and the rest stays as it is drawn, so nothing blinks and the code keeps its place. Home does the same (home.js). Returns whether it took the data.
+ */
+function onlyCommentsChanged(message) {
+  // The picker's last choice (sendTo) changes when a comment is sent; the picker reads it when it opens, so it needs no drawing.
+  const others = (page) => JSON.stringify({ ...page, remarks: undefined, sendTo: undefined });
+  const same = App.page && App.rendered && !App.waiting && (message.file ?? null) === App.tab && !message.lines && !message.at
+    && others(App.page) === others(message.page) && JSON.stringify(message.ask ?? null) === JSON.stringify(App.ask ?? null)
+    && (typeof message.full !== 'boolean' || message.full === Overview.full) && (message.minimap === undefined || message.minimap === CodeMap.on);
+  if (!same) return false;
+  App.page = message.page;
+  if (message.trail) Trail.set(message.trail);
+  if (message.pullRead) takePullRead(message.pullRead);
+  FileIcons.set(message.icons); // the rows that show keep their place
+  (App.drawing ?? Promise.resolve()).then(() => Remarks.repaint(document.getElementById('view')));
+  return true;
+}
 
 /** A file tab in VS Code: the pull request that the page read, so that a comment on code can go to it. */
 function takePullRead({ link, read }) {

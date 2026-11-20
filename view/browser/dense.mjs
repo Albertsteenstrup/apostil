@@ -306,7 +306,7 @@ try {
     await one.evaluate(() => window.postMessage({ type: 'minimap', on: false }, '*'));
     await one.waitForFunction(() => !CodeMap.on, null, { timeout: 3000 }).catch(() => {});
     const offNow = await mapNow();
-    await redrawn(() => one.evaluate(() => window.postMessage({ type: 'data', page: App.page, file: App.tab, minimap: false }, '*')));
+    await redrawn(() => one.evaluate(() => window.postMessage({ type: 'data', page: App.page, file: App.tab, lines: [46, 46], minimap: false }, '*'))); // as a tab that opens at its lines
     await frames();
     const offOpened = await mapNow();
     await one.evaluate(() => window.postMessage({ type: 'minimap', on: true }, '*'));
@@ -396,20 +396,27 @@ try {
   check('a click on a note card focuses it: it stands whole and moves the card under it down, so it covers no card; a click on the code ends the focus',
     briefBefore && focusedNote.cur === 'Answer the request' && !focusedNote.brief && focusedNote.gap >= 0 && focusedNote.lines?.length === 2 && endedNote.cur === '' && endedNote.brief && endedNote.lines === null,
     JSON.stringify({ briefBefore, focusedNote, endedNote }));
-  // New data for the same file (a comment saved, an answer) draws it again where he scrolled to, not at the lines that it opened at.
+  // New data for the same file keeps where he scrolled to, not the lines that it opened at. Only a comment more (one saved, resolved, answered)
+  // is painted on the drawn code, with no new drawing, so nothing blinks; other new data draws the file again at the same place.
   const kept = await focusPage.evaluate(async () => {
+    const wait = (ms) => new Promise((done) => setTimeout(done, ms));
     await App.showCode(App.tab, [43, 82]);
-    await new Promise((done) => setTimeout(done, 300));
+    await wait(300);
     const scroller = () => document.querySelector('.cv');
     scroller().scrollTop = 0;
-    await new Promise((done) => setTimeout(done, 100));
+    await wait(100);
     const before = scroller().scrollTop;
-    window.postMessage({ type: 'data', page: App.page, file: App.tab }, '*');
-    await new Promise((done) => setTimeout(done, 600));
-    return { before, after: scroller().scrollTop, opened: String(App.state.lines) };
+    const drawn = window.apostilRendered;
+    const remark = { id: 9901, target: { kind: 'lines', file: App.tab, lines: [2, 3], label: 'lines 2–3' }, text: 'Why here?', createdAt: '2026-11-20T10:00:00Z', state: 'open' };
+    window.postMessage({ type: 'data', page: { ...App.page, remarks: [...App.page.remarks, remark] }, file: App.tab }, '*');
+    await wait(400);
+    const light = { drawn: window.apostilRendered - drawn, top: scroller().scrollTop, mark: !!document.querySelector('.cv .cb[data-threads~="9901"]') };
+    window.postMessage({ type: 'data', page: { ...App.page, title: `${App.page.title} ` }, file: App.tab }, '*');
+    await wait(600);
+    return { before, light, drawn: window.apostilRendered - drawn, after: scroller().scrollTop, opened: String(App.state.lines) };
   });
-  check('new data for a file tab draws it again where he scrolled to, not back at the lines that it opened at',
-    kept.after === kept.before, JSON.stringify(kept));
+  check('new data for a file tab keeps where he scrolled to, not the lines that it opened at: a new comment is painted on the drawn code with no new drawing, and other new data draws the file again at the same place',
+    kept.light.drawn === 0 && kept.light.top === kept.before && kept.light.mark && kept.drawn === 1 && kept.after === kept.before, JSON.stringify(kept));
   await focusPage.close();
 } catch (error) {
   check('the checks ran to the end', false, error.message.split('\n').slice(0, 14).join(' / '));

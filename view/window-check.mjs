@@ -625,7 +625,17 @@ try {
   // From Home down to a process: a click on a step with no inner steps opens its file at its first line, in the file tab with its notes.
   await list?.locator('.home').click();
   const processHome = await homeFrame();
-  for (const key of ['routes', 'q0', 's2', 's7']) await intoNode(processHome, key).catch(() => {});
+  // On the way down, the words of every box fit in it, measured with the fonts of VS Code (wordsOverflow in diagram-stage.js); a box has its card under the map.
+  const fits = [];
+  for (const key of ['routes', 'q0', 's2', 's7']) {
+    await processHome?.locator(`#cards .ovc[data-node="${key}"]`).waitFor({ timeout: 8000 }).catch(() => {});
+    fits.push(await processHome?.evaluate(() => {
+      const svg = [...document.querySelectorAll('#view svg')].find((one) => one.querySelector('g.node'));
+      return svg ? { boxes: svg.querySelectorAll('g.node foreignObject').length, over: wordsOverflow(svg) } : null;
+    }).catch(() => null));
+    await intoNode(processHome, key).catch(() => {});
+  }
+  check('Home and the processes under it: the words of every box fit in the box, with the fonts of VS Code', fits.every((one) => one?.boxes > 0 && !one.over), JSON.stringify(fits));
   const inStepTab = () => frameWhere(() => typeof App === 'object' && App.tab?.endsWith('lending/requests.py') && App.state?.lines?.join() === '62,62' && !!document.querySelector('.cv [data-line="62"]'), undefined, 8000);
   let stepTab = await inStepTab();
   if (!stepTab && /^Home/.test(await activeTab() ?? '')) { // under load the last click can land while Home draws the step again

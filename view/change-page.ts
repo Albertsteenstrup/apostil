@@ -202,14 +202,17 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
     private changeOfFolder: () => number | undefined = () => undefined, // for a file tab that VS Code opens by itself
   ) {}
 
-  /** The file tab of a branch with no change: the code with the notes of the repo, and the comments of the repo on files, which go to new sessions. */
-  private plainPage(): PageData {
-    return filePage(this.openFolder(), this.connected(), this.store, runModels());
+  /**
+   * A page with no change file, made again: the open branch with its diffs, or the file tab of a branch with no change (the code with the notes of the repo).
+   * Both have the comments of the repo on files, which go to sessions in the open folder.
+   */
+  private noChangePage(): PageData {
+    return (this.branchOnly ? branchPage : filePage)(this.openFolder(), this.connected(), this.store, runModels());
   }
 
-  /** The file tab shows a branch with no change: its comments are comments of the repo. */
-  private get plain(): boolean {
-    return this.changeId === undefined && !!this.page?.plain && !this.pullOnly && !this.branchOnly;
+  /** The page shows no change (the open branch, or a file tab of a branch with no change): its comments are comments of the repo. */
+  private get noChange(): boolean {
+    return this.changeId === undefined && !this.pullOnly && (this.branchOnly || !!this.page?.plain);
   }
 
   /** The agent apps that are connected in the open folder: the picker of a card and "@" offer only these. */
@@ -294,8 +297,9 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
     this.pullOnly = undefined;
     this.branchOnly = true;
     this.sentPulls = '';
-    this.page = branchPage(this.openFolder(), this.connected());
+    this.page = this.noChangePage();
     this.page.look = lookOfPage(this.store, this.page);
+    this.signature = this.signatureNow();
     this.panel!.title = this.page.branch;
     for (const view of this.views) this.post(view, this.dataFor(view));
   }
@@ -317,7 +321,7 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
     if (this.changeId === undefined && !this.pullOnly && !this.branchOnly) {
       this.changeId = this.changeOfFolder();
       // With no change on the branch, the tab shows the code as it is, with the notes of the other changes of the repo beside it.
-      this.page = this.changeId !== undefined ? pageData(this.store, this.changeId, this.openFolder(), this.connected(), runModels()) : this.plainPage();
+      this.page = this.changeId !== undefined ? pageData(this.store, this.changeId, this.openFolder(), this.connected(), runModels()) : this.noChangePage();
       if (this.page) this.page.look = lookOfPage(this.store, this.page, lookAddress(panel.webview));
     }
     const folder = this.page?.folder ?? this.openFolder();
@@ -584,9 +588,9 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
   reload(): void {
     const described = this.branchOnly ? this.changeOfFolder() : undefined;
     if (described !== undefined) return this.open(described);
-    if (this.plain && this.views.size) {
+    if (this.noChange && this.views.size) {
       this.signature = this.signatureNow();
-      this.page = { ...this.plainPage(), look: this.page?.look };
+      this.page = { ...this.noChangePage(), look: this.page?.look };
       for (const view of this.views) this.post(view, this.dataFor(view));
       return;
     }
@@ -605,13 +609,14 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
 
   /** Loads again when the store holds something new for this change. Our own writes of the app state change nothing here. */
   reloadIfChanged(): void {
-    if (this.views.size && (this.changeId !== undefined || this.plain) && this.signatureNow() !== this.signature) this.reload();
+    if (this.views.size && (this.changeId !== undefined || this.noChange) && this.signatureNow() !== this.signature) this.reload();
   }
 
   private signatureNow(): string {
-    if (this.plain) {
+    if (this.noChange) {
       const repo = idOf(this.openFolder());
-      return JSON.stringify(repo ? this.store.repoRemarks(repo).map((remark) => [remark.id, remark.sentAt, remark.state, remark.answeredAt, remark.run?.startedAt]) : []);
+      const remarks = repo ? this.store.repoRemarks(repo).map((remark) => [remark.id, remark.sentAt, remark.state, remark.answeredAt, remark.run?.startedAt]) : [];
+      return JSON.stringify([remarks, this.branchOnly && this.changeOfFolder()]); // the open branch turns into its change once an agent describes it
     }
     if (this.changeId === undefined) return '';
     const change = this.store.getChange(this.changeId);
@@ -631,7 +636,7 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
 
   /** What the owner did with a thread: resolve it or open it again; or start a run for one sent remark, with the model and the effort of its control. */
   act(id: number, action: RemarkAction, run?: unknown): void {
-    if (this.changeId === undefined && !this.plain) return;
+    if (this.changeId === undefined && !this.noChange) return;
     if (action === 'resolve') this.store.closeThread(id);
     if (action === 'reopen') this.store.reopenThread(id);
     if (action === 'start') this.run(id, undefined, pickFrom(run));
@@ -643,7 +648,7 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
     startRun(this.store, id, (problem) => {
       if (problem) showRunProblem(problem, { app: newApp });
       this.reloadIfChanged();
-    }, newApp, this.plain ? this.openFolder() : undefined, runModels(), commentRuns(), pick); // a comment of the repo runs in the open folder
+    }, newApp, this.noChange ? this.openFolder() : undefined, runModels(), commentRuns(), pick); // a comment of the repo runs in the open folder
   }
 
   /**
@@ -651,7 +656,7 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
    * that session at once; a session that listens takes the comment by itself, and one that cannot be continued waits for the owner.
    */
   saveRemark(message: NewRemark, changeId = this.changeId): void {
-    if (changeId === undefined && this.plain) return this.saveRepoRemark(message);
+    if (changeId === undefined && this.noChange) return this.saveRepoRemark(message);
     if (changeId === undefined) return;
     const stored = this.store.getChange(changeId);
     const id = this.store.addRemark(changeId, stored ? withKept(message.target, keptInChange(stored, message.target)) : message.target, message.text, message.thread); // it keeps what its thing is now
@@ -664,7 +669,7 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
     this.reload();
   }
 
-  /** A comment in the file tab of a branch with no change: a comment of the repo. Sent to a session, a run starts in the open folder. */
+  /** A comment on a page with no change file: a comment of the repo. Sent to a session, a run starts in the open folder. */
   private saveRepoRemark(message: NewRemark): void {
     const repo = idOf(this.openFolder());
     if (!repo) return;

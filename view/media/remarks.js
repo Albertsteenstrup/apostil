@@ -433,9 +433,12 @@ const Remarks = (() => {
     }
   }
 
-  /** The marks of the comments drawn again on a view that stays as it is, when only the comments changed: no new drawing, so nothing blinks. */
+  /**
+   * The marks of the comments drawn again on a view that stays as it is, when only the comments changed: no new drawing, so nothing blinks.
+   * Every mark goes, not only those in the view: the trail and the cards under it have marks too. A mark that fades out stays until it is gone.
+   */
   function repaint(view) {
-    view.querySelectorAll('.cb:not(.leaving)').forEach((el) => el.remove());
+    document.querySelectorAll('.cb[data-threads]:not(.leaving):not(.cml *)').forEach((el) => el.remove());
     paint(view);
     draw();
   }

@@ -10,7 +10,7 @@ import { homeRun } from '../shared/map-run';
 import { Store } from '../shared/store';
 import { makeTestRepo, tempFolder, testChangeFile } from '../shared/test-repo';
 import { diagramPaths, graphsData, homeData, inDiagrams, nodeTags, whereLine, writtenLine } from './home-data';
-import { filePage, pageData } from './page-data';
+import { branchPage, filePage, pageData } from './page-data';
 
 const repo = makeTestRepo();
 const store = new Store(tempFolder());
@@ -153,12 +153,14 @@ test('nodeTags names the folders and files of each node in a few words: the name
   }), { web: 'web/', routes: 'src/web/', data: 'db/ · scripts/ +2', jobs: 'jobs/ +2 files', one: 'a/main.py', two: 'b/main.py · util.py' });
 });
 
-test('with no change on the branch, a comment on code is one of the repo: the file tab gets the threads on files with the connected apps, and Home the others', () => {
+test('with no change on the branch, a comment on code is one of the repo: the file tab and the open branch get the threads on files with the connected apps, and Home the others', () => {
   const id = repoId(repo.folder);
   const onCode = store.addRepoRemark(id, { kind: 'lines', file: 'src/app.py', lines: [1, 2], label: 'src/app.py, lines 1–2' }, 'Why this?');
   store.addRepoRemark(id, { kind: 'lines', file: 'src/app.py', lines: [1, 2], label: 'src/app.py, lines 1–2' }, 'Because.', onCode);
   const onMap = store.addRepoRemark(id, { kind: 'diagram', diagram: 'top', label: 'The map' }, 'And this?');
   const tab = filePage(repo.folder, ['claude-code'], store);
   assert.deepEqual([tab.apps, tab.remarks.map((remark) => remark.text), !!tab.sendTo], [['claude-code'], ['Why this?', 'Because.'], true]);
+  const branch = branchPage(repo.folder, ['claude-code'], store); // the open branch with no change file, and its file tabs, have the same
+  assert.deepEqual([branch.apps, branch.remarks.map((remark) => remark.text), !!branch.sendTo], [['claude-code'], ['Why this?', 'Because.'], true]);
   assert.ok(homeData(store, repo.folder).remarks.some((remark) => remark.id === onMap) && !homeData(store, repo.folder).remarks.some((remark) => remark.id === onCode));
 });
