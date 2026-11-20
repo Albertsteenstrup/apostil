@@ -7,7 +7,7 @@ import { mapDrawing } from '../shared/comment-lines';
 import { definitionsOf, gapsIn, type Gap, type Skip } from '../shared/definitions';
 import { missingCode, missingLinkCode } from '../shared/diagram-code';
 import { baseOf, changedFiles, commitExists, currentBranch, fileText, headCommit, repoFiles, repoId, repoRoot, tryGit, type ChangedFile } from '../shared/git';
-import { codeFiles, fingerprint } from '../shared/note-groups';
+import { codeFiles, fingerprint, partsOf } from '../shared/note-groups';
 import { rawLineProblems } from '../shared/notebook';
 import { noteCodeOf } from '../shared/notes-beside-code';
 import { sameDiagramText } from '../shared/repo-diagram';
@@ -256,8 +256,19 @@ function outsideRanges(notes: Note[], ranges: NonNullable<NotesDraft['ranges']>)
 }
 
 /**
+ * A file that note-groups cuts into parts is written by one writer for each part, at the same time. A save that names it (a note or a path of "files") with no range
+ * of it would replace the notes of every part, so it is refused. A file of one part is saved whole.
+ */
+function wholeSplitFiles(folder: string, named: string[], ranges: NonNullable<NotesDraft['ranges']>): string[] {
+  return [...new Set(named)].filter((path) => !ranges.some((range) => range.file === path)).flatMap((path) => {
+    const parts = partsOf(path, fileText(folder, path) ?? '');
+    return parts.length > 1 ? [`${path} is cut into parts (${parts.map(([from, to]) => `${from}-${to}`).join(', ')}): save with "ranges" inside your part, never the whole file.`] : [];
+  });
+}
+
+/**
  * Adds notes of files to the stored map. It replaces the notes of every file that the draft names (a file of a note, or a path of "files"), and of a file with "ranges" only the notes that start in a range;
- * the notes of other files stay. The store reads, changes and writes the map in one step, so writers at the same time keep each other's notes. Nothing is stored when a note has a problem.
+ * a file cut into parts needs "ranges" (wholeSplitFiles). The notes of other files stay. The store reads, changes and writes the map in one step, so writers at the same time keep each other's notes. Nothing is stored when a note has a problem.
  */
 export function addNotesToMap(store: Store, folder: string, draft: unknown): AddNotesResult {
   let result: AddNotesResult = { saved: false, problems: [] };
@@ -271,7 +282,7 @@ export function addNotesToMap(store: Store, folder: string, draft: unknown): Add
     const { notes = [], files = [], ranges = [], skip: given = [] } = (shape.length ? {} : draft) as NotesDraft;
     // Each note is checked as the note of a diagram is, and the JSON alone must keep the rules of the notes of files.
     const sound = shape.length ? shape : fileNotesProblems(notes, 'The notes'); // a note with a wrong shape is not read further
-    const problems = sound.length ? sound : [...mapNoteProblems(folder, [], notes), ...outsideRanges(notes, ranges)];
+    const problems = sound.length ? sound : [...wholeSplitFiles(folder, [...notes.map((note) => note.file), ...files], ranges), ...mapNoteProblems(folder, [], notes), ...outsideRanges(notes, ranges)];
     if (problems.length) {
       result = { saved: false, problems };
       return undefined;
