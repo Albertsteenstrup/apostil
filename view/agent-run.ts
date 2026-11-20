@@ -1,7 +1,7 @@
 // Starts an agent run: for one sent remark (one that continues the session of a change or another known session, or a new session of an app), or a new session that writes the map. No `vscode` import.
 
 import { spawn } from 'node:child_process';
-import { readFileSync, rmSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { newRunCommand, resumeCommand, runOptions, WRITER_AGENT, type RunModels } from '../shared/agents';
 import { pickFrom, teamOf, teamRun, teamSentence, type RunPick, type Team } from '../shared/models';
@@ -9,6 +9,7 @@ import { changedBetween, workingFiles } from '../shared/git';
 import { WRITERS_AT_ONCE } from '../shared/map-estimate';
 import { storeFolder, type Store } from '../shared/store';
 import { inboxText } from '../store/inbox';
+import { skillTexts } from '../store/prompt-command';
 
 /** The session that a run reports on its output: Claude Code prints JSON with `session_id`, Codex `thread.started` with `thread_id`, Antigravity `conversation_id`, OpenCode `sessionID`. */
 export function sessionFromOutput(output: string): string | undefined {
@@ -123,26 +124,25 @@ export function startRun(store: Store, remarkId: number, ended: (problem?: strin
   if (pid !== undefined) store.startRemarkRun(remarkId, { pid, session: newApp ? undefined : agent?.session, startedAt: new Date().toISOString() });
 }
 
-const SKILLS = join(__dirname, '..', '..', 'skills'); // the skills folder of this extension
 export const MAP_DRAFT = '.apostil-map.json'; // the file that the writer saves the map from; taken out of the repo when the run ends
 
 /** The words that start a run that describes the change of the branch after the map: the first words of its prompt. */
 export const DESCRIBE_AFTER_MAP = 'Then describe the change of this branch for Apostil, as the skill apostil-describe-change says: the branch has changed files that are not described.';
 
 /**
- * What a new session gets when Home asks it to write the map: the skill with its files, so that it works where the skills are not installed.
+ * What a new session gets when Home asks it to write the map: the files of the skill that the lead itself reads, so that it works where the skills are not installed:
+ * the skill, the text rules, and the prompt of the look, which the lead writes itself. A writer prints its own prompt and example with `apostil prompt <kind>`.
  * The session is the main agent of the skill: it starts the overview writer, then one writer for each large area, then one notes writer and one process writer for each group of files.
  * With `describe`, the same session describes the change of the branch after the map, and gets that skill too. `team` names the models of the run in
  * plain words: the lead, and the model and effort of every writer (teamSentence in shared/models.ts).
  */
 export function mapPrompt(describe = false, team?: Team): string {
-  const files = ['SKILL.md', 'overview-writer-prompt.md', 'area-writer-prompt.md', 'notes-writer-prompt.md', 'process-writer-prompt.md', 'service-writer-prompt.md', 'mark-writer-prompt.md', 'look-writer-prompt.md', 'example-map.json', 'example-area-diagram.json'].map((name) => `apostil-map-repo/${name}`)
-    .concat('apostil-describe-change/text-rules.md', ...(describe ? ['SKILL.md', 'writer-prompt.md', 'fresh-check-prompt.md'].map((name) => `apostil-describe-change/${name}`) : []));
+  const files = ['apostil-map-repo/SKILL.md', 'apostil-map-repo/look-writer-prompt.md', 'apostil-describe-change/text-rules.md', ...(describe ? ['apostil-describe-change/SKILL.md'] : [])];
   const models = team ? teamSentence(team, WRITER_AGENT) : '';
   return [
     `Write the map of this repo for Apostil Home, with the notes of its code files and its processes, as the skill apostil-map-repo says.${describe ? ` ${DESCRIBE_AFTER_MAP}` : ''}${models ? ` ${models}` : ''} The files of the skills follow. `
       + `The overview writer writes the map file as ${MAP_DRAFT} in the repo folder. An area writer writes its diagram file, a notes writer its notes file, a process writer its processes file, and a service or mark writer its marks file and its icon files, in the repo folder, as its prompt says.`,
-    ...files.map((path) => `----- ${path} -----\n${readFileSync(join(SKILLS, path), 'utf8')}`),
+    skillTexts(files),
   ].join('\n\n');
 }
 
