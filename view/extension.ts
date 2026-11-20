@@ -14,7 +14,7 @@ import { installedApps } from '../shared/agents';
 import { BaseText, ChangePage, mentionIn, type NewRemark, type RemarkAction } from './change-page';
 import { registerFirstStart } from './first-start';
 import { registerReportIssue } from './report-issue';
-import { rowOfFileInFront, treeSteps } from './files-follow';
+import { rowOfFileInFront, TreeFocus, treeSteps, type TreeEnd, type TreeStep } from './files-follow';
 import { FilesTree } from './files-tree';
 import { idOf, mainStepOf } from './home-data';
 import { HomePages } from './home-page';
@@ -176,14 +176,28 @@ export function activate(context: vscode.ExtensionContext) {
   list.onRepoPulls = showPullBadge;
   if (openFolder()) void repoPullsLater(openFolder()).then(showPullBadge);
   // The tree "Files" follows the map: the folders and files of an area open and come into view, the first one marked (the choice: treeSteps).
-  home.showInTree = (paths, open) => {
-    void (async () => {
-      for (const { path, select, expand } of treeSteps(paths, filesView.visible, open)) {
-        if (!open && !filesView.visible) return; // he hid the side bar meanwhile: a reveal shows a hidden view, so it would open again
-        await filesView.reveal(path, { select, focus: false, expand }).then(undefined, () => {}); // a path that the tree does not hold is passed
-      }
-    })();
+  const revealAll = async (steps: TreeStep[], open = false): Promise<void> => {
+    for (const { path, select, expand } of steps) {
+      if (!open && !filesView.visible) return; // he hid the side bar meanwhile: a reveal shows a hidden view, so it would open again
+      await filesView.reveal(path, { select, focus: false, expand }).then(undefined, () => {}); // a path that the tree does not hold is passed
+    }
   };
+  home.showInTree = (paths, open) => void revealAll(treeSteps(paths, filesView.visible, open), open);
+  // A focus on a node of Home: its folders and files come into view while it lasts, and close again after, unless he made the tree his own (TreeFocus).
+  const treeFocus = new TreeFocus();
+  const endInTree = async (end?: TreeEnd): Promise<void> => {
+    if (end?.collapse.length) files.collapse(end.collapse);
+    if (end?.select && filesView.visible) await filesView.reveal(end.select, { select: true, focus: false }).then(undefined, () => {});
+  };
+  home.treeFocus = (paths) => {
+    const { end, steps } = paths.length ? treeFocus.start(paths, filesView.visible, filesView.selection[0]) : { end: treeFocus.end(), steps: [] };
+    void endInTree(end).then(() => revealAll(steps));
+  };
+  home.keepTree = () => treeFocus.keep();
+  context.subscriptions.push(
+    filesView.onDidExpandElement((event) => treeFocus.expanded(event.element)),
+    filesView.onDidChangeSelection((event) => treeFocus.selected(event.selection[0])),
+  );
 
   // A click, a key or a menu entry of the look, from any page: one function does what its target says.
   const places: TargetPlaces = {

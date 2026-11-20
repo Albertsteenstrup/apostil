@@ -96,7 +96,7 @@ try {
   const sentBefore = await home.evaluate(() => window.apostilSent.length);
   await home.click(nodeOf(wanted.key), { modifiers: ['Alt'] });
   const focused = await focusNow();
-  const led = await home.evaluate((from) => window.apostilSent.slice(from).map((one) => one.type).filter((type) => type !== 'pointer'), sentBefore);
+  const led = await home.evaluate((from) => window.apostilSent.slice(from).map((one) => one.type).filter((type) => type !== 'pointer' && type !== 'treeFocus'), sentBefore);
   const stayed = await home.evaluate(() => Home.at);
   await takePicture(home, '64-focus-on-a-node.png');
   await away();
@@ -166,12 +166,16 @@ try {
   await home.click(nodeOf(inView));
   await still();
   const clicked = { ...(await focusNow()), ...(await cardNow()) };
-  await home.click(nodeOf(inView)); // a second click keeps the focus
-  await home.waitForTimeout(150); // a click that went in would have drawn the level under it by now
-  const second = { ...(await focusNow()), ...(await cardNow()) };
-  await home.dblclick(nodeOf('lending')); // a double click focuses, and does not go in
+  // A second click on the focused node goes in, as its card does: one level down, its code, or its folders in the tree.
+  const beforeSecond = await home.evaluate(() => window.apostilSent.length);
+  await home.click(nodeOf(inView));
   await home.waitForTimeout(150);
-  const double = { ...(await focusNow()), ...(await cardNow()) };
+  const second = await home.evaluate((from) => ({ at: Home.at, led: window.apostilSent.slice(from).map((one) => one.type).filter((type) => /^(walk|showInTree|openFile)$/.test(type)) }), beforeSecond);
+  await homeAt('');
+  await home.dblclick(nodeOf('lending')); // a double click goes in too
+  await home.waitForFunction(() => Home.at === 'lib-lending', null, { timeout: 3000 }).catch(() => {});
+  const double = await home.evaluate(() => ({ at: Home.at, crumb: document.getElementById('crumb').textContent }));
+  await homeAt('');
   await away();
   await home.evaluate(() => scrollTo(0, 0));
   await home.click(nodeOf(below));
@@ -182,9 +186,9 @@ try {
   await home.keyboard.press('Escape');
   const ended = await cardNow();
   await home.setViewportSize({ width: 1400, height: 900 });
-  check('where cards show under the diagram, one click on a node focuses it and its card: the card has an accent edge and the other cards fade as the other nodes do; the page does not move while some of the card shows, and scrolls to it when none of it shows; a second click on the node and a double click keep the focus and do not go in; Escape ends the focus of the node and of its card',
+  check('where cards show under the diagram, one click on a node focuses it and its card: the card has an accent edge and the other cards fade as the other nodes do; the page does not move while some of the card shows, and scrolls to it when none of it shows; a second click on the focused node goes in, as its card does, and so does a double click; Escape ends the focus of the node and of its card',
     clicked.on && clicked.focused === inView && clicked.card === inView && clicked.faint === clicked.cards - 1 && clicked.edge !== clicked.plain && clicked.scrolled === 0 && /^Focus: /.test(clicked.line)
-      && second.focused === inView && second.card === inView && second.at === 'lib-top' && double.focused === 'lending' && double.card === 'lending' && double.at === 'lib-top'
+      && (second.at !== 'lib-top' || second.led.length > 0) && double.at === 'lib-lending'
       && scrolledTo.card === below && scrolledTo.scrolled > 0 && scrolledTo.shows[below] && ended.card === '' && ended.faint === 0,
     JSON.stringify({ inView, below, clicked, second, double, scrolledTo, ended }));
 

@@ -42,7 +42,21 @@ function nodeCodePlace(diagramId, nodeId) {
   return null;
 }
 
+/**
+ * The tree "Files" follows a focus on a node of Home while it lasts (TreeFocus in files-follow.ts): the paths of the node when the focus comes,
+ * none when it ends, also when another view is drawn.
+ */
+let treeHeld = false;
+function treeFocus(focused) {
+  const node = focused?.diagram && Home.data.map?.diagrams.find((diagram) => diagram.id === focused.diagram)?.nodes?.[focused.node];
+  const paths = (node?.paths ?? []).map(({ path }) => path);
+  if (!paths.length && !treeHeld) return;
+  treeHeld = paths.length > 0;
+  tell({ type: 'treeFocus', paths });
+}
+
 onFocusChange((focused, quiet) => {
+  if (!quiet) treeFocus(focused);
   if (!focused) return '';
   const place = nodeCodePlace(focused.diagram, focused.node);
   if (!place) return '';
@@ -406,9 +420,10 @@ async function drawHome() {
     focus = null;
     endFocusLine();
     if (focused) focusOn(view, joined, focused, diagram.id, true);
+    else treeFocus(null);
     Remarks.paint(view);
   }
-  if (!diagram) { focus = null; endFocusLine(); }
+  if (!diagram) { focus = null; endFocusLine(); treeFocus(null); }
   Remarks.draw();
   tell({ type: 'rendered', kind: 'home', diagram: diagram?.id, nodes, panels: 0, drawn: 0 });
   window.apostilRendered = (window.apostilRendered ?? 0) + 1;
@@ -528,6 +543,7 @@ async function drawGraphs() {
   frameDouble = null;
   focus = null;
   endFocusLine();
+  treeFocus(null);
   Overview.cards(document.getElementById('cards'), []);
   Trail.show(document.getElementById('crumb'), ownStep(), { look: data.look });
   const { groups, ordered, count } = panelsInLook(data);

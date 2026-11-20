@@ -39,6 +39,7 @@ type Message =
   | { type: 'openFile'; path: string; line?: number; lines?: [number, number]; beside?: boolean; preserveFocus?: boolean }
   | { type: 'focusNote'; path: string; lines: [number, number] }
   | { type: 'showInTree'; paths: string[]; open?: boolean }
+  | { type: 'treeFocus'; paths: string[] } // a focus on a node of Home with its paths came, or ended (no paths)
   | { type: 'setUp' }
   | { type: 'rendered'; kind: string; nodes: number; panels: number; drawn: number }
   | { type: 'ask'; id: number; question: string } // the blocks of a section of its own or of the window of a target, when it opens
@@ -52,6 +53,9 @@ export interface DiagramLayout {
   full(): boolean;
   set(full: boolean): void;
 }
+
+/** What he does on a page that goes on from a focused node: into it, to its code, to another view, a target of the look. */
+const KEEPS_TREE = new Set<Message['type']>(['walk', 'back', 'move', 'openFile', 'showInTree', 'target']);
 
 /** One tab of home.html. Messages wait until its scripts are loaded. */
 interface Tab {
@@ -82,6 +86,10 @@ export class HomePages {
 
   /** Shows folders and files of the repo in the tree "Files" of the side bar; with `open` also when that tree does not show. Set by the extension, which owns the tree. */
   showInTree: (paths: string[], open: boolean) => void = () => {};
+
+  /** The tree "Files" follows a focus on a node while it lasts (TreeFocus in files-follow.ts); `keepTree`: he went on from it, so the tree stays. Set by the extension. */
+  treeFocus: (paths: string[]) => void = () => {};
+  keepTree: () => void = () => {};
 
   /** Does what a target of the look says (answerTarget in look-targets.ts). Set by the extension, which owns the tabs and the path. */
   onTarget: (target: Target, diagram?: string) => void = () => {};
@@ -420,6 +428,7 @@ export class HomePages {
 
   private receive(message: Message, tab: Tab): void {
     if (runNextStep(message.type)) return; // "Set up for agents" on Home with no map
+    if (KEEPS_TREE.has(message.type)) this.keepTree(); // he went on from a focused node: the tree "Files" stays as it is when the focus ends
     switch (message.type) {
       case 'ready': {
         tab.ready = true;
@@ -481,6 +490,9 @@ export class HomePages {
         break;
       case 'showInTree': // he went into an area of the map: the tree "Files" follows
         this.showInTree(message.paths, !!message.open);
+        break;
+      case 'treeFocus':
+        this.treeFocus(message.paths);
         break;
       case 'rendered':
         this.rendered[tab.path ?? (tab.page ? `page:${tab.page}` : 'home')] = message;

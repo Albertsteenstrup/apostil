@@ -2,7 +2,7 @@
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { rowOfFileInFront, treeSteps } from './files-follow';
+import { rowOfFileInFront, TreeFocus, treeSteps } from './files-follow';
 import { takeStart } from './page-data';
 
 test('the tree "Files" follows the map: the paths of an area come into view with the first one marked and each folder open, at most six, and nothing while the tree is hidden unless the click shows it', () => {
@@ -39,4 +39,34 @@ test('the start of a file tab reaches its page with the first data that the page
   assert.deepEqual(takeStart(view), { lines: undefined, at: undefined }); // a later load keeps where he is
   const atChange = { ready: true, at: 'first' as const };
   assert.deepEqual([takeStart(atChange), takeStart(atChange)], [{ lines: undefined, at: 'first' }, { lines: undefined, at: undefined }]);
+});
+
+test('TreeFocus: a focus opens the folders of its node and marks its first path; its end closes the folders that it opened and marks again the row marked before, unless he marked another row, opened another folder or went on from the node', () => {
+  const tree = new TreeFocus();
+  const opens = (paths: string[], before?: string): string[] => {
+    const { steps } = tree.start(paths, true, before);
+    for (const folder of ['src/', 'src/lending/']) tree.expanded(folder); // what VS Code opens to show them; src/ was open before, so only the rest come
+    tree.selected(steps.find((step) => step.select)?.path);
+    return steps.map((step) => step.path);
+  };
+  assert.deepEqual(opens(['src/lending/'], 'README.md'), ['src/lending/']);
+  assert.deepEqual(tree.end(), { collapse: ['src/', 'src/lending/'], select: 'README.md' });
+  assert.equal(tree.end(), undefined, 'one end only');
+
+  opens(['src/lending/hold.py']);
+  tree.selected('src/lending/other.py'); // he chose a file
+  assert.equal(tree.end(), undefined);
+  opens(['src/lending/hold.py']);
+  tree.expanded('web/'); // he opened another folder
+  assert.equal(tree.end(), undefined);
+  opens(['src/lending/hold.py']);
+  tree.keep(); // he went into the node
+  assert.equal(tree.end(), undefined);
+
+  // From one node to the next: the folders that both need stay open, and the row of the first focus is the one to come back to.
+  opens(['src/lending/hold.py'], 'README.md');
+  const next = tree.start(['src/desk/'], true, 'src/lending/hold.py');
+  assert.deepEqual(next.end, { collapse: ['src/lending/'] });
+  assert.deepEqual(tree.end(), { collapse: ['src/'], select: 'README.md' });
+  assert.deepEqual(tree.start(['src/'], false), { steps: [] }, 'nothing while the tree is hidden');
 });

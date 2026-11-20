@@ -341,7 +341,7 @@ function focusNode(stage, graph, node) {
 }
 
 // ----- one click focuses a node, two clicks go into it (on Home, the graphs page and "Diagram" of a change) -----
-// Where cards stand under the diagram, one click focuses the node and its card, and the card is the way in.
+// Where cards stand under the diagram, one click focuses the node and its card; a second click on the node, or its card, goes in.
 
 let focus = null; // { stage, graph, node, diagram }: the drawing with its graph, the node that the focus is on, and on Home the diagram
 let focusListener = null; // optional hook called when focus changes; may return extra HTML for the focus bar
@@ -366,9 +366,6 @@ function focusOn(stage, graph, node, diagram, quiet = false) {
   if (typeof Overview === 'object') Overview.focused(focus?.node ?? null, !quiet);
 }
 
-/** True when cards stand under this drawing (the overview): there a click on a node does not go in, the card does. */
-const cardsShow = (stage) => stage.dataset.height !== undefined;
-
 /** The line of the focus goes: the focus ended, or the page draws another view (a new drawing starts with no focus). */
 const endFocusLine = () => document.querySelector('.bar > .fc')?.remove();
 
@@ -382,8 +379,7 @@ let wentInAt = 0; // the time of the last click that went into a node: the doubl
 
 /**
  * The clicks of a node: one click focuses it (focusOn), as Option+click does; a click on the node that has the focus, or a double click, goes into it
- * (`into`: one level down, or its code). Where cards stand under the drawing, they do not: a second click keeps the focus, and the card or
- * "Open" in the window of the node goes in. A double click on a node never fits the drawing. The look wins where it gives the click, Option+click,
+ * (`into`: one level down, or its code at its note), also where cards stand under the drawing. A double click on a node never fits the drawing. The look wins where it gives the click, Option+click,
  * Shift+click or the double click of the node a target (Marks.bind, whose listeners come after these). `el` takes the clicks; `find(event)` is the
  * node that a click is on, or null (a panel of the graphs page finds it by the place of the click). Call it before Marks.bind.
  */
@@ -402,7 +398,6 @@ function focusClicks(el, { stage, graph, slots = {}, into, diagram, find = () =>
     if (event.detail > 1) return; // the second click of a double click: the double click goes in
     Hover.hide();
     if (!hasFocus(stage, nodeKey(g))) return focusOn(stage, graph, nodeKey(g), diagram);
-    if (cardsShow(stage)) return Overview.focused(focus.node, true); // the focus stays, and its card comes into view when it is out of view
     wentInAt = Date.now();
     into?.(event);
   });
@@ -410,7 +405,7 @@ function focusClicks(el, { stage, graph, slots = {}, into, diagram, find = () =>
     const g = !slots['input.double'] && nodeOf(event);
     if (!g || !stage.contains(g)) return;
     event.stopPropagation();
-    if (cardsShow(stage) || Date.now() - wentInAt < 700) return;
+    if (Date.now() - wentInAt < 700) return;
     Hover.hide();
     into?.(event);
   });

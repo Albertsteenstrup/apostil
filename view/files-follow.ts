@@ -40,6 +40,63 @@ export function rowOfFileInFront(): (file: string | undefined, folder: string, v
   };
 }
 
+/** The folders that hold a path, from the top, and the path itself when it is a folder: what a reveal of it opens. */
+const foldersTo = (path: string): string[] => {
+  const parts = path.split('/');
+  return parts.slice(0, -1).map((_, at) => `${parts.slice(0, at + 1).join('/')}/`);
+};
+
+/**
+ * The tree follows a focus on a node of a diagram for a while: on the focus its folders and files come into view, the first one marked, each
+ * folder open (treeSteps); when the focus ends, the folders that this opened close again and the row that was marked before is marked again.
+ * Unless he made the tree his own meanwhile: he marked a row (a file that he chose, or the file of a tab that came to the front), opened a folder
+ * that the focus did not open, or went on from the node (into it, to its code): then the tree stays as it is. The extension tells it what the tree
+ * did (`expanded`, `selected`) and does what it gives back.
+ */
+export class TreeFocus {
+  private held?: { ours: Set<string>; select?: string; before?: string; opened: Set<string>; kept: boolean };
+
+  /** A focus on a node with these paths: the steps of the tree, after the end of the focus before it. `before`: the row that is marked now. */
+  start(paths: string[], visible: boolean, before?: string): { end?: TreeEnd; steps: TreeStep[] } {
+    const end = this.end();
+    const steps = treeSteps(paths, visible, false);
+    if (!steps.length) return { ...(end ? { end } : {}), steps };
+    const ours = new Set(steps.flatMap(({ path }) => foldersTo(path)));
+    // From one node to the next: the folders that both need stay open and the new focus closes them at its end, and the row marked before the
+    // first focus stays the one to mark again; the new focus marks its own row, so the end of the one before marks none.
+    this.held = { ours, select: steps.find((step) => step.select)?.path, before: end ? end.select : before, opened: new Set(end?.collapse.filter((path) => ours.has(path))), kept: false };
+    return { ...(end ? { end: { collapse: end.collapse.filter((path) => !ours.has(path)) } } : {}), steps };
+  }
+
+  /** The tree opened a folder: the focus opened it, or he opened another one. */
+  expanded(path: string): void {
+    if (!this.held) return;
+    if (this.held.ours.has(path)) this.held.opened.add(path);
+    else this.held.kept = true;
+  }
+
+  /** The tree marked a row: the one of the focus, or another one that he chose. */
+  selected(path: string | undefined): void {
+    if (this.held && path && path !== this.held.select) this.held.kept = true;
+  }
+
+  /** He went on from the node: into it, to its code, to another view. */
+  keep(): void {
+    if (this.held) this.held.kept = true;
+  }
+
+  /** The focus ended: the folders to close and the row to mark again, or nothing when the tree is his. */
+  end(): TreeEnd | undefined {
+    const held = this.held;
+    this.held = undefined;
+    if (!held || held.kept) return undefined;
+    return { collapse: [...held.opened], ...(held.before ? { select: held.before } : {}) };
+  }
+}
+
+/** What the end of a focus does to the tree: these folders close, and this row is marked again. */
+export interface TreeEnd { collapse: string[]; select?: string }
+
 // ----- the look of the repo on the rows of the tree: VS Code draws them, so a rule changes only what a row of a tree has -----
 
 type Slots = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any

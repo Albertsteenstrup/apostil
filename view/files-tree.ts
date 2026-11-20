@@ -13,20 +13,31 @@ import { savedLook, type LookData } from './look-data';
 
 /** A row is its repo path; a folder ends with "/". */
 export class FilesTree implements vscode.TreeDataProvider<string> {
-  private changed = new vscode.EventEmitter<void>();
+  private changed = new vscode.EventEmitter<string | undefined>();
   readonly onDidChangeTreeData = this.changed.event;
   private children = new Map<string, string[]>(); // the rows under each folder, "" for the root
   private inDiagram: string[] = []; // the paths that some diagram stands for
   private look?: LookData; // the look of the repo when one is saved, with the marks that stand
   private lookFolder = ''; // where the files of the look are kept
   private counts = new Map<string, number>(); // the number of files under each folder, for the look
+  private closings = new Map<string, number>(); // how often each folder was closed by `collapse`: a part of its id
 
   constructor(private store: Store, private openFolder: () => string) {}
 
   /** Reads the files and the diagrams again. */
   refresh(): void {
     this.children.clear();
-    this.changed.fire();
+    this.changed.fire(undefined);
+  }
+
+  /**
+   * Closes these folders. VS Code has no call that closes one row of a tree, and it keeps a row open by its id: so each folder gets a new id, and
+   * the folder above the highest of them is drawn again, with the row closed. The rows under them that were open come up closed when it opens again.
+   */
+  collapse(folders: string[]): void {
+    for (const folder of folders) this.closings.set(folder, (this.closings.get(folder) ?? 0) + 1);
+    const highest = folders.filter((folder) => !folders.some((other) => other !== folder && folder.startsWith(other)));
+    for (const parent of new Set(highest.map((folder) => this.getParent(folder)))) this.changed.fire(parent);
   }
 
   private load(): void {
@@ -61,7 +72,7 @@ export class FilesTree implements vscode.TreeDataProvider<string> {
     const isFolder = path.endsWith('/');
     const uri = vscode.Uri.file(join(this.openFolder(), path));
     const item = new vscode.TreeItem(uri, isFolder ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None);
-    item.id = path;
+    item.id = this.closings.get(path) ? `${path}#${this.closings.get(path)}` : path;
     item.contextValue = inDiagrams(this.inDiagram, path) ? 'apostil.inDiagram' : 'apostil.file';
     if (!isFolder) item.command = { command: 'apostil.openFile', title: 'Open', arguments: [uri] }; // a file with notes opens in the file tab at once, with no moment in the editor first
     if (!isFolder) this.lookOn(item, path);

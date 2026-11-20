@@ -535,6 +535,32 @@ try {
   await shot('2c-graphs-of-a-file');
   await command('View: Close All Editors');
 
+  // A focus on a node of Home: the tree "Files" shows its folder open and marked while it lasts; its end closes the folder and marks again the row
+  // marked before. When he opened another folder in the tree meanwhile, the folder of the node stays open.
+  await list?.locator('.home').click();
+  const focusHome = await homeFrame();
+  const rowState = (name) => rowOf(name).evaluate((row) => `${row.getAttribute('aria-expanded') === 'true' ? 'open' : 'closed'}${row.classList.contains('selected') ? ' marked' : ''}`).catch(() => 'none');
+  const rowIs = (name, wanted) => until(async () => (await rowState(name)) === wanted && wanted, 5000).then(async (got) => got || rowState(name));
+  const focusNode = (key) => focusHome?.locator(`#view g.node[id*="flowchart-${key}-"]`).click({ timeout: 8000 }).catch(() => {});
+  const endFocus = () => focusHome?.locator('[data-end-focus]').click({ timeout: 4000 }).catch(() => {});
+  const markedBefore = await rowState('permissions.py');
+  await focusNode('desk');
+  const deskFocused = await rowIs('desk', 'open marked');
+  await shot('2c-a-focus-shows-its-folder-in-the-tree');
+  await endFocus();
+  const deskEnded = await rowIs('desk', 'closed');
+  const markedAgain = await rowIs('permissions.py', markedBefore);
+  await focusNode('desk');
+  const jobsFocused = await rowIs('desk', 'open marked');
+  await rowOf('docs').click();
+  await endFocus();
+  await focusHome?.waitForSelector('[data-end-focus]', { state: 'detached', timeout: 4000 }).catch(() => {});
+  const jobsKept = await rowIs('desk', 'open');
+  check('a focus on a node of Home shows its folder in the tree "Files", open and marked; the end of the focus closes it and marks again the row marked before; when he opened another folder of the tree meanwhile, the folder of the node stays open',
+    deskFocused === 'open marked' && deskEnded === 'closed' && markedBefore === 'closed marked' && markedAgain === markedBefore && jobsFocused === 'open marked' && jobsKept === 'open',
+    `desk ${deskFocused} → ${deskEnded}; marked before ${markedBefore}, after ${markedAgain}; again ${jobsFocused}, docs opened → ${jobsKept}`);
+  await command('View: Close All Editors');
+
   // The path he followed across real tabs: Home, an area, a node that is one file opens the file, its graphs, a panel to the change page; a click on a step shows its tab.
   const lineIn = (frame) => frame.evaluate(() => {
     const whole = document.getElementById('crumb').cloneNode(true);
