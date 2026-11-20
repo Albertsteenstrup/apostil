@@ -111,6 +111,8 @@ test('the words of the line of Home: the run of Home, his own session that opens
     state: 'writing', words: 'Writing the map · Claude Code session 1a2b3c4d (a session with no window) · overview, 3 of 8 areas, notes of 40 files',
     tip: `Session ${SESSION}\nAreas: Lending, Desk, Catalogue`,
   });
+  // The run of Home in a terminal: named from the start; while this window has its terminal, "Open the session" shows it.
+  assert.deepEqual(mapRunLine(homeRun('claude-code', AT, SESSION), { now, alive: true }), { state: 'writing', words: 'Writing the map · Claude Code session 1a2b3c4d · nothing saved yet', tip: `Session ${SESSION}`, opens: 'shown' });
 
   // His own session in the Claude desktop app opens there. A name of the session stands in place of the id.
   const desktop = saved(undefined, { app: 'claude-code', session: SESSION, hostSession: 'made-up-host-0002', account: 'reader@example.com' });

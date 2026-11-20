@@ -126,18 +126,14 @@ writeFileSync(path.join(bin, 'save-map.mjs'), [
   "for (const draft of JSON.parse(readFileSync(EXAMPLE_LOOK + '/marks.json', 'utf8')).filter((one) => one.set === 'services')) addMarksToMap(store, repo, draft);",
   'put.clean(); store.close();', '',
 ].join('\n'));
-// claude: writes each run to runs.txt. A run of the map is refused a command the first time; the second time it reports the session id that it was
-// given, as Claude Code does, waits until the check has read the line of the map run on Home (the file map-go, 10 seconds at most), and saves a map
-// that still has work left. A run for a comment answers it and
-// prints a session id as Claude Code does; the prompt that it got goes to prompt.txt.
+// claude: writes each run to runs.txt. A run of the map, the program of a terminal of VS Code, waits until the check has read the line of the map run
+// on Home (the file map-go, 10 seconds at most), saves a map that still has work left, and ends. A run for a comment answers it and prints a session
+// id as Claude Code does; the prompt that it got goes to prompt.txt.
 const RUN = '=== a run of the stand-in claude ===';
 const mapGo = path.join(temp, 'map-go');
 writeFileSync(path.join(bin, 'claude'), [
   '#!/bin/sh', `printf '%s\\n' '${RUN}' "$@" >> '${runs}'`,
   'case "$*" in *apostil-map-repo*)',
-  `  if [ ! -f '${temp}/denied' ]; then touch '${temp}/denied'; echo '{"type":"result","is_error":false,"result":"Done","permission_denials":[{"tool_name":"Bash","tool_input":{"command":"git ls-files src/"}}]}'; exit 0; fi`,
-  '  prev=; for arg in "$@"; do [ "$prev" = --session-id ] && sid="$arg"; prev="$arg"; done',
-  `  echo '{"type":"system","subtype":"init","session_id":"'"$sid"'"}'`,
   `  n=0; while [ ! -f '${mapGo}' ] && [ $n -lt 100 ]; do sleep 0.1; n=$((n+1)); done`,
   `  exec '${process.execPath}' '${path.join(bin, 'save-map.mjs')}';;`, 'esac',
   'for arg in "$@"; do case "$arg" in *"- remark "*) prompt="$arg";; esac; done',
@@ -326,34 +322,24 @@ try {
   if (questionShown) await question.locator('.monaco-button', { hasText: 'New Claude Code session' }).click();
   await until(() => runsNow().length === 1);
   const [mapRun = ''] = runsNow();
-  check('in a repo with no map whose apps are connected, one question follows, Claude Code first; its action starts one run of the map, which also describes the change of the branch',
-    questionButtons.join() === 'New Claude Code session,New Codex session,New Antigravity session,Not now' && mapRun.startsWith('-p\nWrite the map of this repo for Apostil Home') && mapRun.includes('Then describe the change of this branch'),
+  check('in a repo with no map whose apps are connected, one question follows, Claude Code first; its action starts one run of the map in a terminal, with the prompt as its first message, which also describes the change of the branch',
+    questionButtons.join() === 'New Claude Code session,New Codex session,New Antigravity session,Not now' && mapRun.startsWith('Write the map of this repo for Apostil Home') && mapRun.includes('Then describe the change of this branch'),
     `${questionButtons.join()}; ${mapRun.slice(0, 120).replace(/\n/g, ' | ')}`);
 
-  // The first run was refused a command and saved no map: "Allow and try again" puts the rule into the settings of Claude Code for the repo and starts the run again,
-  // which saves the map; Home, open with the mark, draws it.
-  const refused = toast('did not write the map');
-  const refusedShown = await shown(refused, 15000);
-  const refusedText = refusedShown ? (await refused.locator('.notification-list-item-message').textContent()) ?? '' : '';
-  await shot('1c-a-run-that-was-not-allowed-a-command');
-  if (refusedShown) await refused.locator('.monaco-button', { hasText: 'Allow and try again' }).click();
-  await until(() => runsNow().length === 2);
-  const localSettings = path.join(repo, '.claude', 'settings.local.json');
-  const allowed = existsSync(localSettings) ? JSON.parse(readFileSync(localSettings, 'utf8')).permissions?.allow ?? [] : [];
-  // While the stand-in writes, Home says which session writes the map: the id that Apostil gave the run. Then the stand-in goes on and saves the map.
+  // While the stand-in writes in its terminal, Home says which session writes the map (the id that Apostil gave it), with the link that shows the
+  // terminal. Then the stand-in saves the map and ends, and the terminal closes.
   const writingFrame = await frameWhere(() => /Claude Code session [0-9a-f]{8} /.test(document.querySelector('#summary .maprun[data-run="writing"]')?.textContent ?? ''), undefined, 8000);
   const writingLine = writingFrame ? await writingFrame.evaluate(() => document.querySelector('.maprun').textContent) : '';
+  const terminalShown = await until(() => page.evaluate(() => /Apostil map/.test(document.querySelector('.part.panel')?.textContent ?? '')), 5000);
   await shot('1c2-home-while-the-map-is-written');
   writeFileSync(mapGo, '');
   const homeFrame = () => frameWhere(() => typeof Home === 'object' && Home.data?.kind === 'home' && document.querySelectorAll('#view g.node.go').length === 8);
   const mapped = await homeFrame();
   const lineStopped = !!mapped && await until(() => mapped.evaluate(() => !!document.querySelector('.maprun[data-run="stopped"]')).catch(() => false), 6000);
   const ranMap = store.mapRun(repoId(repo));
-  check('while the stand-in writes the map, Home shows the line of the map run with the session id that Apostil gave it; when the run ends with work left in the map, the map shows and the line says that the run stopped',
-    writingLine === `Writing the map · Claude Code session ${ranMap?.agent?.session?.slice(0, 8)} (a session with no window) · nothing saved yet` && lineStopped && !!ranMap?.endedAt && !!ranMap?.stopped,
-    `"${writingLine}"; stopped ${lineStopped}; ${JSON.stringify(ranMap ?? null)}`);
-  check('a run that was not allowed a command says so; "Allow and try again" adds the rule to the settings of Claude Code for the repo and starts the run again, and Home draws the map that it saved',
-    /not allowed to run Bash\(git ls-files \*\)/.test(refusedText) && allowed.includes('Bash(git ls-files *)') && runsNow().length === 2 && !!mapped, `${refusedText.trim()} | ${JSON.stringify(allowed)} | ${runsNow().length} runs`);
+  check('while the stand-in writes the map in the terminal "Apostil map", Home shows the line of the map run with the session id that Apostil gave it and "Open the session"; when the run ends with work left in the map, the map shows and the line says that the run stopped',
+    writingLine === `Writing the map · Claude Code session ${ranMap?.agent?.session?.slice(0, 8)} · nothing saved yet · Open the session` && terminalShown && lineStopped && !!ranMap?.endedAt && !!ranMap?.stopped && runsNow().length === 1,
+    `"${writingLine}"; terminal ${terminalShown}; stopped ${lineStopped}; ${runsNow().length} runs; ${JSON.stringify(ranMap ?? null)}`);
   await shot('1d-home-with-the-map');
 
   // Home that he closed while a file tab was open stays closed; when the last file tab closes, Home opens; Home closed itself leaves the area empty.

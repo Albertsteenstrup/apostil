@@ -23,7 +23,8 @@ export interface MapRun {
   endedAt?: string;
   stopped?: true; // it ended with work left: the run of Home ended with a problem or with no map
   whole?: true; // it writes the whole map: Home started it, it saved the overview, or it goes on after a run that stopped
-  home?: true; // the press of Home started it: a session with no window
+  home?: true; // the press of Home started it: a session with no window, or with `terminal` one in a terminal of VS Code
+  terminal?: true; // the session runs in a terminal of VS Code that a person can watch and answer
   agent?: AgentSession; // the session that writes the map
   parts: MapRunParts;
   plan?: MapPlan; // the plan of the work: made when the run starts, again when the overview is saved and when the last notes are saved
@@ -49,8 +50,9 @@ export function mapRunState(run: MapRun, now = Date.now()): 'writing' | 'stopped
   return run.whole ? 'stopped' : 'done';
 }
 
-/** The record that the press of Home starts at once, for a new session of an app. */
-export const homeRun = (app: string, at: string): MapRun => ({ startedAt: at, whole: true, home: true, agent: { app }, parts: {} });
+/** The record that the press of Home starts at once, for a new session of an app; `session`: the id that Apostil gave it, in a terminal of VS Code. */
+export const homeRun = (app: string, at: string, session?: string): MapRun =>
+  ({ startedAt: at, whole: true, home: true, ...(session ? { terminal: true as const } : {}), agent: { app, ...(session ? { session } : {}) }, parts: {} });
 
 /**
  * The record after a save of a writer. With no open record, the save starts one; else it adds its part. The record names the session of the newest
@@ -71,7 +73,7 @@ export function withSave(run: MapRun | undefined, save: MapSave, agent: AgentSes
   const minute = Math.round((Date.parse(at) - Date.parse(startedAt)) / 6_000) / 10; // in tenths of a minute
   const time: SaveTime = 'noteFiles' in save ? ['n', minute, save.noteFiles] : [kindOf(save), minute];
   return {
-    startedAt, savedAt: at, ...(open?.whole || after || parts.overview ? { whole: true as const } : {}), ...(open?.home ? { home: true as const } : {}),
+    startedAt, savedAt: at, ...(open?.whole || after || parts.overview ? { whole: true as const } : {}), ...(open?.home ? { home: true as const } : {}), ...(open?.terminal ? { terminal: true as const } : {}),
     ...(by ? { agent: by } : {}), parts, ...(open?.plan ? { plan: open.plan } : {}), saves: [...(open?.saves ?? []), time].slice(-MOST_SAVES),
   };
 }
@@ -98,7 +100,7 @@ export interface MapRunLine {
   state: 'writing' | 'stopped';
   words: string;
   tip?: string; // the whole id of the session and the titles of the saved areas
-  opens?: 'app' | 'terminal'; // "Open the session" opens it in its app, or in a terminal of VS Code that continues it (sessionOpens)
+  opens?: 'app' | 'terminal' | 'shown'; // "Open the session" opens it in its app, in a terminal of VS Code that continues it (sessionOpens), or shows the terminal where it writes
   time?: TimeLeft; // while a run of the whole map writes and has a plan: the minutes left and the share of the bar
   areas?: Record<string, AreaWork>; // the areas of the top diagram with work left, by node id; an area that is not named is done (homeData adds it)
 }
@@ -137,7 +139,7 @@ function sessionWords(run: MapRun, name?: string): string {
   const app = run.agent && (APP_NAMES[run.agent.app] ?? run.agent.app);
   if (!app) return 'an agent session';
   const called = run.agent ? sessionCalled(run.agent, name) : '';
-  if (run.home) return called ? `${app} session ${called} (a session with no window)` : `a ${app} session with no window`;
+  if (run.home && !run.terminal) return called ? `${app} session ${called} (a session with no window)` : `a ${app} session with no window`;
   return called ? `${app} session ${called}` : `a ${app} session`;
 }
 
@@ -145,7 +147,7 @@ function sessionWords(run: MapRun, name?: string): string {
  * The line of Home for a record, or undefined when the run is done or there is none. `name` is the name of the session in its app; `alive` says that
  * this window started the run and its program still runs, so a long quiet time is no stop.
  * A session of the Claude desktop app or of Codex opens in its app. Any other session that is known opens in a terminal that continues it; a run of Home
- * only when it stopped, because it has no window and still works while it writes.
+ * only when it stopped, because it still works while it writes. A run of Home in a terminal that this window started shows that terminal while it writes.
  */
 export function mapRunLine(run: MapRun | undefined, has: { name?: string; alive?: boolean; now?: number } = {}): MapRunLine | undefined {
   if (!run) return undefined;
@@ -156,7 +158,8 @@ export function mapRunLine(run: MapRun | undefined, has: { name?: string; alive?
   const words = state === 'writing' ? `Writing the map · ${session} · ${saved || 'nothing saved yet'}` : `The map run of ${session} stopped ${saved ? `after ${saved}` : 'with nothing saved'}`;
   const id = run.agent?.session;
   const tip = [id ? `Session ${id}` : '', run.parts.areas?.length ? `Areas: ${run.parts.areas.join(', ')}` : ''].filter(Boolean).join('\n');
-  const opens = run.agent && (!run.home || state === 'stopped') && (!id || /^[\w-]+$/.test(id)) ? sessionOpens(run.agent) : undefined;
+  const shown = run.terminal && has.alive && state === 'writing';
+  const opens = shown ? 'shown' : run.agent && (!run.home || state === 'stopped') && (!id || /^[\w-]+$/.test(id)) ? sessionOpens(run.agent) : undefined;
   const time = state === 'writing' ? runTimeLeft(run, has.now) : undefined;
   return { state, words, ...(tip ? { tip } : {}), ...(opens ? { opens } : {}), ...(time ? { time } : {}) };
 }

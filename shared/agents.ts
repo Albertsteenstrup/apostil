@@ -236,6 +236,7 @@ export interface RunOptions {
   describe?: true; // a run that describes a change (words for an agent): what the skill apostil-describe-change runs, and no Edit; it draws diagrams
   diagrams?: true; // a run that writes the map of a repo: it reads the repo, with the most reasoning effort
   sessionId?: string; // a new Claude Code session takes this id, so that its link is known before the run ends
+  inTerminal?: true; // a Claude Code session in a terminal that a person can watch and answer: the prompt is its first message, not a print run
 }
 
 /** The models of the runs, as the owner set them in VS Code. */
@@ -389,7 +390,7 @@ export function runProblem(problem: string, has: { app?: string; again?: boolean
 
 /** The command and arguments that start a new session of an app with a prompt, or undefined. The run may edit files and give its answer, and nothing more. */
 export function newRunCommand(app: string, prompt: string, options: RunOptions = {}): string[] | undefined {
-  if (app === 'claude-code') return ['claude', '-p', prompt, '--output-format', 'json', ...(options.sessionId ? ['--session-id', options.sessionId] : []), ...modelWords(app, options), ...writerAgents(options), ...claudeRights(options)];
+  if (app === 'claude-code') return ['claude', ...(options.inTerminal ? [prompt] : ['-p', prompt, '--output-format', 'json']), ...(options.sessionId ? ['--session-id', options.sessionId] : []), ...modelWords(app, options), ...writerAgents(options), ...claudeRights(options)];
   if (app === 'codex') return ['codex', 'exec', prompt, '--json', ...codexWords(options)];
   if (app === 'antigravity') return ['agy', '-p', prompt, '--output-format', 'json', ...modelWords(app, options), ...agyRights(options)];
   if (app === 'opencode') return ['opencode', 'run', prompt, '--format', 'json', ...modelWords(app, options)]; // its JSON events name the session (sessionID)

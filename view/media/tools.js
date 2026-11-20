@@ -113,7 +113,7 @@ const MAP_RUN_WORDS = 'A new agent session reads the repo, draws its map and wri
 const anotherAppHtml = (apps) => (apps.length > 1 ? '<a data-other-app>Another app</a>' : '');
 
 /** What "Open the session" does, in its tooltip: the one way of opening a session (sessionOpens in shared/agents.ts), never a page in the browser. */
-const OPENS_TIP = { app: 'Opens the session in its app', terminal: 'Opens a terminal of VS Code that continues the session' };
+const OPENS_TIP = { app: 'Opens the session in its app', terminal: 'Opens a terminal of VS Code that continues the session', shown: 'Shows the terminal where the session writes the map' };
 
 /**
  * The quiet line of a map run (`run`, a MapRunLine of shared/map-run.ts): which session writes the map and what is saved so far, or that the run stopped.
