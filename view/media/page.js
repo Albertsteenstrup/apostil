@@ -644,7 +644,7 @@ let wasWide = null;
 const resized = new ResizeObserver(() => {
   drawIfWaiting();
   const narrow = isNarrow(document.getElementById('view'));
-  const wide = Split.wide();
+  const wide = Split.wide(App.state.view === 'diffs' ? 'files' : 'code'); // "Diffs" has its list from a narrower tab than the diagram has its code
   if (wasNarrow !== null && narrow !== wasNarrow && App.state.view === 'code') App.render();
   else if (wasWide !== null && wide !== wasWide && (App.state.view === 'diagram' || (App.state.view === 'diffs' && !Split.hidden('files')))) App.render();
   else if (Code.shown?.scroller) fillHeight(Code.shown.scroller, Split.right ? 240 : undefined);

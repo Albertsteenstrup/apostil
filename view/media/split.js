@@ -8,6 +8,7 @@
 'use strict';
 
 const SPLIT = 1040; // from this width of the tab the diagram page is two halves
+const FILES_SPLIT = 800; // from this width of the tab "Diffs" has the list of files beside the file
 const HALF_LEAST = 420; // the least width of a half
 const LIST_WIDTH = 300; // the list of closed rows beside the file on "Diffs"
 // The two choices, each of its own: the code beside a diagram ("Hide code"), and the list of files beside the file of "Diffs" ("Hide files").
@@ -29,9 +30,10 @@ const Split = {
     App.render();
   },
 
-  /** True when the tab is wide enough for two halves, and the page still has room for two readable halves. */
-  wide() {
-    return document.body.clientWidth >= SPLIT && document.getElementById('view').clientWidth >= 2 * HALF_LEAST;
+  /** True when the tab is wide enough for two halves, and the page still has room for them: two readable halves, or on "Diffs" (`half` "files") the list and a readable file. */
+  wide(half = 'code') {
+    const files = half === 'files';
+    return document.body.clientWidth >= (files ? FILES_SPLIT : SPLIT) && document.getElementById('view').clientWidth >= (files ? LIST_WIDTH + HALF_LEAST : 2 * HALF_LEAST);
   },
 
   /** True when the page is drawn in two halves now: a diagram with its code (`half` "code"), or "Diffs" with its list of files ("files"). */

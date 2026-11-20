@@ -258,7 +258,7 @@ try {
     await redrawn(() => one.evaluate(() => Split.setHidden('files', true)));
     const hidden = await landIn();
     await redrawn(() => one.evaluate(() => Split.setHidden('files', false)));
-    await redrawn(() => one.setViewportSize({ width: 900, height: 900 }));
+    await redrawn(() => one.setViewportSize({ width: 780, height: 900 }));
     const narrow = await landIn();
     await redrawn(() => one.setViewportSize({ width: 1400, height: 900 }));
     const same = (look) => look.path === beside.path && look.run === beside.run && Math.abs(look.off) <= 2 && look.nav === beside.nav;
@@ -517,7 +517,7 @@ try {
     const shownAgain = await diffsNow();
     check('"Hide files" stands over the list at the right end of the line of its first group head, as "Hide code" over the code; "Show files" then stands at the left of the line above the file',
       withSide.hideOverList && !!hidden && /Show files/.test(hidden.tabs) && shownAgain.hideOverList, JSON.stringify({ over: withSide.hideOverList, hidden: hidden?.tabs, again: shownAgain.hideOverList }));
-    await redrawn(() => one.setViewportSize({ width: 900, height: 900 }));
+    await redrawn(() => one.setViewportSize({ width: 780, height: 900 }));
     const narrow = await diffsNow();
     await redrawn(() => one.setViewportSize({ width: 1400, height: 900 }));
     check(`"Diffs" at 1400 px: the list at the left and the file at the right, readable, its notes as ${withSide.cards ? 'cards' : 'marks'}; "Hide files" leaves the file alone with the counter, "Show files" brings the list back, and a narrow tab has the file alone; the file stays the same`,
