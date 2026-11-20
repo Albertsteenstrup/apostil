@@ -69,6 +69,7 @@ export function activate(context: vscode.ExtensionContext) {
     if (step.tab === 'home') home.openHome({ diagram: step.diagram, lit: step.lit ?? [] });
     else if (step.tab === 'graphs') home.openGraphs(step.path);
     else if (step.tab === 'pull') page.openPull(step.link, Number(step.link.split('/').pop()));
+    else if (step.tab === 'branch') page.openBranch();
     else if (step.tab === 'page') home.openPage(step.page);
     else page.openAt(step.change, step.go);
   };
@@ -113,7 +114,7 @@ export function activate(context: vscode.ExtensionContext) {
     trail.start({ tab: 'pull', link, name: `Pull request #${ref.number}` });
     page.openPull(link, ref.number);
   };
-  const list = new ChangeList(media, theStore, openFolder, openChange, openHome, openChangePull, (link) => void openPullRequest(link), context.workspaceState);
+  const list = new ChangeList(media, theStore, openFolder, openChange, openHome, openChangePull, (link) => void openPullRequest(link), context.workspaceState, () => page.openBranch());
   registerLinks(context, { store: theStore, openFolder, openPullRequest, openChange, openHome: () => openHome() }); // links from outside, the icon of Source Control
   // "Sort and filter" of the list: VS Code's quick pick, over the whole window. A pick sets the search of the list.
   const sortAndFilter = new SortAndFilter(media, context.globalStorageUri, (search) => list.setSearch(search));

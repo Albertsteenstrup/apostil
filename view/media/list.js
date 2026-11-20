@@ -87,7 +87,7 @@ function listRow(row, own = pullsOf(row), flat = false) {
   const older = part('more-pulls');
   const folded = States.foldPulls(own, unfolded.has(row.branch) || older['show.folded'] === false ? Infinity : 2);
   const app = shows ? shows.includes('app') : flat;
-  return `<div class="row${row.open ? ' sel' : ''}${flat ? ' flat' : ''}${box.cls}"${box.style}${row.id !== undefined ? ` data-id="${row.id}"` : row.commits || row.files ? '' : ' data-home-row'}${clickOf(lk.click)}>`
+  return `<div class="row${row.open ? ' sel' : ''}${flat ? ' flat' : ''}${box.cls}"${box.style}${row.id !== undefined ? ` data-id="${row.id}"` : row.commits || row.files ? ' data-branch-row' : ' data-home-row'}${clickOf(lk.click)}>`
     + `<div class="top">${app ? (row.agent && agentIcon(row.agent)) || '<span class="icon"></span>' : ''}${show('branch') ? `<span class="nm">${esc(row.branch)}</span>` : ''}${show('state') ? stateHtml(row) : ''}</div>`
     + (row.uncounted ? `<div class="mt">${esc(row.age)} · ${esc(row.uncounted)}</div>` : factsHtml(row, fields, facts))
     + folded.shown.map(pullLine).join('')
@@ -342,6 +342,7 @@ document.addEventListener('click', (event) => {
   if (pull && row) return tell({ type: 'openPull', id: Number(row.dataset.id), number: Number(pull.dataset.pull) });
   if (pull) return tell({ type: 'openRepoPull', number: Number(pull.dataset.pull), url: repoPulls.pulls.find((one) => one.number === Number(pull.dataset.pull))?.url }); // a pull request with no stored change
   if (event.target.closest('[data-home-row]')) return tell({ type: 'home' }); // the open branch with no commit and no changed file: Home
+  if (event.target.closest('[data-branch-row]')) return tell({ type: 'openBranch' }); // the open branch with changes and no change file: its diffs
   if (row) tell({ type: 'open', id: Number(row.dataset.id) });
 });
 

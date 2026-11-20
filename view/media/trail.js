@@ -13,6 +13,7 @@ const Trail = (() => {
     if (step.tab === 'home') return `home:${step.diagram ?? ''}`;
     if (step.tab === 'graphs') return `graphs:${step.path}`;
     if (step.tab === 'pull') return `pull:${step.link}`;
+    if (step.tab === 'branch') return 'branch';
     if (step.tab === 'page') return `page:${step.page}`; // a page of the look
     const { level = 'change', part, diagram, view } = step.go ?? {};
     if (view === 'diffs') return `change:${step.change}:diffs`;
@@ -92,7 +93,7 @@ const Trail = (() => {
       : step.tab === 'home' ? { diagram: step.diagram, lit: (step.lit ?? []).join(',') }
       : step.tab === 'page' ? { look: new URLSearchParams(location.search).get('look') ?? '', page: step.page }
       : { go: JSON.stringify(step.go) };
-    return `${step.tab === 'change' || step.tab === 'pull' ? 'page.html' : 'home.html'}?${new URLSearchParams({ ...query, walk: 1 })}`;
+    return `${step.tab === 'change' || step.tab === 'pull' || step.tab === 'branch' ? 'page.html' : 'home.html'}?${new URLSearchParams({ ...query, walk: 1 })}`;
   }
 
   /** The path from the extension. */
@@ -113,7 +114,7 @@ const Trail = (() => {
 
   /** What a step shows: map, process, graphs, change, part, diagram, diffs or pull (the field "of" of a step of the trail in a look). */
   const ofStep = (step) => (step.tab === 'home' ? (/^process(es)?:/.test(step.diagram ?? '') ? 'process' : 'map') : step.tab === 'graphs' ? 'graphs'
-    : step.tab === 'pull' || step.go?.view === 'conversation' ? 'pull' : step.go?.view === 'diffs' ? 'diffs' : step.go?.level === 'part' ? 'part'
+    : step.tab === 'pull' || step.go?.view === 'conversation' ? 'pull' : step.tab === 'branch' || step.go?.view === 'diffs' ? 'diffs' : step.go?.level === 'part' ? 'part'
     : step.go?.level === 'broad' ? 'diagram' : 'change');
 
   /** The words of a step in the line, in the look of the repo (Marks.wordsHtml); its name with no look. */

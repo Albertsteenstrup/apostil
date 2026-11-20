@@ -643,7 +643,7 @@ const Marks = (() => {
         fields: { path: file.path, part: page.parts.find((part) => part.files.includes(file.path))?.id ?? '', type: generated.has(file.path) ? 'generated' : DATA_FILE.test(file.path) ? 'data' : 'code', added: file.added, removed: file.removed },
       })),
       // A pull request with no stored change has no diagram: "Conversation", "Diffs". A change whose branch has a pull request (`hasPull`) opens at "Conversation" too.
-      'change-view': () => (page.pullOnly ? ['conversation', 'diffs', 'diagram'] : page.hasPull ? ['conversation', 'diagram', 'diffs'] : ['diagram', 'diffs', 'conversation']).map((id) => ({ kind: 'change-view', id, fields: { id } })),
+      'change-view': () => (page.pullOnly ? ['conversation', 'diffs', 'diagram'] : page.branchOnly ? ['diffs', 'conversation'] : page.hasPull ? ['conversation', 'diagram', 'diffs'] : ['diagram', 'diffs', 'conversation']).map((id) => ({ kind: 'change-view', id, fields: { id } })),
       'part-diagram': () => page.diagrams.filter((one) => !one.broad && one.part).map((diagram) => diagramThing(diagram, page)),
       'part-step': () => page.diagrams.filter((one) => !one.broad && one.part).flatMap((diagram) => Object.values(stepThings(diagram, marks))),
       'comments-window': () => [{ kind: 'comments-window', fields: {} }],
