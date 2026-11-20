@@ -12,6 +12,7 @@ import { sessionName } from '../shared/agents';
 import { changedFiles, commitExists, tryGit, type ChangedFile } from '../shared/git';
 import { appToStart } from '../shared/map-app';
 import { scopeCounts } from '../shared/note-groups';
+import { keptImportWords, looseBoxes, withBoxes } from '../shared/node-uses';
 import { mapRunLine, type MapRunLine } from '../shared/map-run';
 import { areaWork } from '../store/map-run';
 import { teamOf, type Team } from '../shared/models';
@@ -199,10 +200,12 @@ export function homeData(store: Store, folder: string, apps: string[] = [], addr
   const changes = store.listChanges(id).map((change) => ({ id: change.id, branch: change.branch, title: change.file.title, files: filesOfChange(change, folder) }));
   const count = (path: string): number => files.filter((file) => touches(path, file)).length;
   const { diagrams } = stored.map;
+  const words = () => keptImportWords(folder, stored.savedAt, files); // read only when some diagram has a loose node
   const homeDiagrams: HomeDiagram[] = diagrams.map((diagram) => {
     const tags = diagram.kind === 'schema' ? {} : nodeTags(diagram.nodePaths ?? {}); // the page draws the tables of a schema itself
     return {
-      id: diagram.id, kind: diagram.kind, title: diagram.title, parent: diagram.parent, mermaid: diagram.mermaid, graph: diagramGraph(diagram), ...schemaOf(diagram),
+      // The loose nodes stand in quiet boxes with a heading (shared/node-uses.ts); the graph stays that of the written text.
+      id: diagram.id, kind: diagram.kind, title: diagram.title, parent: diagram.parent, mermaid: withBoxes(diagram.mermaid, looseBoxes(stored.map, diagram, words)), graph: diagramGraph(diagram), ...schemaOf(diagram),
       nodes: Object.fromEntries(Object.entries(diagram.nodePaths ?? {}).map(([node, paths]) => {
         const under = files.filter((file) => paths.some((path) => touches(path, file)));
         return [node, {
