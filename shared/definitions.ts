@@ -7,6 +7,7 @@ export interface Definition {
   name: string;
   lines: [number, number]; // its first and last line, counted from 1
   test: boolean; // a definition of a test file, a test call with a name, def test_… or func Test…
+  kind: 'class' | 'function'; // a class, object, trait or impl; else a function, method, route handler or test (also one with functions inside)
 }
 
 /** A definition that has no note, with how many other code files name it. */
@@ -178,8 +179,8 @@ function rubyEnd(lines: string[], start: number): number | undefined {
   return undefined;
 }
 
-/** A definition that starts at a line: its name, whether it is a test, and its last line (undefined when it has none). */
-type Found = { name: string; test?: boolean; end?: number };
+/** A definition that starts at a line: its name, whether it is a test or a class, and its last line (undefined when it has none). */
+type Found = { name: string; test?: boolean; end?: number; type?: boolean };
 
 /** The text of the string that a match ends at the opening quote of (its last group), read from the raw line. */
 const quoted = (match: RegExpExecArray, clean: string, raw: string): string => raw.slice(match[0].length, clean.indexOf(match[match.length - 1], match[0].length));
@@ -191,8 +192,9 @@ function braceAt(path: string, lines: string[], raw: string[], at: number): Foun
   if (match && JS_FILE.test(path)) return { name: quoted(match, clean, raw[at]), test: true, end: braceEnd(lines, at, 0, false) };
   match = ROUTE.exec(clean);
   if (match) return { name: `${match[1]} ${quoted(match, clean, raw[at])}`, end: braceEnd(lines, at, 0, false) };
-  match = CLASS.exec(clean) ?? KEYWORD.exec(clean);
-  if (match) return { name: match[1], test: path.endsWith('.go') && /^Test/.test(match[1]), end: braceEnd(lines, at, match.index, false) };
+  const type = CLASS.exec(clean);
+  match = type ?? KEYWORD.exec(clean);
+  if (match) return { name: match[1], test: path.endsWith('.go') && /^Test/.test(match[1]), end: braceEnd(lines, at, match.index, false), type: !!type };
   match = JS_FILE.test(path) ? ARROW.exec(clean) : null;
   if (match) return { name: match[1], end: braceEnd(lines, at, 0, false) };
   match = METHOD_FILE.test(path) ? METHOD.exec(clean) : null;
@@ -204,13 +206,13 @@ function braceAt(path: string, lines: string[], raw: string[], at: number): Foun
 /** A definition of Python at a line: a def or a class. */
 function pythonAt(lines: string[], at: number): Found | undefined {
   const match = PY_DEF.exec(lines[at]);
-  return match ? { name: match[2], test: match[1] === 'def' && /^test_/.test(match[2]), end: pythonEnd(lines, at) } : undefined;
+  return match ? { name: match[2], test: match[1] === 'def' && /^test_/.test(match[2]), end: pythonEnd(lines, at), type: match[1] === 'class' } : undefined;
 }
 
 /** A definition of Ruby at a line: a def, a class, or a test block with a name. */
 function rubyAt(lines: string[], raw: string[], at: number): Found | undefined {
   const def = RB_DEF.exec(lines[at]);
-  if (def) return { name: def[1] ?? def[2], test: /^test_/.test(def[1] ?? ''), end: rubyEnd(lines, at) };
+  if (def) return { name: def[1] ?? def[2], test: /^test_/.test(def[1] ?? ''), end: rubyEnd(lines, at), type: !!def[2] };
   const call = TEST_CALL.exec(lines[at]);
   return call ? { name: quoted(call, lines[at], raw[at]), test: true, end: rubyEnd(lines, at) } : undefined;
 }
@@ -225,7 +227,7 @@ export function definitionsOf(path: string, text: string): Definition[] {
   const found: Definition[] = [];
   for (let at = 0; at < lines.length; at++) {
     const one = family === 'brace' ? braceAt(path, lines, raw, at) : family === 'python' ? pythonAt(lines, at) : rubyAt(lines, raw, at);
-    if (one?.end !== undefined && one.end - at >= 3) found.push({ name: one.name, lines: [at + 1, one.end + 1], test: testFile || !!one.test });
+    if (one?.end !== undefined && one.end - at >= 3) found.push({ name: one.name, lines: [at + 1, one.end + 1], test: testFile || !!one.test, kind: one.type ? 'class' : 'function' });
   }
   return found;
 }
