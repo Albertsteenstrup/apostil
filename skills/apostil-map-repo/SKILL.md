@@ -75,7 +75,7 @@ Each writer adds its diagram with `apostil add-diagram`. It writes no notes. The
 
 ## Step 3: Start the notes writers
 
-Run `apostil note-groups` in the repo. It prints `{ "groups": [ ... ], "skipped": { ... } }`: each group has a `name` and its `files`, about 400 lines in sum, largest first. A file is never split: a file longer than that is a group of its own, whole, and it comes first, so start it with the first writers. It lists only the files that need notes. When it lists more than 80 groups, tell the owner the count of groups and of lines (the sum of `lines` of the files) and ask whether to map all of it or only the paths that he names. Use `apostil note-groups --all` only when the owner wants the notes of every file written again.
+Run `apostil note-groups` in the repo. It prints `{ "groups": [ ... ], "skipped": { ... } }`: each group has a `name` and its `files`, about 400 lines in sum, largest first. A file of 400 to 600 lines is a group of its own, whole. A longer file is cut into parts of about 400 lines, never inside a function: each part is a group of its own, its file has `part` (its first and last line), and the writers of the parts of one file run at the same time. It lists only the files and parts that need notes. When it lists more than 80 groups, tell the owner the count of groups and of lines (the sum of `lines` of the files) and ask whether to map all of it or only the paths that he names. Use `apostil note-groups --all` only when the owner wants the notes of every file written again.
 
 Use the model that Apostil names. When it names none, use a small model. Start one notes writer for each group, in the order listed: up to 16 at once with the area writers, and the next when one ends.
 
