@@ -1,5 +1,6 @@
 // The Home tab with the map of the repo, one tab for the graphs of each folder or file, and one tab for each page of the look.
 
+import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import * as vscode from 'vscode';
 import { keptOnMap, withKept } from '../shared/comment-lines';
@@ -7,9 +8,10 @@ import type { Target } from '../shared/look';
 import { shownTime, type ShownTime, type TimeLeft } from '../shared/map-estimate';
 import { homeRun, QUIET_MS, runTimeLeft, withEnd, withSession } from '../shared/map-run';
 import { homePlan, mapWorkLeft } from '../store/map-run';
-import { teamFrom } from '../shared/models';
+import { findOnPath } from '../shared/agents';
+import { teamFrom, type Team } from '../shared/models';
 import type { Store } from '../shared/store';
-import { startMapRun, startRun } from './agent-run';
+import { MAP_DRAFT, mapRunCommand, runEnvironment, startMapRun, startRun, type RunFacts } from './agent-run';
 import { agentsNeedSetup, runNextStep } from './change-list';
 import { apostilOnPath, appName, commentRuns, runModels, showRunProblem } from './run-settings';
 import { openAgentSession, openLink, openRemarkSession, webviewHtml, type NewRemark } from './change-page';
@@ -66,6 +68,7 @@ export class HomePages {
   private graphs = new Map<string, Tab>();
   private pages = new Map<string, Tab>(); // a page of the look, by its id
   private writing?: string; // the app that writes the map now
+  private mapTerminal?: vscode.Terminal; // the terminal where Claude Code writes the map, while it is open
   private quiet?: NodeJS.Timeout; // while the line of a map run says "writing": draws Home again when the run saved nothing for 30 minutes
   private ticker?: NodeJS.Timeout; // while a map run writes: the time left again every 30 seconds
   private shown?: { run: string; time: ShownTime }; // the minutes that Home shows of the run that started then, with a rise that is held back
@@ -217,8 +220,9 @@ export class HomePages {
 
   /**
    * Starts a new session of an app that writes the map, and with `describe` then the change; Home shows that it works, and the map when it is saved.
-   * The record of the map run starts at once, takes the session that the run reports, and ends with the run: as a stop when it failed, saved no map,
-   * or left work in the map (the press then goes on with it).
+   * Claude Code works in a terminal of VS Code beside Home, which a person can watch and answer (mapInTerminal); any other app in a run with no window.
+   * The record of the map run starts at once, takes the session, and ends with the run: as a stop when it failed, saved no map, or left work in the
+   * map (the press then goes on with it).
    * `chosen`: the lead and the effort that the control after the press sent; else, as for the question of a new repo, the default of teamOf().
    */
   writeMap(app: string, describe = false, chosen?: unknown): void {
@@ -235,7 +239,7 @@ export class HomePages {
     const instead = other ? { app: other, start: () => this.writeMap(other, describe) } : undefined;
     const repo = idOf(folder);
     const record = (change: Parameters<Store['changeMapRun']>[1]): void => { if (repo) this.store.changeMapRun(repo, change); };
-    const started = startMapRun(app, folder, (problem, facts) => {
+    const ended = (problem?: string, facts?: RunFacts): void => {
       this.writing = undefined;
       const id = idOf(folder);
       // A run that ended well but saved no map, or left work in it, says so, with the commands that it was not allowed to use.
@@ -248,12 +252,37 @@ export class HomePages {
       if (why) showRunProblem(`${name} did not write the map. It said: ${why}`, { app, again, folder, instead, ...facts });
       else if (workLeft) showRunProblem(`${name} ended before the map was done. Try again to go on with it.`, { app, again, folder, instead, ...facts });
       this.reload();
-    }, runModels(), describe, (session) => { record((run) => withSession(run, session)); this.reload(); }, team);
+    };
+    const found = (session: string): void => { record((run) => withSession(run, session)); this.reload(); };
+    const session = app === 'claude-code' ? this.mapInTerminal(folder, describe, team, ended) : undefined;
+    const started = app === 'claude-code' ? !!session : startMapRun(app, folder, ended, runModels(), describe, found, team);
     if (!started) return void vscode.window.showWarningMessage(`A new session of ${app} cannot be started from here.`);
     this.writing = app;
     // The plan of the work is saved with the record at once: the code files and their lines, the notes groups, and the steps that are expected.
-    record(() => homePlan(this.store, folder, homeRun(app, new Date().toISOString())));
+    record(() => homePlan(this.store, folder, homeRun(app, new Date().toISOString(), session)));
     this.reload();
+  }
+
+  /**
+   * Starts Claude Code in a terminal of VS Code that writes the map: the prompt is its first message, and the terminal shows beside Home, which keeps the
+   * focus. The run ends when the terminal closes. Returns the id of the session, or undefined when Claude Code cannot be started from here.
+   */
+  private mapInTerminal(folder: string, describe: boolean, team: Team, ended: (problem?: string) => void): string | undefined {
+    const run = mapRunCommand('claude-code', folder, runModels(), describe, team, true);
+    const program = run && findOnPath(run.command[0], process.env.PATH ?? '');
+    if (!run?.session || !program) return undefined;
+    const terminal = vscode.window.createTerminal({ name: 'Apostil map', cwd: folder, shellPath: program, shellArgs: run.command.slice(1), env: runEnvironment(), iconPath: new vscode.ThemeIcon('type-hierarchy') });
+    this.mapTerminal = terminal;
+    const closing = vscode.window.onDidCloseTerminal((closed) => {
+      if (closed !== terminal) return;
+      closing.dispose();
+      this.mapTerminal = undefined;
+      rmSync(join(folder, MAP_DRAFT), { force: true });
+      const code = closed.exitStatus?.code;
+      ended(code ? `It ended with code ${code}.` : undefined);
+    });
+    terminal.show(true);
+    return run.session;
   }
 
   /** "Another app": VS Code's quick pick with the other installed apps; a pick starts the map with that app at once, so it is the app used last. */
@@ -426,7 +455,8 @@ export class HomePages {
       case 'openSession':
         openRemarkSession(this.store, message.id, this.openFolder());
         break;
-      case 'openMapSession': { // the session that writes the map, or wrote it until it stopped: in its app, or in a terminal that continues it
+      case 'openMapSession': { // the terminal where the session writes the map; or the session in its app, or in a terminal that continues it
+        if (this.mapTerminal) return this.mapTerminal.show();
         const repo = idOf(this.openFolder());
         openAgentSession(repo ? this.store.mapRun(repo)?.agent : undefined, this.openFolder());
         break;
