@@ -281,13 +281,16 @@ document.addEventListener('click', (event) => {
  * two or more are installed (`apps`), and what the press does. With no app (none is installed), the links that install one.
  * While a map run writes (`run`), its line stands in place of the press; after a run that stopped, its line stands above it.
  * Right after the press, the control of the model of the run (`team`, a Team of shared/models.ts): the lead and its effort.
+ * With a .apostilignore (`scope`, scopeCounts in shared/note-groups.ts), one more quiet line: how many files it leaves out and adds, and "Edit".
  */
-function mapPressHtml(apps = [], run = null, app = undefined, team = undefined) {
+function mapPressHtml(apps = [], run = null, app = undefined, team = undefined, scope = undefined) {
   const line = run ? `<p>${mapRunHtml(run)}</p>` : '';
   if (run?.state === 'writing') return line;
   if (!app) return `${line}<p>${NO_APP_FOR_MAP}</p>`;
   const control = team?.app === app ? `<p class="runpick">${teamPickHtml('map', team)}</p>` : '';
-  return `${line}<p class="acts"><a data-write="${esc(app)}">Map this repo</a></p>${control}<p class="quiet">Starts a new ${esc(AGENT_NAMES[app] ?? app)} session. ${anotherAppHtml(apps)}</p><p class="quiet">${MAP_RUN_WORDS}</p>`;
+  const files = (n) => `${n} ${n === 1 ? 'file' : 'files'}`;
+  const scoped = scope ? `<p class="quiet">Your .apostilignore leaves out ${files(scope.leftOut)} and adds ${scope.added}. <a data-edit-scope>Edit</a></p>` : '';
+  return `${line}<p class="acts"><a data-write="${esc(app)}">Map this repo</a></p>${control}<p class="quiet">Starts a new ${esc(AGENT_NAMES[app] ?? app)} session. ${anotherAppHtml(apps)}</p><p class="quiet">${MAP_RUN_WORDS}</p>${scoped}`;
 }
 // A click on the press: VS Code starts the session with what the control shows, and Home shows that it works.
 document.addEventListener('click', (event) => {
@@ -295,6 +298,7 @@ document.addEventListener('click', (event) => {
   const team = teamChoice('map');
   if (write) tell({ type: 'writeMap', app: write.dataset.write, ...(team?.app === write.dataset.write ? { team } : {}) });
   if (event.target.closest?.('[data-other-app]')) tell({ type: 'anotherApp' }); // VS Code asks which app, and starts the map with it
+  if (event.target.closest?.('[data-edit-scope]')) tell({ type: 'openFile', path: '.apostilignore' }); // the file in an editor tab
 });
 
 /** What else to do next, on Home of a repo with no map: the set-up step when no agent app has the skills. */

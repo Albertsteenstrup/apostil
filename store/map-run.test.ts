@@ -1,16 +1,19 @@
 // Tests for the record of a map run: how the saves of the writers start it, add to it and end it, when it counts as stopped, and the words of its line on Home.
 
 import assert from 'node:assert/strict';
-import { writeFileSync } from 'node:fs';
+import { rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { repoId } from '../shared/git';
+import { headCommit, repoId } from '../shared/git';
+import { findInMap, notesNow } from '../shared/map-read';
 import { homeRun, mapRunLine, mapRunState, QUIET_MS, withEnd, withSave, type MapRun } from '../shared/map-run';
 import { noteGroups } from '../shared/note-groups';
+import { processFacts } from '../shared/processes';
 import { Store } from '../shared/store';
 import { makeTestRepo, tempFolder } from '../shared/test-repo';
 import { runMapCommand } from './map-commands';
 import { areaWork } from './map-run';
+import { addNotesToMap } from './save';
 
 const SESSION = '1a2b3c4d-0000-4000-8000-00000000cafe'; // made up
 const AT = '2026-11-17T10:00:00.000Z';
@@ -130,4 +133,40 @@ test('the words of the line of Home: the run of Home, his own session that opens
   assert.deepEqual(mapRunLine(withEnd(homeRun('claude-code', AT), AT, true), { now }), { state: 'stopped', words: 'The map run of a Claude Code session with no window stopped with nothing saved' });
   assert.equal(mapRunLine(withEnd(home, AT, true), { now })?.opens, 'terminal');
   assert.equal(mapRunLine(homeRun('claude-code', AT), { now: later(31), alive: true })?.state, 'writing');
+});
+
+test('the first save of a run removes the notes of a deleted file and of a file that .apostilignore now leaves out, and their processes count as stale; no read removes them', () => {
+  const store = new Store(tempFolder('apostil-home-'));
+  const repo = makeTestRepo();
+  const id = repoId(repo.folder);
+  repo.write('src/old.py', 'def old():\n    return 0\n');
+  repo.write('src/legacy.py', 'def legacy():\n    return 0\n');
+  repo.commit('two more files');
+  const top = { id: 'top', kind: 'flow' as const, title: 'The test repo', mermaid: 'flowchart LR\n  code --> docs', nodePaths: { code: ['src/'], docs: ['README.md'] } };
+  store.updateMap(id, headCommit(repo.folder), () => ({ format: 1, diagrams: [top] }));
+  const note = (file: string, title: string) => ({ file, lines: [1, 2] as [number, number], title, text: 'It returns a number.' });
+  assert.ok(addNotesToMap(store, repo.folder, { notes: [note('src/app.py', 'Start the app'), note('src/old.py', 'Return the old number'), note('src/legacy.py', 'Return the legacy number')] }).saved);
+  const process = { id: 'old-flow', group: 'code-000000', title: 'Old flow', summary: 'It runs the old code.', steps: ['src/app.py:1-2', 'src/old.py:1-2'] };
+  store.updateMap(id, headCommit(repo.folder), (map) => ({ ...map!, processes: [process] }));
+
+  // The file is deleted and the other one left out; a read changes nothing.
+  rmSync(join(repo.folder, 'src/old.py'));
+  repo.commit('remove the old file');
+  repo.write('.apostilignore', 'legacy.py\n');
+  noteGroups(repo.folder, store.getMap(id));
+  assert.ok(findInMap(repo.folder, store.getMap(id)!, 'legacy').includes('src/legacy.py:1-2  Return the legacy number'));
+  assert.equal(store.getMap(id)!.map.fileNotes?.length, 3);
+  assert.equal(processFacts(store.getMap(id)!.map).stale.length, 0);
+
+  // The first save of a run: only the note of the file that stays, still at the text of its lines; the process that named the deleted file is stale.
+  const drafts = tempFolder('apostil-draft-');
+  writeFileSync(join(drafts, 'map.json'), JSON.stringify({ format: 1, diagrams: [top] }));
+  assert.ok(runMapCommand(store, 'save-map', join(drafts, 'map.json'), repo.folder, {}, { CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: SESSION }).ok);
+  const stored = store.getMap(id)!;
+  assert.deepEqual(stored.map.fileNotes?.map((one) => one.file), ['src/app.py']);
+  assert.equal(notesNow(stored, 'src/app.py', 'def start():\n    return 2\n')[0].changed, undefined);
+  assert.deepEqual(processFacts(stored.map).stale, [{ id: 'old-flow', group: 'code-000000', gone: 1 }]);
+  assert.match(findInMap(repo.folder, stored, 'legacy'), /^Nothing in the map matches/);
+  store.close();
+  repo.remove();
 });

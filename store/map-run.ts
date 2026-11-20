@@ -3,14 +3,16 @@
 
 import { agentFromEnv } from '../shared/agents';
 import type { Diagram } from '../shared/change-file';
-import { lineCount, repoId } from '../shared/git';
+import { headCommit, lineCount, repoFiles, repoId } from '../shared/git';
 import { areasOfSize, doneOf, topAreasOfSize, WAVE_MINUTES, type MapPlan } from '../shared/map-estimate';
 import { mapFit } from '../shared/map-fit';
 import { withEnd, withSave, type AreaWork, type MapRun, type MapSave } from '../shared/map-run';
+import { lineFor, readScope } from '../shared/map-scope';
 import { markGroups } from '../shared/marks';
 import { areaOf, areasWaitingForNotes, codeFiles, noteGroups, processGroups } from '../shared/note-groups';
 import type { Store, StoredMap } from '../shared/store';
 import { setsOf } from './marks-save';
+import { notesWithCode, withFileNotes } from './note-code';
 
 /** What a save command of a writer saved, for the record: save-map, add-diagram, add-notes, add-processes or add-marks. */
 export function mapSaveOf(command: string, draft: unknown, result: { files?: number }): MapSave {
@@ -102,6 +104,7 @@ export function recordMapSave(store: Store, folder: string, save: MapSave, env: 
   let run: MapRun | undefined;
   store.changeMapRun(repo, (stored) => (run = withSave(stored, save, agentFromEnv(env), Object.keys(top?.nodePaths ?? {}).length, at)));
   if (!run) return;
+  if (run.saves?.length === 1) dropNotesOfGoneFiles(store, folder); // the first save of a run, before the plan counts the work
   const fresh = run.startedAt === at; // this save started the record
   const overviewNow = 'overview' in save && (run.saves ?? []).filter(([kind]) => kind === 'o').length === 1;
   const notesDone = 'noteFiles' in save && !!run.plan?.notes && noteGroups(folder, store.getMap(repo)).groups.length === 0;
@@ -111,6 +114,29 @@ export function recordMapSave(store: Store, folder: string, save: MapSave, env: 
     store.changeMapRun(repo, (stored) => (stored?.startedAt === startedAt ? (run = { ...stored, plan }) : undefined));
   }
   if (run && !mapWorkLeft(store, folder, run)) store.changeMapRun(repo, (stored) => withEnd(stored, at));
+}
+
+/**
+ * The notes of files that the map no longer holds, removed at the first save of a run (recordMapSave), never outside a run: the notes of a file that Git
+ * no longer lists (deleted, or ignored now) and of a file that a plain line of .apostilignore now leaves out. So apostil find, apostil overview and the view
+ * stop showing them, and the processes that named them count as stale. The skips of these files and their mark "no notes" go with them.
+ */
+export function dropNotesOfGoneFiles(store: Store, folder: string): void {
+  const listed = repoFiles(folder);
+  if (!listed) return; // no Git repo: nothing is known to be gone
+  const known = new Set(listed);
+  const scope = readScope(folder) ?? [];
+  const gone = (file: string): boolean => !known.has(file) || lineFor(scope, file)?.notes === false;
+  store.updateMap(repoId(folder), headCommit(folder), (stored) => {
+    if (!stored) return undefined;
+    const notes = notesWithCode(stored).filter((one) => !gone(one.note.file));
+    const skips = (stored.skips ?? []).filter((skip) => !gone(skip.file));
+    const noNotes = Object.entries(stored.noNotes ?? {}).filter(([path]) => !gone(path));
+    const same = notes.length === (stored.fileNotes ?? []).length && skips.length === (stored.skips ?? []).length && noNotes.length === Object.keys(stored.noNotes ?? {}).length;
+    if (same) return undefined; // nothing is gone: the map is not written again
+    const { noNotes: _none, skips: _skips, ...rest } = stored;
+    return withFileNotes({ ...rest, ...(noNotes.length ? { noNotes: Object.fromEntries(noNotes) } : {}), ...(skips.length ? { skips } : {}) }, notes);
+  });
 }
 
 /** The plan of a run that the press of Home starts: the whole work of the repo as it is now. */

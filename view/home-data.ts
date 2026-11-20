@@ -11,6 +11,7 @@ import { schemaDrawing, type SchemaDrawing } from '../shared/schema';
 import { sessionName } from '../shared/agents';
 import { changedFiles, commitExists, tryGit, type ChangedFile } from '../shared/git';
 import { appToStart } from '../shared/map-app';
+import { scopeCounts } from '../shared/note-groups';
 import { mapRunLine, type MapRunLine } from '../shared/map-run';
 import { areaWork } from '../store/map-run';
 import { teamOf, type Team } from '../shared/models';
@@ -82,6 +83,7 @@ export interface HomeData {
   writing?: string; // the app that writes the map now
   mapRun?: MapRunLine; // while a map run writes, or after one stopped: which session, and what is saved so far
   needsSetup?: boolean; // with no map: no agent app has the skills, so Home shows "Set up for agents"
+  scope?: { leftOut: number; added: number }; // with no map and a .apostilignore: the files that it leaves out and adds (scopeCounts), a quiet line under the press
   noCommit?: true; // the folder is no Git repo or has no commit yet: it has no id, so no map can be saved
   remarks: Remark[]; // the comments on the map of the repo, which belong to no change
 }
@@ -195,7 +197,10 @@ export function homeData(store: Store, folder: string, apps: string[] = [], addr
   const mapRun = mapRunOf(store, id, writing);
   const mapApp = appToStart(store.startedRuns(), id, apps, connected);
   const base: HomeData = { kind: 'home', repo: repoName(folder), folder, apps, ...(mapApp ? { mapApp, team: teamOf(mapApp) } : {}), remarks: id ? store.repoRemarks(id) : [], ...(mapRun ? { mapRun } : {}), ...(id ? {} : { noCommit: true as const }) };
-  if (!id || !stored) return base;
+  if (!id || !stored) {
+    const scope = id && scopeCounts(folder); // counted by path only, so Home stays fast on a large repo
+    return scope ? { ...base, scope } : base;
+  }
   // While a run of the whole map writes: the areas of the top diagram with work left, for the states of its nodes and cards.
   const run = store.mapRun(id);
   if (mapRun?.state === 'writing' && run?.whole && run.plan) mapRun.areas = areaWork(store, folder, stored, run);

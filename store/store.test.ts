@@ -176,6 +176,6 @@ test('the command line saves a draft and prints the result, and a broken draft g
 
   const help = apostil('save', '--help');
   assert.equal(help.status, 0);
-  assert.equal(JSON.parse(help.stdout).commands.length, 49); // with apostil overview and apostil find
+  assert.equal(JSON.parse(help.stdout).commands.length, 50); // with apostil overview, apostil find and apostil why
   repo.remove();
 });

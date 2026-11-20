@@ -128,3 +128,22 @@ test('every writer gets the rule of plain commands, and the lead starts a writer
   assert.ok(lead.includes('Never tell a writer to stop.'));
   assert.ok(skill('apostil-map-repo/notes-writer-prompt.md').includes('`skipsLeftOut`')); // the name that add-notes prints
 });
+
+test('apostil why: one plain line for each path, notes or path only, with the line of .apostilignore that decides, else the reason of the rule', () => {
+  const repo = makeTestRepo();
+  repo.write('.apostilignore', '# What Apostil maps\nlegacy/\n!config/*.json\n');
+  repo.write('legacy/old.py', 'def old():\n    return 0\n');
+  repo.write('config/schema.json', '{ "type": "object" }\n');
+  repo.write('dist/app.min.js', 'var a=1;\n');
+  const why = runApostil(['why', 'config/schema.json', 'legacy/old.py', 'src/app.py', 'dist/app.min.js', 'README.md', 'gone.py', '--folder', repo.folder], { env: { APOSTIL_HOME: tempFolder('apostil-home-') } });
+  assert.equal(why.status, 0);
+  assert.deepEqual(why.stdout.trimEnd().split('\n'), [
+    'config/schema.json  notes · .apostilignore line 3: !config/*.json',
+    'legacy/old.py  path only · .apostilignore line 2: legacy/',
+    'src/app.py  notes · a code file',
+    'dist/app.min.js  path only · generated, by its name',
+    'README.md  path only · not a code file (its ending)',
+    'gone.py  path only · not in the repo (Git ignores it, or it does not exist)',
+  ]);
+  repo.remove();
+});

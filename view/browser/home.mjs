@@ -388,6 +388,21 @@ try {
       && nextSent === 'setUp' && narrowMark.width < 370 && narrowMark.centred && narrowMark.wide,
     JSON.stringify({ nothing, noMap, other, oneApp, marked, narrowMark, nextSent }));
 
+  // A repo with a .apostilignore: one more quiet line under the press, with the counts by path, and "Edit" that opens the file. With none (the example), no line.
+  await homeAt('?nomap=1');
+  const scoped = await home.evaluate(async () => {
+    Home.data = { ...Home.data, scope: { leftOut: 140, added: 12 } };
+    await Home.render();
+    window.apostilSent.length = 0;
+    const quiet = [...document.querySelectorAll('.nomap > p.quiet')];
+    quiet.at(-1).querySelector('[data-edit-scope]')?.click();
+    return { lines: quiet.length, last: quiet.at(-1).textContent, sent: window.apostilSent.filter((message) => message.type !== 'pointer') };
+  });
+  check('with a .apostilignore and no map, one quiet line under the press says how many files it leaves out and adds, and "Edit" asks VS Code to open the file; with none, no line',
+    noMap.quiet.length === 2 && scoped.lines === 3 && scoped.last === 'Your .apostilignore leaves out 140 files and adds 12. Edit'
+      && JSON.stringify(scoped.sent) === JSON.stringify([{ type: 'openFile', path: '.apostilignore' }]),
+    JSON.stringify({ quiet: noMap.quiet, scoped }));
+
   // Right after the press, the control of the map run: the model of the lead at Medium, as everywhere else; its menu has one model list and the efforts. A
   // choice goes with the press, and no writer: the writers are always the smallest model at Medium (teamFrom and teamRun in shared/models.ts).
   await homeAt('?nomap=1');
