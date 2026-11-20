@@ -11,7 +11,7 @@ import { schemaDrawing, type SchemaDrawing } from '../shared/schema';
 import { sessionName } from '../shared/agents';
 import { changedFiles, commitExists, tryGit, type ChangedFile } from '../shared/git';
 import { appToStart } from '../shared/map-app';
-import { homeRun, mapRunLine, type MapRunLine } from '../shared/map-run';
+import { mapRunLine, type MapRunLine } from '../shared/map-run';
 import { areaWork } from '../store/map-run';
 import { teamOf, type Team } from '../shared/models';
 import { diagramsOf, touches, type DiagramOfPath } from '../shared/repo-map';
@@ -82,6 +82,7 @@ export interface HomeData {
   writing?: string; // the app that writes the map now
   mapRun?: MapRunLine; // while a map run writes, or after one stopped: which session, and what is saved so far
   needsSetup?: boolean; // with no map: no agent app has the skills, so Home shows "Set up for agents"
+  noCommit?: true; // the folder is no Git repo or has no commit yet: it has no id, so no map can be saved
   remarks: Remark[]; // the comments on the map of the repo, which belong to no change
 }
 
@@ -174,10 +175,10 @@ function downOf(diagrams: Diagram[], parent: string, paths: string[]): string | 
 
 /**
  * The line of the map run of a repo, for Home and for the row "Home" of the list: from the record of the store, with the name of the session from the
- * files of its app. `writing` is the app of the run that this window started and that still runs; in a folder with no commit that run has no record.
+ * files of its app. `writing` is the app of the run that this window started and that still runs.
  */
 export function mapRunOf(store: Store, id: string | undefined, writing?: string): MapRunLine | undefined {
-  const run = (id ? store.mapRun(id) : undefined) ?? (writing ? homeRun(writing, new Date().toISOString()) : undefined);
+  const run = id ? store.mapRun(id) : undefined;
   return mapRunLine(run, { name: run?.agent && (sessionName(run.agent) ?? run.agent.name), alive: !!writing });
 }
 
@@ -193,11 +194,11 @@ export function homeData(store: Store, folder: string, apps: string[] = [], addr
   const stored = id ? store.getMap(id) : undefined;
   const mapRun = mapRunOf(store, id, writing);
   const mapApp = appToStart(store.startedRuns(), id, apps, connected);
-  const base: HomeData = { kind: 'home', repo: repoName(folder), folder, apps, ...(mapApp ? { mapApp, team: teamOf(mapApp) } : {}), remarks: id ? store.repoRemarks(id) : [], ...(mapRun ? { mapRun } : {}) };
+  const base: HomeData = { kind: 'home', repo: repoName(folder), folder, apps, ...(mapApp ? { mapApp, team: teamOf(mapApp) } : {}), remarks: id ? store.repoRemarks(id) : [], ...(mapRun ? { mapRun } : {}), ...(id ? {} : { noCommit: true as const }) };
   if (!id || !stored) return base;
   // While a run of the whole map writes: the areas of the top diagram with work left, for the states of its nodes and cards.
   const run = store.mapRun(id);
-  if (mapRun?.time && run) mapRun.areas = areaWork(store, folder, stored, run);
+  if (mapRun?.state === 'writing' && run?.whole && run.plan) mapRun.areas = areaWork(store, folder, stored, run);
   const files = repoFiles(folder);
   const changes = store.listChanges(id).map((change) => ({ id: change.id, branch: change.branch, title: change.file.title, files: filesOfChange(change, folder) }));
   const count = (path: string): number => files.filter((file) => touches(path, file)).length;

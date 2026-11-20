@@ -484,9 +484,9 @@ try {
   await homeAt('?nomap=1&run=reading');
   const reading = await runState();
   await takePicture(home, '84-1-before-the-overview.png');
-  check('before the overview of a run is saved, the frame holds a soft sketch of a map that shimmers slowly in place of the wordmark, with the bar of the run on its top edge; the line of the run stands under the head and "About N min left" at the right end of the head; the page does not scroll',
-    reading.sketch && reading.shimmer === 'sk-pass' && !reading.wordmark && /^About \d+ min left$/.test(reading.time) && reading.timeRight <= 40 && reading.line.startsWith('Writing the map · Claude Code')
-      && reading.bar?.top <= 1 && reading.bar.height === 2 && parseFloat(reading.bar.width) > 0 && reading.fills && !reading.scrolls, JSON.stringify(reading));
+  check('before the overview of a run is saved, the frame holds a soft sketch of a map that shimmers slowly in place of the wordmark; the line of the run stands under the head; no time and no bar show before the run has measured its pace; the page does not scroll',
+    reading.sketch && reading.shimmer === 'sk-pass' && !reading.wordmark && reading.time === '' && reading.line.startsWith('Writing the map · Claude Code')
+      && !reading.bar && reading.fills && !reading.scrolls, JSON.stringify(reading));
 
   // While the areas load: the states of the nodes of the top map and of their cards, the bar and the time.
   await homeAt('?run=areas');

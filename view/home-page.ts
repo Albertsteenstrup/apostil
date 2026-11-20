@@ -6,7 +6,7 @@ import { keptOnMap, withKept } from '../shared/comment-lines';
 import type { Target } from '../shared/look';
 import { shownTime, type ShownTime, type TimeLeft } from '../shared/map-estimate';
 import { homeRun, QUIET_MS, runTimeLeft, withEnd, withSession } from '../shared/map-run';
-import { homePlan } from '../store/map-run';
+import { homePlan, mapWorkLeft } from '../store/map-run';
 import { teamFrom } from '../shared/models';
 import type { Store } from '../shared/store';
 import { startMapRun, startRun } from './agent-run';
@@ -217,7 +217,8 @@ export class HomePages {
 
   /**
    * Starts a new session of an app that writes the map, and with `describe` then the change; Home shows that it works, and the map when it is saved.
-   * The record of the map run starts at once, takes the session that the run reports, and ends with the run: as a stop when it failed or saved no map.
+   * The record of the map run starts at once, takes the session that the run reports, and ends with the run: as a stop when it failed, saved no map,
+   * or left work in the map (the press then goes on with it).
    * `chosen`: the lead and the effort that the control after the press sent; else, as for the question of a new repo, the default of teamOf().
    */
   writeMap(app: string, describe = false, chosen?: unknown): void {
@@ -225,6 +226,8 @@ export class HomePages {
     if (!folder || this.writing) return;
     const team = teamFrom(app, chosen);
     const again = (): void => this.writeMap(app, describe, chosen);
+    // A folder with no commit has no id: no save of the run could keep anything (Home says so in place of the press).
+    if (!idOf(folder)) return void vscode.window.showWarningMessage('This folder has no Git commit yet. Apostil maps a repo from its first commit.');
     // The run saves the map with the command apostil: without it, the fix comes first, not a run that fails at its end.
     if (!apostilOnPath()) return showRunProblem(`${appName(app)} cannot write the map yet.`, { app, again, folder, noCommand: true });
     // The other connected agent app, which a toast offers when this one cannot run now.
@@ -235,11 +238,15 @@ export class HomePages {
     const started = startMapRun(app, folder, (problem, facts) => {
       this.writing = undefined;
       const id = idOf(folder);
-      // A run that ended well but saved no map says so, with the commands that it was not allowed to use.
+      // A run that ended well but saved no map, or left work in it, says so, with the commands that it was not allowed to use.
+      const run = id ? this.store.mapRun(id) : undefined;
       const why = problem ?? (id && !this.store.getMap(id) ? 'It ended and saved no map.' : undefined);
-      record((run) => withEnd(run, new Date().toISOString(), !!why));
+      const workLeft = !why && !!run && !run.endedAt && mapWorkLeft(this.store, folder, run);
+      record((run) => withEnd(run, new Date().toISOString(), !!why || workLeft));
       // "codex" stays in small letters at the start: the problem of its model is told by that word.
-      if (why) showRunProblem(`${app === 'codex' ? 'codex' : appName(app)} did not write the map. It said: ${why}`, { app, again, folder, instead, ...facts });
+      const name = app === 'codex' ? 'codex' : appName(app);
+      if (why) showRunProblem(`${name} did not write the map. It said: ${why}`, { app, again, folder, instead, ...facts });
+      else if (workLeft) showRunProblem(`${name} ended before the map was done. Try again to go on with it.`, { app, again, folder, instead, ...facts });
       this.reload();
     }, runModels(), describe, (session) => { record((run) => withSession(run, session)); this.reload(); }, team);
     if (!started) return void vscode.window.showWarningMessage(`A new session of ${app} cannot be started from here.`);

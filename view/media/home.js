@@ -259,8 +259,10 @@ function homeCard(g, node, open, graph, run) {
  * While a map run writes, Home shows the frame of the run in its place (runFrame).
  */
 function noMapHtml() {
-  const { apps, mapApp, mapRun, needsSetup, team } = Home.data;
+  const { apps, mapApp, mapRun, needsSetup, team, noCommit } = Home.data;
   const mark = '<img class="wordmark" src="apostil-wordmark.svg" alt="Apostil">';
+  // A folder with no commit has nothing to save a map under: the reason, and no press.
+  if (noCommit) return `<div class="nomap">${mark}<p>This folder has no Git commit yet. Apostil maps a repo from its first commit.</p></div>`;
   // After a map run that stopped, its line says so in place of the first line, above the press that starts again.
   return `<div class="nomap">${mark}${mapRun ? '' : '<p>This repo has no map and no notes yet.</p>'}${mapPressHtml(apps, mapRun, mapApp, team)}<div class="next">${nextStepsHtml(needsSetup)}</div></div>`;
 }
@@ -295,7 +297,7 @@ async function drawHome() {
   // While a run of the whole map writes: the time left at the right end of the head, and the bar of the run on the top edge of the frame.
   const time = run?.state === 'writing' ? run.time : undefined;
   showTime(time);
-  const areas = time && diagram && diagram.id === map.top ? run.areas ?? {} : null; // the areas of the top map with work left, by node id
+  const areas = run?.areas && diagram && diagram.id === map.top ? run.areas : null; // the areas of the top map with work left, by node id
   let nodes = 0;
   if (!diagram && run?.state === 'writing') runFrame(view, summary, run, time);
   else if (!diagram) view.innerHTML = noMapHtml();
