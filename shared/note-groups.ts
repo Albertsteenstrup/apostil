@@ -1,8 +1,10 @@
-// The work for the notes writers: the code files of a repo that need notes, in groups of about 400 lines of whole files. A file longer than that is a group
-// of its own, whole: one writer has it alone and saves its notes in parts (`ranges` of add-notes), so that nothing is lost when it stops.
+// The work for the notes writers: the code files of a repo that need notes, in groups of about 400 lines of whole files. A file of 400 to 600 lines is a
+// group of its own, whole. A longer file is cut into parts of about 400 lines, each a group of its own, so that several writers write it at the same time:
+// a cut stands only between two definitions, never inside a function. The writer of a part saves only its lines (`ranges` of add-notes).
 // The groups of each kind of writer are listed largest first: the longest work starts with the first writers, not at the end.
 
 import { createHash } from 'node:crypto';
+import { definitionsOf } from './definitions';
 import { fileText, lineCount, repoFiles } from './git';
 import { mapSource, notesOfFile, type NoteSource } from './notes-beside-code';
 import type { Note } from './change-file';
@@ -18,16 +20,20 @@ const DRAFT_NAME = /^apostil-[a-z]+-.*\.json$/; // the draft of a writer is no c
 
 export const MAX_FILE_LINES = 20000; // a file with more lines is left out
 const GROUP_LINES = 400; // the size that a group grows to; a longer file is a group of its own
+const LONG_FILE = 600; // a code file with more lines is cut into parts
+const PART_LINES = 400; // the size of a part
+const PART_REACH = 150; // how far a cut may stand from 400 lines, and the fewest lines of a last part
 const ENOUGH = 0.8; // a file keeps its notes while this share of them still stands at the text of their lines
 
 /** Groups largest first, by the size that `size` gives; groups of the same size keep their order (the order of the areas, then of the paths). */
 export const largestFirst = <T>(groups: T[], size: (group: T) => number): T[] => groups.map((group, at) => ({ group, at, size: size(group) }))
   .sort((a, b) => b.size - a.size || a.at - b.at).map((one) => one.group);
 
-/** One file for a writer, always whole, with its count of lines. */
+/** One file for a writer, with its count of lines; a part of a long file has `part`, its first and last line, and `lines` counts the lines of the part. */
 export interface NoteFile {
   path: string;
   lines: number;
+  part?: [number, number];
 }
 
 export interface NoteGroup {
@@ -75,14 +81,86 @@ export function codeFiles(folder: string): { files: { path: string; text: string
 }
 
 function groupOf(area: string | undefined, files: NoteFile[]): NoteGroup {
-  const name = `${slug(area)}-${fingerprint(files.map((file) => `${file.path}:-`).join('\n')).slice(0, 6)}`;
+  const name = `${slug(area)}-${fingerprint(files.map((file) => `${file.path}:${file.part?.join('-') ?? '-'}`).join('\n')).slice(0, 6)}`;
   return { name, ...(area ? { area } : {}), files, lines: files.reduce((sum, file) => sum + file.lines, 0) };
+}
+
+// ----- the parts of a long file -----
+
+/** A line that belongs to the definition under it: a comment, a doc comment, a decorator, an annotation, an attribute or a template header. */
+const ABOVE = /^\s*(\/\/|\/\*|\*|#|@|\[|template\s*<)/;
+const DECORATOR = /^\s*(@|#\[|\[)/; // the first line of a decorator, an annotation or an attribute
+/** How many more brackets a line closes than it opens. */
+const closes = (line: string): number => (line.match(/[)\]}]/g)?.length ?? 0) - (line.match(/[([{]/g)?.length ?? 0);
+
+/**
+ * The first line of the block right above a definition that starts at line `first` (from 1): its comments, doc comment, decorators or attributes, also a
+ * decorator over several lines. A blank line ends the block. The block never reaches `floor`, the last line of the definition before.
+ */
+function blockStart(lines: string[], first: number, floor: number): number {
+  let start = first;
+  while (start - 1 > floor) {
+    const line = lines[start - 2]; // the line above the block
+    if (ABOVE.test(line)) {
+      start--;
+      continue;
+    }
+    // The last line of a decorator over several lines: go up to the line that opens its brackets, and take it all when that line is a decorator.
+    let open = closes(line);
+    if (open <= 0) break;
+    let at = start - 1;
+    while (open > 0 && at - 1 > floor) open += closes(lines[--at - 1]);
+    if (open > 0 || !DECORATOR.test(lines[at - 1])) break;
+    start = at;
+  }
+  return start;
+}
+
+/**
+ * The lines where a long file may be cut, each the first line of a new part. A cut stands between two definitions of the finder (definitionsOf), on the
+ * first line of the comments or decorators right above the next one. No function or method spans it; a class spans it only when it falls between two of
+ * its methods.
+ */
+function cutsOf(path: string, text: string): number[] {
+  const lines = text.split('\n');
+  const found = definitionsOf(path, text);
+  const cuts = new Set<number>();
+  for (const next of found) {
+    const before = found.filter((one) => one.lines[1] < next.lines[0]);
+    if (!before.length) continue; // the first definition: nothing to cut from
+    const cut = blockStart(lines, next.lines[0], Math.max(...before.map((one) => one.lines[1])));
+    const across = found.filter((one) => one.lines[0] < cut && one.lines[1] >= cut);
+    if (across.every((one) => one.kind === 'class' && next.lines[1] <= one.lines[1] && found.some((method) => method.lines[0] > one.lines[0] && method.lines[1] < cut))) cuts.add(cut);
+  }
+  return [...cuts].sort((a, b) => a - b);
+}
+
+/**
+ * The parts of a code file, each [first line, last line]. A file of more than 600 lines is cut at the safe cut nearest to 400 lines from the start of each
+ * part, within 150 lines before or after; with no safe cut there, the part grows to the next one. A last part of fewer than 150 lines joins the part before.
+ * A shorter file, or one with no safe cut (also a language that the finder does not know), is one part: the whole file.
+ */
+export function partsOf(path: string, text: string): [number, number][] {
+  const total = lineCount(text);
+  const cuts = total > LONG_FILE ? cutsOf(path, text) : [];
+  const parts: [number, number][] = [];
+  let from = 1;
+  for (;;) {
+    const aim = from + PART_LINES;
+    const near = cuts.filter((one) => Math.abs(one - aim) <= PART_REACH).sort((a, b) => Math.abs(a - aim) - Math.abs(b - aim) || a - b)[0];
+    const cut = near ?? cuts.find((one) => one > aim + PART_REACH);
+    if (cut === undefined || total - cut + 1 < PART_REACH) break;
+    parts.push([from, cut - 1]);
+    from = cut;
+  }
+  return [...parts, [from, total]];
 }
 
 /**
  * The code files of the repo that need notes, in groups for the notes writers. A file needs notes when the map has none for it, or fewer than 8 of 10 of its notes still stand at the text of their lines;
  * a file that a writer called empty stays out while its text is the same. With `all`, every code file. A group holds whole files of one area of the top diagram, in the order of their paths,
- * about 400 lines in sum; a file is never split, and a file of more than 400 lines is a group of its own. The groups are listed largest first.
+ * about 400 lines in sum; a file of more than 400 lines is a group of its own. A file of more than 600 lines is cut into parts (partsOf), each a group of its own: a part needs notes while no
+ * note and no skip starts in its lines, or while its file needs notes. The groups are listed largest first.
  */
 export function noteGroups(folder: string, stored: StoredMap | undefined, all = false): NoteGroups {
   const map = stored?.map;
@@ -90,14 +168,17 @@ export function noteGroups(folder: string, stored: StoredMap | undefined, all = 
   const noted = new Map<string, number>();
   for (const note of map?.fileNotes ?? []) noted.set(note.file, (noted.get(note.file) ?? 0) + 1);
   const { files, skipped } = codeFiles(folder);
-  const wanted = new Map<string | undefined, { path: string; text: string }[]>(); // by area, in the order of the paths
+  const wanted = new Map<string | undefined, NoteFile[]>(); // by area, in the order of the paths
   for (const { path, text } of files) {
     const count = noted.get(path) ?? 0;
-    const standing = source && count ? notesOfFile([source], path, text, () => undefined).notes.length : 0;
-    const needs = count ? standing / count < ENOUGH : map?.noNotes?.[path] !== fingerprint(text);
-    if (!all && !needs) continue;
+    const standing = source && count ? notesOfFile([source], path, text, () => undefined).notes : [];
+    const needs = count ? standing.length / count < ENOUGH : map?.noNotes?.[path] !== fingerprint(text);
+    const parts = partsOf(path, text);
+    // Every part of a file that needs notes. Of a file whose notes stand, each part where no note and no skip starts: its writer failed.
+    const starts = [...standing.map((note) => note.lines[0]), ...(map?.skips ?? []).filter((skip) => skip.file === path).map((skip) => skip.lines[0])];
+    const listed = all || needs ? parts : count && parts.length > 1 ? parts.filter(([from, to]) => !starts.some((line) => line >= from && line <= to)) : [];
     const area = areaOf(map, path);
-    wanted.set(area, [...(wanted.get(area) ?? []), { path, text }]);
+    for (const part of listed) wanted.set(area, [...(wanted.get(area) ?? []), { path, lines: part[1] - part[0] + 1, ...(parts.length > 1 ? { part } : {}) }]);
   }
 
   const groups: NoteGroup[] = [];
@@ -107,10 +188,10 @@ export function noteGroups(folder: string, stored: StoredMap | undefined, all = 
       if (current.length) groups.push(groupOf(area, current));
       current = [];
     };
-    for (const { path, text } of wanted.get(area) ?? []) {
-      const total = lineCount(text);
-      if (current.length && current.reduce((sum, file) => sum + file.lines, 0) + total > GROUP_LINES) close();
-      current.push({ path, lines: total });
+    for (const file of wanted.get(area) ?? []) {
+      if (file.part || (current.length && current.reduce((sum, one) => sum + one.lines, 0) + file.lines > GROUP_LINES)) close();
+      current.push(file);
+      if (file.part) close(); // a part is a group of its own
     }
     close();
   }
