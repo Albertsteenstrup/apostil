@@ -105,6 +105,7 @@ export class ChangeList implements vscode.WebviewViewProvider {
     private openPull: (id: number, number: number) => void = () => {}, // a pull request of a row: the page of its change at "Conversation"
     private openRepoPull: (link: string) => void = () => {}, // a pull request with no stored change: its page, by its link
     private memory?: vscode.Memento, // the state of the workspace, where the search of each repo is kept
+    private openBranch: () => void = () => {}, // the open branch with no change file: its diffs
   ) {}
 
   resolveWebviewView(view: vscode.WebviewView): void {
@@ -118,6 +119,7 @@ export class ChangeList implements vscode.WebviewViewProvider {
       if (message.type === 'openPull' && message.id !== undefined && message.number !== undefined) this.openPull(message.id, message.number);
       if (message.type === 'openRepoPull' && message.number !== undefined) this.openRepoPull(message.url ?? String(message.number));
       if (message.type === 'home') this.openHome();
+      if (message.type === 'openBranch') this.openBranch();
       if (message.type === 'openLink' && message.url) openLink(message.url);
       if (message.type === 'search' && message.search) void this.memory?.update(this.searchKey, message.search);
       if (message.type === 'menu' && message.values && message.search) this.onMenu({ values: message.values, search: message.search });

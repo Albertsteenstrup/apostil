@@ -13,7 +13,7 @@ import { schemaDrawing, type SchemaDrawing } from '../shared/schema';
 import { findTests } from '../shared/find-tests';
 import { addedLines, diffLines, removedLines, toRanges, type DiffLine, type RemovedLine } from '../shared/diff-lines';
 import { notesInRepo } from '../shared/notes-beside-code';
-import { baseBranchOf, changedFiles, commitExists, fileBytes, fileDiff, fileModes, fileText, linkTarget, notebookChange, rawFileText, repoId, tryGit, type ChangedFile } from '../shared/git';
+import { baseBranchOf, baseOf, changedFiles, commitExists, fileBytes, fileDiff, fileModes, fileText, linkTarget, notebookChange, rawFileText, repoId, tryGit, type ChangedFile } from '../shared/git';
 import { cellHead, cellsAt, inCellText, isNotebookPath, placeInCell, readNotebook, type NotebookCells } from '../shared/notebook';
 import { githubRepoOf, type PullRequestView } from '../shared/read-pull-request';
 import { changeWhere, savedWords, type SavedAt } from '../shared/change-rows';
@@ -123,6 +123,7 @@ export interface PageData {
   head?: string; // the commit that the diffs end at: a pull request, or a change, that is not checked out
   savedWords?: string; // one quiet line: the change is shown as saved at a commit, or that this clone has no such commit
   pullOnly?: PullOnly; // a pull request with no stored change: the page has "Conversation" and "Diffs"
+  branchOnly?: true; // the open branch with no change file: the page has "Diffs", and "Conversation" when the branch has a pull request
   plain?: true; // a file tab with no change: the code as it is, with no diff, and the notes beside it
   look?: LookData; // the look of the repo for the page and its file tabs; the marks of a file come with its code
 }
@@ -425,6 +426,19 @@ export function pullOnlyPage(folder: string, pull: PullRequestView, apps: string
     checks: { filesInNoPart: files.map((file) => file.path), filesInTwoParts: [], filesNotChanged: [], generated: [], badNotes: [] },
     files, parts: [], links: [], linksChecked: false, diagrams: [], changeDiagram: '', altered: [], notes: [], functionTests: {}, openPoints: [], remarks: [],
     listening: false, apps, onHome: {}, pullOnly,
+  };
+}
+
+/** The page of the open branch with no change file: its changed files against its base, committed or not, with their diffs, all in no part. */
+export function branchPage(folder: string, apps: string[] = []): PageData {
+  const branch = tryGit(folder, 'branch', '--show-current') || 'detached';
+  const base = baseOf(folder, branch);
+  const files = describeFiles(folder, base, changedFiles(folder, base));
+  return {
+    changeId: 0, repo: repoName(folder), folder, branch, base, title: '', reason: '', outOfDate: false,
+    checks: { filesInNoPart: files.map((file) => file.path), filesInTwoParts: [], filesNotChanged: [], generated: [], badNotes: [] },
+    files, parts: [], links: [], linksChecked: false, diagrams: [], changeDiagram: '', altered: [], notes: [], functionTests: {}, openPoints: [], remarks: [],
+    listening: false, apps, onHome: {}, branchOnly: true,
   };
 }
 

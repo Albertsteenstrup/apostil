@@ -91,6 +91,26 @@ try {
   check('a press that started no run, because the branch of the pull request could not be checked out: the line says why in one sentence, with the press again, and nothing in it moves',
     failed.text === `${why} Describe it with a new Claude Code session` && failed.press?.label === 'Describe it with a new Claude Code session' && failed.moves === 0,
     JSON.stringify(failed));
+
+  // The open branch with no change file: the page has its diffs (all its files in no part) and no diagram, and the same line with the press that has an agent describe the branch.
+  await page.evaluate(() => {
+    const { files, checks } = APOSTIL_EXAMPLE.page; // as branchPage() makes it: the changed files, all in no part
+    App.page = { ...APOSTIL_EXAMPLE.page, branchOnly: true, parts: [], diagrams: [], changeDiagram: '', checks: { ...checks, filesInNoPart: files.map((file) => file.path), generated: [] } };
+    App.ask = { words: 'Describe the change of this branch for Apostil', press: { label: 'Describe it with a new Claude Code session', tip: 'Starts a new Claude Code session that writes the description.' } };
+    App.state.view = 'diagram';
+    App.render();
+  });
+  await page.waitForFunction(() => App.state.view === 'diffs' && /file 1 of/.test(document.querySelector('#tabs .nav')?.textContent ?? '') && !!document.querySelector('#view .fh'), null, { timeout: 8000 }).catch(() => {});
+  const branch = await page.evaluate(() => ({
+    view: App.state.view, diagram: !document.querySelector('.switch a[data-view="diagram"]').hidden, files: App.page.files.length,
+    order: App.order().length, shown: document.querySelectorAll('#view .fh').length, counter: document.querySelector('#tabs .nav')?.textContent ?? '',
+  }));
+  const branchLine = await line();
+  await takePicture(page, '76-the-open-branch-with-no-change-file.png');
+  check('the open branch with no change file opens at "Diffs" with every changed file and no diagram, and its line says that it has no description of Apostil yet, with the press that has an agent describe it',
+    branch.view === 'diffs' && !branch.diagram && branch.order === branch.files && branch.shown > 0 && branch.counter.includes(`file 1 of ${branch.files}`)
+      && branchLine.text === 'This branch has no description of Apostil yet. Describe it with a new Claude Code session' && branchLine.press?.label === 'Describe it with a new Claude Code session',
+    JSON.stringify({ branch, branchLine }));
   await page.close();
 } catch (error) {
   check('the check ran to its end', false, error.stack);

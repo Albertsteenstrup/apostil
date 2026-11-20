@@ -8,6 +8,9 @@ import type { Team } from './models';
 /** The words that ask an agent to describe a pull request that has no description of Apostil. */
 export const describeWords = (number: number): string => `Describe pull request #${number} for Apostil`;
 
+/** The words that ask an agent to describe the open branch when it has no change file. */
+export const BRANCH_WORDS = 'Describe the change of this branch for Apostil';
+
 /** A session that Apostil knows in a repo, of a stored change or of a run that it started: when it last worked, and the folder that it runs in. */
 export interface KnownSession {
   agent: AgentSession;

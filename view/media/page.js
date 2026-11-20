@@ -113,6 +113,7 @@ const App = {
     const { page, state } = this;
     const number = page.pullOnly?.number ?? this.pull()?.number;
     if (page.pullOnly) return { tab: 'pull', link: page.pullOnly.link, name: `Pull request #${number}` };
+    if (page.branchOnly && state.view !== 'conversation') return { tab: 'branch', name: page.branch };
     const at = { tab: 'change', change: page.changeId };
     const lit = state.lit ?? undefined;
     if (state.view === 'diffs') return { ...at, go: { view: 'diffs' }, name: 'Diffs' };
@@ -207,16 +208,17 @@ const App = {
     if (state.view === 'diagram' && state.level === 'change' && only && !only.diagrams.length) Object.assign(state, { view: 'code', file: this.firstFile(only), lines: null });
     if (state.view === 'code') state.part = page.parts.find((part) => part.files.includes(state.file))?.id ?? null;
     if (page.pullOnly && state.view === 'diagram') state.view = 'conversation';
+    if (page.branchOnly && state.view === 'diagram') state.view = 'diffs'; // the open branch with no change file has no diagram
     // A view that a rule of the look leaves out does not open: the next view of the switch opens in its place.
     const views = lookViews();
-    if (!this.tab && !page.pullOnly && state.view !== 'code' && views.length && !views.includes(state.view)) state.view = views[0];
+    if (!this.tab && !page.pullOnly && !page.branchOnly && state.view !== 'code' && views.length && !views.includes(state.view)) state.view = views[0];
     document.body.classList.toggle('file-tab', !!this.tab);
     // The path that he followed; a file shown on the page (a removed one) is a bold name after it. The large view of a wider diagram has its title there.
     if (!this.tab) {
       const broad = state.view === 'diagram' && state.level === 'broad' && broadOf(state);
       Trail.show(document.getElementById('crumb'), this.ownStep(), { attrs: broad ? Places.attrs({ kind: 'diagram', diagram: broad.id }) : '', extra: state.view === 'code' ? baseName(state.file) : '', look: this.page?.look });
     }
-    document.getElementById('summary').innerHTML = this.tab ? '' : page.pullOnly ? pullOnlyLineHtml() : summaryHtml();
+    document.getElementById('summary').innerHTML = this.tab ? '' : page.pullOnly ? pullOnlyLineHtml() : page.branchOnly ? branchLineHtml() : summaryHtml();
     focus = null; // a new drawing starts with no focus on a node (diagram-stage.js)
     endFocusLine();
     drawSwitch();
@@ -288,7 +290,7 @@ function drawSwitch() {
   const link = (view) => document.querySelector(`.switch a[data-view="${view}"]`);
   const notFound = page.pullOnly && App.read[page.pullOnly.link]?.problem; // a pull request that cannot be read offers no view
   link('conversation').hidden = !App.pullLink() || !!notFound;
-  link('diagram').hidden = !!page.pullOnly;
+  link('diagram').hidden = !!page.pullOnly || !!page.branchOnly;
   link('diffs').hidden = !!notFound;
   link('diffs').textContent = page.pullOnly?.otherRepo ? 'Files' : 'Diffs';
   link('diagram').textContent = onlyPart() && !onlyPart().diagrams.length ? 'Code' : 'Diagram'; // one part with no diagram opens on its code
@@ -445,6 +447,7 @@ async function drawPartView(tabs, view, part) {
 
 /** The words to give an agent for a pull request that has no description of Apostil (describeWords in shared/ask.ts). */
 const describeWords = (number) => `Describe pull request #${number} for Apostil`;
+const BRANCH_WORDS = 'Describe the change of this branch for Apostil'; // as BRANCH_WORDS of shared/ask.ts
 
 /**
  * A pull request with no stored change says so in one quiet line, with one direct link that has the session that it names describe it (`App.ask`, from
@@ -455,6 +458,11 @@ function pullOnlyLineHtml() {
   if (pullOnly.otherRepo) return '';
   const words = describeWords(pullOnly.number);
   return askHtml(App.ask?.words === words ? App.ask : { words }, 'This pull request has no description of Apostil yet.');
+}
+
+/** The open branch with no change file says so in one quiet line, with the link that has an agent describe it, as a pull request with no stored change. */
+function branchLineHtml() {
+  return askHtml(App.ask?.words === BRANCH_WORDS ? App.ask : { words: BRANCH_WORDS }, 'This branch has no description of Apostil yet.');
 }
 
 /** The line under the head, only for what shows nowhere else: the branch that a stacked change is compared with, and what the check found wrong. Empty for a change with nothing wrong: the counts of its files are in the diagram. */

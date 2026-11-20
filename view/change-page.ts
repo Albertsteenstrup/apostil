@@ -7,7 +7,7 @@ import { basename, join, relative, sep } from 'node:path';
 import * as vscode from 'vscode';
 import { openSessionCommand, sessionLink, resumeCommand, type AgentSession } from '../shared/agents';
 import { pickFrom, type RunPick } from '../shared/models';
-import { describeWords, type AskView } from '../shared/ask';
+import { BRANCH_WORDS, describeWords, type AskView } from '../shared/ask';
 import { keptInChange, withKept } from '../shared/comment-lines';
 import { fetchPullCommits, rawFileText } from '../shared/git';
 import type { Target } from '../shared/look';
@@ -27,7 +27,7 @@ import { fileIcons, pageOptions } from './icon-theme';
 import type { DiagramLayout } from './home-page';
 import { keptPullRequests, pullRequestsLater } from './change-list';
 import { reopenStaleRuns } from './list-rows';
-import { answer, filePage, isListening, lookOfPage, marksBeside, notesBeside, pageData, pullLines, pullOnlyPage, takeStart, type PageData, type PullLines } from './page-data';
+import { answer, branchPage, filePage, isListening, lookOfPage, marksBeside, notesBeside, pageData, pullLines, pullOnlyPage, takeStart, type PageData, type PullLines } from './page-data';
 import type { ChangeGo, Step, WindowTrail } from './trail';
 
 /**
@@ -175,6 +175,7 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
   private views = new Set<View>();
   private changeId?: number;
   private pullOnly?: string; // the link of a pull request with no stored change that the page shows
+  private branchOnly = false; // the page shows the open branch with no change file
   private sentPulls = ''; // the pull requests of the branch that the page got last
   private fetched = new Set<string>(); // the pull requests whose commits Apostil tried to get, while VS Code runs
   private pullRead?: { link: string; read: PullAnswer }; // the pull request that the page read last: the file tabs comment on its code
@@ -234,12 +235,13 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
   }
 
   open(changeId: number): void {
-    if ((this.changeId !== undefined && this.changeId !== changeId) || this.pullOnly) {
+    if ((this.changeId !== undefined && this.changeId !== changeId) || this.pullOnly || this.branchOnly) {
       if (this.panel) this.countTime(); // the time so far belongs to the change before
       for (const view of [...this.views]) if (view.file) view.panel.dispose(); // its file tabs belong to the change before
     }
     this.showPanel();
     this.pullOnly = undefined;
+    this.branchOnly = false;
     this.changeId = changeId;
     this.sentPulls = '';
     this.reload();
@@ -265,9 +267,25 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
     this.showPanel();
     this.changeId = undefined;
     this.pullOnly = link;
+    this.branchOnly = false;
     this.page = pullOnlyPage(this.openFolder(), placeholderPull(link, number), this.connected());
     this.page.look = lookOfPage(this.store, this.page); // the look of the repo for the parts of the pull request
     this.panel!.title = `#${number}`;
+    for (const view of this.views) this.post(view, this.dataFor(view));
+  }
+
+  /** Opens the open branch with no change file: its diffs, and the link that has an agent describe it. */
+  openBranch(): void {
+    if (this.panel) this.countTime();
+    for (const view of [...this.views]) if (view.file) view.panel.dispose();
+    this.showPanel();
+    this.changeId = undefined;
+    this.pullOnly = undefined;
+    this.branchOnly = true;
+    this.sentPulls = '';
+    this.page = branchPage(this.openFolder(), this.connected());
+    this.page.look = lookOfPage(this.store, this.page);
+    this.panel!.title = this.page.branch;
     for (const view of this.views) this.post(view, this.dataFor(view));
   }
 
@@ -285,7 +303,7 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
   }
 
   resolveCustomEditor(document: vscode.CustomDocument, panel: vscode.WebviewPanel): void {
-    if (this.changeId === undefined && !this.pullOnly) {
+    if (this.changeId === undefined && !this.pullOnly && !this.branchOnly) {
       this.changeId = this.changeOfFolder();
       // With no change on the branch, the tab shows the code as it is, with the notes of the other changes of the repo beside it.
       this.page = this.changeId !== undefined ? pageData(this.store, this.changeId, this.openFolder(), this.connected(), runModels()) : filePage(this.openFolder());
@@ -394,13 +412,13 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
   }
 
   /**
-   * The words for an agent of the page, with the press that sends them and the line of their run: a pull request of this repo with no stored change has them.
+   * The words for an agent of the page, with the press that sends them and the line of their run: a pull request of this repo with no stored change, or the open branch with no change file, has them.
    * After a press that started no run (the branch of the pull request could not be checked out), the press comes with why.
    */
   private askNow(): AskView | undefined {
     const bare = this.page?.pullOnly;
-    if (!bare || bare.otherRepo) return undefined;
-    const words = describeWords(bare.number);
+    if (!this.page?.branchOnly && (!bare || bare.otherRepo)) return undefined;
+    const words = bare ? describeWords(bare.number) : BRANCH_WORDS;
     const view = askView(this.store, this.openFolder(), words, this.apps, { pull: this.pullHead() });
     return view.press && this.askProblem?.words === words ? { ...view, problem: this.askProblem.problem } : view;
   }
@@ -553,6 +571,8 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
 
   /** Loads the page data again and sends it to the page and the file tabs. */
   reload(): void {
+    const described = this.branchOnly ? this.changeOfFolder() : undefined;
+    if (described !== undefined) return this.open(described);
     if (!this.views.size || this.changeId === undefined) return;
     reopenStaleRuns(this.store, this.changeId);
     // The signature is taken first: reading the page takes a moment, and an answer that lands in that moment must still cause the next load.
