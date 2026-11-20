@@ -8,7 +8,7 @@ import { thingsOf } from './diagram-code';
 import { diagramGraph } from './diagram-graph';
 import { fileText } from './git';
 import { linesNow, noteKey } from './notes-beside-code';
-import { parentsOf, parseKey, stepKey, type Process } from './processes';
+import { isTestPath, parentsOf, parseKey, stepKey, type Process } from './processes';
 import { FILE_NOTES_PART, noteCount } from './repo-map';
 import type { StoredMap } from './store';
 
@@ -198,10 +198,11 @@ export function rank(documents: string[][], query: string[]): number[] {
 }
 
 /**
- * What `apostil find <words>` prints: the notes of files, the processes and the diagrams of the map that match the words, best first, in three groups:
- * at most `limit` notes, each at its lines now, and a quarter of that (at least 3) of processes and of diagrams. A note is found by its title, its text
- * and the names in the first line of its code (a def, func or class line names what it defines); a process by its title, its summary and the titles of
- * its steps; a diagram by its title and the labels of its nodes.
+ * What `apostil find <words>` prints: the notes of files, the processes and the diagrams of the map that match the words, best first, in four groups:
+ * at most `limit` notes of the code, each at its lines now, then a quarter of that (at least 3) of processes, of diagrams and of notes of test files.
+ * Notes of tests have a group of their own: they are short and say the words of the code again, so they would push the notes of the code down.
+ * A note is found by the words of its path, its title, its text and the names in the first line of its code (a def, func or class line names what
+ * it defines); a process by its title, its summary and the titles of its steps; a diagram by its title and the labels of its nodes.
  */
 export function findInMap(folder: string, stored: StoredMap, words: string, limit = 20): string {
   const query = [...new Set(wordsOf(words))];
@@ -210,18 +211,22 @@ export function findInMap(folder: string, stored: StoredMap, words: string, limi
   const processes = map.processes ?? [];
   const kept = map.noteCode ?? {};
   const titles = new Map(notes.map((note) => [stepKey(note), note.title]));
-  const noteHits = rank(notes.map((note, index) => wordsOf(`${note.title} ${note.text ?? ''} ${kept[noteKey(FILE_NOTES_PART, index)]?.[0] ?? ''}`)), query);
+  const noteHits = rank(notes.map((note, index) => wordsOf(`${note.file} ${note.title} ${note.text ?? ''} ${kept[noteKey(FILE_NOTES_PART, index)]?.[0] ?? ''}`)), query);
   const processHits = rank(processes.map((process) => wordsOf([process.title, process.summary, ...process.steps.map((key) => titles.get(key) ?? '')].join(' '))), query);
   const diagramHits = rank(map.diagrams.map((diagram) => wordsOf([diagram.title, ...Object.values(diagramGraph(diagram).nodes)].join(' '))), query);
   if (!noteHits.length && !processHits.length && !diagramHits.length) return `Nothing in the map matches "${words}". Try other words, or read apostil overview.`;
   const few = Math.max(3, Math.ceil(limit / 4));
-  const now = notesAt(folder, stored, noteHits.slice(0, limit).map((at) => notes[at].file));
+  const codeHits = noteHits.filter((at) => !isTestPath(notes[at].file));
+  const testHits = noteHits.filter((at) => isTestPath(notes[at].file));
+  const now = notesAt(folder, stored, [...codeHits.slice(0, limit), ...testHits.slice(0, few)].map((at) => notes[at].file));
   const steps = processesByStep(processes);
   const group = (name: string, hits: number[], most: number, line: (at: number) => string): string =>
     (hits.length ? [`${name} (${Math.min(most, hits.length)} of ${hits.length} that match):`, ...hits.slice(0, most).map(line)].join('\n') : '');
+  const noteOf = (at: number): string => noteLine(now.get(stepKey(notes[at]))!, steps.get(stepKey(notes[at])), true);
   return [
-    group('Notes', noteHits, limit, (at) => noteLine(now.get(stepKey(notes[at]))!, steps.get(stepKey(notes[at])), true)),
+    group('Notes', codeHits, limit, noteOf),
     group('Processes', processHits, few, (at) => `process ${processes[at].id}  ${processes[at].title} (${count(processes[at].steps.length, 'step')})`),
     group('Diagrams', diagramHits, few, (at) => `diagram ${map.diagrams[at].id}  ${map.diagrams[at].title}`),
+    group('Notes of tests', testHits, few, noteOf),
   ].filter(Boolean).join('\n\n');
 }

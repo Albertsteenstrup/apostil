@@ -11,7 +11,7 @@ Apostil keeps a map of the repo: diagrams, notes on the parts of each code file,
 
 1. `apostil overview`: the top diagram with the folders and files of each area, the other diagrams, and the next commands. It is short.
    - If it says that the repo has no map, work as you would without Apostil.
-2. `apostil find "<words of the task>"`: the notes, processes and diagrams that match, best first.
+2. `apostil find "<words of the task>"`: the notes, processes and diagrams that match, best first. The notes of test files come last, in a group of their own.
    - Use the words of the issue or the request: names, nouns, verbs. Try other words when nothing fits.
    - `--limit <n>` gives more or fewer notes (20 by default).
 3. Read more of what matched:

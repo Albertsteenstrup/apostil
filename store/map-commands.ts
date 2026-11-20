@@ -37,7 +37,7 @@ export const MAP_USAGE: Record<string, string> = {
   processes: 'apostil processes [--group <name>] (--group: only the files and the processes of that group of process-groups)',
   process: 'apostil process <id> [--text] (--text: plain lines, each step at its lines now)',
   overview: 'apostil overview (plain text: the top diagram of the map, its other diagrams, the counts, and the commands to read next; read it first)',
-  find: 'apostil find <words> [--limit <n>] (plain text: the notes, processes and diagrams of the map that match the words, best first; at most n notes, 20 by default)',
+  find: 'apostil find <words> [--limit <n>] (plain text: the notes, processes and diagrams of the map that match the words, best first, the notes of test files last in a group of their own; at most n notes, 20 by default)',
   map: 'apostil map [--fit] (--fit: where the notes and the processes do not fit the diagrams, and the used code with no note)',
   'diagrams-of': 'apostil diagrams-of <path> [--full]',
   'add-marks': 'apostil add-marks <marks.json> (or - for standard input)',
