@@ -137,7 +137,7 @@ test('the words of the line of Home: the run of Home, his own session that opens
   assert.equal(mapRunLine(homeRun('claude-code', AT), { now: later(31), alive: true })?.state, 'writing');
 });
 
-test('the first save of a run removes the notes of a deleted file and of a file that .apostilignore now leaves out, and their processes count as stale; no read removes them', () => {
+test('the first save of a run removes what the map holds of a deleted file and of a file that .apostilignore now leaves out: a process with some steps there is stale, one with all its steps there goes; no read removes them', () => {
   const store = new Store(tempFolder('apostil-home-'));
   const repo = makeTestRepo();
   const id = repoId(repo.folder);
@@ -149,7 +149,13 @@ test('the first save of a run removes the notes of a deleted file and of a file 
   const note = (file: string, title: string) => ({ file, lines: [1, 2] as [number, number], title, text: 'It returns a number.' });
   assert.ok(addNotesToMap(store, repo.folder, { notes: [note('src/app.py', 'Start the app'), note('src/old.py', 'Return the old number'), note('src/legacy.py', 'Return the legacy number')] }).saved);
   const process = { id: 'old-flow', group: 'code-000000', title: 'Old flow', summary: 'It runs the old code.', steps: ['src/app.py:1-2', 'src/old.py:1-2'] };
-  store.updateMap(id, headCommit(repo.folder), (map) => ({ ...map!, processes: [process] }));
+  const legacy = { id: 'legacy-flow', group: 'code-000000', title: 'Legacy flow', summary: 'It runs the legacy code.', steps: ['src/legacy.py:1-2'] };
+  const handoff = { from: 'old-flow', to: 'legacy-flow', name: 'number', fromLine: { file: 'src/app.py', line: 2 }, toLine: { file: 'src/legacy.py', line: 1 } };
+  const mark = (file: string) => ({ set: 'services', value: 'postgres', file, line: 1, name: 'number', group: 'services-000000', code: 'def x():' });
+  store.updateMap(id, headCommit(repo.folder), (map) => ({
+    ...map!, processes: [process, legacy], handoffs: [handoff], notInProcess: [{ note: 'src/legacy.py:1-2', why: 'A helper.' }],
+    marks: [mark('src/app.py'), mark('src/legacy.py')], markedFiles: { services: { 'src/app.py': 'a', 'src/legacy.py': 'b' } },
+  }));
 
   // The file is deleted and the other one left out; a read changes nothing.
   rmSync(join(repo.folder, 'src/old.py'));
@@ -161,6 +167,7 @@ test('the first save of a run removes the notes of a deleted file and of a file 
   assert.equal(processFacts(store.getMap(id)!.map).stale.length, 0);
 
   // The first save of a run: only the note of the file that stays, still at the text of its lines; the process that named the deleted file is stale.
+  // The process that lay wholly in the left-out file goes, with its handoff, its set-aside note and the mark of that file: no writer could redo them.
   const drafts = tempFolder('apostil-draft-');
   writeFileSync(join(drafts, 'map.json'), JSON.stringify({ format: 1, diagrams: [top] }));
   assert.ok(runMapCommand(store, 'save-map', join(drafts, 'map.json'), repo.folder, {}, { CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: SESSION }).ok);
@@ -168,6 +175,10 @@ test('the first save of a run removes the notes of a deleted file and of a file 
   assert.deepEqual(stored.map.fileNotes?.map((one) => one.file), ['src/app.py']);
   assert.equal(notesNow(stored, 'src/app.py', 'def start():\n    return 2\n')[0].changed, undefined);
   assert.deepEqual(processFacts(stored.map).stale, [{ id: 'old-flow', group: 'code-000000', gone: 1 }]);
+  assert.deepEqual(stored.map.processes?.map((one) => one.id), ['old-flow']);
+  assert.deepEqual([stored.map.handoffs, stored.map.notInProcess], [undefined, undefined]);
+  assert.deepEqual(stored.map.marks?.map((one) => one.file), ['src/app.py']);
+  assert.deepEqual(stored.map.markedFiles, { services: { 'src/app.py': 'a' } });
   assert.match(findInMap(repo.folder, stored, 'legacy'), /^Nothing in the map matches/);
   store.close();
   repo.remove();
