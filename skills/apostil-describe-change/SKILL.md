@@ -34,7 +34,7 @@ You are the lead: you write the brief, start the writer and the checkers, and re
 Give the writer:
 
 - the brief,
-- the full text of `writer-prompt.md` and of `text-rules.md` (both in this folder),
+- the line "First run `apostil prompt describe` and follow what it prints.",
 - the path of the worktree.
 
 The writer writes its JSON to `apostil-draft.json` in the top folder of the repo, and saves it with `apostil save apostil-draft.json`. The command removes the file when the save worked. Wait until it reports that the file is saved.
@@ -45,7 +45,7 @@ The writer's report names the parts that have notes and the parts that a link le
 
 The fresh check must stay fresh. Give each checker these things and nothing else:
 
-- the full text of `fresh-check-prompt.md` (in this folder),
+- the line "First run `apostil prompt fresh-check` and follow what it prints.",
 - the path of the worktree,
 - the id of its part.
 
