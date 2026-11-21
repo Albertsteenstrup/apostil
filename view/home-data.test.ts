@@ -147,10 +147,13 @@ test('Home: the press starts the app that Apostil started last in this repo, fro
 });
 
 
-test('nodeTags names the folders and files of each node in a few words: the name above a folder when two read the same, two at most then "+N", files after folders as "+N files"', () => {
-  assert.deepEqual(nodeTags({
+test('nodeTags names the folders and files of each node in a few words: the name above a folder when two read the same, two at most then "+N", files after folders as "+N files"; a click on a name shows its path, on "+N" the rest', () => {
+  const tags = nodeTags({
     web: ['web/'], routes: ['src/web/'], data: ['db/', 'scripts/', 'seeds/', 'backups/'], jobs: ['jobs/', 'night.py', 'clock.py'], one: ['src/a/main.py'], two: ['src/b/main.py', 'src/b/util.py'], none: [],
-  }), { web: 'web/', routes: 'src/web/', data: 'db/ · scripts/ +2', jobs: 'jobs/ +2 files', one: 'a/main.py', two: 'b/main.py · util.py' });
+  });
+  assert.deepEqual(Object.fromEntries(Object.entries(tags).map(([node, parts]) => [node, parts.map((part) => part.text).join('')])),
+    { web: 'web/', routes: 'src/web/', data: 'db/ · scripts/ +2', jobs: 'jobs/ +2 files', one: 'a/main.py', two: 'b/main.py · util.py' });
+  assert.deepEqual(tags.jobs.filter((part) => part.paths).map((part) => part.paths), [['jobs/'], ['night.py', 'clock.py']]);
 });
 
 test('with no change on the branch, a comment on code is one of the repo: the file tab and the open branch get the threads on files with the connected apps, and Home the others', () => {

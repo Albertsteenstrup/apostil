@@ -76,6 +76,17 @@ try {
   await bigDraw(...smallCounts);
   await alone(false);
   await homeAt('');
+  // A click on a name of a tag: a folder shows in the tree "Files"; "+1 file" shows its file there and opens it beside Home. Home stays where it is.
+  const tagClicks = async (index) => {
+    const from = await home.evaluate(() => window.apostilSent.length);
+    await home.locator('#view .ptag[data-node="writing"] .pl').nth(index).click();
+    return home.evaluate((from) => window.apostilSent.slice(from).filter((one) => /^(walk|showInTree|openFile)$/.test(one.type)).map((one) => `${one.type}:${one.paths ?? one.path}${one.beside ? ' beside' : ''}`).join(' | '), from);
+  };
+  const tagFrom = await home.evaluate(() => Home.at);
+  const tagLed = [await tagClicks(0), await tagClicks(1)];
+  const tagStayed = await home.evaluate(() => Home.at);
+  check('a click on a name under a node shows that folder in the tree "Files"; on "+1 file" it shows the file there and opens it beside Home; Home stays where it is',
+    tagLed[0] === 'showInTree:docs/' && tagLed[1] === 'showInTree:README.md | openFile:README.md beside' && tagStayed === tagFrom, JSON.stringify({ tagLed, tagFrom, tagStayed }));
   check('Home draws the top map as one surface: 8 named areas, no dot on any node, the line "Home" alone; an area grows a little under the pointer (the icons at its corner stay where they are) and alone opens a window with its folders and files, the count of files and the counts of the change that touches it; a large repo has commas in its counts',
     top.nodes === 8 && top.names === 8 && top.dots === 0 && top.surface && top.crumb === 'Home' && grows === '1.03' && iconsStay === 'none'
       && nodeWin.title === 'Lending' && nodeWin.sub === '9 files · 1 change' && nodeWin.rows?.[0] === 'src/library/lending/+593 −83 · 9 files' && /^book-holds/.test(nodeWin.rows?.[1] ?? '')

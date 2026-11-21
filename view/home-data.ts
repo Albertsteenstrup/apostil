@@ -53,7 +53,13 @@ export interface HomeNode {
   process?: true; // a process in the drawing of a place
   names?: string[]; // a call out of the repo: the names that the code calls it by
   callers?: ProcessNode['callers']; // a box that three or more boxes call: who calls it, and where
-  tag?: string; // a node of a written diagram: its folders and files in a few words, which stand under its lower-left corner
+  tag?: TagPart[]; // a node of a written diagram: its folders and files in a few words, which stand under its lower-left corner
+}
+
+/** A piece of the tag of a node: a name, or "+2" for the rest, with the paths that a click on it shows; a piece with no paths is a separator. */
+export interface TagPart {
+  text: string;
+  paths?: string[];
 }
 
 export interface HomeDiagram {
@@ -262,7 +268,7 @@ const schemaOf = (diagram: Diagram): { schema?: SchemaDrawing } => (diagram.kind
  * The folders and files of each node of a diagram in a few words, for the tag under its lower-left corner: each path by its last name, with the names
  * above it when another path of the diagram has the same last name; two at most, then "+3"; the folders first, then the files as "+2 files".
  */
-export function nodeTags(nodePaths: Record<string, string[]>): Record<string, string> {
+export function nodeTags(nodePaths: Record<string, string[]>): Record<string, TagPart[]> {
   const nameOf = (path: string, deep: number): string => `${path.replace(/\/$/, '').split('/').slice(-deep).join('/')}${path.endsWith('/') ? '/' : ''}`;
   const all = [...new Set(Object.values(nodePaths).flat())];
   const short = (path: string): string => {
@@ -270,12 +276,15 @@ export function nodeTags(nodePaths: Record<string, string[]>): Record<string, st
     while (deep < path.split('/').length && all.some((other) => other !== path && nameOf(other, deep) === nameOf(path, deep))) deep++;
     return nameOf(path, deep);
   };
-  const few = (names: string[]): string => `${names.slice(0, 2).join(' · ')}${names.length > 2 ? ` +${names.length - 2}` : ''}`;
-  const tags: Record<string, string> = {};
+  const rest = (paths: string[], words = ''): TagPart[] => (paths.length ? [{ text: ' ' }, { text: `+${paths.length}${words}`, paths }] : []);
+  const few = (paths: string[]): TagPart[] => [
+    ...paths.slice(0, 2).flatMap((path, index) => [...(index ? [{ text: ' · ' }] : []), { text: short(path), paths: [path] }]), ...rest(paths.slice(2)),
+  ];
+  const tags: Record<string, TagPart[]> = {};
   for (const [node, paths] of Object.entries(nodePaths)) {
-    const folders = paths.filter((path) => path.endsWith('/')).map(short);
-    const files = paths.filter((path) => !path.endsWith('/')).map(short);
-    if (folders.length && files.length) tags[node] = `${few(folders)} +${files.length} file${files.length === 1 ? '' : 's'}`;
+    const folders = paths.filter((path) => path.endsWith('/'));
+    const files = paths.filter((path) => !path.endsWith('/'));
+    if (folders.length && files.length) tags[node] = [...few(folders), ...rest(files, ` file${files.length === 1 ? '' : 's'}`)];
     else if (paths.length) tags[node] = few(folders.length ? folders : files);
   }
   return tags;

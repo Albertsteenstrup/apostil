@@ -299,9 +299,22 @@ function tagNodes(svg, nodesOf) {
     const at = new DOMPoint(box.x + 10, box.y + box.height + 15).matrixTransform(toLayer.multiply(toNode));
     const text = document.createElementNS(SVG_NS, 'text');
     Object.entries({ class: 'ptag', x: at.x, y: at.y, 'data-node': key }).forEach(([name, value]) => text.setAttribute(name, value));
-    text.textContent = tag;
+    for (const part of tag) {
+      const span = document.createElementNS(SVG_NS, 'tspan');
+      span.textContent = part.text;
+      if (part.paths) Object.assign(span, { paths: part.paths }).setAttribute('class', 'pl');
+      text.append(span);
+    }
     layer.append(text);
   }
+  // A name in a tag shows its folder or file in the tree "Files"; a file opens beside Home too. "+2" shows the rest. The focus stays as it is.
+  layer.addEventListener('click', (event) => {
+    const paths = event.target.closest?.('.pl')?.paths;
+    if (!paths) return;
+    event.stopPropagation();
+    tell({ type: 'showInTree', paths, open: true });
+    if (paths.length === 1 && !paths[0].endsWith('/')) tell({ type: 'openFile', path: paths[0], beside: true, preserveFocus: true });
+  });
   if (!layer.hasChildNodes()) layer.remove();
   return layer.isConnected;
 }
