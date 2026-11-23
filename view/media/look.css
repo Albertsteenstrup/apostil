@@ -692,6 +692,10 @@ div.nomap .runpick{margin:0 0 8px}
 .ovt:hover{color:var(--ink);background:var(--seg)}
 .ovt.grow{--ovt:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10'/%3E%3C/svg%3E")}
 .ovt.shrink{--ovt:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 2.5V6H2.5M10 2.5V6h3.5M13.5 10H10v3.5M2.5 10H6v3.5'/%3E%3C/svg%3E")}
+/* the bottom edge of the frame of the overview, which a drag moves: a short grip line shows only under the pointer and while it moves */
+.ove{position:absolute;left:0;right:0;bottom:0;z-index:2;height:8px;cursor:row-resize}
+.ove::after{content:"";position:absolute;left:50%;top:50%;width:28px;height:3px;border-radius:2px;background:var(--line2);transform:translate(-50%,-50%);opacity:0}
+.ove:hover::after,.ove.held::after{opacity:1}
 .tabs .home-link{margin-left:12px;color:var(--soft);text-decoration:underline;text-decoration-color:var(--line2);text-underline-offset:3px}
 .tabs .home-link:hover{color:var(--ink)}
 

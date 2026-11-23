@@ -108,7 +108,7 @@ try {
   await home.click('.bar [data-end-focus]').catch(() => {});
   const afterCross = await focusNow();
   await home.click(nodeOf(wanted.key), { modifiers: ['Alt'] });
-  const empty = await home.$eval('#view', (el) => { const box = el.getBoundingClientRect(); return { x: box.left + 8, y: box.bottom - 8 }; });
+  const empty = await home.$eval('#view', (el) => { const box = el.getBoundingClientRect(); return { x: box.left + 8, y: box.bottom - 16 }; }); // above its bottom edge, which changes its height
   await home.mouse.click(empty.x, empty.y);
   const afterAgain = await focusNow();
   // A look that gives Option+click on a node a target wins: no focus, and the click goes to that target.
@@ -253,7 +253,7 @@ try {
   });
   const again = { frame: await frame(), chips: await chips() };
   // A double click on an empty place fits it, and the next drawing fits too; a new diagram fits.
-  const corner = await home.$eval('#view', (el) => { const box = el.getBoundingClientRect(); return { x: box.left + 6, y: box.bottom - 6 }; });
+  const corner = await home.$eval('#view', (el) => { const box = el.getBoundingClientRect(); return { x: box.left + 6, y: box.bottom - 16 }; }); // above its bottom edge, which changes its height
   await home.mouse.dblclick(corner.x, corner.y);
   const afterFit = await frame();
   await home.evaluate(() => Home.render());

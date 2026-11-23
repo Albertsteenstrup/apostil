@@ -170,7 +170,7 @@ const leftAt = { page: null, views: new Map() };
  * where its words read, and at most most of the half; a scroll that the drawing cannot take (all of it shows that way) scrolls the half.
  * With `key` (the name of the diagram in its view), the same diagram drawn again keeps the zoom and the place that he left it at (leftAt); a fit forgets them.
  * With `overview` (cards stand under it), the card takes the height of the drawing at the scale that it is drawn at, at most the tab down to the
- * peek of the cards (keepOverview), and a small diagram is drawn larger, up to GROW, to fill its width.
+ * peek of the cards (keepOverview), or the height that he dragged its bottom edge to for this `key`; a small diagram is drawn larger, up to GROW, to fill its width.
  */
 function makeSurface(stage, readable = false, stack = false, key = undefined, overview = false) {
   const page = typeof Trail === 'object' ? Trail.ownKey() : null;
@@ -193,7 +193,7 @@ function makeSurface(stage, readable = false, stack = false, key = undefined, ov
   // In a half of the page a diagram too large for it, wide or tall, opens readable at its start too.
   const half = !!stage.closest('.split');
   if (stack) stackHeight();
-  else if (overview) keepOverview(stage, width, height, readable || half);
+  else if (overview) keepOverview(stage, width, height, readable || half, key);
   else keepFilled(stage);
   let view = { x: x0, y: y0, scale: 1 };
   let moved = false; // he moved or zoomed it, so a new size of the card keeps his view
