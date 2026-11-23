@@ -744,12 +744,12 @@ try {
   await conv.click('#status [data-review]');
   const panelOf = () => conv.evaluate(() => {
     const panel = document.querySelector('#status .review-panel');
-    return panel && { verdicts: [...panel.querySelectorAll('.ghv')].map((label) => `${label.textContent}${label.querySelector('input').disabled ? ' (off)' : ''}`), line: panel.querySelector('.ghown')?.textContent ?? '',
+    return panel && { verdicts: [...panel.querySelectorAll('.ghv')].map((label) => `${label.querySelector('b').textContent}${label.querySelector('input').disabled ? ' (off)' : ''}`), lines: [...panel.querySelectorAll('.ghvl')].map((one) => one.textContent), titles: [...panel.querySelectorAll('.ghv.off')].map((one) => one.title),
       chosen: panel.querySelector('input:checked')?.value, button: panel.querySelector('[data-gh-send]')?.textContent, focus: document.activeElement === panel.querySelector('textarea'),
       strip: document.querySelector('#status .status').textContent };
   });
   const reviewPanel = await panelOf();
-  // His own pull request: the panel shows no verdict and says why in one quiet line.
+  // His own pull request: "Approve" and "Request changes" are greyed with GitHub's reason, and "Comment" is picked.
   await conversationAfter(() => conv.evaluate((link) => { App.read[link].pull.mine = true; App.render(); }, LINK12));
   const ownPanel = await panelOf();
   await conv.click('#status .review-panel textarea');
@@ -759,9 +759,11 @@ try {
   await conv.click('#status .review-panel [data-gh-send]');
   await conv.waitForFunction(() => /A note on my own work\./.test([...document.querySelectorAll('.conv .feed .card.review')].at(-1)?.textContent ?? ''), null, { timeout: 3000 }).catch(() => {});
   const ownSent = { write: (await writes()).at(-1), panel: !!(await conv.$('#status .review-panel')), last: await conv.evaluate(() => [...document.querySelectorAll('.conv .feed .card.review')].at(-1)?.textContent ?? '') };
-  check('"Review" in the strip opens a panel with the text, "Comment", "Approve" and "Request changes", and "Send review"; the cursor is in its text; on his own pull request it shows no verdict and one quiet line says that GitHub lets him comment, not approve or ask for changes, and "Send review" sends a comment review once',
-    !!reviewPanel && reviewPanel.verdicts.join() === 'Comment,Approve,Request changes' && reviewPanel.chosen === 'COMMENT' && reviewPanel.button === 'Send review' && reviewPanel.focus && reviewPanel.line === ''
-    && ownPanel?.verdicts.length === 0 && ownPanel.line === 'This is your pull request: GitHub lets you comment on it, not approve it or ask for changes.' && ownPanel.button === 'Send review'
+  check('"Review" in the strip opens a panel with the text, "Comment", "Approve" and "Request changes", and "Send review"; the cursor is in its text; each verdict has its short line as on GitHub; on his own pull request "Approve" and "Request changes" are greyed and not pickable, the reason of GitHub stands in place of their line and is their title, "Comment" is picked, and "Send review" sends a comment review once',
+    !!reviewPanel && reviewPanel.verdicts.join() === 'Comment,Approve,Request changes' && reviewPanel.chosen === 'COMMENT' && reviewPanel.button === 'Send review' && reviewPanel.focus
+    && reviewPanel.lines[1] === 'Submit feedback and approve merging these changes.'
+    && ownPanel?.verdicts.join() === 'Comment,Approve (off),Request changes (off)' && ownPanel.chosen === 'COMMENT'
+    && ownPanel.lines.slice(1).join() === ownPanel.titles.join() && ownPanel.titles[0] === "Pull request authors can't approve their own pull request" && /^Pull request authors can't request changes/.test(ownPanel.titles[1]) && ownPanel.button === 'Send review'
     && same(ownSent.write, { kind: 'review', pullId: 'made-up-pull-12', verdict: 'COMMENT', body: 'A note on my own work.' }) && (await writes()).length === 11 && !ownSent.panel && /reviewed.*A note on my own work\./.test(ownSent.last),
     JSON.stringify({ reviewPanel, ownPanel, ownSent }));
   // The hint of the answer field: with a review that is not sent yet, an answer goes into it.
@@ -771,6 +773,8 @@ try {
   const hintWithReview = await answerHint();
   if (!(await conv.$('#status .review-panel'))) await conv.click('#status [data-review]');
   const pendingPanel = await panelOf();
+  await conv.click('#status .review-panel .ghv:has(input[value="REQUEST_CHANGES"])'); // someone else's pull request: every verdict can be picked
+  const pickedOther = await conv.evaluate(() => document.querySelector('#status .review-panel input:checked')?.value);
   await conv.click('#status .review-panel .ghv:has(input[value="APPROVE"])');
   await conv.click('#status .review-panel textarea');
   await conv.keyboard.type('Good to go.');
@@ -779,7 +783,7 @@ try {
   const reviewed = await conv.evaluate(() => ({ panel: !!document.querySelector('#status .review-panel'), strip: document.querySelector('#status .status').textContent, focus: document.activeElement?.matches('[data-review]'),
     last: [...document.querySelectorAll('.conv .feed .card.review')].at(-1)?.textContent }));
   check('his review that is not sent yet: the answer field of a thread says that the answer goes into it (with none it says nothing); the strip says "Your review is not sent: 2 comments"; Cmd+Enter sends that review with the verdict once, the panel closes and the review shows',
-    hintBefore === '' && hintWithReview === 'This goes into your review that is not sent yet.'
+    pendingPanel.verdicts.join() === 'Comment,Approve,Request changes' && pickedOther === 'REQUEST_CHANGES' && hintBefore === '' && hintWithReview === 'This goes into your review that is not sent yet.'
     && /Your review is not sent: 2 comments/.test(pendingPanel?.strip) && same((await writes()).at(-1), { kind: 'review', pullId: 'made-up-pull-12', verdict: 'APPROVE', body: 'Good to go.', pendingId: 'made-up-review-1' })
     && (await writes()).length === 12 && !reviewed.panel && !/not sent/.test(reviewed.strip) && reviewed.focus && /approved.*Good to go\./.test(reviewed.last), JSON.stringify({ hintBefore, hintWithReview, pendingPanel, reviewed }));
 

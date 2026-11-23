@@ -980,7 +980,9 @@ const Conversation = (() => {
     comment: 'Write a comment…', commentButton: 'Comment', sending: 'Sending…', sendingMark: 'sending', keys: '⌘ Enter',
     review: 'Review', reviewText: 'Write what the review says…', sendReview: 'Send review', needsText: 'Write what the review says first.',
     verdicts: { COMMENT: 'Comment', APPROVE: 'Approve', REQUEST_CHANGES: 'Request changes' },
-    own: 'This is your pull request: GitHub lets you comment on it, not approve it or ask for changes.',
+    // GitHub's own short line under each verdict, and why two of them are off on one's own pull request.
+    verdictLines: { COMMENT: 'Submit general feedback without explicit approval.', APPROVE: 'Submit feedback and approve merging these changes.', REQUEST_CHANGES: 'Submit feedback that must be addressed before merging.' },
+    ownOff: { APPROVE: "Pull request authors can't approve their own pull request", REQUEST_CHANGES: "Pull request authors can't request changes on their own pull request" },
     pending: (count) => `Your review is not sent: ${plural(count, 'comment')}`,
     locked: 'This conversation is locked. Nothing can be written here.',
     example: 'example',
@@ -1049,18 +1051,22 @@ const Conversation = (() => {
     : '');
 
   /**
-   * The review panel under the strip: the text, the three verdicts, "Send review". On his own pull request GitHub takes only a comment: the panel
-   * says so in one quiet line and shows no verdict, since a choice of one is none and greyed verdicts look broken.
+   * The review panel under the strip: the text, the three verdicts each with its short line as on GitHub, "Send review". On his own pull request GitHub
+   * takes only a comment: "Approve" and "Request changes" stand greyed with GitHub's reason in place of their line, and "Comment" is picked.
    */
   function reviewHtml(pull) {
     if (!reviewOpen || !canWrite(pull) || !pull.open) return '';
     const key = `review:${pull.id}`;
     const chosen = verdicts[pull.id] ?? 'COMMENT';
-    const choice = (verdict) => `<label class="ghv"><input type="radio" name="verdict-${esc(pull.id)}" value="${verdict}"${verdict === chosen ? ' checked' : ''}>${esc(WRITE.verdicts[verdict])}</label>`;
-    return `<section class="review-panel">${pull.mine ? `<p class="ghown">${esc(WRITE.own)}</p>` : ''}<div class="ghw on" data-gh="${esc(key)}">`
+    const choice = (verdict) => {
+      const off = pull.mine ? WRITE.ownOff[verdict] : '';
+      return `<label class="ghv${off ? ' off' : ''}"${off ? ` title="${esc(off)}"` : ''}><input type="radio" name="verdict-${esc(pull.id)}" value="${verdict}"${verdict === (pull.mine ? 'COMMENT' : chosen) ? ' checked' : ''}${off ? ' disabled' : ''}>`
+        + `<span class="ghvt"><b>${esc(WRITE.verdicts[verdict])}</b><span class="ghvl">${esc(off || WRITE.verdictLines[verdict])}</span></span></label>`;
+    };
+    return `<section class="review-panel"><div class="ghw on" data-gh="${esc(key)}">`
       + `<textarea class="ghf" rows="3" placeholder="${esc(WRITE.reviewText)}" aria-label="${esc(WRITE.reviewText)}">${esc(drafts[key] ?? '')}</textarea>`
-      + `<div class="gha"><span class="ghvs">${pull.mine ? '' : Object.keys(WRITE.verdicts).map(choice).join('')}</span>`
-      + `<button class="ghs" data-gh-send>${esc(WRITE.sendReview)}</button><span class="ghk">${esc(WRITE.keys)}</span></div>`
+      + `<div class="ghvs">${Object.keys(WRITE.verdicts).map(choice).join('')}</div>`
+      + `<div class="gha"><button class="ghs" data-gh-send>${esc(WRITE.sendReview)}</button><span class="ghk">${esc(WRITE.keys)}</span></div>`
       + `${errorHtml(key)}</div></section>`;
   }
 

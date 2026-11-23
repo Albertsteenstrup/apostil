@@ -1076,10 +1076,12 @@ div.nomap .runpick{margin:0 0 8px}
 .status .rvb:hover,.status .rvb.on{background:var(--seg)}
 .status .ghpend{color:var(--pr-amber);font-weight:600}
 .review-panel{margin-top:6px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--card);font-size:var(--small)}
-.ghvs{display:flex;flex-wrap:wrap;gap:4px 14px;margin-right:auto}
-.ghv{display:inline-flex;align-items:center;gap:5px;color:var(--soft);cursor:pointer}
+.ghvs{display:flex;flex-direction:column;gap:6px;margin:8px 0}
+.ghv{display:flex;align-items:flex-start;gap:7px;color:var(--soft);cursor:pointer}
+.ghv .ghvt{display:flex;flex-direction:column}
+.ghv .ghvl{color:var(--muted)}
+.ghv.off{cursor:not-allowed;opacity:.6}
 .ghv input{margin:0;accent-color:var(--teal)}
-.review-panel .ghown{margin:0 0 6px;color:var(--muted)}
 /* the state card of a pull request (merge-card.js): its state, three meters and its actions. "Merge" is the only filled button of the page; the rest are quiet links. Nothing moves. */
 .pcard{margin-top:14px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--card);font-size:var(--small)}
 .pch{display:flex;align-items:center;gap:12px;min-width:0}

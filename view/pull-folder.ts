@@ -1,6 +1,6 @@
 // The folder where a run describes a pull request of the repo: one with the head branch of the pull request checked out. Apostil checks the branch out,
-// not the agent, whose rights hold no git worktree, fetch or checkout. It never moves, resets or deletes a branch that was there before, and it removes
-// only a worktree that it made. No vscode import.
+// not the agent, whose rights hold no git worktree, fetch or checkout. It never resets or deletes a branch that was there before. It only fast-forwards one
+// that is behind the pull request (all its commits are in the pull request, so none is lost), and it removes only a worktree that it made. No vscode import.
 
 import { cpSync, existsSync, realpathSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, relative } from 'node:path';
@@ -61,7 +61,8 @@ const reason = (said: string): string => said.replace(/^(fatal|error): /, '').re
 
 /**
  * Finds or makes a folder with the head branch of a pull request checked out. Apostil first gets the commits of the pull request when the clone lacks them.
- * A local branch of that name counts only when it holds the last commit (holdsHead); else no run starts, and the sentence says so. A worktree of the repo
+ * A local branch of that name counts when it holds the last commit (holdsHead); one that is only behind is brought up to it (fastForward); another one
+ * (it has commits that are not in the pull request) starts no run, and the sentence says so. A worktree of the repo
  * that has the branch: the run works there, and Apostil makes nothing (one in its own folder it made before counts as made). Else Apostil adds a worktree
  * in its store (worktrees/<repo>-pr-<n>): with the local branch, as it is, or with a new branch at the last commit of the pull request.
  * Gives back one sentence when that fails; no run starts then.
@@ -79,7 +80,8 @@ export async function pullFolder(folder: string, pull: PullHead, store: string):
   }
   const known = tryGit(folder, 'rev-parse', '--verify', '--quiet', `refs/heads/${pull.branch}`) !== undefined;
   if (known && !holdsHead(folder, pull.branch, head)) {
-    return fail(`the branch ${pull.branch} of this clone does not hold the last commit of the pull request. It is another branch with that name, or it is behind`);
+    const behind = fastForward(folder, pull.branch, head);
+    if (behind) return fail(behind);
   }
   const there = worktrees(folder).find((one) => one.branch === pull.branch);
   if (there && existsSync(there.folder)) return { folder: there.folder, made: isOwn(there.folder, store) };
@@ -93,6 +95,29 @@ export async function pullFolder(folder: string, pull: PullHead, store: string):
   if (added) return fail(added);
   copySkills(repoRoot(folder), at);
   return { folder: at, made: true };
+}
+
+/**
+ * Brings a local branch that is behind the pull request up to its last commit, and says why not when it cannot: undefined when it moved.
+ * Only a branch whose tip is in the pull request moves, so no commit of the person is lost. Not checked out: `update-ref` with the old tip moves it only
+ * if nobody moved it meanwhile. Checked out in a folder that is there: a fast-forward merge in that folder, only when it has nothing uncommitted.
+ */
+function fastForward(folder: string, branch: string, head: string): string | undefined {
+  const ref = `refs/heads/${branch}`;
+  const tip = tryGit(folder, 'rev-parse', ref) ?? '';
+  if (!head || !commitExists(folder, head) || tryGit(folder, 'merge-base', '--is-ancestor', tip, head) === undefined) {
+    return `the branch ${branch} of this clone has commits that are not in the pull request. It is another branch with that name, or it has work that is not pushed`;
+  }
+  const there = worktrees(folder).find((one) => one.branch === branch);
+  try {
+    if (there && existsSync(there.folder)) {
+      if (git(there.folder, 'status', '--porcelain')) return `the branch ${branch} is behind the pull request, and ${there.folder} has uncommitted changes, so it was not brought up to date`;
+      git(there.folder, 'merge', '--ff-only', head);
+    } else git(folder, 'update-ref', '-m', 'apostil: bring the branch up to its pull request', ref, head, tip);
+    return undefined;
+  } catch (error) {
+    return String((error as { stderr?: unknown }).stderr ?? error).trim().split('\n')[0];
+  }
 }
 
 /**
