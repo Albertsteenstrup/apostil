@@ -365,6 +365,21 @@ try {
   check('a running thread shows the pulsing dot, "Claude Code · this session is working" in the words of the picker, how long as a relative time with the exact time in its tooltip, and the session link; a click on "session" asks VS Code to open the session of that comment, and an answered thread keeps its session link',
     states.pulse === 'pulse' && /^Claude Code · this session is working · \d+ min · session$/.test(states.running) && /\d:\d\d/.test(states.exact) && states.links === 1 && states.opened === 3 && states.answered === 'answered · session', JSON.stringify(states));
 
+  // A comment to a new session that works: the words "new session" are the link to its session, in place of "· session".
+  await drawn(() => page.evaluate(() => {
+    App.page.remarks.push({ id: 97, changeId: 0, target: { kind: 'part', part: 'night-job', label: 'Part "Night job"' }, text: 'Add a test', createdAt: new Date().toISOString(), state: 'running', to: { app: 'claude-code', kind: 'new' }, run: { session: 'made-up-new-0001', startedAt: new Date().toISOString() } });
+    App.render();
+  }));
+  await openMark(partTitle('night-job'));
+  const newLine = page.locator(`${theCard} .st`, { hasText: 'new session' });
+  const newSession = { text: (await newLine.textContent().catch(() => '')).trim(), link: await newLine.locator('a[data-session]').textContent().catch(() => '') };
+  await newLine.locator('a[data-session]').click({ timeout: 3000 }).catch(() => {});
+  newSession.opened = await page.evaluate(() => window.apostilSent.filter((message) => message.type === 'openSession').pop()?.id);
+  await closeCard();
+  await drawn(() => page.evaluate(() => { App.page.remarks = App.page.remarks.filter((remark) => remark.id !== 97); App.render(); }));
+  check('a comment to a new session that works has "new session" as the link to its session, with no "· session" after it; a click asks VS Code to open that session',
+    /^Claude Code · new session is working · [^·]+$/.test(newSession.text) && newSession.link === 'new session' && newSession.opened === 97, JSON.stringify(newSession));
+
   // ----- the changed files of a run: a quiet block under the answer, at most three rows, then "n more"; a row opens the change of its file -----
   await drawn(() => page.evaluate(() => {
     App.page.remarks.push({ id: 96, changeId: 0, target: { kind: 'part', part: 'night-job', label: 'Part "Night job"' }, text: 'Rename the helper', createdAt: new Date().toISOString(), state: 'done', answer: 'I renamed it.', answeredAt: new Date().toISOString(),

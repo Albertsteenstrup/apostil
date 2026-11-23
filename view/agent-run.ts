@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { newRunCommand, resumeCommand, runOptions, WRITER_AGENT, type RunModels } from '../shared/agents';
+import { newRunCommand, resumeCommand, runOptions, WRITER_AGENT, type RunModels, type RunOptions } from '../shared/agents';
 import { pickFrom, teamOf, teamRun, teamSentence, type RunPick, type Team } from '../shared/models';
 import { changedBetween, workingFiles } from '../shared/git';
 import { WRITERS_AT_ONCE } from '../shared/map-estimate';
@@ -101,8 +101,9 @@ export interface RunFacts {
  * The session that the run reports is kept on the remark. When the process ends and the remark is still running, the remark is open again,
  * and `ended` gets the reason: what the program said, or that it gave no answer. `models` are the models that the owner set in Apostil for the runs;
  * `commentRuns` is his setting `apostil.commentRuns`: "read and edit" (the default) or "read only". The files that the run changed are kept on the remark, from Git before and after.
+ * With `terminal`, a new session of Claude Code runs there (startInTerminal), and as a child process when the terminal cannot start.
  */
-export function startRun(store: Store, remarkId: number, ended: (problem?: string) => void, newApp?: string, folder?: string, models: RunModels = {}, commentRuns = 'read and edit', pick?: RunPick): void {
+export function startRun(store: Store, remarkId: number, ended: (problem?: string) => void, newApp?: string, folder?: string, models: RunModels = {}, commentRuns = 'read and edit', pick?: RunPick, terminal?: RunTerminal): void {
   const remark = store.getRemark(remarkId);
   const change = remark?.changeId === undefined ? undefined : store.getChange(remark.changeId);
   const prompt = remark && inboxText([remark], store, commentRuns === 'read only');
@@ -115,14 +116,75 @@ export function startRun(store: Store, remarkId: number, ended: (problem?: strin
   const command = prompt && (newApp ? newRunCommand(newApp, prompt, options) : agent && resumeCommand(agent, prompt, options));
   if (!where || !command) return ended(newApp ? `A new session of ${newApp} cannot be started from here.` : 'This agent cannot be continued from here.');
   const before = workingFiles(where);
+  const run: CommentRun = {
+    keepChanged: () => {
+      const after = before && workingFiles(where);
+      store.setRemarkChanged(remarkId, before && after ? changedBetween(before, after) : []);
+    },
+    answered: () => store.getRemark(remarkId)?.state !== 'running',
+    noAnswer: (problem) => {
+      store.reopenRemark(remarkId);
+      ended(problem ? `${command[0]} gave no answer. It said: ${problem}` : `${command[0]} ended with no answer.`);
+    },
+  };
+  if (newApp === 'claude-code' && terminal && startInTerminal(store, remarkId, prompt, options, where, terminal, run, ended)) return;
   const pid = spawnRun(command, where, (session) => store.setRunSession(remarkId, session), (problem) => {
-    const after = before && workingFiles(where);
-    store.setRemarkChanged(remarkId, before && after ? changedBetween(before, after) : []);
-    if (store.getRemark(remarkId)?.state !== 'running') return ended(); // it answered
-    store.reopenRemark(remarkId);
-    ended(problem ? `${command[0]} gave no answer. It said: ${problem}` : `${command[0]} ended with no answer.`);
+    run.keepChanged();
+    if (run.answered()) return ended();
+    run.noAnswer(problem);
   });
   if (pid !== undefined) store.startRemarkRun(remarkId, { pid, session: newApp ? undefined : agent?.session, startedAt: new Date().toISOString() });
+}
+
+/** What a run for a remark does when it ends: keep the files that it changed, look whether the remark has its answer, open the remark again with the reason. */
+interface CommentRun {
+  keepChanged: () => void;
+  answered: () => boolean;
+  noAnswer: (problem?: string) => void;
+}
+
+/**
+ * Starts a command in a terminal that is not shown, as a session with this id; `closed` gets its exit code when the terminal closes.
+ * Undefined when it cannot start, else the id of its process (runInTerminal in view/run-terminal.ts).
+ */
+export type RunTerminal = (command: string[], folder: string, name: string, session: string, closed: (code?: number) => void) => { processId: PromiseLike<number | undefined> } | undefined;
+
+const waiting = new Set<() => void>(); // the runs in a terminal whose remark has no answer yet
+
+/** The store changed: a run in a terminal whose remark has its answer now keeps the files that it changed, and ends. */
+export function answersChanged(): void {
+  for (const look of waiting) look();
+}
+
+/**
+ * Starts a new session of Claude Code for a remark in a terminal that a person can watch and answer: the remark has the session from the start.
+ * The session stays open after the answer. The changed files are kept once, at the answer or when the terminal closes; a terminal that closes
+ * before the answer opens the remark again. The id of its process is kept on the remark, so a run that is gone with its window is found (staleRuns).
+ */
+function startInTerminal(store: Store, remarkId: number, prompt: string, options: RunOptions, folder: string, terminal: RunTerminal, run: CommentRun, ended: () => void): boolean {
+  const session = randomUUID();
+  const command = newRunCommand('claude-code', prompt, { ...options, inTerminal: true, sessionId: session });
+  const target = store.getRemark(remarkId)?.target;
+  let over = false;
+  const finish = (): boolean => {
+    if (over) return false;
+    over = true;
+    waiting.delete(look);
+    run.keepChanged();
+    return true;
+  };
+  const look = (): void => { if (run.answered() && finish()) ended(); };
+  const started = command && terminal(command, folder, `Apostil comment · ${target?.label ?? target?.kind ?? ''}`.slice(0, 48), session, (code) => {
+    if (!finish()) return;
+    if (run.answered()) return ended();
+    run.noAnswer(code ? `It ended with code ${code}.` : undefined);
+  });
+  if (!started) return false;
+  waiting.add(look);
+  const startedAt = new Date().toISOString();
+  store.startRemarkRun(remarkId, { session, startedAt });
+  started.processId.then((pid) => { if (pid !== undefined && !run.answered()) store.startRemarkRun(remarkId, { pid, session, startedAt }); });
+  return true;
 }
 
 export const MAP_DRAFT = '.apostil-map.json'; // the file that the writer saves the map from; taken out of the repo when the run ends
