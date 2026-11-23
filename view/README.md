@@ -63,7 +63,7 @@ Open "Apostil" in the activity bar and click a change. Cmd+Shift+. on the page o
 - **The fields** (`shared/apostil-link.ts`): `repo`, `number` and `branch`, each checked (a branch as Git allows it, without `&`). A field it does not know is passed over, such as `url`, which `https://vscode.dev/redirect?url=…` adds on its way; so no field is named `url`. A link never holds a path of the computer.
 - **The https form.** GitHub drops a `vscode://` link from its markdown, so every link outside VS Code is the vscode.dev redirect. `apostil link --pr [<number>]`, `apostil link --change` and `--markdown` print it (`store/link-command.ts`); `ICON_URL` is the address of Apostil's icon in the public repo, and the `--markdown` line starts with it. VS Code asks once whether Apostil may open links.
 - **Source Control** has Apostil's icon in its title (Git only): it opens the change of the branch, as `/change` does.
-- **The switch**: `apostil links off|on|status`, the commands "Apostil: Turn off links and nudges" and "… on", or `APOSTIL_NO_LINKS=1`. It is the file `links-off` in the store folder. While it is off, `apostil link` prints nothing, `apostil hint` (the hint at the start of a session of Claude Code that `apostil setup` adds) prints nothing, and the icon of Source Control is gone.
+- **The switch**: `apostil links off|on|status`, the commands "Apostil: Turn off links and nudges" and "… on", or `APOSTIL_NO_LINKS=1`. It is the file `links-off` in the store folder. While it is off, `apostil link` prints nothing, `apostil hint` (the hint at the start of a session of Claude Code, for a person who adds its hook; `apostil setup` does not) prints nothing, and the icon of Source Control is gone.
 
 ## Home and the graphs of a path
 

@@ -67,7 +67,7 @@ export async function run(): Promise<void> {
   }
   const settings = join(folder, '.claude', 'settings.local.json');
   const allowed: string[] = existsSync(settings) ? JSON.parse(readFileSync(settings, 'utf8')).permissions?.allow ?? [] : [];
-  pass('and for Claude Code the hint and the rules that allow the reads of the map, and not the wait hook', hasHook(settings, HINT_HOOK) && READ_MAP_RULES.every((rule) => allowed.includes(rule)) && !hasHook(settings, WAIT_HOOK));
+  pass('and for Claude Code the rules that allow the reads of the map, and neither the hint nor the wait hook', !hasHook(settings, HINT_HOOK) && READ_MAP_RULES.every((rule) => allowed.includes(rule)) && !hasHook(settings, WAIT_HOOK));
   pass('Git shows no change in the repo', git(folder, 'status', '--porcelain') === '');
   await waitFor('an agent app has the skills now, so the set-up step is done', () => api.needsSetup() === false);
 
