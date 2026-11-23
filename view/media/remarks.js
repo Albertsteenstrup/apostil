@@ -7,8 +7,9 @@
 const Remarks = (() => {
   const W = States.WORDS;
   const pullPage = () => (typeof Conversation === 'object' ? Conversation : undefined); // the change page has a pull request; Home has none
-  // The open card: { key, threads, reply, target, point, at, el, choices, picked, menu }. key: "new" for a new comment, else the first thread of the card;
-  // threads: the ids of its open threads; reply: the thread that the box answers; at: where a new card opened when it has no thing on the page.
+  // The open card: { key, threads, reply, target, point, at, spot, el, choices, picked, menu }. key: "new" for a new comment, else the first thread of the card;
+  // threads: the ids of its open threads; reply: the thread that the box answers; at: where a new card opened when it has no thing on the page;
+  // spot: where the card stands on the page (onPage).
   let card = null;
   const typed = {}; // what each field holds while the card draws again, by its key
   let picking = null; // after the key, the pointer is a comment icon and the next click opens a card there: { lines, at }
@@ -866,40 +867,49 @@ const Remarks = (() => {
   }
 
   /**
-   * The rectangle that the card stands beside: the drawn thing (a node, a part, a message), else its mark, else where the card opened.
+   * The rectangle that the card opens beside, and the element there: the drawn thing (a node, a part, a message), else its mark, else where the card opened.
    * Code lines reach to the right edge of the code, so that the card stands beside the code, over the column of the notes when there is one.
    */
-  function anchorRect() {
+  function anchor() {
     const mark = card.threads.length ? document.querySelector(`.cb[data-threads~="${card.threads[0]}"]`) : null;
     const target = placeOf(card.target);
     if (inCode(target) && codeShows(target)) {
-      const [row, last] = (target.lines ?? []).map((line) => document.querySelector(`.cn .code .l[data-line="${line}"]`)?.getBoundingClientRect());
+      const rows = (target.lines ?? []).map((line) => document.querySelector(`.cn .code .l[data-line="${line}"]`));
+      const [row, last] = rows.map((one) => one?.getBoundingClientRect());
       const code = document.querySelector('.cn .code')?.getBoundingClientRect();
-      if (row && code && row.bottom > 0 && row.top < innerHeight) return { left: row.left, right: code.right, top: row.top, bottom: (last ?? row).bottom };
+      if (row && code && row.bottom > 0 && row.top < innerHeight) return { rect: { left: row.left, right: code.right, top: row.top, bottom: (last ?? row).bottom }, el: rows[0] };
     }
-    const things = !inCode(target) ? Places.find(target).filter((el) => el.tagName !== 'svg' && el.getClientRects().length) : [];
-    const thing = things.map((el) => el.closest('g.node, g.cluster') ?? el)[0];
-    const rect = (thing ?? mark)?.getBoundingClientRect();
-    if (rect && rect.bottom > 0 && rect.top < innerHeight && (rect.width || rect.height)) return rect;
+    const things = !inCode(target) ? Places.find(target).filter((one) => one.tagName !== 'svg' && one.getClientRects().length) : [];
+    const el = things.map((one) => one.closest('g.node, g.cluster') ?? one)[0] ?? mark;
+    const rect = el?.getBoundingClientRect();
+    if (rect && rect.bottom > 0 && rect.top < innerHeight && (rect.width || rect.height)) return { rect, el };
     const at = card.at ?? pointerAt ?? { x: innerWidth / 2, y: 80 };
-    return { left: at.x, right: at.x, top: at.y, bottom: at.y };
+    return { rect: { left: at.x, right: at.x, top: at.y, bottom: at.y }, el: document.elementsFromPoint(at.x, at.y).find((one) => !card.el.contains(one)) };
+  }
+
+  /** The element whose scroll moves an element: the nearest one that scrolls, else the page. */
+  function scrollerOf(el) {
+    for (let box = el; box && box !== document.body; box = box.parentElement) if (/auto|scroll/.test(getComputedStyle(box).overflow)) return box;
+    return document.scrollingElement;
+  }
+  /** Where the content of a scrolling element starts in the tab. */
+  function originOf(box) {
+    const rect = box === document.scrollingElement ? { left: 0, top: 0 } : box.getBoundingClientRect();
+    return { x: rect.left - box.scrollLeft, y: rect.top - box.scrollTop };
+  }
+  /** A point of the tab as a spot on the page: from the start of the content that `box` scrolls, so that it moves with that content. */
+  function onPage(x, y, box) {
+    const origin = originOf(box);
+    return { box, x: x - origin.x, y: y - origin.y };
   }
 
   /**
-   * Places the card beside its thing: at its right when there is room, else at its left, else under it or over it; with no free side, over the side
-   * with the most room. It stays inside the tab, 8 px from its edges.
+   * The spot where the card opens: beside its thing, at its right when there is room, else at its left, else under it or over it; with no free side,
+   * over the side with the most room. It opens inside the tab, 8 px from its edges.
    */
-  function placeCard() {
-    if (!card?.el) return;
-    const el = card.el;
-    const [width, height, gap, edge] = [el.offsetWidth, el.offsetHeight, 12, 8];
-    // A card that he moved stays where he put it, inside the tab, until it closes.
-    if (card.moved) {
-      el.style.left = `${Math.max(edge, Math.min(card.moved.left, innerWidth - width - edge))}px`;
-      el.style.top = `${Math.max(edge, Math.min(card.moved.top, innerHeight - height - edge))}px`;
-      return;
-    }
-    const rect = anchorRect();
+  function openingSpot() {
+    const { rect, el } = anchor();
+    const [width, height, gap, edge] = [card.el.offsetWidth, card.el.offsetHeight, 12, 8];
     let left;
     let top = rect.top - 10;
     if (rect.right + gap + width <= innerWidth - edge) left = rect.right + gap;
@@ -909,10 +919,18 @@ const Remarks = (() => {
       if (rect.bottom + gap + height <= innerHeight - edge) top = rect.bottom + gap;
       else if (rect.top - gap - height >= edge) top = rect.top - gap - height;
     }
-    el.style.left = `${Math.max(edge, Math.min(left, innerWidth - width - edge))}px`;
-    el.style.top = `${Math.max(edge, Math.min(top, innerHeight - height - edge))}px`;
+    return onPage(Math.max(edge, Math.min(left, innerWidth - width - edge)), Math.max(edge, Math.min(top, innerHeight - height - edge)), scrollerOf(el));
   }
-  /** The head of the card is its handle: a drag there moves the card; its tools keep their clicks. */
+
+  /** The card stands at its spot on the page, like a note on paper: it scrolls with the page, out of view too. A new spot comes when the element that scrolled it is gone. */
+  function placeCard() {
+    if (!card?.el) return;
+    if (!card.spot?.box.isConnected) card.spot = openingSpot();
+    const origin = originOf(card.spot.box);
+    card.el.style.left = `${origin.x + card.spot.x}px`;
+    card.el.style.top = `${origin.y + card.spot.y}px`;
+  }
+  /** The head of the card is its handle: a drag there moves the card to a new spot on the page; its tools keep their clicks. */
   function dragCard(event) {
     if (event.button !== 0 || !event.target.closest('.ch') || event.target.closest('.tools, a')) return;
     const own = card;
@@ -921,7 +939,7 @@ const Remarks = (() => {
     own.el.classList.add('dragging');
     event.preventDefault(); // no text selection while it moves
     const move = (step) => {
-      own.moved = { left: step.clientX - from.x, top: step.clientY - from.y };
+      own.spot = onPage(step.clientX - from.x, step.clientY - from.y, own.spot.box);
       if (card === own) placeCard();
     };
     const stop = () => {
