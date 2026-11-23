@@ -164,10 +164,10 @@ const App = {
     return !!vscodeApi && this.page.files.find((candidate) => candidate.path === file)?.status !== 'removed';
   },
 
-  /** A click on a file name: its own tab with the whole file and its notes. Cmd+click opens it in the editor of VS Code. */
-  fileClick(path, event) {
-    if (event.metaKey) this.openFile(path);
-    else this.showCode(path, null);
+  /** A click on a file name: its own tab with the whole file and its notes, at `lines` when given. Cmd+click opens it in the editor of VS Code. */
+  fileClick(path, event, lines = null) {
+    if (event.metaKey) this.openFile(path, lines ?? undefined);
+    else this.showCode(path, lines);
   },
 
   /** Opens a file in VS Code beside the page, only when the owner asks: "Open" in a hover window, or Cmd+click. */

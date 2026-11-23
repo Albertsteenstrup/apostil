@@ -714,6 +714,27 @@ const Remarks = (() => {
   /** Text of a comment as HTML, with each mention in the teal ink. */
   const textHtml = (text) => esc(text).replace(MENTION, (mention) => `<span class="mention">${mention}</span>`);
 
+  /** What an answer can name: the files that the page knows, its diagrams by title, and the nodes of the diagram of the comment, before a diagram of the same title. */
+  function knownTo(remark) {
+    const { files, parts, notes, diagrams } = App.page;
+    const nodes = diagrams.flatMap((diagram) => Object.values(diagram.nodes ?? {}));
+    const own = diagrams.find((diagram) => diagram.id === remark.target.diagram);
+    return {
+      files: new Set([...files.map((file) => file.path), ...parts.flatMap((part) => part.files), ...notes.map((note) => note.file),
+        ...nodes.flatMap((node) => [...node.paths.map(({ path }) => path), ...(node.at ?? []).map(({ file }) => file)])]),
+      titles: new Map([...diagrams.map((diagram) => [diagram.title, { kind: 'diagram', diagram: diagram.id }]),
+        ...Object.entries(own?.graph.nodes ?? {}).map(([node, title]) => [title, { kind: 'node', diagram: own.id, node }])]),
+    };
+  }
+
+  /** The answer of an agent as HTML: the code, the diagrams and the nodes that it names are links. */
+  const answerHtml = (remark) => AnswerLinks.parts(remark.answer, knownTo(remark))
+    .map((part) => (part.place ? `<a class="ref" data-ref="${esc(JSON.stringify(part.place))}">${esc(part.text)}</a>` : textHtml(part.text))).join('');
+
+  /** Opens code at its lines, as a changed file opens; on Home as a node opens its file, beside with Cmd or Ctrl. */
+  const openCode = ({ file, lines }, event) => (App.fileClick ? App.fileClick(file, event, lines)
+    : tell({ type: 'openFile', path: file, ...(lines ? { line: lines[0], lines } : {}), ...(event.metaKey || event.ctrlKey ? { beside: true } : {}) }));
+
   const SHOWN_FILES = 3; // the changed files of a run that show before "n more"
   /** The block under an answer whose run changed files (from Git, kept on the remark): "Changed 2 files", then a row for each, at most 3, then "n more". A row opens its file. */
   function changedHtml(remark) {
@@ -732,7 +753,7 @@ const Remarks = (() => {
     if (!remark.answer) return own;
     const who = app ? `${agentIcon({ app })}<b>${esc(appName({ app }))}</b>` : '<b>Agent</b>';
     return `${own}<div class="msg agent" title="${esc(clock(remark.answeredAt))}"><span class="av">${app ? agentIcon({ app }) : ''}</span><div><div class="who">${who.replace(/^<img[^>]*>/, '')}</div>`
-      + `<div class="tx">${textHtml(remark.answer)}</div>${changedHtml(remark)}</div></div>`;
+      + `<div class="tx">${answerHtml(remark)}</div>${changedHtml(remark)}</div></div>`;
   }
 
   /** True when a remark has a session to open: the one that its run reported, the known session that it went to, else the session of the change. */
@@ -944,7 +965,7 @@ const Remarks = (() => {
     getSelection().collapseToEnd();
   }
 
-  // A click in the card: the tools, the picker and its menu, the links of a state line, the changed files of a run.
+  // A click in the card: the tools, the picker and its menu, the links of a state line and of an answer, the changed files of a run.
   document.addEventListener('click', (event) => {
     const target = event.target;
     if (!card?.el?.contains(target)) return;
@@ -959,7 +980,14 @@ const Remarks = (() => {
     const changed = target.closest('[data-changed-file]');
     if (changed) { // its change, as a click on a file of the change opens it; Home opens the file
       closeCard();
-      return App.fileClick ? App.fileClick(changed.dataset.changedFile, event) : tell({ type: 'openFile', path: changed.dataset.changedFile });
+      return openCode({ file: changed.dataset.changedFile }, event);
+    }
+    const ref = target.closest('[data-ref]');
+    if (ref) { // the card stays for the next place of the answer, unless the page goes to another diagram
+      const place = JSON.parse(ref.dataset.ref);
+      if (place.file) return openCode(place, event);
+      if (!Places.find(place).length) closeCard();
+      return showPlace(place);
     }
     const more = target.closest('[data-more-files]');
     if (more) { more.nextElementSibling.hidden = false; return more.remove(); }
