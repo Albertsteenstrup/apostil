@@ -761,7 +761,7 @@ const Conversation = (() => {
     const base = pull.base;
     const way = (one) => `<b>${esc(MergeCard.METHODS[one].name)}</b><span class="pcwhy">${esc(MergeCard.METHODS[one].say(base))}</span>`;
     const ways = pull.methods.length === 1 ? `<p class="pcway one">${way(method)}</p>`
-      : pull.methods.map((one) => `<label class="pcway"><input type="radio" name="merge-method" value="${one}"${one === method ? ' checked' : ''}><span>${way(one)}</span></label>`).join('');
+      : pull.methods.map((one) => `<label class="pcway"><input type="radio" name="merge-method" value="${esc(one)}"${one === method ? ' checked' : ''}><span>${way(one)}</span></label>`).join('');
     const text = mergeEdits[`${pull.id}:${method}`] ?? MergeCard.commitText(pull, method);
     const fields = text ? `<label class="pcf"><span>${esc(CARD.title)}</span><input class="ghf" data-merge-field="title" value="${esc(text.title)}"></label>`
       + `<label class="pcf"><span>${esc(CARD.message)}</span><textarea class="ghf" data-merge-field="body" rows="3">${esc(text.body)}</textarea></label>` : '';
@@ -1731,7 +1731,7 @@ const Conversation = (() => {
   function cutLines(pull) {
     const lines = [];
     const link = `<a data-link="${esc(pull.url)}">GitHub</a>`;
-    if (pull.notShown) lines.push(`${pull.notShown === 1 ? '1 event of an unknown kind is' : `${pull.notShown} events of unknown kinds are`} not shown. See them on ${link}.`);
+    if (pull.notShown) lines.push(`${pull.notShown === 1 ? '1 event of an unknown kind is' : `${number(pull.notShown)} events of unknown kinds are`} not shown. See them on ${link}.`);
     if (pull.cut.timeline) lines.push(`${number(pull.cut.timeline)} earlier items are on ${link}.`);
     if (pull.cut.threads) lines.push(`${plural(pull.cut.threads, 'review thread')} past the limit are not read. See them on ${link}.`);
     const commitItems = pull.items.filter((item) => item.kind === 'commit').length;
