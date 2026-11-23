@@ -351,7 +351,7 @@ const Remarks = (() => {
 
   /** Saves the text of the box: a new thread, or a reply in the thread that the box answers. It goes where the picker says. */
   function save(field) {
-    const text = field.innerText.replace(/ /g, ' ').trim();
+    const text = field.innerText.replace(/\u00a0/g, ' ').trim();
     if (!text || !card) return;
     const choice = card.picked;
     if (choice?.app === 'github') return sendToGitHub(field, text);

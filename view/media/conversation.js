@@ -198,7 +198,7 @@ const Conversation = (() => {
   /** The first part of the strip, the icon of the state, in the colour of a rule of the look. */
   const stateBit = (pull, word, slots) => { const color = PartLook.wordsAttrs(slots['text.color']); return `<span${color.cls ? ` class="${color.cls.trim()}"` : ''}${color.style}>${icon(pull, word, slots)}</span>${numberBit(pull)}`; };
   /** The number of the pull request right after its state icon: a quiet link to its page on GitHub. */
-  const numberBit = (pull) => `<a class="pnum" data-link="${esc(pull.url)}" title="Open #${pull.number} on GitHub">#${pull.number}</a>`;
+  const numberBit = (pull) => `<a class="pnum" data-link="${esc(pull.url)}" title="Open #${esc(pull.number)} on GitHub">#${esc(pull.number)}</a>`;
 
   /**
    * The merge sentence of the strip: the parts that the strip does not say before it. The state word says a draft and conflicts,
@@ -248,8 +248,8 @@ const Conversation = (() => {
     const number = /^Waits for #(\d+) below it/.exec(text)?.[1];
     const below = number && pull.stack?.entries.find((entry) => entry.number === Number(number));
     if (!below) return esc(text);
-    const link = `<a class="stkpull" data-stack-pull="${esc(below.url)}" data-number="${below.number}" title="${esc(below.title)}">#${below.number}</a>`;
-    return `${esc(text).replace(`#${below.number}`, link)}<a class="stk" data-stack-open tabindex="0" title="Show the stack">${stackOpen ? '▾' : '▸'}</a>`;
+    const link = `<a class="stkpull" data-stack-pull="${esc(below.url)}" data-number="${esc(below.number)}" title="${esc(below.title)}">#${esc(below.number)}</a>`;
+    return `${esc(text).replace(`#${esc(below.number)}`, link)}<a class="stk" data-stack-open tabindex="0" title="Show the stack">${stackOpen ? '▾' : '▸'}</a>`;
   }
 
   /** The hidden reviewers ("+2") in a small window, on the pointer and on the keyboard focus, with the avatar, the name and the state of each; the plain title goes. */
@@ -298,7 +298,7 @@ const Conversation = (() => {
       assignees: section('Assignees', pull.assignees.length ? pull.assignees.map((one) => `<div class="pp">${avatar(one, 's')}<span class="pn">${esc(one.login)}</span></div>`).join('') : none('No one')),
       labels: section('Labels', pull.labels.length ? `<div class="lbls">${shownLabels(pull).map((label) => labelLink(pull, label)).join('')}</div>` : none('None yet')),
       milestone: section('Milestone', pull.milestone ? `<a class="mlink" data-link="${esc(pull.milestone.url)}">${ico('milestone')}${esc(milestoneWords(pull.milestone))}</a>` : none('No milestone')),
-      closes: section('Closes', pull.closes.length ? pull.closes.map((issue) => `<a class="mlink" data-link="${esc(issue.url)}">${ico(issue.open ? 'issue-opened' : 'issue-closed', issue.open ? 'ok' : 'done')}#${issue.number} ${esc(issue.title)}</a>`).join('') : none('No issue')),
+      closes: section('Closes', pull.closes.length ? pull.closes.map((issue) => `<a class="mlink" data-link="${esc(issue.url)}">${ico(issue.open ? 'issue-opened' : 'issue-closed', issue.open ? 'ok' : 'done')}#${esc(issue.number)} ${esc(issue.title)}</a>`).join('') : none('No issue')),
       // The tasks go to their list in the description, as in the facts line.
       tasks: pull.tasks.total ? section('Tasks', `<a class="mlink" data-tasks>${ico('tasklist')}${esc(tasksWords(pull.tasks))}</a>`) : '',
     };
@@ -315,7 +315,7 @@ const Conversation = (() => {
       reviewers: pull.reviewers.length ? `<span>${ico('eye')}${plural(pull.reviewers.length, 'reviewer')}</span>` : '',
       assignees: pull.assignees.length ? `<span>${ico('person')}${pull.assignees.map(personLink).join(', ')}</span>` : '',
       milestone: pull.milestone ? `<span><a class="flink" data-link="${esc(pull.milestone.url)}">${ico('milestone')}${esc(milestoneWords(pull.milestone))}</a></span>` : '',
-      closes: pull.closes.length ? `<span>${ico('issue-opened')}closes ${pull.closes.map((issue) => `<a class="flink" data-link="${esc(issue.url)}" title="${esc(issue.title)}">#${issue.number}</a>`).join(', ')}</span>` : '',
+      closes: pull.closes.length ? `<span>${ico('issue-opened')}closes ${pull.closes.map((issue) => `<a class="flink" data-link="${esc(issue.url)}" title="${esc(issue.title)}">#${esc(issue.number)}</a>`).join(', ')}</span>` : '',
       tasks: pull.tasks.total ? `<span><a class="flink" data-tasks>${ico('tasklist')}${esc(tasksWords(pull.tasks))}</a></span>` : '',
     };
     const bits = PartLook.sideSections(pageLook(), Object.keys(all)).map((id) => all[id]).filter(Boolean);
@@ -329,10 +329,10 @@ const Conversation = (() => {
   function stackRows(pull) {
     const rows = pull.stack.entries.map((entry) => {
       const place = { number: pull.stack.number, size: pull.stack.size, position: entry.position }; // for the tooltip of the icon
-      const inner = `${States.pullIcon({ ...entry, stack: place })}<span class="sn">#${entry.number}</span><span class="st" title="${esc(entry.title)}">${esc(entry.title)}</span>`;
+      const inner = `${States.pullIcon({ ...entry, stack: place })}<span class="sn">#${esc(entry.number)}</span><span class="st" title="${esc(entry.title)}">${esc(entry.title)}</span>`;
       return entry.number === pull.number
         ? `<div class="srow this">${inner}<i class="sthis">this one</i></div>`
-        : `<a class="srow" data-stack-pull="${esc(entry.url)}" data-number="${entry.number}">${inner}</a>`;
+        : `<a class="srow" data-stack-pull="${esc(entry.url)}" data-number="${esc(entry.number)}">${inner}</a>`;
     }).join('');
     const cut = pull.stack.cut ? `<p class="quiet">${plural(pull.stack.cut, 'more pull request')} of the stack are on <a data-link="${esc(pull.url)}">GitHub</a>.</p>` : '';
     return `<div class="srows">${rows}</div>${cut}`;
@@ -354,7 +354,7 @@ const Conversation = (() => {
   /** The pull request right below this one in its stack, after its branches: "· on #2", a click opens it. */
   function belowLink(pull) {
     const below = pull.stack?.entries.find((entry) => entry.position === pull.stack.position - 1);
-    return below ? `<span class="sep">·</span><a class="onpr" data-stack-pull="${esc(below.url)}" data-number="${below.number}" title="${esc(below.title)}">on #${below.number}</a>` : '';
+    return below ? `<span class="sep">·</span><a class="onpr" data-stack-pull="${esc(below.url)}" data-number="${esc(below.number)}" title="${esc(below.title)}">on #${esc(below.number)}</a>` : '';
   }
 
   // ----- review threads -----
@@ -363,7 +363,7 @@ const Conversation = (() => {
   const codeRows = (lines) => lines.map((line) => {
     const hang = line.text.match(/^[ \t]*/)[0].replace(/\t/g, '    ').length + 2;
     const cls = line.sign === '+' ? 'add' : line.sign === '-' ? 'del' : '';
-    return `<div class="l ${cls}"><span class="no">${line.line ?? ''}</span><span class="g">${line.sign === '-' ? '−' : line.sign.trim()}</span><span class="x" style="--hang:${hang}ch">${esc(line.text)}</span></div>`;
+    return `<div class="l ${cls}"><span class="no">${esc(line.line)}</span><span class="g">${line.sign === '-' ? '−' : esc(line.sign.trim())}</span><span class="x" style="--hang:${hang}ch">${esc(line.text)}</span></div>`;
   }).join('');
 
   let threadCount = 0;
@@ -742,7 +742,7 @@ const Conversation = (() => {
     if (part.go === 'github') return `<a class="pcgo" data-link="${esc(pull.url)}">${text}</a>`;
     if (part.go === 'stack') {
       const below = pull.stack?.entries.filter((entry) => entry.position < pull.stack.position && entry.state !== 'merged' && entry.state !== 'closed').at(0);
-      return below ? `<a class="pcgo" data-stack-pull="${esc(below.url)}" data-number="${below.number}">${text}</a>` : text;
+      return below ? `<a class="pcgo" data-stack-pull="${esc(below.url)}" data-number="${esc(below.number)}">${text}</a>` : text;
     }
     if (part.go === 'update' || part.go === 'ready') return `<a class="pcgo" data-card-act="${part.go}" tabindex="0">${text}</a>`;
     return part.go ? `<a class="pcgo" data-card-go="${part.go}" tabindex="0">${text}</a>` : text;
@@ -1125,8 +1125,10 @@ const Conversation = (() => {
   }
   window.addEventListener('message', (event) => {
     if (event.data?.type !== 'written') return;
-    answerOf.get(event.data.id)?.(event.data.result);
+    const resolve = answerOf.get(event.data.id); // only a write that this page sent has an answer that waits
+    if (typeof resolve !== 'function') return;
     answerOf.delete(event.data.id);
+    resolve(event.data.result);
   });
 
   // ----- a write shows its result at once; the call to GitHub runs in the background -----
@@ -1754,14 +1756,14 @@ const Conversation = (() => {
     const place = mode === 'messages' ? stackLine(pull) : pull.stack ? `<p class="splace">${ico('git-branch')}${esc(stackWords(pull))}</p>` : '';
     const shown = own('pull-facts').content?.fields ?? Object.keys(facts);
     // The state card stands under the facts line and above the description, in both looks: the state has this one place.
-    return `<h1 class="ptitle">${esc(pull.title)} <span class="num">#${pull.number}</span></h1><div class="meta">${shown.map((one) => facts[one]).join('')}</div>${place}${mode === 'messages' ? factsLine(pull) : ''}${cardHtml(pull)}${about}`;
+    return `<h1 class="ptitle">${esc(pull.title)} <span class="num">#${esc(pull.number)}</span></h1><div class="meta">${shown.map((one) => facts[one]).join('')}</div>${place}${mode === 'messages' ? factsLine(pull) : ''}${cardHtml(pull)}${about}`;
   }
 
   /**
    * The slim bar that holds the pull request in short; it shows at the top when the title is scrolled away.
    * It carries the switch of views of the page too, so that the way to "Diagram" and "Diffs" is never scrolled away.
    */
-  const shortHtml = (pull) => `<div class="short" id="short">${icon(pull, false)}<span class="name"><i class="num">#${pull.number}</i> ${esc(pull.title)}</span>`
+  const shortHtml = (pull) => `<div class="short" id="short">${icon(pull, false)}<span class="name"><i class="num">#${esc(pull.number)}</i> ${esc(pull.title)}</span>`
     + `${document.querySelector('.bar .switch')?.outerHTML ?? ''}</div>`;
 
   /**
