@@ -4,7 +4,7 @@
 'use strict';
 
 const Home = {
-  data: null, // a HomeData or a GraphsData from home-data.ts, or a CustomPageData from look-blocks.ts
+  data: null, // a HomeData or a GraphsData from shared/home-data.ts, or a CustomPageData from look-blocks.ts
   at: null, // the id of the map diagram that Home shows
   lit: [], // the nodes to light on it
   filter: null, // after a click on a mark: the quiet line "<value> · n places in <node>", and the nodes that hold the value are lit

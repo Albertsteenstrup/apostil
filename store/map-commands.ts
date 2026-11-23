@@ -12,11 +12,11 @@ import type { Store } from '../shared/store';
 import { DEFAULT_RULES, type Look } from '../shared/look';
 import { lookSlots } from '../shared/look-slots';
 import { mapFit } from '../shared/map-fit';
-import { markFacts, readyMarkGroups, SERVICES } from '../shared/marks';
+import { markFacts, readyMarkGroups, SERVICES, setsOf, valuesOf } from '../shared/marks';
 import { lookChanges } from './look-changes';
 import { mapForWriters, mapMaterial } from './map-material';
 import { mapSaveOf, recordMapSave } from './map-run';
-import { addMarksToMap, checkLook, setLook, setsOf, valuesOf } from './marks-save';
+import { addMarksToMap, checkLook, setLook } from './marks-save';
 import { addProcessesToMap } from './processes-save';
 import { addDiagramToMap, addNotesToMap, checkMapDraft, saveMapDraft } from './save';
 

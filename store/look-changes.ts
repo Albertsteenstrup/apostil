@@ -6,8 +6,8 @@
 import { an, LOOK_PARTS, nameOf, namesPart, type Look, type LookPartsList, type Pick } from '../shared/look';
 import { currentBranch, repoId, repoRoot } from '../shared/git';
 import type { Store } from '../shared/store';
-import { homeData, type HomeDiagram } from '../view/home-data';
-import { pageData } from '../view/page-data';
+import { homeData, type HomeDiagram } from '../shared/home-data';
+import { pageData } from '../shared/page-data';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const Marks = require('../../view/media/marks.js');

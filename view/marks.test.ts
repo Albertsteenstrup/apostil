@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import { flowGraph } from '../shared/diagram-graph';
 import { DEFAULT_RULES } from '../shared/look';
 import { SERVICES } from '../shared/marks';
-import { lookRules } from './look-data';
+import { lookRules } from '../shared/look-data';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const Marks = require('../../view/media/marks.js');

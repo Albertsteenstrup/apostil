@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { findOnPath } from '../shared/agents';
 import { repoId, tryGit } from '../shared/git';
 import { Store } from '../shared/store';
-import { ownTarget } from '../view/install-command';
+import { ownTarget } from '../shared/install-command';
 import { hasHook, settingsFile, WAIT_HOOK } from './connect-claude-code';
 import { appIsHere, SETUP_APPS, short, skillsSeen, type Install, type Machine } from './setup';
 import { setUpRepos } from './setup-record';

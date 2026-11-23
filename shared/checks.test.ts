@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
 import { checkDraft } from '../store/save';
-import { examplePage } from '../view/page-data';
+import { examplePage } from './page-data';
 import { shapeProblems, type ChangeFile, type Code, type Diagram, type EdgeLines, type Lines } from './change-file';
 import { changeRows } from './change-rows';
 import { checkChangeFile, inNoThingHints } from './checks';

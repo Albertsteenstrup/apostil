@@ -10,9 +10,9 @@ import { ghArguments, pullRequestsFromJson, stackArguments, stackPlacesFromJson,
 import type { Store } from '../shared/store';
 import { someAppSeesSkills, thisInstall } from '../store/setup';
 import { openLink, webviewHtml } from './change-page';
-import { homeRowState, idOf } from './home-data';
+import { homeRowState, idOf } from '../shared/home-data';
 import { listRows, reopenStaleRuns, sessionGroups, type ListRow } from './list-rows';
-import { savedLook } from './look-data';
+import { savedLook } from '../shared/look-data';
 import type { MenuMessage } from './sort-filter';
 
 const KEEP_MS = 60_000;

@@ -7,7 +7,7 @@ import { appendFileSync, existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { delimiter, join, resolve } from 'node:path';
 import { storeFolder } from '../shared/store';
-import { commandFolders } from '../view/install-command';
+import { commandFolders } from '../shared/install-command';
 import { line, thisInstall } from './setup';
 import { runningEditor, uninstall, type UninstallRun } from './uninstall';
 

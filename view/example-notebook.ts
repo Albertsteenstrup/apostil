@@ -2,7 +2,7 @@
 // It makes the made-up notebook repo in a temporary folder, builds the page data and every answer the page can ask, and removes the folder.
 
 import { makeNotebookRepo, notebookChangeFile } from '../shared/test-repo';
-import { allQuestions, answer, examplePage, type PageData } from './page-data';
+import { allQuestions, answer, examplePage, type PageData } from '../shared/page-data';
 
 export function notebookExample(): { page: PageData; answers: Record<string, unknown> } {
   const repo = makeNotebookRepo();

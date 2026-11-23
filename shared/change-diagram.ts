@@ -1,11 +1,11 @@
 // Writes the Mermaid text that the page draws: the diagram of a change, a part's diagram, and a broad diagram with its difference.
 // The file names and counts come from Git; the agent gives only the parts, the links and its own diagrams.
 
-import type { Diagram, Link, Part } from '../shared/change-file';
+import type { Diagram, Link, Part } from './change-file';
 import type { PageCode } from './page-data';
-import { escapeLabel, flowGraph } from '../shared/diagram-graph';
-import { number } from '../shared/diagram-change';
-import type { ChangedFile } from '../shared/git';
+import { escapeLabel, flowGraph } from './diagram-graph';
+import { number } from './diagram-change';
+import type { ChangedFile } from './git';
 
 export { escapeLabel };
 
@@ -106,7 +106,7 @@ function diagramBody(mermaid: string): string[] {
 }
 
 // The reader of a flow chart lives in shared/, because the review context reads diagrams too.
-export { flowGraph, type FlowGraph } from '../shared/diagram-graph';
+export { flowGraph, type FlowGraph } from './diagram-graph';
 
 /** "whole" when a part's diagram is small enough to stay inside the change diagram, else "lit". */
 export function drillUpStyle(diagram: Pick<Diagram, 'kind' | 'mermaid'>): 'whole' | 'lit' {

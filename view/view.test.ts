@@ -9,12 +9,12 @@ import { checkChangeFile } from '../shared/checks';
 import { headCommit, repoId } from '../shared/git';
 import { Store } from '../shared/store';
 import { makeTestRepo, tempFolder, testChangeFile } from '../shared/test-repo';
-import { WHOLE_LIMIT, broadDifference, broadMermaid, changeMermaid, drillUpStyle, flowGraph, gridLinks, partMermaid } from './change-diagram';
+import { WHOLE_LIMIT, broadDifference, broadMermaid, changeMermaid, drillUpStyle, flowGraph, gridLinks, partMermaid } from '../shared/change-diagram';
 import { allowRule, deniedRules, DESCRIBE_AFTER_MAP, MAP_DRAFT, mapPrompt, problemFromErrors, runEnvironment, problemFromOutput, sessionFromOutput, startMapRun } from './agent-run';
-import { installCommand, isOwnLink, launcherScript, needsRefresh } from './install-command';
+import { installCommand, isOwnLink, launcherScript, needsRefresh } from '../shared/install-command';
 import { listRows, reopenStaleRuns, sessionGroups, type ListRow } from './list-rows';
 import { number } from '../shared/diagram-change';
-import { addedLines, agentOf, answer, pageData, removedLines, toRanges, type TestsAnswer } from './page-data';
+import { addedLines, agentOf, answer, pageData, removedLines, toRanges, type TestsAnswer } from '../shared/page-data';
 
 // The state words, dots and folds are plain JavaScript of the page; the tests read the same file.
 // eslint-disable-next-line @typescript-eslint/no-require-imports

@@ -2,13 +2,13 @@
 
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
-import type { Diagram } from '../shared/change-file';
-import { checkChangeFile } from '../shared/checks';
-import { headCommit, repoId } from '../shared/git';
-import type { RepoMap } from '../shared/repo-map';
-import { homeRun } from '../shared/map-run';
-import { Store } from '../shared/store';
-import { makeTestRepo, tempFolder, testChangeFile } from '../shared/test-repo';
+import type { Diagram } from './change-file';
+import { checkChangeFile } from './checks';
+import { headCommit, repoId } from './git';
+import type { RepoMap } from './repo-map';
+import { homeRun } from './map-run';
+import { Store } from './store';
+import { makeTestRepo, tempFolder, testChangeFile } from './test-repo';
 import { diagramPaths, graphsData, homeData, inDiagrams, nodeTags, whereLine, writtenLine } from './home-data';
 import { branchPage, filePage, pageData } from './page-data';
 

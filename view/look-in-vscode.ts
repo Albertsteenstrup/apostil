@@ -9,8 +9,8 @@ import * as vscode from 'vscode';
 import type { LookAction, Target } from '../shared/look';
 import type { NoteHere } from '../shared/notes-beside-code';
 import type { Store } from '../shared/store';
-import { idOf } from './home-data';
-import { lookData, standingMarks, type ValueLook } from './look-data';
+import { idOf } from '../shared/home-data';
+import { lookData, standingMarks, type ValueLook } from '../shared/look-data';
 import {
   actionRows, answersFor, ENTRIES, firstPageOf, keyOf, letterIcon, fileKeys, lineFacts, lookKeys, lookRows, marginMarks, marksIn, noteOnHome, notedFiles, placesOf, processOfStep,
   searchAnswers, stepsByKey, vscodeLook, type Answer, type LineFacts, type LookRow, type MarkAt, type StepRef, type VsCodeLook,

@@ -1,30 +1,28 @@
-// Builds what Home and the graphs page show, from the store and from Git. No `vscode` import.
+// Builds what Home and the graphs page show, from the store and from Git.
 // Home is the map of the repo; the graphs page shows every diagram that one folder or file is a part of.
 
 import { statSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Diagram } from '../shared/change-file';
-import { changeWhere } from '../shared/change-rows';
-import { thingsOf } from '../shared/diagram-code';
-import { diagramGraph, type DiagramGraph } from '../shared/diagram-graph';
-import { schemaDrawing, type SchemaDrawing } from '../shared/schema';
-import { sessionName } from '../shared/agents';
-import { changedFiles, commitExists, tryGit, type ChangedFile } from '../shared/git';
-import { appToStart } from '../shared/map-app';
-import { scopeCounts } from '../shared/note-groups';
-import { keptImportWords, looseBoxes, withBoxes } from '../shared/node-uses';
-import { mapRunLine, type MapRunLine } from '../shared/map-run';
-import { areaWork } from '../store/map-run';
-import { teamOf, type Team } from '../shared/models';
-import { diagramsOf, downOf, mainDiagramOf, touches, type DiagramOfPath } from '../shared/repo-map';
-import { allProcessDrawings, placeDiagramId, placeDrawing, processDiagramId, processesStartingIn, type LineOf, type ProcessDiagram, type ProcessNode, type Span } from '../shared/process-diagrams';
+import type { Diagram } from './change-file';
+import { changeWhere } from './change-rows';
+import { thingsOf } from './diagram-code';
+import { diagramGraph, type DiagramGraph } from './diagram-graph';
+import { schemaDrawing, type SchemaDrawing } from './schema';
+import { sessionName } from './agents';
+import { changedFiles, commitExists, tryGit, type ChangedFile } from './git';
+import { appToStart } from './map-app';
+import { scopeCounts } from './note-groups';
+import { keptImportWords, looseBoxes, withBoxes } from './node-uses';
+import { areaWork, mapRunLine, type MapRunLine } from './map-run';
+import { teamOf, type Team } from './models';
+import { diagramsOf, downOf, mainDiagramOf, touches, type DiagramOfPath } from './repo-map';
+import { allProcessDrawings, placeDiagramId, placeDrawing, processDiagramId, processesStartingIn, type LineOf, type ProcessDiagram, type ProcessNode, type Span } from './process-diagrams';
 import { lookData, type LookData } from './look-data';
-import { connectedApps } from './new-repo-steps';
-import type { Remark, StoredChange, Store } from '../shared/store';
+import type { Remark, StoredChange, Store } from './store';
 import type { SendTo } from './page-data';
 import { changeMermaid, nodeId, partMermaid } from './change-diagram';
 import { repoName, repoRemarksOnFiles } from './page-data';
-import type { Step } from './trail';
+import type { Step } from './trail-step';
 
 /** A file that a change changes, with its counts from Git; with no counts when Git cannot read them. */
 export type ChangeFileCounts = { path: string } & Partial<Pick<ChangedFile, 'added' | 'removed' | 'status'>>;
@@ -187,9 +185,9 @@ export const homeRowState = (store: Store, id: string | undefined): string | und
 
 /**
  * What Home shows for the repo of a folder: its map with every node and its look, or no map and the apps that can write one; and the line of its map run.
- * `address` turns a kept file of the look into an address that the page may load. `writing`: see mapRunOf. `connected`: the apps with the skills of Apostil, which only the last choice of the press reads.
+ * `address` turns a kept file of the look into an address that the page may load. `writing`: see mapRunOf. `connected`: the apps with the skills of Apostil (connectedApps in view/new-repo-steps.ts), which only the last choice of the press reads.
  */
-export function homeData(store: Store, folder: string, apps: string[] = [], address: (file: string) => string = (file) => file, writing?: string, connected: string[] = connectedApps(apps, folder)): HomeData {
+export function homeData(store: Store, folder: string, apps: string[] = [], address: (file: string) => string = (file) => file, writing?: string, connected: string[] = []): HomeData {
   const id = idOf(folder);
   const stored = id ? store.getMap(id) : undefined;
   const mapRun = mapRunOf(store, id, writing);

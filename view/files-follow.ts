@@ -3,7 +3,7 @@
 
 import { relative, sep } from 'node:path';
 import type { Target } from '../shared/look';
-import type { LookData } from './look-data';
+import type { LookData } from '../shared/look-data';
 
 // The pick logic of the pages (the first part of media/marks.js), read in Node as store/look-changes.ts does.
 // eslint-disable-next-line @typescript-eslint/no-require-imports

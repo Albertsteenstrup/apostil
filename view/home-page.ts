@@ -15,12 +15,14 @@ import { MAP_DRAFT, mapRunCommand, runEnvironment, startMapRun, startRun, type R
 import { agentsNeedSetup, runNextStep } from './change-list';
 import { apostilOnPath, appName, commentRuns, runModels, showRunProblem } from './run-settings';
 import { openAgentSession, openLink, openRemarkSession, webviewHtml, type NewRemark } from './change-page';
-import { menusOf } from './page-data';
-import { graphsData, homeData, idOf, type GraphsData, type HomeData } from './home-data';
+import { menusOf } from '../shared/page-data';
+import { graphsData, homeData, idOf, type GraphsData, type HomeData } from '../shared/home-data';
+import { connectedApps } from './new-repo-steps';
 import { blocksAnswer, lookPages, pageData, type CustomPageData } from './look-blocks';
 import { homePaths } from './file-icons';
 import { fileIcons, pageOptions } from './icon-theme';
-import type { Step, WindowTrail } from './trail';
+import type { Step } from '../shared/trail-step';
+import type { WindowTrail } from './trail';
 
 type Message =
   | { type: 'ready' }
@@ -303,7 +305,7 @@ export class HomePages {
   private homeMessage(): unknown {
     // A picture or a film of the look is loaded from Apostil's store by its webview address.
     const webview = this.home?.panel.webview;
-    const data = homeData(this.store, this.openFolder(), this.apps, (file) => (webview ? webview.asWebviewUri(vscode.Uri.file(file)).toString() : file), this.writing);
+    const data = homeData(this.store, this.openFolder(), this.apps, (file) => (webview ? webview.asWebviewUri(vscode.Uri.file(file)).toString() : file), this.writing, connectedApps(this.apps, this.openFolder()));
     // The picker of a comment on the map offers a new session of each app, with the model and the effort of its run.
     this.homeShown = { ...data, writing: this.writing, needsSetup: !data.map && agentsNeedSetup(this.openFolder()), sendTo: { sessions: [], models: menusOf(this.apps, runModels(), this.openFolder()) } };
     // A run that stops saves nothing, so the store does not change and nothing loads Home again: one timer does, after the quiet time, and the line then says that the run stopped.

@@ -7,7 +7,7 @@ import { lookOfPage, THEMES, wearTheme } from '../theme-look.mjs';
 import { madeUpDiagrams } from './made-up.mjs';
 import { check, errors, FILES_HIDDEN_KEY, finish, HIDDEN_KEY, listFile, openPage, own, pageFile, takePicture } from './tools.mjs';
 
-const { partDiagram } = own('../out/view/page-data.js');
+const { partDiagram } = own('../out/shared/page-data.js');
 const homeFile = fileURLToPath(new URL('../media/home.html', import.meta.url));
 
 /** Waits until no transition or animation that ends still runs: what is drawn has its last colours and places. A pulse that never ends does not count. */

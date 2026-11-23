@@ -10,9 +10,9 @@ import { git } from '../shared/git';
 import { ghProblem, readRepoPulls } from '../shared/repo-pulls';
 import { Store } from '../shared/store';
 import { makeTestRepo, tempFolder, testChangeFile } from '../shared/test-repo';
-import { graphsData } from './home-data';
+import { graphsData } from '../shared/home-data';
 import { listRows } from './list-rows';
-import { pageData } from './page-data';
+import { pageData } from '../shared/page-data';
 
 const repo = makeTestRepo();
 after(() => repo.remove());

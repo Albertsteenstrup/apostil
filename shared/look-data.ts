@@ -1,12 +1,11 @@
 // What a page needs to draw the look of a repo and its marks: the rules in the order that they apply, the sets, the values that the marks use with
-// their icons, the marks that still stand at their lines, and an address for each file of the look. No `vscode` import.
+// their icons, the marks that still stand at their lines, and an address for each file of the look.
 
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { DEFAULT_RULES, lookFiles, ONE_FIELD_SLOTS, withBlockRefs, type LookRule } from '../shared/look';
-import { marksNow, SERVICES, type Mark, type MarkSet } from '../shared/marks';
-import type { Store } from '../shared/store';
-import { dataAddress, iconData, setsOf, valuesOf } from '../store/marks-save';
+import { DEFAULT_RULES, lookFiles, ONE_FIELD_SLOTS, withBlockRefs, type LookRule } from './look';
+import { dataAddress, iconData, marksNow, SERVICES, setsOf, valuesOf, type Mark, type MarkSet } from './marks';
+import type { Store } from './store';
 
 /** A mark that stands at its line now. `line` is its line at the save, which the steps of the map count by; `at` is its line in the file now. */
 export type MarkHere = Omit<Mark, 'code' | 'group'> & { at: number };

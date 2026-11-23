@@ -7,11 +7,11 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { repoId } from '../shared/git';
 import { LOOK_PARTS } from '../shared/look';
-import { markFacts, markGroups, marksNow, SERVICES } from '../shared/marks';
+import { markFacts, markGroups, marksNow, SERVICES, setsOf, valuesOf } from '../shared/marks';
 import type { RepoMap } from '../shared/repo-map';
 import { Store } from '../shared/store';
 import { makeTestRepo, runApostil, tempFolder } from '../shared/test-repo';
-import { addMarksToMap, setLook, setsOf, valuesOf } from './marks-save';
+import { addMarksToMap, setLook } from './marks-save';
 import { saveMapDraft } from './save';
 
 const FEED = [

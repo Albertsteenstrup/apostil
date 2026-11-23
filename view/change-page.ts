@@ -16,7 +16,7 @@ import { githubRepoOf, pullRequestFrom, readPullRequest, runGh, type PullRequest
 import { writePullRequest, type Write } from '../shared/write-pull-request';
 import type { AppState, RemarkTarget, RemarkTo, Store } from '../shared/store';
 import { startRun } from './agent-run';
-import { idOf } from './home-data';
+import { idOf } from '../shared/home-data';
 import { askRunOf, askView, startAsk } from './ask-run';
 import { connectedApps } from './new-repo-steps';
 import type { PullHead } from './pull-folder';
@@ -28,8 +28,9 @@ import { fileIcons, pageOptions } from './icon-theme';
 import type { DiagramLayout } from './home-page';
 import { keptPullRequests, pullRequestsLater } from './change-list';
 import { reopenStaleRuns } from './list-rows';
-import { answer, branchPage, filePage, isListening, lookOfPage, marksBeside, notesBeside, pageData, pullLines, pullOnlyPage, takeStart, type PageData, type PullLines } from './page-data';
-import type { ChangeGo, Step, WindowTrail } from './trail';
+import { answer, branchPage, filePage, isListening, lookOfPage, marksBeside, notesBeside, pageData, pullLines, pullOnlyPage, takeStart, type PageData, type PullLines } from '../shared/page-data';
+import type { ChangeGo, Step } from '../shared/trail-step';
+import type { WindowTrail } from './trail';
 
 /**
  * Opens a session where he works with it, the one way for every link of a session (sessionOpens): in its app when it has a link of its own

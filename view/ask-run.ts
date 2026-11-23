@@ -8,7 +8,7 @@ import { askLine, askPress, askTo, type AskRun, type AskTo, type AskView } from 
 import { appToStart } from '../shared/map-app';
 import { isAlive, storeFolder, type Store } from '../shared/store';
 import { spawnRun, type RunFacts } from './agent-run';
-import { idOf } from './home-data';
+import { idOf } from '../shared/home-data';
 import { connectedApps } from './new-repo-steps';
 import { pullFolder, realFolder, removePullFolder, worktreeWithHead, type PullHead } from './pull-folder';
 

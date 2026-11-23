@@ -9,7 +9,7 @@ import { tryGit } from '../shared/git';
 import { connectClaudeCode } from '../store/connect-claude-code';
 import { hasOlderCopy, setup, thisInstall } from '../store/setup';
 import { askForLookOnce } from '../theme/choose-look';
-import { commandFolders, installCommand, needsRefresh } from './install-command';
+import { commandFolders, installCommand, needsRefresh } from '../shared/install-command';
 
 const COMMAND_KEY = 'apostil.askedForCommand'; // the question of earlier versions: a person who answered it is not asked again
 const SETUP_KEY = 'apostil.askedForSetup';

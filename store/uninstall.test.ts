@@ -10,7 +10,7 @@ import { checkChangeFile } from '../shared/checks';
 import { baseOf, currentBranch, headCommit, repoId } from '../shared/git';
 import { Store } from '../shared/store';
 import { makeTestRepo, tempFolder, testChangeFile } from '../shared/test-repo';
-import { installCommand } from '../view/install-command';
+import { installCommand } from '../shared/install-command';
 import { connectClaudeCode } from './connect-claude-code';
 import { setup, thisInstall } from './setup';
 import { setUpRepos } from './setup-record';

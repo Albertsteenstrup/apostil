@@ -6,7 +6,7 @@ import * as vscode from 'vscode';
 import { LOOK_COMMANDS, type Target } from '../shared/look';
 import { askAndOpen } from './change-page';
 import { appName } from './run-settings';
-import type { Step } from './trail';
+import type { Step } from '../shared/trail-step';
 
 /** What the extension can open for a target: wired in extension.ts, which owns the tabs, the path of the window and the tree "Files". */
 export interface TargetPlaces {

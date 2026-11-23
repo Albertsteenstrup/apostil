@@ -5,11 +5,11 @@
 import { join } from 'node:path';
 import * as vscode from 'vscode';
 import type { Store } from '../shared/store';
-import { diagramPaths, inDiagrams, repoFiles } from './home-data';
+import { diagramPaths, inDiagrams, repoFiles } from '../shared/home-data';
 import type { Target } from '../shared/look';
 import { fileRow, graphsIconClick, treeChildren } from './files-follow';
-import { idOf } from './home-data';
-import { savedLook, type LookData } from './look-data';
+import { idOf } from '../shared/home-data';
+import { savedLook, type LookData } from '../shared/look-data';
 
 /** A row is its repo path; a folder ends with "/". */
 export class FilesTree implements vscode.TreeDataProvider<string> {

@@ -41,11 +41,6 @@ const MAY_IMPORT: Record<string, string[]> = {
 
 // Imports from before this rule. Move the pure code they use into shared/, then delete the line here.
 const OLD_IMPORTS = new Set([
-  'store/doctor.ts → view/install-command.ts',
-  'store/uninstall.ts → view/install-command.ts',
-  'store/uninstall-hook.ts → view/install-command.ts',
-  'store/look-changes.ts → view/home-data.ts',
-  'store/look-changes.ts → view/page-data.ts',
   'store/look-changes.ts → view/media/marks.js',
 ]);
 

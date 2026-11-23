@@ -8,7 +8,7 @@ import { mergeSentence, type MergeInput } from '../shared/pull-request-facts';
 import { stackPlacesFromJson, withStacks, type PullRequest } from '../shared/pull-requests';
 import { LIMITS, nextQuery, pullRequestFrom, readPullRequest, type GhResult } from '../shared/read-pull-request';
 import { makeTestRepo } from '../shared/test-repo';
-import { pullOnlyPage } from './page-data';
+import { pullOnlyPage } from '../shared/page-data';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const States = require('../../view/media/states.js');

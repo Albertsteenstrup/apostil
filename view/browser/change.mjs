@@ -6,7 +6,7 @@ import { writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { check, errors, finish, newPage, own, pageFile, shots, takePicture } from './tools.mjs';
 
-const { changeMermaid } = own('../out/view/change-diagram.js');
+const { changeMermaid } = own('../out/shared/change-diagram.js');
 const { diagramGraph } = own('../out/shared/diagram-graph.js');
 
 const page = await newPage({ viewport: { width: 1400, height: 1000 }, deviceScaleFactor: 2 });

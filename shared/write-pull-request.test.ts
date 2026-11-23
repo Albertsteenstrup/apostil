@@ -3,7 +3,7 @@
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { diffRanges } from '../view/page-data';
+import { diffRanges } from './page-data';
 import type { GhResult } from './read-pull-request';
 import {
   addCodeComment, addComment, addPullRequestReviewThreadReply, CLOSE, COMMENT, COMMIT, DELETE_BRANCH, FILE_AT, LINES_ALONE, LINES_IN_REVIEW, MERGE, READY, REOPEN, REPLY, RESOLVE,

@@ -9,9 +9,9 @@ import { repoRoot } from '../shared/git';
 import { blockKind, blocksOfRef, LOOK_PARTS, missingIn, withBlockRefs, type Block } from '../shared/look';
 import { listedFiles, readRepoData, readRepoText, type ReadFault } from '../shared/repo-data';
 import type { Store } from '../shared/store';
-import { homeData, idOf, type HomeDiagram } from './home-data';
-import { lookData, type LookData } from './look-data';
-import { repoName } from './page-data';
+import { homeData, idOf, type HomeDiagram } from '../shared/home-data';
+import { lookData, type LookData } from '../shared/look-data';
+import { repoName } from '../shared/page-data';
 
 const LIMITS = LOOK_PARTS.limits;
 

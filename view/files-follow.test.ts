@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { rowOfFileInFront, TreeFocus, treeSteps } from './files-follow';
-import { takeStart } from './page-data';
+import { takeStart } from '../shared/page-data';
 
 test('the tree "Files" follows the map: the paths of an area come into view with the first one marked and each folder open, at most six, and nothing while the tree is hidden unless the click shows it', () => {
   // The last path first, so that the first one ends in view and marked.

@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { check, errors, finish, newPage, own, takePicture } from './tools.mjs';
 
 const { processDrawings } = own('../out/shared/process-diagrams.js');
-const { processHomeDiagram } = own('../out/view/home-data.js');
+const { processHomeDiagram } = own('../out/shared/home-data.js');
 const { stepKey } = own('../out/shared/processes.js');
 
 /** A made-up process of one long function of 30 steps; its steps 3, 6 … 24 (eight) all call one helper in another file. Its drawing of the opened function, as Home gets it. */
