@@ -8,7 +8,7 @@ import { agentOf, type PageAgent } from './page-data';
 export interface ListRow {
   id?: number; // missing for the branch of the open folder when it has no change file
   branch: string;
-  folder: string; // where the pull requests of the branch are asked for
+  folder: string; // where Git is read for the row, which is also where the pull requests of the branch are asked for (the change's folder may be gone)
   age: string;
   savedAt: string; // ISO: the last save of the change; for the branch with no change file its last commit
   firstSavedAt?: string; // ISO: the first save of the change, missing in a change saved before the store kept it
@@ -54,7 +54,7 @@ export function listRows(store: Store, folder: string): ListRow[] {
     const remarks = { ...NO_REMARKS };
     for (const remark of store.remarks(row.id)) if (remark.state in remarks) remarks[remark.state as keyof typeof remarks]++;
     return {
-      id: row.id, branch: row.branch, folder: row.folder, age: ageOf(row.savedAt), savedAt: row.savedAt, firstSavedAt: row.firstSavedAt, firstCommitAt: row.firstCommitAt,
+      id: row.id, branch: row.branch, folder: row.readIn, age: ageOf(row.savedAt), savedAt: row.savedAt, firstSavedAt: row.firstSavedAt, firstCommitAt: row.firstCommitAt,
       commits: row.commits, files: row.files, added: row.added, removed: row.removed,
       open: row.branch === branch, agent: change?.agent && agentOf(change.agent), remarks, ...(row.saved?.missing ? { uncounted: savedWords(row.saved) } : {}),
       phrase: row.outOfDate ? 'out of date' : row.filesInNoPart ? `${row.filesInNoPart} file${row.filesInNoPart === 1 ? '' : 's'} in no part` : row.branch === branch ? 'open folder' : '',

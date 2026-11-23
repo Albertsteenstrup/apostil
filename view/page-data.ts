@@ -16,7 +16,7 @@ import { notesInRepo } from '../shared/notes-beside-code';
 import { baseBranchOf, baseOf, changedFiles, commitExists, fileBytes, fileDiff, fileModes, fileText, linkTarget, notebookChange, rawFileText, repoId, tryGit, type ChangedFile } from '../shared/git';
 import { cellHead, cellsAt, inCellText, isNotebookPath, placeInCell, readNotebook, type NotebookCells } from '../shared/notebook';
 import { githubRepoOf, type PullRequestView } from '../shared/read-pull-request';
-import { changeWhere, savedWords, type SavedAt } from '../shared/change-rows';
+import { changeWhere, diffBaseOf, newerCommits, savedWords, type SavedAt } from '../shared/change-rows';
 import { repoDiagramOf, type RepoDiagram } from '../shared/repo-diagram';
 import type { RepoMap } from '../shared/repo-map';
 import type { CheckResult, OpenPoint, Remark, RemarkTo, Store } from '../shared/store';
@@ -121,6 +121,7 @@ export interface PageData {
   sendTo?: SendTo; // what the picker of a card offers besides the apps: the known sessions, the model of a new session, the last choice
   onHome: Record<string, RepoDiagram>; // by the id of a diagram of this change: the repo diagram that it draws on ("of"), which the link "on Home" opens
   head?: string; // the commit that the diffs end at: a pull request, or a change, that is not checked out
+  described?: { commit: string; at: string; newer: number }; // the branch has commits after the one that the change was described at
   savedWords?: string; // one quiet line: the change is shown as saved at a commit, or that this clone has no such commit
   pullOnly?: PullOnly; // a pull request with no stored change: the page has "Conversation" and "Diffs"
   branchOnly?: true; // the open branch with no change file: the page has "Diffs", and "Conversation" when the branch has a pull request
@@ -198,9 +199,11 @@ export function pageData(store: Store, changeId: number, openFolder: string, app
   const { folder, saved } = changeWhere(change, openFolder);
   const head = tryGit(folder, 'rev-parse', change.branch);
   const outOfDate = !saved && head !== undefined && head !== change.head;
-  const checks = outOfDate ? checkChangeFile(folder, change.base, change.file) : change.checks;
+  const base = diffBaseOf(change, folder, saved);
+  const checks = outOfDate ? checkChangeFile(folder, base, change.file) : change.checks;
+  const newer = saved?.missing ? 0 : newerCommits(change, folder);
   return buildPage({
-    changeId, folder, branch: change.branch, base: change.base, file: change.file, checks, outOfDate, saved,
+    changeId, folder, branch: change.branch, base, newer: newer ? { commit: change.head, at: change.savedAt, newer } : undefined, file: change.file, checks, outOfDate, saved,
     openPoints: store.openPoints(changeId), remarks: store.remarks(changeId),
     agent: change.agent, listening: isListening(store, change.agent), apps, map: mapOfFolder(store, folder), checked: change.checked ?? [],
     sendTo: sendToOf(store, change.repoId, change.folder, apps, models, change.agent),
@@ -225,6 +228,7 @@ interface PageInput {
   agent?: AgentSession;
   listening: boolean;
   apps: string[];
+  newer?: PageData['described']; // the branch has commits after the described one
   saved?: SavedAt; // the folder is not on the branch: files and diffs come from the saved commit
   map?: RepoMap; // the stored map of the repo: the diagrams that the diagrams of the change draw on
   checked: string[]; // the diagrams that a second agent read for this save, and "links:<part id>" for the links that leave a part
@@ -334,6 +338,7 @@ function buildPage(input: PageInput): PageData {
       const repo = repoDiagramOf(input.map, diagram);
       return repo ? [[diagram.id, repo]] : [];
     })),
+    ...(input.newer ? { described: input.newer } : {}),
     ...(saved ? { savedWords: savedWords(saved), ...(head ? { head } : {}) } : {}),
   };
 }

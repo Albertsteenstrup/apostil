@@ -60,7 +60,33 @@ try {
     && strip.reviewers.join() === 'jonas-b: approved,lena-s: waiting,made-up/lending-team: waiting' && strip.avatars === 3 && strip.stacked && strip.dots === 'ok,wait,wait'
     && strip.all === 'Waits for #9 below it in the stack · 1 check is still running · 3 commits behind made-up/hold-store'
     && manyReviewers.shown.join() === 'cy: asked for changes,ana: approved,dee: approved' && manyReviewers.count === '+4'
-    && manyReviewers.rest === 'review-bot: approved, ben: waiting, made-up/team: waiting, Copilot: commented' && /^(no review yet|review required)/.test(manyReviewers.none), JSON.stringify({ strip, manyReviewers }));
+    && manyReviewers.rest === 'review-bot: approved, ben: waiting, made-up/team: waiting, Copilot: commented' && /^#12(no review yet|review required)/.test(manyReviewers.none), JSON.stringify({ strip, manyReviewers }));
+  // The number of the pull request stands right after the state icon, before the avatars, as a quiet link to GitHub; "+4" opens a small window with each hidden reviewer.
+  const bar = await conv.evaluate(() => {
+    const pull = structuredClone(Object.values(App.read)[0].pull);
+    const person = (login, more = {}) => ({ login, avatar: '', bot: false, ...more });
+    pull.reviewers = ['ana', 'ben', 'cy', 'dee', 'eli'].map((login, at) => ({ person: person(login), state: ['approved', 'changes requested', 'asked', 'reviewed', 'approved'][at] }));
+    const el = document.getElementById('status');
+    el.innerHTML = Conversation.stripHtml(pull, pull, 0);
+    Conversation.bindStrip(el);
+    const link = el.querySelector('.pnum');
+    const order = [...el.querySelectorAll('.status > *')];
+    return { text: link?.textContent, url: link?.dataset.link, want: pull.url, title: link?.title, number: pull.number, afterIcon: order.indexOf(link) === 1 && order[2]?.classList.contains('rvs'), restTitle: el.querySelector('.rv.rest')?.getAttribute('title') };
+  });
+  await conv.hover('#status .rv.rest');
+  await conv.waitForSelector('.win', { timeout: 3000 });
+  const hiddenWindow = await conv.evaluate(() => ({ rows: [...document.querySelectorAll('.win .pp')].map((row) => `${row.querySelector('.pn')?.textContent}: ${row.querySelector('.pw')?.textContent}`), faces: document.querySelectorAll('.win .pp .av').length }));
+  await conv.mouse.move(2, 2);
+  await conv.waitForSelector('.win', { state: 'detached', timeout: 3000 });
+  await conv.keyboard.press('Tab'); // so that the focus is from the keyboard, as :focus-visible wants
+  await conv.evaluate(() => document.querySelector('#status .rv.rest').focus());
+  const focused = await conv.waitForSelector('.win', { timeout: 3000 }).then(() => true, () => false);
+  await conv.evaluate(() => document.activeElement.blur());
+  await conv.waitForSelector('.win', { state: 'detached', timeout: 3000 }).catch(() => {});
+  await conv.evaluate(() => drawStrip());
+  check('the bar of the pull request has "#12" right after the state icon and before the avatars, a quiet link to the pull request on GitHub with the title "Open #12 on GitHub"; the "+2" has no plain title, and the pointer or the keyboard focus on it opens a small window with the avatar, the name and the state word of each hidden reviewer',
+    bar.text === `#${bar.number}` && bar.url === bar.want && bar.title === `Open #${bar.number} on GitHub` && bar.afterIcon && bar.restTitle === null
+    && hiddenWindow.rows.join() === 'cy: waiting,dee: commented' && hiddenWindow.faces === 2 && focused, JSON.stringify({ bar, hiddenWindow, focused }));
   // The tooltip of the icon: "#12 · Checks failing", dark, above the icon, after a short moment; gone when the pointer leaves; also on keyboard focus.
   const tipOf = () => conv.evaluate(() => {
     const tip = document.querySelector('.tip');
@@ -510,7 +536,7 @@ try {
   check('the choice lists the pull requests of the branch with their icons, and a pick shows that one; a merged pull request: the strip says who merged it and when, and no more, and "closed" right after "merged" is left out',
     choice.length === 2 && choice[0][0] === 'pri git-pull-request red' && choice[1][0] === 'pri git-merge purple'
     && merged.icon === 'pri git-merge purple' && merged.title === 'First half of the holds #11' && merged.none === 'No description'
-    && /^merged ?Merged by jonas-b on .+ with a squash(1 more pull request)?$/.test(merged.strip) && !/review|checks/.test(merged.strip) && !merged.events.some((one) => /closed it/.test(one)), JSON.stringify({ choice, merged }));
+    && /^merged ?#11Merged by jonas-b on .+ with a squash(1 more pull request)?$/.test(merged.strip) && !/review|checks/.test(merged.strip) && !merged.events.some((one) => /closed it/.test(one)), JSON.stringify({ choice, merged }));
   await conversationAfter(() => conv.evaluate(() => { App.state.pull = 12; App.render(); }));
 
   // ----- writing to GitHub from the conversation. As a file in a browser a send goes to the example, which answers as GitHub does: nothing reaches GitHub. -----

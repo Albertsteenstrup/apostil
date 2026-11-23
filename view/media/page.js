@@ -478,7 +478,8 @@ function summaryHtml() {
   if (checks.filesNotChanged.length) bits.push(`<b>${plural(checks.filesNotChanged.length, 'file')} named but not changed</b>`);
   if (checks.renamedFiles?.length) bits.push(`<b>${plural(checks.renamedFiles.length, 'file')} named by the old path</b>`);
   if (checks.badNotes.length) bits.push(`<b>${plural(checks.badNotes.length, 'note')} failed the line check</b>`);
-  if (page.outOfDate) bits.push('the branch has commits that are newer than this description');
+  if (page.described) bits.push(`Described at ${esc(page.described.commit.slice(0, 7))}, ${esc(States.agoWords(page.described.at))}; the branch has ${plural(page.described.newer, 'newer commit')}.`);
+  else if (page.outOfDate) bits.push('the branch has commits that are newer than this description');
   return bits.join(' · ');
 }
 

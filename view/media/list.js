@@ -110,7 +110,9 @@ const pullRow = (pull) => `<div class="row prow" data-pull="${pull.number}"><div
 /** The count of the open pull requests of the repo beside the head, the same number as the badge of the Apostil icon (pullBadge in shared/pull-requests.ts). */
 const pullCount = () => {
   const count = repoPulls.pulls.length;
-  return count ? `<span class="cnt" title="${count} open pull request${count === 1 ? '' : 's'} in this repo">${count}</span>` : '';
+  const here = pullRows().length;
+  const split = here < count ? `: ${here} here, ${count - here} under their changes above` : ''; // the others stand under the row of their branch
+  return count ? `<span class="cnt" title="${count} open pull request${count === 1 ? '' : 's'}${split || ' in this repo'}">${count}</span>` : '';
 };
 
 /**

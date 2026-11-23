@@ -195,7 +195,9 @@ const Conversation = (() => {
   /** The icon of the state of a pull request, with its word when there is room; its tooltip says "#12 · Review needed". `slots`: an icon of the look in its place. */
   const icon = (pull, word = true, slots = {}) => `${lookIcon(slots['text.icon']) || States.pullIcon(pull)}${word ? `<span class="prw">${esc(pull.state)}</span>` : ''}`;
   /** The first part of the strip, the icon of the state, in the colour of a rule of the look. */
-  const stateBit = (pull, word, slots) => { const color = PartLook.wordsAttrs(slots['text.color']); return `<span${color.cls ? ` class="${color.cls.trim()}"` : ''}${color.style}>${icon(pull, word, slots)}</span>`; };
+  const stateBit = (pull, word, slots) => { const color = PartLook.wordsAttrs(slots['text.color']); return `<span${color.cls ? ` class="${color.cls.trim()}"` : ''}${color.style}>${icon(pull, word, slots)}</span>${numberBit(pull)}`; };
+  /** The number of the pull request right after its state icon: a quiet link to its page on GitHub. */
+  const numberBit = (pull) => `<a class="pnum" data-link="${esc(pull.url)}" title="Open #${pull.number} on GitHub">#${pull.number}</a>`;
 
   /**
    * The merge sentence of the strip: the parts that the strip does not say before it. The state word says a draft and conflicts,
@@ -237,9 +239,23 @@ const Conversation = (() => {
       + (checksOpen ? `<section class="checks-panel">${checksHtml(full)}</section>` : '') + reviewHtml(full);
   }
 
+  /** The hidden reviewers ("+2") in a small window, on the pointer and on the keyboard focus, with the avatar, the name and the state of each; the plain title goes. */
+  function bindRest(el) {
+    const rest = el.querySelector('.rv[data-rest]');
+    const pull = lastStrip?.[1];
+    if (!rest || !pull) return;
+    rest.removeAttribute('title');
+    rest.tabIndex = 0;
+    const load = () => ({ title: 'More reviewers', width: 260, pad: true, body: hiddenReviewers(pull.reviewers).map(reviewerRow).join('') });
+    Hover.attach(rest, load);
+    rest.addEventListener('focus', () => { if (rest.matches(':focus-visible')) Hover.now(rest, load, undefined, true); });
+    rest.addEventListener('blur', () => Hover.hide());
+  }
+
   let lastStrip = null;
   /** A click on the checks of the strip opens or closes their list under it. */
   function bindStrip(el) {
+    bindRest(el);
     el.querySelector('[data-checks]')?.addEventListener('click', () => {
       checksOpen = !checksOpen;
       el.innerHTML = stripHtml(...lastStrip);

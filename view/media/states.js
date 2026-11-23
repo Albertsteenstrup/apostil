@@ -332,7 +332,7 @@ const States = (() => {
     + `${state !== 'note' && AGENT_WORDS[app] ? `<img src="agents/${app}.svg" alt="${esc(AGENT_WORDS[app])}">` : ''}${count > 1 ? `<b class="n">${count}</b>` : ''}</i>`;
 
   return {
-    WORDS, MENTION_WORDS, mentionChoices, cutChoices, sendChoices, choiceKey, startChoice, choiceWords, forWords, rowLine, rowState, remarkLine,
+    WORDS, MENTION_WORDS, agoWords, mentionChoices, cutChoices, sendChoices, choiceKey, startChoice, choiceWords, forWords, rowLine, rowState, remarkLine,
     effortWord, nearestEffort, runWords,
     threadLead, threadState, markState, foldPulls, foldRows, stackOrder, lineHtml, markHtml, bubbleSvg, BUBBLE_PATH, pullTip, pullIcon,
   };
