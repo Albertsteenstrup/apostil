@@ -7,8 +7,9 @@
 const Remarks = (() => {
   const W = States.WORDS;
   const pullPage = () => (typeof Conversation === 'object' ? Conversation : undefined); // the change page has a pull request; Home has none
-  // The open card: { key, threads, reply, target, point, at, el, choices, picked, menu }. key: "new" for a new comment, else the first thread of the card;
-  // threads: the ids of its open threads; reply: the thread that the box answers; at: where a new card opened when it has no thing on the page.
+  // The open card: { key, threads, reply, target, point, at, spot, el, choices, picked, menu }. key: "new" for a new comment, else the first thread of the card;
+  // threads: the ids of its open threads; reply: the thread that the box answers; at: where a new card opened when it has no thing on the page;
+  // spot: where the card stands on the page (onPage).
   let card = null;
   const typed = {}; // what each field holds while the card draws again, by its key
   let picking = null; // after the key, the pointer is a comment icon and the next click opens a card there: { lines, at }
@@ -37,12 +38,10 @@ const Remarks = (() => {
     const inside = (el) => el?.contains(event.target);
     if (list && !inside(list.el) && !event.target.closest?.('[data-comments]')) closeList();
     if (mentions && !inside(mentions.el)) closeMentions(); // the names after "@" close on a click elsewhere, as a menu does
-    // An open menu of the card (where it goes, or ⋯) closes on a click outside it; a click outside the card then does nothing else.
-    if (card && (card.menu || card.moreOpen) && !event.target.closest?.('.pmenu, [data-pick], .moremenu, [data-more]')) {
-      const more = card.moreOpen;
-      Object.assign(card, { menu: false, moreOpen: false });
-      if (more) drawCard();
-      else redrawPicker();
+    // The open menu of where it goes closes on a click outside it; a click outside the card then does nothing else.
+    if (card?.menu && !event.target.closest?.('.pmenu, [data-pick]')) {
+      card.menu = false;
+      redrawPicker();
       if (!inside(card.el)) { event.preventDefault(); swallow = true; return; }
     }
     if (!card || card.sending || inside(card.el) || inside(mentions?.el) || inside(asking)) return;
@@ -286,7 +285,6 @@ const Remarks = (() => {
 
   const DOWN = '<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10l5 5 5-5"/></svg>';
   const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
-  const MORE = '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5.5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="18.5" cy="12" r="1.7"/></svg>';
   const CLOSE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
   const appIcon = (app) => (app === 'github' ? '<i class="ico git-pull-request"></i>' : agentIcon({ app }));
 
@@ -829,46 +827,38 @@ const Remarks = (() => {
     return `<div class="cth${many && thread[0].id === card.reply ? ' cur' : ''}" data-thread="${thread[0].id}">${fields.map((field) => parts[field] ?? '').join('')}</div>`;
   }
 
-  /** The less used actions of a card, behind "⋯": open the session of the thread, start a run for a comment that waits. */
-  function moreActions() {
-    const lead = card.reply && threadOf(card.reply) && States.threadLead(threadOf(card.reply));
-    if (!lead) return [];
-    const line = States.remarkLine(lead, App.page.agent, App.page.listening);
-    return [
-      ...(['running', 'done'].includes(lead.state) && hasSession(lead) ? [`<a data-session="${lead.id}">${esc(W.openTheSession)}</a>`] : []),
-      ...(line.way === 'start' ? [`<a data-start="${lead.id}">${esc(W.startRun)}</a>`] : []),
-    ];
-  }
-
-  /** Draws the card: a quiet head with the place and the tools, the threads as a small chat, the box and the picker under it. */
+  /** Draws the card: a quiet head with the place and the tools, the threads as a small chat that scrolls in a long card, the box and the picker under it. */
   function drawCard() {
     if (!card) return;
     const shown = card.threads.map(threadOf).filter((thread) => thread && !isResolved(thread));
     if (card.key !== 'new' && !shown.length) return closeCard(); // resolved meanwhile
     if (card.key !== 'new' && !shown.some((thread) => thread[0].id === card.reply)) card.reply = shown.at(-1)[0].id;
     const focused = card.el?.contains(document.activeElement) ? document.activeElement.dataset.field : undefined;
+    const scrolled = card.el?.querySelector('.cthreads').scrollTop;
     card.choices = choicesFor(card.target);
     if (!card.picked || !card.choices.some((choice) => choice.key === card.picked.key)) card.picked = firstChoice(card.choices);
     else card.picked = card.choices.find((choice) => choice.key === card.picked.key);
-    const actions = moreActions();
-    const tools = card.key === 'new' ? `<a class="tl" data-close title="${esc(W.close)}">${CLOSE}</a>`
-      : `<a class="tl" data-resolve title="${esc(W.resolve)}">${CHECK}</a>${actions.length ? `<a class="tl" data-more title="${esc(W.moreActions)}">${MORE}</a>` : ''}<a class="tl" data-close title="${esc(W.close)}">${CLOSE}</a>`;
+    const close = `<a class="tl" data-close title="${esc(W.close)}">${CLOSE}</a>`;
+    const tools = card.key === 'new' ? close : `<a class="tl" data-resolve title="${esc(W.resolve)}">${CHECK}</a>${close}`;
     const point = card.key === 'new' && card.point ? points().find((one) => one.id === card.point) : null;
     const key = card.key === 'new' ? 'new' : card.reply;
     const replies = card.key === 'new' || (slotsOfThread(threadOf(card.reply)).content?.fields ?? ['reply']).includes('reply');
     const github = card.key === 'new' ? pullPage()?.codeLine(card.target) ?? '' : '';
     const body = `<div class="ch">${whereHtml(card.target)}<span class="tools">${tools}</span></div>`
-      + (card.moreOpen && actions.length ? `<div class="moremenu">${actions.join('')}</div>` : '')
+      + '<div class="cthreads">'
       + (point ? `<div class="msg agent point"><div><div class="who"><b>${esc(W.openPoint)}</b></div><div class="tx">${esc(point.text)}</div></div></div>` : '')
       + shown.map((thread) => threadHtml(thread, shown.length > 1)).join('')
+      + '</div>'
       + (replies ? `<div class="cbx">${fieldHtml(key, card.key === 'new' ? W.writeComment : W.writeReply)}<div class="pickbox">${pickerHtml()}</div></div>` : '')
       + `<p class="cbline"${github ? '' : ' hidden'}>${esc(github)}</p>`;
     if (!card.el) {
       card.el = html('<div class="cbox card"></div>');
       card.el.addEventListener('pointerdown', dragCard);
+      card.el.addEventListener('wheel', wheelOnCard, { passive: false });
       document.body.append(card.el);
     }
     card.el.innerHTML = body;
+    card.el.querySelector('.cthreads').scrollTop = scrolled ?? 0;
     if (shown[0]) Marks.paintBox(card.el, slotsOfThread(shown.at(-1)));
     for (const field of card.el.querySelectorAll('[data-field]')) if (typed[field.dataset.field]) field.innerHTML = typed[field.dataset.field];
     if (focused) focusField(card.el, focused);
@@ -890,40 +880,49 @@ const Remarks = (() => {
   }
 
   /**
-   * The rectangle that the card stands beside: the drawn thing (a node, a part, a message), else its mark, else where the card opened.
+   * The rectangle that the card opens beside, and the element there: the drawn thing (a node, a part, a message), else its mark, else where the card opened.
    * Code lines reach to the right edge of the code, so that the card stands beside the code, over the column of the notes when there is one.
    */
-  function anchorRect() {
+  function anchor() {
     const mark = card.threads.length ? document.querySelector(`.cb[data-threads~="${card.threads[0]}"]`) : null;
     const target = placeOf(card.target);
     if (inCode(target) && codeShows(target)) {
-      const [row, last] = (target.lines ?? []).map((line) => document.querySelector(`.cn .code .l[data-line="${line}"]`)?.getBoundingClientRect());
+      const rows = (target.lines ?? []).map((line) => document.querySelector(`.cn .code .l[data-line="${line}"]`));
+      const [row, last] = rows.map((one) => one?.getBoundingClientRect());
       const code = document.querySelector('.cn .code')?.getBoundingClientRect();
-      if (row && code && row.bottom > 0 && row.top < innerHeight) return { left: row.left, right: code.right, top: row.top, bottom: (last ?? row).bottom };
+      if (row && code && row.bottom > 0 && row.top < innerHeight) return { rect: { left: row.left, right: code.right, top: row.top, bottom: (last ?? row).bottom }, el: rows[0] };
     }
-    const things = !inCode(target) ? Places.find(target).filter((el) => el.tagName !== 'svg' && el.getClientRects().length) : [];
-    const thing = things.map((el) => el.closest('g.node, g.cluster') ?? el)[0];
-    const rect = (thing ?? mark)?.getBoundingClientRect();
-    if (rect && rect.bottom > 0 && rect.top < innerHeight && (rect.width || rect.height)) return rect;
+    const things = !inCode(target) ? Places.find(target).filter((one) => one.tagName !== 'svg' && one.getClientRects().length) : [];
+    const el = things.map((one) => one.closest('g.node, g.cluster') ?? one)[0] ?? mark;
+    const rect = el?.getBoundingClientRect();
+    if (rect && rect.bottom > 0 && rect.top < innerHeight && (rect.width || rect.height)) return { rect, el };
     const at = card.at ?? pointerAt ?? { x: innerWidth / 2, y: 80 };
-    return { left: at.x, right: at.x, top: at.y, bottom: at.y };
+    return { rect: { left: at.x, right: at.x, top: at.y, bottom: at.y }, el: document.elementsFromPoint(at.x, at.y).find((one) => !card.el.contains(one)) };
+  }
+
+  /** The element whose scroll moves an element: the nearest one that scrolls, else the page. */
+  function scrollerOf(el) {
+    for (let box = el; box && box !== document.body; box = box.parentElement) if (/auto|scroll/.test(getComputedStyle(box).overflow)) return box;
+    return document.scrollingElement;
+  }
+  /** Where the content of a scrolling element starts in the tab. */
+  function originOf(box) {
+    const rect = box === document.scrollingElement ? { left: 0, top: 0 } : box.getBoundingClientRect();
+    return { x: rect.left - box.scrollLeft, y: rect.top - box.scrollTop };
+  }
+  /** A point of the tab as a spot on the page: from the start of the content that `box` scrolls, so that it moves with that content. */
+  function onPage(x, y, box) {
+    const origin = originOf(box);
+    return { box, x: x - origin.x, y: y - origin.y };
   }
 
   /**
-   * Places the card beside its thing: at its right when there is room, else at its left, else under it or over it; with no free side, over the side
-   * with the most room. It stays inside the tab, 8 px from its edges.
+   * The spot where the card opens: beside its thing, at its right when there is room, else at its left, else under it or over it; with no free side,
+   * over the side with the most room. It opens inside the tab, 8 px from its edges.
    */
-  function placeCard() {
-    if (!card?.el) return;
-    const el = card.el;
-    const [width, height, gap, edge] = [el.offsetWidth, el.offsetHeight, 12, 8];
-    // A card that he moved stays where he put it, inside the tab, until it closes.
-    if (card.moved) {
-      el.style.left = `${Math.max(edge, Math.min(card.moved.left, innerWidth - width - edge))}px`;
-      el.style.top = `${Math.max(edge, Math.min(card.moved.top, innerHeight - height - edge))}px`;
-      return;
-    }
-    const rect = anchorRect();
+  function openingSpot() {
+    const { rect, el } = anchor();
+    const [width, height, gap, edge] = [card.el.offsetWidth, card.el.offsetHeight, 12, 8];
     let left;
     let top = rect.top - 10;
     if (rect.right + gap + width <= innerWidth - edge) left = rect.right + gap;
@@ -933,10 +932,18 @@ const Remarks = (() => {
       if (rect.bottom + gap + height <= innerHeight - edge) top = rect.bottom + gap;
       else if (rect.top - gap - height >= edge) top = rect.top - gap - height;
     }
-    el.style.left = `${Math.max(edge, Math.min(left, innerWidth - width - edge))}px`;
-    el.style.top = `${Math.max(edge, Math.min(top, innerHeight - height - edge))}px`;
+    return onPage(Math.max(edge, Math.min(left, innerWidth - width - edge)), Math.max(edge, Math.min(top, innerHeight - height - edge)), scrollerOf(el));
   }
-  /** The head of the card is its handle: a drag there moves the card; its tools keep their clicks. */
+
+  /** The card stands at its spot on the page, like a note on paper: it scrolls with the page, out of view too. A new spot comes when the element that scrolled it is gone. */
+  function placeCard() {
+    if (!card?.el) return;
+    if (!card.spot?.box.isConnected) card.spot = openingSpot();
+    const origin = originOf(card.spot.box);
+    card.el.style.left = `${origin.x + card.spot.x}px`;
+    card.el.style.top = `${origin.y + card.spot.y}px`;
+  }
+  /** The head of the card is its handle: a drag there moves the card to a new spot on the page; its tools keep their clicks. */
   function dragCard(event) {
     if (event.button !== 0 || !event.target.closest('.ch') || event.target.closest('.tools, a')) return;
     const own = card;
@@ -945,7 +952,7 @@ const Remarks = (() => {
     own.el.classList.add('dragging');
     event.preventDefault(); // no text selection while it moves
     const move = (step) => {
-      own.moved = { left: step.clientX - from.x, top: step.clientY - from.y };
+      own.spot = onPage(step.clientX - from.x, step.clientY - from.y, own.spot.box);
       if (card === own) placeCard();
     };
     const stop = () => {
@@ -955,6 +962,16 @@ const Remarks = (() => {
     };
     addEventListener('pointermove', move);
     addEventListener('pointerup', stop);
+  }
+  /**
+   * The wheel over a card too long for the tab scrolls its threads, also at their ends, and never the page under it. Over a short card the page scrolls;
+   * a menu and a sideways scroll (a wide code block) keep their own scroll.
+   */
+  function wheelOnCard(event) {
+    const threads = event.currentTarget.querySelector('.cthreads');
+    if (threads.scrollHeight <= threads.clientHeight || event.target.closest('.pmenu') || Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
+    event.preventDefault();
+    threads.scrollBy(0, event.deltaY);
   }
   addEventListener('resize', () => { placeCard(); placeList(); });
   addEventListener('scroll', () => placeCard(), true);
@@ -974,7 +991,6 @@ const Remarks = (() => {
     if (!card?.el?.contains(target)) return;
     if (target.closest('[data-close]')) return closeCard();
     if (target.closest('[data-resolve]')) return act(card.reply, 'resolve');
-    if (target.closest('[data-more]')) { card.moreOpen = !card.moreOpen; return drawCard(); }
     if (target.closest('[data-pick]')) { card.menu = !card.menu; RunPick.close('card'); return redrawPicker(); }
     const choice = target.closest('[data-choice]');
     if (choice) { pick(choice.dataset.choice); return focusField(card.el, card.key === 'new' ? 'new' : card.reply); }

@@ -664,6 +664,79 @@ try {
       && onMapArrow.outline.join() === arrowSpot.rk && /^Arrow "/.test(onMapArrow.where) && arrowTarget?.kind === 'edge' && arrowTarget.diagram === 'lib-top'
       && mapChoices.join() === 'claude-new,codex-new,opencode-new', JSON.stringify({ onMapNode, nodeCard, nodeCircle, nodeTarget, onMapArrow, arrowTarget, mapChoices }));
 
+  // In a low tab Home scrolls: the card of a comment on the whole map scrolls with the page, out of view too, and after a drag of its head it keeps its new place on the page.
+  const low = await newPage({ viewport: { width: 1400, height: 500 } });
+  low.on('pageerror', (error) => errors.push(error.message));
+  low.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
+  await low.goto(`file://${homeFile}`);
+  await low.waitForFunction(() => (window.apostilRendered ?? 0) >= 1, null, { timeout: 15000 });
+  const lowView = await low.$eval('#view', (el) => el.getBoundingClientRect().toJSON());
+  await low.mouse.move(lowView.left + 12, lowView.top + 12);
+  await low.keyboard.press('Meta+Shift+Period');
+  await low.keyboard.press('Enter');
+  await low.waitForSelector('.cbox [data-field="new"]:focus', { timeout: 3000 }).catch(() => {});
+  const lowCard = () => low.evaluate(() => { const box = document.querySelector('.cbox.card')?.getBoundingClientRect(); return { left: box?.left, top: box?.top, page: scrollY }; });
+  /** Scrolls the page by `by` px and waits until the card moved as far; returns how far the page and the card moved. */
+  const scrollCard = async (by) => {
+    const was = await lowCard();
+    await low.evaluate((y) => scrollBy(0, y), by);
+    await low.waitForFunction(([top, y]) => Math.abs(document.querySelector('.cbox.card').getBoundingClientRect().top - top + y) <= 2, [was.top, by], { timeout: 3000 }).catch(() => {});
+    const now = await lowCard();
+    return { page: now.page - was.page, card: Math.round(now.top - was.top) };
+  };
+  const scrolls = [await scrollCard(300), await scrollCard(-300)];
+  const beforeDrag = await lowCard();
+  const lowHead = await low.$eval('.cbox.card .ch', (el) => { const box = el.getBoundingClientRect(); return { x: box.left + 20, y: box.top + box.height / 2 }; });
+  await low.mouse.move(lowHead.x, lowHead.y);
+  await low.mouse.down();
+  await low.mouse.move(lowHead.x + 60, lowHead.y + 40, { steps: 4 });
+  await low.mouse.up();
+  const afterDrag = await lowCard();
+  const dragged = [Math.round(afterDrag.left - beforeDrag.left), Math.round(afterDrag.top - beforeDrag.top)];
+  scrolls.push(await scrollCard(300));
+  check('the card of a comment stays with its place on the page: a scroll of 300 px moves it 300 px with the page, out of view and back, and after a drag of its head the next scroll moves it with the page too',
+    scrolls.every((one, at) => one.page === [300, -300, 300][at] && Math.abs(one.card + one.page) <= 2) && dragged.join() === '60,40', JSON.stringify({ scrolls, dragged }));
+
+  // The wheel over a short card scrolls the page; over a card too long for the tab it scrolls the threads of the card, over its box too, and the page stays.
+  await scrollCard(-300);
+  const shortHead = await low.$eval('.cbox.card .ch', (el) => { const box = el.getBoundingClientRect(); return { x: box.left + 20, y: box.top + box.height / 2 }; });
+  await low.mouse.move(shortHead.x, shortHead.y);
+  await low.mouse.wheel(0, 100);
+  await low.waitForFunction(() => scrollY === 100, null, { timeout: 3000 }).catch(() => {});
+  const shortWheel = await low.evaluate(() => scrollY);
+  await low.keyboard.press('Escape');
+  await low.waitForSelector('.cbox', { state: 'detached', timeout: 3000 }).catch(() => {});
+  await low.evaluate(() => {
+    scrollTo(0, 0);
+    const target = { kind: 'node', diagram: 'lib-top', node: 'lending', label: 'Node "Lending", diagram "The library app and its parts"' };
+    const long = { id: 501, target, text: 'What does lending hold?', createdAt: new Date().toISOString(), state: 'done', answer: 'One paragraph of a long answer.\n\n'.repeat(40), answeredAt: new Date().toISOString() };
+    window.postMessage({ type: 'data', data: { ...Home.data, remarks: [...Home.data.remarks, long] } }, '*');
+  });
+  await low.click(`${nodeOf('lending')} .cb`, { timeout: 3000 }).catch(() => {});
+  await low.waitForSelector('.cbox.card .cthreads .msg.agent', { timeout: 3000 }).catch(() => {});
+  await low.evaluate(() => scrollBy(0, 100));
+  const longCard = () => low.evaluate(() => {
+    const [card, threads, box] = ['.cbox.card', '.cbox.card .cthreads', '.cbox.card .cbx'].map((selector) => document.querySelector(selector));
+    if (!threads) return {};
+    const [own, field] = [threads, box].map((el) => el.getBoundingClientRect());
+    const [top, bottom] = [Math.max(own.top, 0), Math.min(own.bottom, innerHeight)]; // the part of the threads in view
+    return { height: Math.round(card.offsetHeight), scrolled: threads.scrollTop, room: threads.scrollHeight - threads.clientHeight, page: scrollY,
+      overBox: { x: field.left + field.width / 2, y: field.top + field.height / 2 }, overThreads: { x: own.left + own.width / 2, y: (top + bottom) / 2 } };
+  });
+  const wheelOver = async (spot, was) => {
+    await low.mouse.move(spot.x, spot.y);
+    await low.mouse.wheel(0, 200);
+    await low.waitForFunction((from) => document.querySelector('.cbox.card .cthreads')?.scrollTop > from, was, { timeout: 3000 }).catch(() => {});
+    return longCard();
+  };
+  const longAtStart = await longCard();
+  const wheeledOverBox = await wheelOver(longAtStart.overBox ?? { x: 0, y: 0 }, 0);
+  const wheeledOverThreads = await wheelOver(wheeledOverBox.overThreads ?? { x: 0, y: 0 }, wheeledOverBox.scrolled);
+  await low.close();
+  check('the wheel over a short card scrolls the page; a card too long for the tab fits in it, and the wheel over it scrolls its threads, over its box too, while the page under it stays',
+    shortWheel === 100 && longAtStart.height <= 500 - 16 && longAtStart.room > 0 && longAtStart.page === 100 && wheeledOverBox.scrolled > 0 && wheeledOverThreads.scrolled > wheeledOverBox.scrolled
+      && wheeledOverBox.page === 100 && wheeledOverThreads.page === 100, JSON.stringify({ shortWheel, longAtStart, wheeledOverBox, wheeledOverThreads }));
+
   // ✓ on a card: the card and the mark of its thread shrink and fade. New data from VS Code where only the comments changed draws no new diagram.
   await home.evaluate(() => { window.keptRemarks = Home.data.remarks.map((remark) => ({ ...remark })); });
   await home.click(`${nodeOf('lending')} .cb`).catch(() => {});
