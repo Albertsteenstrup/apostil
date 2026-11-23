@@ -7,7 +7,7 @@ import { beforeProblems, diagramChange } from './diagram-change';
 import { missingCode, thingCounts, thingsOf, thingWords, type FileChange } from './diagram-code';
 import { diagramGraph, kindOfText } from './diagram-graph';
 import { columnTotals, parseSchema, schemaDrawing } from './schema';
-import { partDiagram } from '../view/page-data';
+import { partDiagram } from './page-data';
 
 // A made-up shop. The migration (db/0004_orders.sql) adds the table order_line, drops coupon, and changes the type of order.total.
 const now = `erDiagram

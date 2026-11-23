@@ -3,7 +3,7 @@
 import { changeRows, savedWords } from '../shared/change-rows';
 import { baseOf, changedFiles, commitsOf, currentBranch, repoId, tryGit } from '../shared/git';
 import type { Store } from '../shared/store';
-import { agentOf, type PageAgent } from './page-data';
+import { agentOf, type PageAgent } from '../shared/page-data';
 
 export interface ListRow {
   id?: number; // missing for the branch of the open folder when it has no change file

@@ -85,9 +85,14 @@ export function repoFiles(folder: string): string[] | undefined {
   return listed === undefined ? undefined : [...new Set(listed.split('\n').filter(Boolean))];
 }
 
-/** The same id for every worktree of one repo: its first commit. */
+/** The same id for every worktree of one repo: its first commit. Undefined when the folder is no Git repo with a commit. */
+export const repoIdOrNone = (folder: string): string | undefined => tryGit(folder, 'rev-list', '--max-parents=0', 'HEAD')?.split('\n').pop();
+
+/** The id of the repo of a folder, as repoIdOrNone; throws when there is none. */
 export function repoId(folder: string): string {
-  return git(folder, 'rev-list', '--max-parents=0', 'HEAD').split('\n').pop()!;
+  const id = repoIdOrNone(folder);
+  if (!id) throw new Error(`${folder} is no Git repo with a commit`);
+  return id;
 }
 
 /** True when a local branch still holds this commit. */

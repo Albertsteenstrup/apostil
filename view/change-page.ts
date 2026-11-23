@@ -9,14 +9,14 @@ import { openSessionCommand, sessionLink, resumeCommand, type AgentSession } fro
 import { pickFrom, type RunPick } from '../shared/models';
 import { BRANCH_WORDS, describeWords, type AskView } from '../shared/ask';
 import { keptInChange, withKept } from '../shared/comment-lines';
-import { fetchPullCommits, rawFileText } from '../shared/git';
+import { fetchPullCommits, rawFileText, repoIdOrNone } from '../shared/git';
 import type { Target } from '../shared/look';
 import { ghPictures, inlinePictures } from '../shared/pull-pictures';
 import { githubRepoOf, pullRequestFrom, readPullRequest, runGh, type PullRequestView } from '../shared/read-pull-request';
 import { writePullRequest, type Write } from '../shared/write-pull-request';
 import type { AppState, RemarkTarget, RemarkTo, Store } from '../shared/store';
 import { startRun } from './agent-run';
-import { idOf } from './home-data';
+
 import { askRunOf, askView, startAsk } from './ask-run';
 import { connectedApps } from './new-repo-steps';
 import type { PullHead } from './pull-folder';
@@ -28,8 +28,9 @@ import { fileIcons, pageOptions } from './icon-theme';
 import type { DiagramLayout } from './home-page';
 import { keptPullRequests, pullRequestsLater } from './change-list';
 import { reopenStaleRuns } from './list-rows';
-import { answer, branchPage, filePage, isListening, lookOfPage, marksBeside, notesBeside, pageData, pullLines, pullOnlyPage, takeStart, type PageData, type PullLines } from './page-data';
-import type { ChangeGo, Step, WindowTrail } from './trail';
+import { answer, branchPage, filePage, isListening, lookOfPage, marksBeside, notesBeside, pageData, pullLines, pullOnlyPage, takeStart, type PageData, type PullLines } from '../shared/page-data';
+import type { ChangeGo, Step } from '../shared/trail-step';
+import type { WindowTrail } from './trail';
 
 /**
  * Opens a session where he works with it, the one way for every link of a session (sessionOpens): in its app when it has a link of its own
@@ -621,7 +622,7 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
 
   private signatureNow(): string {
     if (this.noChange) {
-      const repo = idOf(this.openFolder());
+      const repo = repoIdOrNone(this.openFolder());
       const remarks = repo ? this.store.repoRemarks(repo).map((remark) => [remark.id, remark.sentAt, remark.state, remark.answeredAt, remark.run?.startedAt]) : [];
       return JSON.stringify([remarks, this.branchOnly && this.changeOfFolder()]); // the open branch turns into its change once an agent describes it
     }
@@ -678,7 +679,7 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
 
   /** A comment on a page with no change file: a comment of the repo. Sent to a session, a run starts in the open folder. */
   private saveRepoRemark(message: NewRemark): void {
-    const repo = idOf(this.openFolder());
+    const repo = repoIdOrNone(this.openFolder());
     if (!repo) return;
     const id = this.store.addRepoRemark(repo, message.target, message.text, message.thread);
     if (message.to) this.store.sendRemark(id, message.to);

@@ -2,12 +2,13 @@
 // the steps and the nodes that hold that line (view/media/marks.js draws them). A mark set is one kind of mark: the built-in set "services" holds
 // the services that the code reaches; a look (shared/look.ts) can add sets of its own.
 
+import { readFileSync } from 'node:fs';
 import { ID } from './change-file';
 import { fileText, repoFiles } from './git';
 import { areaOf, areaOrder, areasWaitingForNotes, codeFiles, fingerprint, largestFirst, noteGroups, slug } from './note-groups';
 import { findBlock } from './notes-beside-code';
 import type { RepoMap } from './repo-map';
-import type { StoredMap } from './store';
+import type { Store, StoredMap } from './store';
 
 export type Corner = 'upper-left' | 'upper-right' | 'lower-left' | 'lower-right';
 export const CORNERS: Corner[] = ['upper-left', 'upper-right', 'lower-left', 'lower-right'];
@@ -65,6 +66,16 @@ export const SERVICES: MarkSet = {
   rule: 'Mark each line where the code reaches a service outside the repo: a hosted API, a cloud product, a database, a tool for traces or events, or a platform that runs the code.',
 };
 
+/** The sets of a repo: the built-in services, then the sets of its look. */
+export const setsOf = (store: Store, repo: string): MarkSet[] => [SERVICES, ...(store.getLook(repo)?.look.sets ?? [])];
+
+/** The known values of a set: those that Apostil has seen in any repo, and those that the look of the repo declares. */
+export function valuesOf(store: Store, repo: string, set: string): MarkValue[] {
+  const own = store.getLook(repo)?.look.sets?.find((one) => one.id === set)?.values ?? [];
+  const seen = store.markValues(set).filter((value) => !own.some((one) => one.id === value.id));
+  return [...own, ...seen];
+}
+
 // ----- the files that a writer gives: icons, pictures and films -----
 
 const KB = 1024;
@@ -94,6 +105,20 @@ export type FileUse = keyof typeof FILE_USES;
 export const iconEndingOf = (bytes: Buffer): string | undefined => FILE_USES.icon.endings.find((ending) => KINDS[ending].test(bytes));
 
 export const endingOf = (path: string): string => (/\.([a-z0-9]+)$/i.exec(path)?.[1] ?? '').toLowerCase();
+
+/** A small kept file (an icon) as a data address, for a page that draws it; undefined when the file is gone. */
+export function dataAddress(path: string): string | undefined {
+  const type: Record<string, string> = { png: 'image/png', svg: 'image/svg+xml', ico: 'image/x-icon', webp: 'image/webp' };
+  try {
+    return `data:${type[endingOf(path)] ?? 'image/png'};base64,${readFileSync(path).toString('base64')}`;
+  } catch {
+    return undefined;
+  }
+}
+
+/** The kept icon of a value as a data address; undefined when it has none. */
+export const iconData = (store: Store, set: string, value: MarkValue): string | undefined =>
+  (value.icon ? dataAddress(store.iconFile(set, value.id, value.icon)) : undefined);
 
 /** The names of H.264 video inside an MP4 file. */
 const H264 = ['avc1', 'avc3'];

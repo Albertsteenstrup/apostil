@@ -3,7 +3,7 @@
 
 import { own } from './tools.mjs';
 
-const { partDiagram } = own('../out/view/page-data.js');
+const { partDiagram } = own('../out/shared/page-data.js');
 
 /** The made-up diagrams. `workerCode` is the answer of the example page to "code:src/library/night_jobs.py" (its lines, changed and removed rows). */
 export function madeUpDiagrams(workerCode) {

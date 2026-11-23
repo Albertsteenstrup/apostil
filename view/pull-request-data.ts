@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ghPictures, inlinePictures } from '../shared/pull-pictures';
 import { readPullRequest } from '../shared/read-pull-request';
-import { pullOnlyPage } from './page-data';
+import { pullOnlyPage } from '../shared/page-data';
 import { iconScript } from './state-icons';
 
 const [link, lookedArg, nameArg = `pull-data-${/\/pull\/(\d+)/.exec(link ?? '')?.[1] ?? ''}.js`] = process.argv.slice(2);

@@ -2,24 +2,24 @@
 // VS Code and the example script both use these functions, so the page sees the same data in both.
 
 import { basename, dirname } from 'node:path';
-import { opencodeSmallModel, resumeCommand, sessionLink, sessionName, type AgentSession, type RunModels } from '../shared/agents';
-import { menuOf, sessionPick, type ModelMenu, type RunPick } from '../shared/models';
-import type { ChangeFile, Diagram, Link, Note } from '../shared/change-file';
-import { cellsIn, checkChangeFile, fileChange } from '../shared/checks';
-import { diagramChange, withRemoved, type DiagramChange, type DrawnEdge } from '../shared/diagram-change';
-import { inNoThingWords, linesInNoThing, linkThings, linksChecked, REASON_WORDS, thingCounts, thingsOf, type FileChange, type Thing, type ThingCode } from '../shared/diagram-code';
-import { diagramGraph, type DiagramGraph } from '../shared/diagram-graph';
-import { schemaDrawing, type SchemaDrawing } from '../shared/schema';
-import { findTests } from '../shared/find-tests';
-import { addedLines, diffLines, removedLines, toRanges, type DiffLine, type RemovedLine } from '../shared/diff-lines';
-import { notesInRepo } from '../shared/notes-beside-code';
-import { baseBranchOf, baseOf, changedFiles, commitExists, fileBytes, fileDiff, fileModes, fileText, linkTarget, notebookChange, rawFileText, repoId, tryGit, type ChangedFile } from '../shared/git';
-import { cellHead, cellsAt, inCellText, isNotebookPath, placeInCell, readNotebook, type NotebookCells } from '../shared/notebook';
-import { githubRepoOf, type PullRequestView } from '../shared/read-pull-request';
-import { changeWhere, diffBaseOf, newerCommits, savedWords, type SavedAt } from '../shared/change-rows';
-import { repoDiagramOf, type RepoDiagram } from '../shared/repo-diagram';
-import type { RepoMap } from '../shared/repo-map';
-import type { CheckResult, OpenPoint, Remark, RemarkTo, Store } from '../shared/store';
+import { opencodeSmallModel, resumeCommand, sessionLink, sessionName, type AgentSession, type RunModels } from './agents';
+import { menuOf, sessionPick, type ModelMenu, type RunPick } from './models';
+import type { ChangeFile, Diagram, Link, Note } from './change-file';
+import { cellsIn, checkChangeFile, fileChange } from './checks';
+import { diagramChange, withRemoved, type DiagramChange, type DrawnEdge } from './diagram-change';
+import { inNoThingWords, linesInNoThing, linkThings, linksChecked, REASON_WORDS, thingCounts, thingsOf, type FileChange, type Thing, type ThingCode } from './diagram-code';
+import { diagramGraph, type DiagramGraph } from './diagram-graph';
+import { schemaDrawing, type SchemaDrawing } from './schema';
+import { findTests } from './find-tests';
+import { addedLines, diffLines, removedLines, toRanges, type DiffLine, type RemovedLine } from './diff-lines';
+import { notesInRepo } from './notes-beside-code';
+import { baseBranchOf, baseOf, changedFiles, commitExists, fileBytes, fileDiff, fileModes, fileText, linkTarget, notebookChange, rawFileText, repoId, tryGit, type ChangedFile } from './git';
+import { cellHead, cellsAt, inCellText, isNotebookPath, placeInCell, readNotebook, type NotebookCells } from './notebook';
+import { githubRepoOf, type PullRequestView } from './read-pull-request';
+import { changeWhere, diffBaseOf, newerCommits, savedWords, type SavedAt } from './change-rows';
+import { repoDiagramOf, type RepoDiagram } from './repo-diagram';
+import type { RepoMap } from './repo-map';
+import type { CheckResult, OpenPoint, Remark, RemarkTo, Store } from './store';
 import { broadMermaid, broadTotal, changeMermaid, drillUpStyle, partMermaid, type BroadTotal } from './change-diagram';
 import { lookData, standingMarks, type LookData, type MarkHere } from './look-data';
 

@@ -9,7 +9,7 @@ import { apostilCommands, EVENT_KINDS, LOOK_PARTS, lookProblems, ROW_STATES, typ
 import type { RepoMap } from '../shared/repo-map';
 import { EXAMPLE_LOOK, makeCheckExample } from './check-example';
 import { fileRow, graphsIconClick, treeChildren } from './files-follow';
-import type { LookData } from './look-data';
+import type { LookData } from '../shared/look-data';
 
 /* eslint-disable @typescript-eslint/no-require-imports */
 const PartLook = require('../../view/media/part-look.js');

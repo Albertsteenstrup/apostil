@@ -6,13 +6,12 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { headCommit, repoId } from '../shared/git';
 import { findInMap, notesNow } from '../shared/map-read';
-import { homeRun, mapRunLine, mapRunState, QUIET_MS, withEnd, withSave, type MapRun } from '../shared/map-run';
+import { areaWork, homeRun, mapRunLine, mapRunState, QUIET_MS, withEnd, withSave, type MapRun } from '../shared/map-run';
 import { noteGroups } from '../shared/note-groups';
 import { processFacts } from '../shared/processes';
 import { Store } from '../shared/store';
 import { makeTestRepo, tempFolder } from '../shared/test-repo';
 import { runMapCommand } from './map-commands';
-import { areaWork } from './map-run';
 import { addNotesToMap } from './save';
 
 const SESSION = '1a2b3c4d-0000-4000-8000-00000000cafe'; // made up

@@ -8,7 +8,7 @@ import { after, test } from 'node:test';
 import type { ChangeFile } from '../shared/change-file';
 import { git } from '../shared/git';
 import { makeTestRepo } from '../shared/test-repo';
-import { answer, examplePage, sizeText, type PictureAnswer } from './page-data';
+import { answer, examplePage, sizeText, type PictureAnswer } from '../shared/page-data';
 import type { DiffLine } from '../shared/diff-lines';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports

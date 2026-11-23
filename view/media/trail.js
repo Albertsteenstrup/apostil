@@ -104,7 +104,7 @@ const Trail = (() => {
 
   /**
    * Draws the line of the view that the page shows now. attrs: the mark of the last step; extra: a bold name after it that is not a step; look: the look
-   * of the repo (view/look-data.ts), whose rules of "trail-step" give a step its words, an icon and a colour.
+   * of the repo (shared/look-data.ts), whose rules of "trail-step" give a step its words, an icon and a colour.
    */
   function show(el, step, { attrs = '', extra = '', look } = {}) {
     own = step;

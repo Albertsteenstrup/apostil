@@ -1,7 +1,7 @@
 // Marks and the look on a page: which rule wins each slot of a thing, the marks that roll up to it, the colours of both themes, and the drawing
 // of corners, boxes, pictures, films and arrows. Home draws its diagrams with it and the file tab its note cards; one path draws a mark of any set.
 // Also the shared kinds of every component: the fields that a rule reads, what shows, the words, the window of the pointer, and where a click,
-// a key or a menu entry goes (act). The rules come from view/look-data.ts, in the order that they apply. The first part has no drawing, so that
+// a key or a menu entry goes (act). The rules come from shared/look-data.ts, in the order that they apply. The first part has no drawing, so that
 // the tests read it in Node.
 'use strict';
 
@@ -614,7 +614,7 @@ const Marks = (() => {
   });
 
   /**
-   * The things of the page of a change of one kind, or of every kind, from its data (view/page-data.ts): the card, the parts, the box of the files in no
+   * The things of the page of a change of one kind, or of every kind, from its data (shared/page-data.ts): the card, the parts, the box of the files in no
    * part, the links between parts, the files of the list of diffs, the views, the diagrams of the parts and their steps, the list of comments, the threads,
    * the open points and the comment marks (one for each place with open threads). Each with its kind, its id, its paths and its fields. Worked out each time:
    * a page changes its data in place. A part holds the marks under its files, as a node of Home holds those under its paths, and a step of a flow chart

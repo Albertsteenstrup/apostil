@@ -5,12 +5,12 @@ import { existsSync } from 'node:fs';
 import { test } from 'node:test';
 import { repoId } from '../shared/git';
 import { fetchIcon, publicHost, type Fetcher } from '../shared/icon-fetch';
-import { markFacts } from '../shared/marks';
+import { markFacts, setsOf, valuesOf } from '../shared/marks';
 import type { RepoMap } from '../shared/repo-map';
 import { Store } from '../shared/store';
 import { makeTestRepo, tempFolder } from '../shared/test-repo';
 import { saveIcon } from './icon';
-import { addMarksToMap, setsOf, valuesOf } from './marks-save';
+import { addMarksToMap } from './marks-save';
 import { saveMapDraft } from './save';
 
 const PNG = Buffer.concat([Buffer.from('89504e470d0a1a0a0000000d4948445200000001000000010806000000', 'hex'), Buffer.alloc(40)]);

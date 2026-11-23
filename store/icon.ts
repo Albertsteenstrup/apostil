@@ -4,9 +4,8 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { headCommit, repoId } from '../shared/git';
 import { fetchIcon, hostFits, type Fetcher } from '../shared/icon-fetch';
-import { SERVICES, siteOf } from '../shared/marks';
+import { SERVICES, siteOf, valuesOf } from '../shared/marks';
 import type { Store } from '../shared/store';
-import { valuesOf } from './marks-save';
 
 export interface IconResult {
   saved: boolean;

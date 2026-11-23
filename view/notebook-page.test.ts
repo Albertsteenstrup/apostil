@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
 import { makeNotebookRepo, notebookChangeFile } from '../shared/test-repo';
-import { answer, examplePage, type CodeAnswer } from './page-data';
+import { answer, examplePage, type CodeAnswer } from '../shared/page-data';
 import type { DiffLine } from '../shared/diff-lines';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports

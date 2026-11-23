@@ -7,35 +7,11 @@ import { dirname, join } from 'node:path';
 import { currentBranch, fileText, headCommit, repoFiles, repoId, repoRoot } from '../shared/git';
 import { apostilCommands, lookFiles, lookProblems, type Look, type LookFile } from '../shared/look';
 import {
-  endingOf, fileProblem, FILE_USES, isId, isLine, isText, ONE_WORD, readPrints, RELATIONS, SERVICES, siteOf,
-  type IconRefused, type Mark, type MarkSet, type MarkValue, type NamedThing, type Relation,
+  endingOf, fileProblem, FILE_USES, isId, isLine, isText, ONE_WORD, readPrints, RELATIONS, SERVICES, setsOf, siteOf, valuesOf,
+  type IconRefused, type Mark, type NamedThing, type Relation,
 } from '../shared/marks';
 import type { RepoMap } from '../shared/repo-map';
 import type { Store } from '../shared/store';
-
-/** The sets of a repo: the built-in services, then the sets of its look. */
-export const setsOf = (store: Store, repo: string): MarkSet[] => [SERVICES, ...(store.getLook(repo)?.look.sets ?? [])];
-
-/** The known values of a set: those that Apostil has seen in any repo, and those that the look of the repo declares. */
-export function valuesOf(store: Store, repo: string, set: string): MarkValue[] {
-  const own = store.getLook(repo)?.look.sets?.find((one) => one.id === set)?.values ?? [];
-  const seen = store.markValues(set).filter((value) => !own.some((one) => one.id === value.id));
-  return [...own, ...seen];
-}
-
-/** A small kept file (an icon) as a data address, for a page that draws it; undefined when the file is gone. */
-export function dataAddress(path: string): string | undefined {
-  const type: Record<string, string> = { png: 'image/png', svg: 'image/svg+xml', ico: 'image/x-icon', webp: 'image/webp' };
-  try {
-    return `data:${type[endingOf(path)] ?? 'image/png'};base64,${readFileSync(path).toString('base64')}`;
-  } catch {
-    return undefined;
-  }
-}
-
-/** The kept icon of a value as a data address; undefined when it has none. */
-export const iconData = (store: Store, set: string, value: MarkValue): string | undefined =>
-  (value.icon ? dataAddress(store.iconFile(set, value.id, value.icon)) : undefined);
 
 /** Reads a file of the repo folder, or undefined when it is not there or lies outside the folder. */
 function readInRepo(root: string, path: string): Buffer | undefined {

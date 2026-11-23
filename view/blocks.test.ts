@@ -16,7 +16,7 @@ import { setLook } from '../store/marks-save';
 import { saveMapDraft } from '../store/save';
 import { EXAMPLE_LOOK, makeCheckExample, putLookFiles } from './check-example';
 import { blocksAnswer, blocksNow, pageData, type ShownBlock } from './look-blocks';
-import { lookData } from './look-data';
+import { lookData } from '../shared/look-data';
 
 const example = makeCheckExample();
 const repo = makeTestRepo();

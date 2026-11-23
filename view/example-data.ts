@@ -17,10 +17,10 @@ import { madeUpAgentHome, tempFolder } from '../shared/test-repo';
 import { menuOf, sessionPick, teamOf } from '../shared/models';
 import { EXAMPLE_FILES, EXAMPLE_LOOK, makeCheckExample, putLookFiles } from './check-example';
 import { changePaths, homePaths, iconsFor, languagesOf, readIconTheme } from './file-icons';
-import { asDefault, type LookData } from './look-data';
+import { asDefault, type LookData } from '../shared/look-data';
 import { blocksAnswer, pageData, type CustomPageData } from './look-blocks';
 import { addMarksToMap, setLook } from '../store/marks-save';
-import { graphsData, homeData, homeRowState, mapRunOf, type GraphsData, type HomeData } from './home-data';
+import { graphsData, homeData, homeRowState, mapRunOf, type GraphsData, type HomeData } from '../shared/home-data';
 import { homeRun, withEnd, withSave, type MapRun, type MapRunLine } from '../shared/map-run';
 import type { MapPlan, SaveTime } from '../shared/map-estimate';
 import { sessionGroups, type ListRow } from './list-rows';
@@ -28,7 +28,7 @@ import { pullRequestFrom, type Person } from '../shared/read-pull-request';
 import { iconScript } from './state-icons';
 import { exampleEarlierChange, examplePullRequest, exampleMergedPullRequest, exampleReadyPullRequest } from './example-pull-request';
 import { saveMapDraft } from '../store/save';
-import { agentOf, allQuestions, answer, diffRanges, examplePage, lookOfPage, marksBeside, notesBeside, type SendTo } from './page-data';
+import { agentOf, allQuestions, answer, diffRanges, examplePage, lookOfPage, marksBeside, notesBeside, type SendTo } from '../shared/page-data';
 
 const [folderArg, fileArg, pointsArg, mapArg] = process.argv.slice(2);
 // Made up: the catalogs of the agent apps and the last turns of two sessions, in a home of their own; the real home is never read here.

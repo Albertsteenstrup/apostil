@@ -12,7 +12,7 @@ import { tempFolder } from '../shared/test-repo';
 import { lookChanges } from '../store/look-changes';
 import { saveMapDraft } from '../store/save';
 import { EXAMPLE_LOOK, makeCheckExample } from './check-example';
-import { homeData, type HomeDiagram } from './home-data';
+import { homeData, type HomeDiagram } from '../shared/home-data';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const Marks = require('../../view/media/marks.js');

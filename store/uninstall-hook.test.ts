@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { makeTestRepo, tempFolder } from '../shared/test-repo';
-import { installCommand } from '../view/install-command';
+import { installCommand } from '../shared/install-command';
 import { connectClaudeCode } from './connect-claude-code';
 import { setup, thisInstall } from './setup';
 import { cleanUp } from './uninstall-hook';

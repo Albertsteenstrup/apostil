@@ -12,7 +12,7 @@ import { isTestPath, parseKey, processFacts, stepKey } from '../shared/processes
 import { diagramsOf, type RepoMap } from '../shared/repo-map';
 import { Store } from '../shared/store';
 import { makeTestRepo, runApostil, tempFolder } from '../shared/test-repo';
-import { graphsData, homeData } from '../view/home-data';
+import { graphsData, homeData } from '../shared/home-data';
 import { addProcessesToMap } from './processes-save';
 import { addNotesToMap, saveMapDraft } from './save';
 

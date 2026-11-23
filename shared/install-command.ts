@@ -1,4 +1,4 @@
-// Puts the apostil command on the path: a launcher script for an installed extension, a link to out/store/cli.js for a checkout. No `vscode` import.
+// Puts the apostil command on the path: a launcher script for an installed extension, a link to out/store/cli.js for a checkout.
 
 import { accessSync, chmodSync, constants, lstatSync, readFileSync, readlinkSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';

@@ -1,8 +1,12 @@
 // The record of a map run: one for a repo while its map is being written. It says which session writes the map and what is saved so far.
-// The store keeps it (Store.mapRun and Store.changeMapRun), the saves of the writers add to it (store/map-run.ts), and Home shows its line (mapRunLine).
+// The store keeps it (Store.mapRun and Store.changeMapRun), the saves of the writers add to it (store/map-run.ts), and Home shows its line (mapRunLine) and the work of each area (areaWork).
 
 import { APP_NAMES, sessionOpens, type AgentSession } from './agents';
+import { repoId } from './git';
 import { timeLeft, type MapPlan, type SaveKind, type SaveTime, type TimeLeft } from './map-estimate';
+import { markGroups, setsOf } from './marks';
+import { areaOf, codeFiles, noteGroups, processGroups } from './note-groups';
+import type { Store, StoredMap } from './store';
 
 /** An open record with no save for this long counts as stopped. */
 export const QUIET_MS = 30 * 60_000;
@@ -162,4 +166,41 @@ export function mapRunLine(run: MapRun | undefined, has: { name?: string; alive?
   const opens = shown ? 'shown' : run.agent && (!run.home || state === 'stopped') && (!id || /^[\w-]+$/.test(id)) ? sessionOpens(run.agent) : undefined;
   const time = state === 'writing' ? runTimeLeft(run, has.now) : undefined;
   return { state, words, ...(tip ? { tip } : {}), ...(opens ? { opens } : {}), ...(time ? { time } : {}) };
+}
+
+// ----- the work of each area, for the cards of Home while a run writes -----
+
+let kept: { key: string; areas: Record<string, AreaWork> } | undefined; // the last answer: it reads the code files, and Home asks again on each reload
+
+/**
+ * The areas of the top diagram that have work left in a run of the whole map, by node id; an area that is not named is done. The work of an area: the notes of
+ * its code files, then the processes of its group, then its services. Nothing of an area waits for another area: its notes start as soon as the overview
+ * is saved, and its processes and its services as soon as its notes are saved. The record says what is saved, not which writer runs, so every area with
+ * work left is "working". `share`: its part of the three that is done.
+ */
+export function areaWork(store: Store, folder: string, stored: StoredMap, run: MapRun): Record<string, AreaWork> {
+  const key = `${stored.savedAt}|${run.savedAt ?? run.startedAt}|${folder}`;
+  if (kept?.key === key) return kept.areas;
+  const { map } = stored;
+  const top = map.diagrams.find((diagram) => !diagram.parent);
+  const total = new Map<string, number>(); // the code files of each area
+  for (const file of codeFiles(folder).files) total.set(areaOf(map, file.path) ?? '', (total.get(areaOf(map, file.path) ?? '') ?? 0) + 1);
+  const notes = noteGroups(folder, stored).groups;
+  const needing = new Map<string, number>();
+  const areaOfPath = new Map(notes.flatMap((group) => group.files.map((file) => [file.path, group.area ?? ''] as const))); // a file with parts counts once
+  for (const area of areaOfPath.values()) needing.set(area, (needing.get(area) ?? 0) + 1);
+  const noProcess = new Set(processGroups(map).groups.filter((group) => group.why?.includes('no process yet')).map((group) => group.area ?? ''));
+  const marking = new Set(setsOf(store, repoId(folder)).flatMap((set) => markGroups(folder, map, set.id).groups.map((group) => group.area ?? '')));
+  const areas: Record<string, AreaWork> = {};
+  for (const area of Object.keys(top?.nodePaths ?? {})) {
+    const files = total.get(area) ?? 0;
+    const notesLeft = needing.get(area) ?? 0;
+    const processLeft = noProcess.has(area) || (notesLeft > 0 && files > 0);
+    const marksLeft = marking.has(area);
+    if (!notesLeft && !processLeft && !marksLeft) continue;
+    const share = ((files ? 1 - notesLeft / files : 1) + (processLeft ? 0 : 1) + (marksLeft ? 0 : 1)) / 3;
+    areas[area] = { state: 'working', share: Math.round(share * 100) / 100 };
+  }
+  kept = { key, areas };
+  return areas;
 }

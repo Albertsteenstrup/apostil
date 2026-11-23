@@ -108,7 +108,7 @@ async function drawMermaid(into, text, plain, schema, key, again = false) {
   const svg = into.querySelector('svg');
   if (svg) {
     lookColors(svg);
-    svg.classList.toggle('litnames', /^\s*classDef lit\b/m.test(text)); // a drawing of change-diagram.ts: its lit nodes have their names in teal (look.css)
+    svg.classList.toggle('litnames', /^\s*classDef lit\b/m.test(text)); // a drawing of shared/change-diagram.ts: its lit nodes have their names in teal (look.css)
     cutLifelines(svg);
     fitToContent(svg);
     // Words wider than their box: the measure of Mermaid was off (the font changed while it drew). Drawn once more, they fit.
@@ -796,7 +796,7 @@ async function drawChange(into, fromPart, tie) {
 
 /**
  * The diagram of the change in the look: the parts, the box of the files in no part and the links between parts as things of the look,
- * by their node ids in the text of change-diagram.ts. The fields of a part that a rule shows, and the box in no part folded or left out, are written
+ * by their node ids in the text of shared/change-diagram.ts. The fields of a part that a rule shows, and the box in no part folded or left out, are written
  * into the labels; then marks.js adds the shapes, the icons and the words of the links before Mermaid draws, as on Home (lookText).
  * Returns the text, the things by node id and the arrows for decorate; with no look, the text as it is.
  */

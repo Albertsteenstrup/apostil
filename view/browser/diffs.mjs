@@ -5,8 +5,8 @@
 import { madeUpDiagrams } from './made-up.mjs';
 import { check, errors, finish, HIDDEN_KEY, newPage, openPage, own, pageFile, takePicture } from './tools.mjs';
 
-const { changeMermaid } = own('../out/view/change-diagram.js');
-const { partDiagram } = own('../out/view/page-data.js');
+const { changeMermaid } = own('../out/shared/change-diagram.js');
+const { partDiagram } = own('../out/shared/page-data.js');
 const { withRemoved } = own('../out/shared/diagram-change.js');
 
 const listen = (page) => {

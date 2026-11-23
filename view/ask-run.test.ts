@@ -10,7 +10,7 @@ import { Store } from '../shared/store';
 import { madeUpAgentHome, makePullRepo, makeTestRepo, tempFolder, testChangeFile } from '../shared/test-repo';
 import { WRITER_AGENT } from '../shared/agents';
 import { askView, ON_BRANCH, startAsk } from './ask-run';
-import { pageData } from './page-data';
+import { pageData } from '../shared/page-data';
 
 test('the press starts a new session with the words, its id known at once, led by the second smallest model with the smallest as its writers, at the most effort; a run that was not allowed a command stopped, and the press is there again', async () => {
   const repo = makeTestRepo();

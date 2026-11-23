@@ -2,7 +2,8 @@
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { TrailRules, WindowTrail, type Step } from './trail';
+import type { Step } from '../shared/trail-step';
+import { TrailRules, WindowTrail } from './trail';
 
 const { HOME, start, upTo, walk, before, goTo, next } = TrailRules;
 const lower: Step = { tab: 'home', diagram: 'lending', lit: [], name: 'Lending' };

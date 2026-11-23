@@ -562,7 +562,7 @@ body.list{--bar:var(--vscode-sideBar-background,var(--paper));background:var(--b
 .stage.focus g.node:not(.tied) + g > .calldot,.stage.focus path.colink:not(.tied){opacity:.4}
 .stage.focus path.colink.tied{stroke:var(--teal)!important;stroke-width:2px!important}
 .stage.focus.rest g.node.tied,.stage.focus.rest .edgePaths,.stage.focus.rest .edgeLabels{opacity:1}
-/* the classes that change-diagram.ts writes: in its drawings a lit node has its name in teal, and the arrows to a new node are lit; the part kept whole, the files in no part, a removed node */
+/* the classes that shared/change-diagram.ts writes: in its drawings a lit node has its name in teal, and the arrows to a new node are lit; the part kept whole, the files in no part, a removed node */
 .stage svg.litnames g.node.lit > *{fill:var(--tealsoft)!important;stroke:var(--teal)!important;color:var(--tealink)!important}
 .stage svg.litnames g.node.lit span{color:var(--tealink)!important}
 .stage svg.litnames g.node.lit tspan{fill:var(--tealink)!important}

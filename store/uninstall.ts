@@ -7,7 +7,7 @@ import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync, rmSync,
 import { delimiter, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { tryGit } from '../shared/git';
 import { Store } from '../shared/store';
-import { isOwnLink, ownTarget } from '../view/install-command';
+import { isOwnLink, ownTarget } from '../shared/install-command';
 import { exitOf } from './doctor';
 import { line, setup, short, type Install, type Machine } from './setup';
 import { RECORD_FILE, recordRepo, setUpRepos } from './setup-record';

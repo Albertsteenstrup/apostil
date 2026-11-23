@@ -16,7 +16,8 @@ import { registerFirstStart } from './first-start';
 import { registerReportIssue } from './report-issue';
 import { rowOfFileInFront, TreeFocus, treeSteps, type TreeEnd, type TreeStep } from './files-follow';
 import { FilesTree } from './files-tree';
-import { idOf, mainStepOf } from './home-data';
+import { mainStepOf } from '../shared/home-data';
+import { repoIdOrNone } from '../shared/git';
 import { HomePages } from './home-page';
 import { fileIcons } from './icon-theme';
 import { lookPages } from './look-blocks';
@@ -28,7 +29,8 @@ import { fileOfTab, NotesBesideCode } from './notes-beside-code';
 import { registerHomeWhenEmpty } from './home-when-empty';
 import { githubRepoOf, parsePullRef, pullLink } from '../shared/read-pull-request';
 import { SortAndFilter } from './sort-filter-pick';
-import { TrailRules, WindowTrail, type Step } from './trail';
+import type { Step } from '../shared/trail-step';
+import { TrailRules, WindowTrail } from './trail';
 import { registerUninstall } from './uninstall-in-vscode';
 import type { Target } from '../shared/look';
 
@@ -205,7 +207,7 @@ export function activate(context: vscode.ExtensionContext) {
     openStep: (step) => { trail.start(step); openStep(step); },
     showInTree: (paths) => home.showInTree(paths, true),
     changeOfBranch: (branch) => {
-      const repo = idOf(openFolder());
+      const repo = repoIdOrNone(openFolder());
       const change = repo ? theStore.listChanges(repo).find((one) => one.branch === branch) : undefined;
       return change && { id: change.id, title: change.file.title, parts: change.file.parts.map(({ id, name }) => ({ id, name })) };
     },

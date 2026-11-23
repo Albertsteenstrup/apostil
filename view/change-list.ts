@@ -3,16 +3,16 @@
 import { execFile } from 'node:child_process';
 import { homedir } from 'node:os';
 import * as vscode from 'vscode';
-import { tryGit } from '../shared/git';
+import { repoIdOrNone, tryGit } from '../shared/git';
 import { readRepoPulls, type RepoPulls } from '../shared/repo-pulls';
 import type { Target } from '../shared/look';
 import { ghArguments, pullRequestsFromJson, stackArguments, stackPlacesFromJson, withStacks, type PullRequest, type StackPlace } from '../shared/pull-requests';
 import type { Store } from '../shared/store';
 import { someAppSeesSkills, thisInstall } from '../store/setup';
 import { openLink, webviewHtml } from './change-page';
-import { homeRowState, idOf } from './home-data';
+import { homeRowState } from '../shared/home-data';
 import { listRows, reopenStaleRuns, sessionGroups, type ListRow } from './list-rows';
-import { savedLook } from './look-data';
+import { savedLook } from '../shared/look-data';
 import type { MenuMessage } from './sort-filter';
 
 const KEEP_MS = 60_000;
@@ -162,8 +162,8 @@ export class ChangeList implements vscode.WebviewViewProvider {
     const repo = folder ? (tryGit(folder, 'rev-parse', '--show-toplevel') ?? folder).split('/').pop() : '';
     this.signature = this.signatureNow();
     this.sentRows = this.rows();
-    this.searchKey = `apostil.listSearch:${(folder && idOf(folder)) || folder}`;
-    const id = folder ? idOf(folder) : undefined;
+    this.searchKey = `apostil.listSearch:${(folder && repoIdOrNone(folder)) || folder}`;
+    const id = folder ? repoIdOrNone(folder) : undefined;
     const look = id ? savedLook(this.store, id, folder) : undefined; // the look of the repo for the rows, when one is saved
     // homeState: what the row "Home" says while a map run writes the map of the repo.
     this.view.webview.postMessage({ type: 'rows', repo, groups: sessionGroups(this.sentRows), search: this.memory?.get<ListSearch>(this.searchKey), look, homeState: homeRowState(this.store, id) });
@@ -202,7 +202,7 @@ export class ChangeList implements vscode.WebviewViewProvider {
 
   private signatureNow(): string {
     const folder = this.openFolder();
-    const id = folder ? idOf(folder) : undefined;
+    const id = folder ? repoIdOrNone(folder) : undefined;
     return JSON.stringify(id ? [this.store.getLook(id)?.savedAt, homeRowState(this.store, id), ...this.store.listChanges(id).map((change) => [
       change.id, change.savedAt, change.head, change.checks.filesInNoPart.length, change.agent,
       this.store.remarks(change.id).map((remark) => remark.state).join(),

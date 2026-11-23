@@ -1,5 +1,5 @@
 // A diagram of a change draws on a diagram of the repo: its "of" names a diagram of the map or a drawing of the map, and its "before" is the text of
-// that diagram as it is. The save holds a writer to it (store/save.ts), and the change page links each such diagram to Home (view/page-data.ts).
+// that diagram as it is. The save holds a writer to it (store/save.ts), and the change page links each such diagram to Home (shared/page-data.ts).
 
 import type { Diagram } from './change-file';
 import { mapDrawing } from './comment-lines';

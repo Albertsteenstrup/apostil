@@ -5,11 +5,12 @@
 import { join } from 'node:path';
 import * as vscode from 'vscode';
 import type { Store } from '../shared/store';
-import { diagramPaths, inDiagrams, repoFiles } from './home-data';
+import { diagramPaths, inDiagrams } from '../shared/home-data';
+import { repoFiles, repoIdOrNone } from '../shared/git';
 import type { Target } from '../shared/look';
 import { fileRow, graphsIconClick, treeChildren } from './files-follow';
-import { idOf } from './home-data';
-import { savedLook, type LookData } from './look-data';
+
+import { savedLook, type LookData } from '../shared/look-data';
 
 /** A row is its repo path; a folder ends with "/". */
 export class FilesTree implements vscode.TreeDataProvider<string> {
@@ -49,7 +50,7 @@ export class FilesTree implements vscode.TreeDataProvider<string> {
       if (!sets.has(parent)) sets.set(parent, new Set());
       sets.get(parent)!.add(row);
     };
-    for (const file of folder ? repoFiles(folder) : []) {
+    for (const file of folder ? repoFiles(folder) ?? [] : []) {
       const parts = file.split('/');
       parts.forEach((_, index) => add(parts.slice(0, index).map((name) => `${name}/`).join(''), parts.slice(0, index + 1).join('/') + (index < parts.length - 1 ? '/' : '')));
     }
@@ -83,11 +84,11 @@ export class FilesTree implements vscode.TreeDataProvider<string> {
 
   /** Reads the look of the repo, when one is saved, and counts the files under each folder for it. */
   private loadLook(folder: string): void {
-    const id = folder ? idOf(folder) : undefined;
+    const id = folder ? repoIdOrNone(folder) : undefined;
     this.look = id ? savedLook(this.store, id, folder, true) : undefined;
     this.lookFolder = id ? this.store.lookFolder(id) : '';
     this.counts.clear();
-    for (const file of this.look ? repoFiles(folder) : []) {
+    for (const file of this.look ? repoFiles(folder) ?? [] : []) {
       const parts = file.split('/');
       for (let at = 1; at < parts.length; at++) { const under = `${parts.slice(0, at).join('/')}/`; this.counts.set(under, (this.counts.get(under) ?? 0) + 1); }
     }

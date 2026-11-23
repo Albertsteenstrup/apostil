@@ -7,7 +7,7 @@ import { git } from '../shared/git';
 import { Store } from '../shared/store';
 import { makeTestRepo, tempFolder, testChangeFile } from '../shared/test-repo';
 import { listRows } from './list-rows';
-import { pageData } from './page-data';
+import { pageData } from '../shared/page-data';
 
 const withIdentity = ['-c', 'user.name=Test', '-c', 'user.email=test@example.com', '-c', 'commit.gpgsign=false'];
 

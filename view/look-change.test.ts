@@ -17,8 +17,8 @@ import { tempFolder } from '../shared/test-repo';
 import { lookChanges } from '../store/look-changes';
 import { setLook } from '../store/marks-save';
 import { EXAMPLE_LOOK, makeCheckExample } from './check-example';
-import { lookRules } from './look-data';
-import { filePage, lookOfPage } from './page-data';
+import { lookRules } from '../shared/look-data';
+import { filePage, lookOfPage } from '../shared/page-data';
 
 /* eslint-disable @typescript-eslint/no-require-imports */
 const Marks = require('../../view/media/marks.js');
