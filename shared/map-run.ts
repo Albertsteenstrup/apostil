@@ -47,10 +47,11 @@ export type MapSave = { overview: true } | { area: string } | { noteFiles: numbe
 /**
  * Where a run stands. "writing": it is open and saved something in the last 30 minutes. "stopped": it ended with work left, or it writes the whole
  * map and saved nothing for 30 minutes. "done": it ended; a run that wrote only a part of a map (notes alone, as an example) and is quiet also counts as done.
+ * `alive`: the window that started the run still has its program, so a long quiet time is no stop.
  */
-export function mapRunState(run: MapRun, now = Date.now()): 'writing' | 'stopped' | 'done' {
+export function mapRunState(run: MapRun, now = Date.now(), alive = false): 'writing' | 'stopped' | 'done' {
   if (run.endedAt) return run.stopped ? 'stopped' : 'done';
-  if (now - Date.parse(run.savedAt ?? run.startedAt) <= QUIET_MS) return 'writing';
+  if (alive || now - Date.parse(run.savedAt ?? run.startedAt) <= QUIET_MS) return 'writing';
   return run.whole ? 'stopped' : 'done';
 }
 
@@ -107,6 +108,7 @@ export interface MapRunLine {
   opens?: 'app' | 'terminal' | 'shown'; // "Open the session" opens it in its app, in a terminal of VS Code that continues it (sessionOpens), or shows the terminal where it writes
   time?: TimeLeft; // while a run of the whole map writes and has a plan: the minutes left and the share of the bar
   areas?: Record<string, AreaWork>; // the areas of the top diagram with work left, by node id; an area that is not named is done (homeData adds it)
+  chart?: true; // "Live chart": a run of Home by Claude Code with a known session, whose transcripts the chart reads (shared/map-run-chart.ts)
 }
 
 /** An area of the top diagram with work left, which writers work on now; `share`: the part of its work that is done. */
@@ -155,7 +157,7 @@ function sessionWords(run: MapRun, name?: string): string {
  */
 export function mapRunLine(run: MapRun | undefined, has: { name?: string; alive?: boolean; now?: number } = {}): MapRunLine | undefined {
   if (!run) return undefined;
-  const state = has.alive && !run.endedAt ? 'writing' : mapRunState(run, has.now);
+  const state = mapRunState(run, has.now, has.alive);
   if (state === 'done') return undefined;
   const session = sessionWords(run, has.name);
   const saved = partsWords(run.parts);
@@ -165,7 +167,8 @@ export function mapRunLine(run: MapRun | undefined, has: { name?: string; alive?
   const shown = run.terminal && has.alive && state === 'writing';
   const opens = shown ? 'shown' : run.agent && (!run.home || state === 'stopped') && (!id || /^[\w-]+$/.test(id)) ? sessionOpens(run.agent) : undefined;
   const time = state === 'writing' ? runTimeLeft(run, has.now) : undefined;
-  return { state, words, ...(tip ? { tip } : {}), ...(opens ? { opens } : {}), ...(time ? { time } : {}) };
+  const chart = run.home && run.agent?.app === 'claude-code' && !!id;
+  return { state, words, ...(tip ? { tip } : {}), ...(opens ? { opens } : {}), ...(time ? { time } : {}), ...(chart ? { chart: true as const } : {}) };
 }
 
 // ----- the work of each area, for the cards of Home while a run writes -----

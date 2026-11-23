@@ -58,6 +58,49 @@ export function madeUpAgentHome(sessions: { claude?: Record<string, [string, str
   return home;
 }
 
+/** A made-up line of a Claude Code transcript, `minute` minutes after `start`. */
+export const transcriptLine = (start: number, minute: number, type: string, more: object = {}): string =>
+  `${JSON.stringify({ type, timestamp: new Date(start + Math.round(minute * 60_000)).toISOString(), ...more })}\n`;
+
+/**
+ * A made-up map session of Claude Code in an agent home, as its transcripts stand `start` + 10 minutes: the lead (Sonnet 5.5) thinks, runs one
+ * command and starts four writers (Haiku 5.5): an overview, notes, a process writer that still runs, and a service writer. With `ended` the process
+ * writer ended at minute 10. Returns the transcript of the lead and the folder of the writers.
+ */
+export function madeUpMapSession(home: string, session: string, start: number, ended = false): { transcript: string; writers: string } {
+  const folder = join(home, '.claude', 'projects', 'made-up-project');
+  const writers = join(folder, session, 'subagents');
+  mkdirSync(writers, { recursive: true });
+  const line = (minute: number, type: string, more: object = {}): string => transcriptLine(start, minute, type, more);
+  const answer = (minute: number, id: string, tokens: number, model: string, content: object[] = []): string =>
+    line(minute, 'assistant', { effort: 'medium', message: { id, model, content, usage: { output_tokens: tokens } } });
+  const result = (minute: number, id: string): string => line(minute, 'user', { message: { content: [{ type: 'tool_result', tool_use_id: id }] } });
+  const lead = (minute: number, id: string, content: object[] = []): string => answer(minute, id, 50, 'claude-sonnet-5-5', content);
+  const transcript = join(folder, `${session}.jsonl`);
+  writeFileSync(transcript, [
+    line(0, 'user', { message: { content: 'Write the map of this made-up repo.' } }),
+    line(0.03, 'api-request'), lead(0.33, 'lead-1', [{ type: 'tool_use', id: 'agent-1', name: 'Agent', input: {} }]), result(0.35, 'agent-1'),
+    line(0.37, 'api-request'), lead(0.67, 'lead-2', [{ type: 'tool_use', id: 'command-1', name: 'Bash', input: {} }]), result(1.17, 'command-1'),
+    line(1.18, 'api-request'), lead(1.5, 'lead-3', [{ type: 'tool_use', id: 'agent-2', name: 'Agent', input: {} }]), result(1.52, 'agent-2'),
+    line(6, 'user', { message: { content: '<task-notification>A writer ended.</task-notification>' } }),
+    line(6.02, 'api-request'), lead(6.5, 'lead-4'),
+    line(9, 'api-request'),
+    ...(ended ? [lead(10.5, 'lead-5')] : []),
+  ].join(''));
+  const writer = (id: string, kind: string, task: string, minutes: number[], finished: boolean): void => {
+    writeFileSync(join(writers, `agent-${id}.meta.json`), JSON.stringify({ agentType: 'apostil-writer', description: task, model: 'claude-haiku-5-5', ...(finished ? { finished: true } : {}) }));
+    writeFileSync(join(writers, `agent-${id}.jsonl`), [
+      line(minutes[0], 'user', { message: { content: `First run \`apostil prompt ${kind}\` and follow what it prints.` } }),
+      ...minutes.slice(1).map((minute, at) => answer(minute, `${id}-${Math.floor(at / 2)}`, 100 * (at + 1), 'claude-haiku-5-5')),
+    ].join(''));
+  };
+  writer('overview', 'overview', 'Overview: made-up repo', [0.35, 1, 2, 4], true); // tokens 200 + 300
+  writer('notes', 'notes', 'Notes: lending-0a1b2c', [1.52, 3, 5], true); // 200
+  writer('process', 'process', 'Process: lending-0a1b2c', [1.6, 4, 8, ...(ended ? [10] : [])], ended); // 200 (+ 300)
+  writer('service', 'service', 'Services: lending-0a1b2c', [2, 3], true); // 100
+  return { transcript, writers };
+}
+
 /** A repo in a folder: its files, and a commit of every edit. */
 function repoIn(folder: string, base: string): TestRepo {
   const write = (path: string, text: string): void => {

@@ -1511,3 +1511,42 @@ body:where(.vscode-dark,.vscode-high-contrast) .bk-press{background:transparent}
 .lk-ic{display:inline-block;flex:none;width:16px;height:16px;object-fit:contain;vertical-align:-3px;margin-right:4px}
 .lbl .lk-ic{width:12px;height:12px;vertical-align:-1px;margin-right:3px}
 .rvnames{font-size:var(--small);color:var(--muted)}
+
+/* The tab "Map run" (media/map-run-chart.js): the lead in ink, its commands faint, each writer in the colour of its kind. */
+body{--kind-diagram:#7c5cc4;--kind-notes:#0f8b7d;--kind-process:#2f6fd1;--kind-service:#c4791b;--kind-other:var(--faint)}
+body:where(.vscode-dark,.vscode-high-contrast:not(.vscode-high-contrast-light)){--kind-diagram:#a68ef0;--kind-notes:#3cbfae;--kind-process:#6e9ff2;--kind-service:#e3a14f}
+.mr-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
+.mr-head h1{margin:0;font-size:calc(var(--size) + 4px);font-weight:600}
+.mr-sub{margin-top:3px;color:var(--muted);font-size:var(--small)}
+.mr-state{flex:none;display:flex;align-items:center;gap:6px;color:var(--muted);font-size:var(--small)}
+.mr-state.live{color:var(--tealink)}
+.mr-state i{width:7px;height:7px;border-radius:50%;background:var(--teal);box-shadow:0 0 0 3px var(--teallit)}
+.mr-nums{display:flex;flex-wrap:wrap;gap:4px 22px;margin:16px 0 4px;color:var(--muted);font-size:var(--small)}
+.mr-nums b{color:var(--ink);font-weight:600}
+.mr-plot{display:grid;grid-template-columns:max-content 1fr;gap:12px;margin-top:6px}
+.mr-labels{position:relative;min-width:80px}
+.mr-label{position:absolute;right:0;display:flex;flex-direction:column;align-items:flex-end;line-height:1.3}
+.mr-label b{font-weight:600}
+.mr-label span{color:var(--muted);font-size:var(--small)}
+.mr-plot svg{display:block;overflow:visible}
+.mr-track{fill:var(--region)}
+.mr-think{fill:var(--ink);stroke:var(--ink);stroke-width:.6}
+.mr-command{fill:var(--faint);stroke:var(--faint);stroke-width:.6}
+.mr-alone{fill:color-mix(in srgb,var(--line) 45%,transparent)}
+.mr-ahead{fill:url(#mr-ahead)}
+#mr-ahead line{stroke:var(--line);stroke-width:2;opacity:.6}
+.mr-grid{stroke:var(--line)}
+.mr-tick{font-size:calc(var(--small) - 1px);fill:var(--faint);text-anchor:middle}
+.mr-now{stroke:var(--teal);stroke-width:1.5}
+.mr-nowword{font-size:calc(var(--small) - 1px);font-weight:600;fill:var(--tealink);text-anchor:middle}
+.mr-hit{fill:transparent;pointer-events:all}
+.mr-bar{stroke-width:.6}
+.mr .k-diagram{fill:var(--kind-diagram);stroke:var(--kind-diagram)}.mr .k-notes{fill:var(--kind-notes);stroke:var(--kind-notes)}
+.mr .k-process{fill:var(--kind-process);stroke:var(--kind-process)}.mr .k-service{fill:var(--kind-service);stroke:var(--kind-service)}.mr .k-other{fill:var(--kind-other);stroke:var(--kind-other)}
+.mr-writer.hot .mr-bar{stroke:var(--ink);stroke-width:1}
+.mr-key{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:8px;color:var(--muted);font-size:var(--small)}
+.mr-key span{display:flex;align-items:center;gap:6px}
+.mr-key i{width:10px;height:10px;border-radius:2.5px;background:var(--region)}
+.mr-key i.mr-think{background:var(--ink)}.mr-key i.mr-command{background:var(--faint)}.mr-key i.mr-alone{background:color-mix(in srgb,var(--line) 45%,transparent)}
+.mr-key i.k-diagram{background:var(--kind-diagram)}.mr-key i.k-notes{background:var(--kind-notes)}.mr-key i.k-process{background:var(--kind-process)}.mr-key i.k-service{background:var(--kind-service)}.mr-key i.k-other{background:var(--kind-other)}
+.mr-win p{margin:0 0 2px;color:var(--muted)}

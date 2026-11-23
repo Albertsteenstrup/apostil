@@ -117,14 +117,15 @@ const OPENS_TIP = { app: 'Opens the session in its app', terminal: 'Opens a term
 
 /**
  * The quiet line of a map run (`run`, a MapRunLine of shared/map-run.ts): which session writes the map and what is saved so far, or that the run stopped.
- * After the words, "Open the session", which VS Code opens in its app or in a terminal that continues it.
+ * After the words, "Open the session", which VS Code opens in its app or in a terminal that continues it, and "Live chart" (the tab "Map run").
  * `again`: after a run that stopped, on the map, the press "Start again" (it starts `again.app`, the pointer says which) and "Another app". Nothing in the line moves.
  */
 function mapRunHtml(run, again = null) {
   const words = `<span${run.tip ? ` title="${esc(run.tip)}"` : ''}>${esc(run.words)}</span>`;
   const reach = run.opens ? `<a data-open-run title="${OPENS_TIP[run.opens]}">Open the session</a>` : '';
+  const chart = run.chart ? '<a data-run-chart title="Opens a tab with what the lead session and each writer do, on one time axis">Live chart</a>' : '';
   const press = again?.app ? `<a data-write="${esc(again.app)}" title="Starts a new ${esc(AGENT_NAMES[again.app] ?? again.app)} session">Start again</a>` : '';
-  return `<span class="state maprun" data-run="${esc(run.state)}">${[words, reach, press, again?.app ? anotherAppHtml(again.apps) : ''].filter(Boolean).join(' · ')}</span>`;
+  return `<span class="state maprun" data-run="${esc(run.state)}">${[words, reach, chart, press, again?.app ? anotherAppHtml(again.apps) : ''].filter(Boolean).join(' · ')}</span>`;
 }
 
 /** The words of the time left of a map run: "About 14 min left", or "Less than a minute left". */
@@ -268,6 +269,7 @@ function askHtml(ask, intro) {
 // A click on "Open the session" of a map run, or on the press of words and the link of their run: VS Code does it.
 document.addEventListener('click', (event) => {
   if (event.target.closest?.('[data-open-run]')) tell({ type: 'openMapSession' });
+  if (event.target.closest?.('[data-run-chart]')) tell({ type: 'openMapChart' });
   const ask = event.target.closest?.('[data-ask]');
   const team = teamChoice('ask');
   if (ask) tell({ type: 'askAgent', words: ask.dataset.ask, ...(team ? { team } : {}) });

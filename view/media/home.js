@@ -14,7 +14,7 @@ const Home = {
     this.waiting = !document.body.clientWidth || document.hidden;
     if (this.waiting) return this.drawing ?? Promise.resolve();
     Marks.setPages(this.data?.look?.pages); // the titles of the pages of the look, for the words of a target "page"
-    const draw = { graphs: drawGraphs, page: drawPage }[this.data?.kind] ?? drawHome;
+    const draw = { graphs: drawGraphs, page: drawPage, run: RunChart.draw }[this.data?.kind] ?? drawHome;
     this.drawing = (this.drawing ?? Promise.resolve()).then(() => draw()).catch((error) => console.error(error));
     return this.drawing;
   },
@@ -684,6 +684,7 @@ if (vscodeApi) {
     // "?look=<name>": Home with a made-up look of the example; else the default look, with the logos of the services.
     const graphs = (query.get('look') && example.graphsLooks?.[query.get('look')]) || example.graphs; // the graphs pages in a made-up look, for a few paths
     Home.data = page || (path ? graphs[path] ?? example.graphs[path] ?? { kind: 'graphs', repo: example.home.repo, folder: '', path, panels: [] } : query.get('nomap') ? example.homeNoMap : query.get('look') ? example.homeLooks[query.get('look')] : example.home);
+    if (query.get('chart')) Home.data = example.charts[query.get('chart')]; // "?chart=live" or "?chart=done": the tab "Map run" of a made-up map session
     const run = example.mapRuns?.[query.get('run')]; // "?run=<name>": Home while a made-up map run writes, or after one stopped; with "?nomap=1" too
     if (run && Home.data.kind === 'home') Home.data = { ...Home.data, mapRun: run };
     Home.at = query.get('diagram') || null;

@@ -474,14 +474,17 @@ try {
   const terminalRun = await runLine();
   await homeAt('?nomap=1&run=home');
   const homeRun = await runLine();
+  homeRun.chartTip = await home.getAttribute('.maprun [data-run-chart]', 'title').catch(() => '');
+  await home.click('.maprun [data-run-chart]', { timeout: 3000 }).catch(() => {});
+  homeRun.chartSent = await home.evaluate(() => window.apostilSent.some((message) => message.type === 'openMapChart'));
   await home.goto(`file://${listFile}?run=1`);
   await home.waitForFunction(() => window.apostilListDone, null, { timeout: 5000 });
   const homeRow = await home.$eval('.cl .home', (row) => ({ text: row.textContent, state: row.querySelector('.state')?.textContent }));
-  check('while a map run writes, Home says in one quiet line which session writes the map and what is saved so far, and nothing in it moves: on the map, for a session of the desktop app with "Open the session", which opens it in its app (a click asks VS Code to open it); for a session in a terminal with "Open the session", which opens a terminal that continues it; in a repo with no map, for the run of Home, under the head in place of the press; and the row "Home" of the list says "writing the map"',
+  check('while a map run writes, Home says in one quiet line which session writes the map and what is saved so far, and nothing in it moves: on the map, for a session of the desktop app with "Open the session", which opens it in its app (a click asks VS Code to open it); for a session in a terminal with "Open the session", which opens a terminal that continues it; in a repo with no map, for the run of Home, under the head in place of the press, with "Live chart" (a click asks VS Code to open the tab "Map run"); and the row "Home" of the list says "writing the map"',
     ownRun?.text === `Writing the map · Claude Code session "Map of library-app" · ${SAVED} · Open the session` && ownRun.lines === 1 && ownRun.nodes === 8 && ownRun.moves === 0 && ownRun.presses.length === 0
       && ownRun.tip === 'Session 1a2b3c4d-0000-4000-8000-00000000cafe\nAreas: Lending, Desk, Catalogue' && ownRun.opens === 'Opens the session in its app' && !!opened
       && terminalRun?.text === `Writing the map · Claude Code session 1a2b3c4d · ${SAVED} · Open the session` && terminalRun.opens === 'Opens a terminal of VS Code that continues the session'
-      && homeRun?.text === `Writing the map · Claude Code session 1a2b3c4d (a session with no window) · ${SAVED}` && homeRun.underHead && homeRun.presses.length === 0 && homeRun.moves === 0 && !homeRun.opens
+      && homeRun?.text === `Writing the map · Claude Code session 1a2b3c4d (a session with no window) · ${SAVED} · Live chart` && homeRun.chartSent && /one time axis/.test(homeRun.chartTip) && homeRun.underHead && homeRun.presses.length === 0 && homeRun.moves === 0 && !homeRun.opens
       && homeRow.state === 'writing the map' && homeRow.text === 'Homelibrary-appwriting the map',
     JSON.stringify({ ownRun, opened, terminalRun, homeRun, homeRow }));
 
@@ -499,6 +502,45 @@ try {
       && stoppedNoMap.presses.join() === 'Map this repo'
       && stoppedOnMap?.text === `${STOPPED} · Open the session · Start again · Another app` && stoppedOnMap.nodes === 8 && stoppedOnMap.lines === 1 && again?.app === 'claude-code',
     JSON.stringify({ stoppedNoMap, stoppedOnMap, again }));
+
+  // The tab "Map run", from the made-up map session of example-data.ts as the real reader reads it: 10 minutes in, and after the run ended.
+  const chartNow = () => home.evaluate(() => {
+    const plot = document.querySelector('.mr-plot svg');
+    return {
+      head: document.querySelector('.mr-head')?.textContent, numbers: document.querySelector('.mr-nums')?.textContent,
+      thinks: plot.querySelectorAll('.mr-think').length, commands: plot.querySelectorAll('.mr-command').length,
+      writers: [...plot.querySelectorAll('.mr-writer .mr-bar')].map((bar) => bar.getAttribute('class').replace('mr-bar k-', '')),
+      lefts: [...plot.querySelectorAll('.mr-writer .mr-bar')].map((bar) => bar.getBoundingClientRect().left), dots: plot.querySelectorAll('.mr-writer circle').length,
+      now: plot.querySelectorAll('.mr-now').length, ahead: plot.querySelectorAll('.mr-ahead').length, alone: plot.querySelectorAll('.mr-alone').length,
+      key: [...document.querySelectorAll('.mr-key span')].map((item) => item.textContent).join(', '), width: Math.round(plot.getBoundingClientRect().width),
+    };
+  });
+  await homeAt('?chart=live');
+  const live = await chartNow();
+  await home.hover('.mr-writer[data-writer="2"] .mr-bar');
+  const writerWindow = await home.waitForSelector('.win', { timeout: 3000 }).then(() => home.evaluate(() => document.querySelector('.win').innerText.replace(/\s+/g, ' ').trim()), () => '');
+  await home.evaluate(() => new Promise((done) => { // a new chart comes, and Home has handled it
+    addEventListener('message', () => Home.drawing.then(done), { once: true });
+    postMessage({ type: 'data', data: window.APOSTIL_EXAMPLE.charts.live }, '*');
+  }));
+  const keptOpen = await home.evaluate(() => ({ open: !!document.querySelector('.win'), drawn: window.apostilRendered }));
+  await takePicture(home, '94-the-live-chart-of-a-map-run.png');
+  await away();
+  await home.waitForFunction(() => window.apostilRendered >= 2, null, { timeout: 3000 }).catch(() => {});
+  const drawnAfter = await home.evaluate(() => window.apostilRendered);
+  check('the tab "Map run" while a run writes: its head says how long it writes and the minutes left, a line of numbers, the lead row with its thinking and its command, the writers in the order of their starts in the colours of their kinds with a dot on the running one, the alone band, the now line and the striped minutes left, a key of the kinds it has; a hover on a writer shows its task, model, minutes and tokens, a new chart does not close that window, and it is drawn when the window closes',
+    live.head === 'Map runClaude Code session 1a2b3c4d · lead Sonnet 5.5 · Medium · writers Haiku 5.5 · MediumWriting · 10 min so far · about 7 min left'
+      && live.numbers === '1 writer runs now3 donelead busy 3 min of 101k tokens written' && live.thinks === 5 && live.commands === 1
+      && live.writers.join() === 'diagram,notes,process,service' && live.lefts.every((left, at) => at === 0 || left >= live.lefts[at - 1]) && live.dots === 1
+      && live.now === 1 && live.ahead === 1 && live.alone === 1 && live.width > 1000
+      && live.key === 'Lead thinks and writes, Lead runs a command, Diagrams, Notes, Processes, Services and marks, Lead alone'
+      && writerWindow === 'Process: lending-0a1b2c Haiku 5.5 · Medium · running 8.4 min 200 tokens written so far' && keptOpen.open && keptOpen.drawn === 1 && drawnAfter === 2,
+    JSON.stringify({ live, writerWindow, keptOpen, drawnAfter }));
+  await homeAt('?chart=done');
+  const doneChart = await chartNow();
+  await takePicture(home, '94-the-chart-of-a-map-run-that-is-done.png');
+  check('the tab "Map run" after the run ended says "Done in 12 min", counts its writers, and has no now line and no striped minutes left',
+    /Done in 12 min$/.test(doneChart.head) && doneChart.numbers.startsWith('4 writers') && doneChart.now === 0 && doneChart.ahead === 0 && doneChart.dots === 0 && doneChart.writers.length === 4, JSON.stringify(doneChart));
 
   // Home while a run of the whole map writes, from the made-up runs with a plan of the work in example-data.ts (the time left comes from the plan).
   const runState = () => home.evaluate(() => {
