@@ -12,7 +12,7 @@ import { baseOf, currentBranch, git, headCommit, repoId } from '../shared/git';
 import { CODE, runInVsCode } from '../shared/run-in-vscode';
 import { Store } from '../shared/store';
 import { makeTestRepo, testChangeFile } from '../shared/test-repo';
-import { hasHook, HINT_HOOK, READ_MAP_RULES, WAIT_HOOK } from '../store/connect-claude-code';
+import { hasHook, HINT_HOOK, PR_HOOK, READ_MAP_RULES, WAIT_HOOK } from '../store/connect-claude-code';
 import { skillNames, thisInstall } from '../store/setup';
 
 async function waitFor(what: string, test: () => boolean, ms = 20_000): Promise<void> {
@@ -67,7 +67,7 @@ export async function run(): Promise<void> {
   }
   const settings = join(folder, '.claude', 'settings.local.json');
   const allowed: string[] = existsSync(settings) ? JSON.parse(readFileSync(settings, 'utf8')).permissions?.allow ?? [] : [];
-  pass('and for Claude Code the rules that allow the reads of the map, and neither the hint nor the wait hook', !hasHook(settings, HINT_HOOK) && READ_MAP_RULES.every((rule) => allowed.includes(rule)) && !hasHook(settings, WAIT_HOOK));
+  pass('and for Claude Code the rules that allow the reads of the map and the hook that describes a pull request, and neither the hint nor the wait hook', hasHook(settings, PR_HOOK) && !hasHook(settings, HINT_HOOK) && READ_MAP_RULES.every((rule) => allowed.includes(rule)) && !hasHook(settings, WAIT_HOOK));
   pass('Git shows no change in the repo', git(folder, 'status', '--porcelain') === '');
   await waitFor('an agent app has the skills now, so the set-up step is done', () => api.needsSetup() === false);
 

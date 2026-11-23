@@ -29,7 +29,7 @@ Do not paste code or the chat into the brief.
 
 ## Step 2: Start the writer subagent
 
-You are the lead: you write the brief, start the writer and the checkers, and read their reports. When Apostil starts the run, its prompt names the model and the effort of the writer and the checkers: use the model that Apostil names. When it names none (a person started this skill by hand), use the newest small model that the app offers. Do not use a fixed model name. Notes and the diagram of one function are local work: the writer reads the changed code line by line, and a small model does that well. The overview of the whole repo is the work of the skill `apostil-map-repo`.
+You are the lead: you write the brief, start the writer and the checkers, and read their reports. When Apostil starts the run, its prompt names the model and the effort of the writer and the checkers: use the model that Apostil names. When it names none (a person started this skill by hand), use the newest small model that the app offers. Do not use a fixed model name. Unless the user names another model, the writer and checker subagents run on Haiku at xhigh effort (the Agent tool takes `model` and `effort`). Notes and the diagram of one function are local work: the writer reads the changed code line by line, and a small model does that well. The overview of the whole repo is the work of the skill `apostil-map-repo`.
 
 Give the writer:
 

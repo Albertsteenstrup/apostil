@@ -23,7 +23,7 @@ export interface Catalog {
 export interface RunPick { model?: string; name?: string; effort?: string }
 
 /** The choice of a map run or a description run: the lead and its effort, which a page may change, and the model of its writer subagents, which it may not. */
-export interface Team { app: string; lead?: string; writer?: string; effort: string; list: ModelInfo[] }
+export interface Team { app: string; lead?: string; writer?: string; effort: string; writerEffort?: string; list: ModelInfo[] }
 
 /** The order of the families, smallest first. The catalogs name each model's family, not its size, so the order is fixed here. */
 export const SIZES: Record<string, string[]> = {
@@ -240,22 +240,20 @@ export function pickOf(catalog: Catalog | undefined, model: string | undefined, 
   return { model: id, name: catalog?.names[id] ?? catalog?.names[model] ?? id, effort: nearestEffort(efforts, effort) };
 }
 
-/** The default effort of a map or description run: medium, or the nearest effort that the model takes. */
-const defaultTeamEffort = (model: ModelInfo | undefined): string => nearestEffort(model?.efforts ?? [], 'medium');
+/** The default effort of a map run (medium) or a description run (xhigh), or the nearest effort that the model takes. */
+const defaultTeamEffort = (model: ModelInfo | undefined, describing = false): string => nearestEffort(model?.efforts ?? [], describing ? 'xhigh' : 'medium');
 
 /**
- * The choice of a map run or a description run: for Claude Code and Codex, the second smallest model leads and every writer runs on the smallest;
+ * The choice of a map run: for Claude Code and Codex, the second smallest model leads and every writer runs on the smallest;
  * for Antigravity, Gemini 4 Hydrogen leads and writes. All run at medium effort by default. OpenCode has no order: it keeps its own model and small model.
+ * A description run (`describing`) is the same, except that the smallest model leads and writes, at xhigh effort (or the nearest that it takes).
  */
-export function teamOf(app: string, home = agentHome()): Team {
+export function teamOf(app: string, home = agentHome(), describing = false): Team {
   const catalog = catalogOf(app, home);
   if (!catalog) return { app, effort: 'medium', list: [] };
-  if (app === 'antigravity') {
-    const hydrogen = catalog.models.find((one) => one.id === ANTIGRAVITY_SMALL) ?? smallest(app, catalog);
-    return { app, lead: hydrogen?.id, writer: hydrogen?.id, effort: defaultTeamEffort(hydrogen), list: catalog.models };
-  }
-  const lead = secondSmallest(app, catalog);
-  return { app, lead: lead?.id, writer: smallest(app, catalog)?.id, effort: defaultTeamEffort(lead), list: catalog.models };
+  const writer = app === 'antigravity' ? catalog.models.find((one) => one.id === ANTIGRAVITY_SMALL) ?? smallest(app, catalog) : smallest(app, catalog);
+  const lead = app === 'antigravity' || describing ? writer : secondSmallest(app, catalog);
+  return { app, lead: lead?.id, writer: writer?.id, effort: defaultTeamEffort(lead, describing), writerEffort: defaultTeamEffort(writer, describing), list: catalog.models };
 }
 
 // ----- what a session last used, from its own record -----
@@ -356,10 +354,10 @@ export function pickFrom(sent: unknown): RunPick | undefined {
 
 /**
  * The team of a map or description run: the lead and the effort that a page sent, when it is of the same app, the lead is in the catalog and the lead
- * takes the effort; else those of teamOf(). The writers stay those of teamOf(): a writer that a page sends is ignored.
+ * takes the effort; else those of teamOf() (`describing`: of a description run). The writers stay those of teamOf(): a writer that a page sends is ignored.
  */
-export function teamFrom(app: string, sent: unknown, home = agentHome()): Team {
-  const team = teamOf(app, home);
+export function teamFrom(app: string, sent: unknown, home = agentHome(), describing = false): Team {
+  const team = teamOf(app, home, describing);
   const chosen = sent && typeof sent === 'object' ? sent as Record<string, unknown> : {};
   if (chosen.app !== app || !team.list.length) return team;
   const lead = modelIn(team, chosen.lead)?.id ?? team.lead;
@@ -370,12 +368,12 @@ export function teamFrom(app: string, sent: unknown, home = agentHome()): Team {
 const modelIn = (team: Team, id: unknown): ModelInfo | undefined => team.list.find((model) => model.id === id);
 
 /**
- * What a run of a team takes: the lead's model and effort, and the writers' model at medium effort (or its nearest), whatever effort the lead has.
+ * What a run of a team takes: the lead's model and effort, and the writers' model at the effort of the team (medium for a map, xhigh for a description; or its nearest), whatever effort the lead has.
  * OpenCode keeps its own model.
  */
 export const teamRun = (team: Team): { model?: string; effort: string; writers?: { model: string; effort: string }; opencodeModel: undefined } => ({
   ...(team.lead ? { model: team.lead } : {}), effort: nearestEffort(modelIn(team, team.lead)?.efforts ?? [], team.effort),
-  ...(team.writer ? { writers: { model: team.writer, effort: defaultTeamEffort(modelIn(team, team.writer)) } } : {}),
+  ...(team.writer ? { writers: { model: team.writer, effort: team.writerEffort ?? defaultTeamEffort(modelIn(team, team.writer)) } } : {}),
   opencodeModel: undefined,
 });
 

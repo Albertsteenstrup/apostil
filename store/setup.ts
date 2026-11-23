@@ -1,5 +1,5 @@
 // "apostil setup": the skills where each agent app of this machine reads them, and for Claude Code the rules that allow the commands that
-// read the map. The wait hook and the hint at the start of a session are added by hand (apostil connect, apostil hint); undo still takes them away. No `vscode` import.
+// read the map, and the hook that has the agent describe a pull request it opened. The wait hook and the hint at the start of a session are added by hand (apostil connect, apostil hint); undo still takes them away. No `vscode` import.
 // Every function takes the home folder and the path, so that a test can give folders of its own. A setup for a repo adds the repo to the record in the store; its undo takes it out.
 
 import { cpSync, existsSync, lstatSync, readdirSync, readFileSync, realpathSync, rmdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -7,7 +7,7 @@ import { dirname, isAbsolute, join, relative, sep } from 'node:path';
 import { APP_PROGRAMS, findOnPath } from '../shared/agents';
 import { tryGit } from '../shared/git';
 import { storeFolder } from '../shared/store';
-import { addAllowRules, addExcludeLine, DRAFT_LINES, HINT_HOOK, keepOutOfGit, letGitSee, READ_MAP_RULES, removeAllowRules, removeHook, settingsFile, WAIT_HOOK } from './connect-claude-code';
+import { addAllowRules, addExcludeLine, addHook, DRAFT_LINES, HINT_HOOK, keepOutOfGit, letGitSee, PR_HOOK, READ_MAP_RULES, removeAllowRules, removeHook, settingsFile, WAIT_HOOK } from './connect-claude-code';
 import { recordRepo } from './setup-record';
 
 /** The home folder and the PATH of the person. */
@@ -207,12 +207,14 @@ export function setup({ install, machine, repo, undo, dryRun, store = storeFolde
 
   const settings = settingsFile(repo, machine.home);
   const HINT = 'Claude Code: a hint at the start of each session that points the agent to the map';
+  const PR = 'Claude Code: describes a pull request after the agent opens one';
   const RULES = 'Claude Code: permission for the commands that read the map';
   const where = short(settings, machine.home);
   if (undo) {
     const removed = [
       removeHook(settings, WAIT_HOOK, write) && 'Claude Code: the hook',
       removeHook(settings, HINT_HOOK, write) && `${HINT},`,
+      removeHook(settings, PR_HOOK, write) && `${PR},`,
       removeAllowRules(settings, READ_MAP_RULES, write) && `${RULES},`,
     ].filter(Boolean);
     for (const what of removed) lines.push(line('removed', `${what} in ${where}`));
@@ -232,6 +234,11 @@ export function setup({ install, machine, repo, undo, dryRun, store = storeFolde
     if (rules.problem) lines.push(line('left', `${RULES}: ${rules.problem.replace(settings, where)}`));
     else lines.push(line(rules.added.length ? 'added' : 'there', RULES));
     ok = !rules.problem;
+    const hook = addHook(settings, PR_HOOK);
+    if (repo && hook.added) keepOutOfGit(repo);
+    if (hook.problem) lines.push(line('left', `${PR}: ${hook.problem.replace(settings, where)}`));
+    else lines.push(line(hook.added ? 'added' : 'there', PR));
+    ok = ok && !hook.problem;
   }
   if (!SETUP_APPS.some((app) => appIsHere(app, machine))) {
     lines.push(line('missing', 'No agent app on this machine. Install Claude Code, Codex or Antigravity, then run apostil setup again.'));

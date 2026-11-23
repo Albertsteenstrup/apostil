@@ -20,11 +20,12 @@ In VS Code, answer the first question of Apostil with "This repo" or "All repos"
     apostil setup          # for the repo of this folder
     apostil setup --all    # for every repo
 
-Setup does three things:
+Setup does four things:
 
 - It puts the command `apostil` on the path (VS Code only; in a terminal the command is there already).
 - It copies the skills to the folders where each agent app reads them. For one repo: `.claude/skills/` (Claude Code) and `.agents/skills/` (Codex) of the repo. For all repos: `~/.claude/skills/` and `~/.agents/skills/`. It does this only for an app that is on the computer: its command (`claude`, `codex`) is on the path, or its folder (`~/.claude`, `~/.codex`) is there.
 - For Claude Code, it allows the commands that only read the map (`apostil overview`, `find`, `notes`, `process`, `diagram`, `diagrams`, `tests` and `why`) in `.claude/settings.local.json` of the repo (for all repos: `~/.claude/settings.json`), so that you are not asked for each.
+- For Claude Code, it adds a `PostToolUse` hook (matcher `Bash`, 10 seconds) that runs `apostil pr-hook`. After the agent opens a pull request with `gh pr create`, the hook tells it to describe the pull request at once with the skill `apostil-describe-change`, with writers and checkers on Haiku at xhigh effort. After any other command it prints nothing, and it never waits. It goes in the same settings file as the rules, and `apostil setup --undo` takes it away. `apostil links off` turns it off.
 
 Setup does not tell the agent to use the map first. Told so, an agent reads less of the code, and its answers can miss parts. To try it anyway, add a `SessionStart` hook that runs `apostil hint`: in a repo with a map, it tells the agent which commands read the map. `apostil links off` turns the hint off.
 
