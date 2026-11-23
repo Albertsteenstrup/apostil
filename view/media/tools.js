@@ -325,7 +325,7 @@ const agentHead = (agent, icon = agentIcon(agent)) => {
 };
 
 /** An icon of icons/, in the colour of its text. */
-const ico = (name, cls = '') => `<i class="ico ${name}${cls ? ` ${cls}` : ''}"></i>`;
+const ico = (name, cls = '') => `<i class="ico ${esc(name)}${cls ? ` ${esc(cls)}` : ''}"></i>`;
 
 /**
  * The icons of files and folders as the Explorer of VS Code shows them, in the file icon theme that he uses. VS Code sends the CSS of only
