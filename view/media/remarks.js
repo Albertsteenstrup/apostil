@@ -7,8 +7,9 @@
 const Remarks = (() => {
   const W = States.WORDS;
   const pullPage = () => (typeof Conversation === 'object' ? Conversation : undefined); // the change page has a pull request; Home has none
-  // The open card: { key, threads, reply, target, point, at, el, choices, picked, menu }. key: "new" for a new comment, else the first thread of the card;
-  // threads: the ids of its open threads; reply: the thread that the box answers; at: where a new card opened when it has no thing on the page.
+  // The open card: { key, threads, reply, target, point, at, el, choices, picked, firstKey, menu }. key: "new" for a new comment, else the first thread of the card;
+  // threads: the ids of its open threads; reply: the thread that the box answers; at: where a new card opened when it has no thing on the page;
+  // firstKey: the choice that the picker started at when the card was drawn last.
   let card = null;
   const typed = {}; // what each field holds while the card draws again, by its key
   let picking = null; // after the key, the pointer is a comment icon and the next click opens a card there: { lines, at }
@@ -269,18 +270,24 @@ const Remarks = (() => {
 
   // ----- where a comment goes: the picker under the box -----
 
-  /** The choices of the picker for a target: the sessions of the connected apps, a new session of each, GitHub when it takes the comment, and no agent. */
-  function choicesFor(target) {
+  /**
+   * The choices of the picker for a target: the sessions of the connected apps (with the session of the thread whose lead remark is `lead`), a new
+   * session of each, GitHub when it takes the comment, and no agent.
+   */
+  function choicesFor(target, lead) {
     const pull = pullPage();
     const github = !!(pull && (target.kind === 'message' ? pull.messageChoice(target) : pull.githubChoice(target)));
     const sendTo = App.page.sendTo ?? {};
-    return States.sendChoices({ agent: App.page.agent, apps: App.page.apps ?? [], sessions: sendTo.sessions, models: sendTo.models, own: sendTo.own, github, pullOnly: !!App.page.pullOnly });
+    return States.sendChoices({ agent: App.page.agent, apps: App.page.apps ?? [], sessions: sendTo.sessions, models: sendTo.models, own: sendTo.own, github, pullOnly: !!App.page.pullOnly, lead });
   }
 
-  /** The choice that a card starts at: a reply goes where its thread went; else his last choice on this page, else that of the newest comment of the repo. */
+  /** The lead remark of the thread that the box of the card answers, or undefined for a new comment. */
+  const replyLead = () => (card.reply && threadOf(card.reply) ? States.threadLead(threadOf(card.reply)) : undefined);
+
+  /** The choice that a card starts at: a reply goes where its thread went (its new session by now: sessionTo); else his last choice on this page, else that of the newest comment of the repo. */
   function firstChoice(choices) {
-    const lead = card.reply && threadOf(card.reply) && States.threadLead(threadOf(card.reply));
-    const wanted = lead?.to ?? (lastPick !== undefined ? lastPick : App.page.sendTo?.last);
+    const lead = replyLead();
+    const wanted = (lead && States.sessionTo(lead)) ?? (lastPick !== undefined ? lastPick : App.page.sendTo?.last);
     return States.startChoice(choices, wanted);
   }
 
@@ -744,7 +751,7 @@ const Remarks = (() => {
    */
   function startControl(remark) {
     const to = remark.to ?? (App.page.agent?.session ? { app: App.page.agent.app, kind: 'current' } : null);
-    const choice = to && choicesFor(remark.target).find((one) => one.key === States.choiceKey(to));
+    const choice = to && choicesFor(remark.target, remark).find((one) => one.key === States.choiceKey(to));
     if (!choice?.run) return '';
     const run = remark.to?.model || remark.to?.effort ? { ...choice.run, ...(remark.to.model ? { model: remark.to.model } : {}), ...(remark.to.effort ? { effort: remark.to.effort } : {}) } : choice.run;
     return ` · ${RunPick.html(`start:${remark.id}`, { app: choice.app, list: choice.list, run, reset: card?.serial })}`;
@@ -758,15 +765,17 @@ const Remarks = (() => {
     const { agent, listening } = App.page;
     const line = States.remarkLine(remark, agent, listening);
     const link = (text, attrs) => `<a ${attrs}>${esc(text)}</a>`;
-    // The session that works or worked on it: a click shows its live terminal, else opens it in its app or in a terminal that continues it. The words "new session" are its link.
+    // The session that works or worked on it: a click shows its live terminal, else opens it in its app or in a terminal that continues it.
+    // The words that name a new or a known session ("new session", its name, its short id) are its link.
     const sessionAttrs = `data-session="${remark.id}"`;
-    const named = hasSession(remark) && remark.to?.kind === 'new' && line.text.includes(W.placeNew);
+    const words = hasSession(remark) && States.sessionWords(remark);
+    const named = !!words && line.text.includes(words);
     const session = hasSession(remark) && !named ? link(W.session, sessionAttrs) : '';
     if (remark.state === 'running' || remark.state === 'done') {
       const start = remark.state === 'running' && remark.run?.startedAt;
       const since = start ? `<span class="ago" title="${esc(new Date(start).toLocaleString())}">${esc(States.forWords(start))}</span>` : '';
       const html = States.lineHtml(line, [since, session].filter(Boolean).map((bit) => ` · ${bit}`).join(''));
-      return named ? html.replace(esc(W.placeNew), link(W.placeNew, sessionAttrs)) : html;
+      return named ? html.replace(esc(words), () => link(words, sessionAttrs)) : html;
     }
     const more = {
       listening: ` · ${esc(W.listening)}`,
@@ -810,7 +819,7 @@ const Remarks = (() => {
 
   /** The less used actions of a card, behind "⋯": open the session of the thread, start a run for a comment that waits. */
   function moreActions() {
-    const lead = card.reply && threadOf(card.reply) && States.threadLead(threadOf(card.reply));
+    const lead = replyLead();
     if (!lead) return [];
     const line = States.remarkLine(lead, App.page.agent, App.page.listening);
     return [
@@ -826,9 +835,11 @@ const Remarks = (() => {
     if (card.key !== 'new' && !shown.length) return closeCard(); // resolved meanwhile
     if (card.key !== 'new' && !shown.some((thread) => thread[0].id === card.reply)) card.reply = shown.at(-1)[0].id;
     const focused = card.el?.contains(document.activeElement) ? document.activeElement.dataset.field : undefined;
-    card.choices = choicesFor(card.target);
-    if (!card.picked || !card.choices.some((choice) => choice.key === card.picked.key)) card.picked = firstChoice(card.choices);
-    else card.picked = card.choices.find((choice) => choice.key === card.picked.key);
+    card.choices = choicesFor(card.target, replyLead());
+    // His own pick stays; one that the card started at follows the thread, whose new session gets its id while the card is open.
+    const start = firstChoice(card.choices);
+    card.picked = (card.picked?.key !== card.firstKey && card.choices.find((choice) => choice.key === card.picked?.key)) || start;
+    card.firstKey = start?.key;
     const actions = moreActions();
     const tools = card.key === 'new' ? `<a class="tl" data-close title="${esc(W.close)}">${CLOSE}</a>`
       : `<a class="tl" data-resolve title="${esc(W.resolve)}">${CHECK}</a>${actions.length ? `<a class="tl" data-more title="${esc(W.moreActions)}">${MORE}</a>` : ''}<a class="tl" data-close title="${esc(W.close)}">${CLOSE}</a>`;

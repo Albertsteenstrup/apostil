@@ -9,7 +9,7 @@ import { baseOf, currentBranch, headCommit, repoId } from '../shared/git';
 import { Store } from '../shared/store';
 import { makeTestRepo, tempFolder, testChangeFile } from '../shared/test-repo';
 import { sentRemarks } from '../store/inbox';
-import { answersChanged, deniedRules, problemFromOutput, sessionFromOutput, startRun, type RunTerminal } from './agent-run';
+import { answersChanged, deniedRules, problemFromOutput, sessionFromOutput, startRun, type RunTerminals } from './agent-run';
 
 test('a run of the session of a change keeps the permission mode that the person set as default for Claude Code; when it ends with no answer, the comment is open again and the reason says so', async () => {
   const repo = makeTestRepo();
@@ -77,7 +77,7 @@ test('a comment sent to another session that Apostil knows in the repo continues
   }
 });
 
-test('a comment to a new session of Claude Code runs in a terminal with its prompt as the first message and a session id of its own, which the remark has at once; its answer ends the run once, and the terminal that closes after it changes nothing', () => {
+test('a comment to a new session of Claude Code runs in a terminal with its prompt as the first message and a session id of its own, which the remark has at once; its answer ends the run once, and the terminal that closes after it changes nothing; a reply to that session is typed into its open terminal, else resumes it in a new one', () => {
   const repo = makeTestRepo();
   const home = tempFolder('apostil-home-');
   const kept = process.env.APOSTIL_HOME;
@@ -87,7 +87,12 @@ test('a comment to a new session of Claude Code runs in a terminal with its prom
     const remark = store.addRepoRemark(repoId(repo.folder), { kind: 'part', part: 'app', label: 'Part "App"' }, 'Add a test.');
     store.sendRemark(remark, { app: 'claude-code', kind: 'new' });
     const started: { command: string[]; name: string; session: string; closed: (code?: number) => void }[] = [];
-    const terminal: RunTerminal = (command, _folder, name, session, closed) => { started.push({ command, name, session, closed }); return { processId: Promise.resolve(undefined) }; };
+    const typed: { session: string; text: string }[] = [];
+    let open = true; // the terminal of the session is open in this window
+    const terminal: RunTerminals = {
+      start: (command, _folder, name, session, closed) => { started.push({ command, name, session, closed }); return { processId: Promise.resolve(undefined) }; },
+      type: (session, text) => { if (!open) return undefined; typed.push({ session, text }); return { processId: Promise.resolve(undefined) }; },
+    };
     const ends: (string | undefined)[] = [];
     startRun(store, remark, (problem) => ends.push(problem), 'claude-code', repo.folder, {}, 'read and edit', undefined, terminal);
     const [run] = started;
@@ -101,6 +106,26 @@ test('a comment to a new session of Claude Code runs in a terminal with its prom
     run.closed(0);
     assert.deepEqual(ends, [undefined]);
     assert.equal(store.getRemark(remark)?.state, 'done');
+    // A reply that goes on in that session: typed into its open terminal as the next message, and the reply runs in that session until its answer.
+    const replyEnds: (string | undefined)[] = [];
+    const reply = (text: string): number => {
+      const id = store.addRepoRemark(repoId(repo.folder), { kind: 'part', part: 'app', label: 'Part "App"' }, text, remark);
+      store.sendRemark(id, { app: 'claude-code', kind: 'session', session: run.session });
+      startRun(store, id, (problem) => replyEnds.push(problem), undefined, repo.folder, {}, 'read and edit', undefined, terminal);
+      return id;
+    };
+    const first = reply('Make gemini the same as the others.');
+    assert.deepEqual({ session: typed[0]?.session, prompt: /Make gemini the same/.test(typed[0]?.text ?? ''), started: started.length }, { session: run.session, prompt: true, started: 1 });
+    assert.deepEqual({ state: store.getRemark(first)?.state, session: store.getRemark(first)?.run?.session }, { state: 'running', session: run.session });
+    store.answerRemark(first, 'Done.');
+    answersChanged();
+    assert.deepEqual(replyEnds, [undefined]);
+    // With no open terminal of the session in this window, Claude Code resumes it in a new terminal with the reply as its next message.
+    open = false;
+    reply('And codex too.');
+    assert.deepEqual(started[1]?.command.slice(0, 3), ['claude', '--resume', run.session]);
+    assert.match(started[1]?.command[3] ?? '', /And codex too\./);
+    assert.equal(started[1]?.session, run.session);
   } finally {
     store.close();
     if (kept === undefined) delete process.env.APOSTIL_HOME;

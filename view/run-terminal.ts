@@ -1,10 +1,11 @@
-// Runs Claude Code in a terminal of VS Code, which a person can watch and answer: the map run of Home, and a comment sent to a new session.
+// Runs Claude Code in a terminal of VS Code, which a person can watch and answer: the map run of Home, and a comment sent to a new or a known session.
 
 import * as vscode from 'vscode';
 import { findOnPath } from '../shared/agents';
-import { runEnvironment } from './agent-run';
+import { runEnvironment, type RunTerminals } from './agent-run';
 
 const live = new Map<string, vscode.Terminal>(); // by session, while its terminal is open
+const PASTE = ['\x1b[200~', '\x1b[201~']; // the start and the end of a bracketed paste: the lines of a message stay one message
 
 /**
  * Starts a command of a session in a terminal of VS Code that is not shown; `closed` gets its exit code when the terminal closes.
@@ -20,13 +21,32 @@ export function runInTerminal(command: string[], folder: string, name: string, s
     return undefined;
   }
   live.set(session, terminal);
+  whenClosed(terminal, (code) => {
+    live.delete(session);
+    closed(code);
+  });
+  return terminal;
+}
+
+/** Types a message into the open terminal of a session, with Enter; `closed` gets the exit code when that terminal closes. Undefined when this window has none. */
+function typeInSession(session: string, text: string, closed: (code?: number) => void): vscode.Terminal | undefined {
+  const terminal = live.get(session);
+  if (!terminal) return undefined;
+  terminal.sendText(`${PASTE[0]}${text}${PASTE[1]}`);
+  whenClosed(terminal, closed);
+  return terminal;
+}
+
+/** The terminals that a run for a comment uses (startRun in view/agent-run.ts). */
+export const runTerminals: RunTerminals = { start: runInTerminal, type: typeInSession };
+
+/** Calls `closed` with the exit code of a terminal when it closes. */
+function whenClosed(terminal: vscode.Terminal, closed: (code?: number) => void): void {
   const closing = vscode.window.onDidCloseTerminal((one) => {
     if (one !== terminal) return;
     closing.dispose();
-    live.delete(session);
     closed(one.exitStatus?.code);
   });
-  return terminal;
 }
 
 /** Shows the open terminal of a session in this window; false when it has none. */

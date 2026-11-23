@@ -21,7 +21,7 @@ import { lookData, type LookData } from './look-data';
 import type { Remark, StoredChange, Store } from './store';
 import type { SendTo } from './page-data';
 import { changeMermaid, nodeId, partMermaid } from './change-diagram';
-import { repoName, repoRemarksOnFiles } from './page-data';
+import { repoName, repoRemarksOnFiles, withSessionNames } from './page-data';
 import type { Step } from './trail-step';
 
 /** A file that a change changes, with its counts from Git; with no counts when Git cannot read them. */
@@ -184,7 +184,7 @@ export function homeData(store: Store, folder: string, apps: string[] = [], addr
   const stored = id ? store.getMap(id) : undefined;
   const mapRun = mapRunOf(store, id, writing);
   const mapApp = appToStart(store.startedRuns(), id, apps, connected);
-  const base: HomeData = { kind: 'home', repo: repoName(folder), folder, apps, ...(mapApp ? { mapApp, team: teamOf(mapApp) } : {}), remarks: id ? remarksOnMap(store.repoRemarks(id)) : [], ...(mapRun ? { mapRun } : {}), ...(id ? {} : { noCommit: true as const }) };
+  const base: HomeData = { kind: 'home', repo: repoName(folder), folder, apps, ...(mapApp ? { mapApp, team: teamOf(mapApp) } : {}), remarks: id ? withSessionNames(remarksOnMap(store.repoRemarks(id))) : [], ...(mapRun ? { mapRun } : {}), ...(id ? {} : { noCommit: true as const }) };
   if (!id || !stored) {
     const scope = id && scopeCounts(folder); // counted by path only, so Home stays fast on a large repo
     return scope ? { ...base, scope } : base;

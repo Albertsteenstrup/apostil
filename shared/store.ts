@@ -120,7 +120,7 @@ export interface Remark {
   state: RemarkState;
   answer?: string; // what the agent said it did
   answeredAt?: string;
-  run?: { pid?: number; session?: string; startedAt: string }; // the agent run that works on it
+  run?: { pid?: number; session?: string; startedAt: string; name?: string }; // the agent run that works on it; name: that of its session, for the pages only (withSessionNames)
   thread?: number; // the remark that started its thread; missing on the first remark of a thread
   to?: RemarkTo; // whom the owner sent it to
   closedBy?: string; // the agent app that resolved it; missing when the owner resolved it

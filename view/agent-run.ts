@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { newRunCommand, resumeCommand, runOptions, WRITER_AGENT, type RunModels, type RunOptions } from '../shared/agents';
+import { newRunCommand, resumeCommand, runOptions, WRITER_AGENT, type AgentSession, type RunModels, type RunOptions } from '../shared/agents';
 import { pickFrom, teamOf, teamRun, teamSentence, type RunPick, type Team } from '../shared/models';
 import { changedBetween, workingFiles } from '../shared/git';
 import { WRITERS_AT_ONCE } from '../shared/map-estimate';
@@ -101,9 +101,10 @@ export interface RunFacts {
  * The session that the run reports is kept on the remark. When the process ends and the remark is still running, the remark is open again,
  * and `ended` gets the reason: what the program said, or that it gave no answer. `models` are the models that the owner set in Apostil for the runs;
  * `commentRuns` is his setting `apostil.commentRuns`: "read and edit" (the default) or "read only". The files that the run changed are kept on the remark, from Git before and after.
- * With `terminal`, a new session of Claude Code runs there (startInTerminal), and as a child process when the terminal cannot start.
+ * With `terminals`, it goes to the open terminal of its session in this window, else Claude Code runs in a new terminal (terminalCommand); it runs as a
+ * child process when neither can.
  */
-export function startRun(store: Store, remarkId: number, ended: (problem?: string) => void, newApp?: string, folder?: string, models: RunModels = {}, commentRuns = 'read and edit', pick?: RunPick, terminal?: RunTerminal): void {
+export function startRun(store: Store, remarkId: number, ended: (problem?: string) => void, newApp?: string, folder?: string, models: RunModels = {}, commentRuns = 'read and edit', pick?: RunPick, terminals?: RunTerminals): void {
   const remark = store.getRemark(remarkId);
   const change = remark?.changeId === undefined ? undefined : store.getChange(remark.changeId);
   const prompt = remark && inboxText([remark], store, commentRuns === 'read only');
@@ -112,9 +113,10 @@ export function startRun(store: Store, remarkId: number, ended: (problem?: strin
   const chosen = { ...pickFrom(remark?.to), ...pickFrom(pick) };
   const options = { ...runOptions(where ?? '', storeFolder(), models), commentRuns, ...chosen }; // the modes that the person set as default for the app go with the run
   // The session that the run continues: another session that Apostil knows in the repo when the comment went there, else the session of the change.
-  const agent = remark?.to?.kind === 'session' && remark.to.session ? { app: remark.to.app, session: remark.to.session } : change?.agent;
+  const known = remark?.to?.kind === 'session' && remark.to.session ? { app: remark.to.app, session: remark.to.session } : undefined;
+  const agent = known ?? change?.agent;
   const command = prompt && (newApp ? newRunCommand(newApp, prompt, options) : agent && resumeCommand(agent, prompt, options));
-  if (!where || !command) return ended(newApp ? `A new session of ${newApp} cannot be started from here.` : 'This agent cannot be continued from here.');
+  if (!remark || !prompt || !where || !command) return ended(newApp ? `A new session of ${newApp} cannot be started from here.` : 'This agent cannot be continued from here.');
   const before = workingFiles(where);
   const run: CommentRun = {
     keepChanged: () => {
@@ -127,7 +129,14 @@ export function startRun(store: Store, remarkId: number, ended: (problem?: strin
       ended(problem ? `${command[0]} gave no answer. It said: ${problem}` : `${command[0]} ended with no answer.`);
     },
   };
-  if (newApp === 'claude-code' && terminal && startInTerminal(store, remarkId, prompt, options, where, terminal, run, ended)) return;
+  if (terminals) {
+    // A session whose terminal is open in this window takes the prompt there as its next message: two programs must not write one session.
+    const live = !newApp && agent?.session;
+    if (live && startInTerminal(store, remarkId, live, (closed) => terminals.type(live, prompt, closed), run, ended)) return;
+    const name = `Apostil comment · ${remark.target.label ?? remark.target.kind}`.slice(0, 48);
+    const fresh = terminalCommand(prompt, options, newApp, known);
+    if (fresh && startInTerminal(store, remarkId, fresh.session, (closed) => terminals.start(fresh.command, where, name, fresh.session, closed), run, ended)) return;
+  }
   const pid = spawnRun(command, where, (session) => store.setRunSession(remarkId, session), (problem) => {
     run.keepChanged();
     if (run.answered()) return ended();
@@ -143,11 +152,28 @@ interface CommentRun {
   noAnswer: (problem?: string) => void;
 }
 
+type Closed = (code?: number) => void; // gets the exit code when the terminal closes
+type InTerminal = { processId: PromiseLike<number | undefined> };
+
 /**
- * Starts a command in a terminal that is not shown, as a session with this id; `closed` gets its exit code when the terminal closes.
- * Undefined when it cannot start, else the id of its process (runInTerminal in view/run-terminal.ts).
+ * The terminals of VS Code that a run for a remark uses (view/run-terminal.ts): `start` starts a command as a session in a terminal that is not shown;
+ * `type` types a message into the open terminal of a session in this window. Each gives undefined when it cannot.
  */
-export type RunTerminal = (command: string[], folder: string, name: string, session: string, closed: (code?: number) => void) => { processId: PromiseLike<number | undefined> } | undefined;
+export interface RunTerminals {
+  start: (command: string[], folder: string, name: string, session: string, closed: Closed) => InTerminal | undefined;
+  type: (session: string, text: string, closed: Closed) => InTerminal | undefined;
+}
+
+/** The command of Claude Code in a terminal for a remark, with its session: a new session with an id of its own, or a known session that it resumes. */
+function terminalCommand(prompt: string, options: RunOptions, newApp?: string, known?: AgentSession): { command: string[]; session: string } | undefined {
+  if (newApp === 'claude-code') {
+    const session = randomUUID();
+    const command = newRunCommand(newApp, prompt, { ...options, inTerminal: true, sessionId: session });
+    return command && { command, session };
+  }
+  const command = !newApp && known?.app === 'claude-code' ? resumeCommand(known, prompt, { ...options, inTerminal: true }) : undefined;
+  return command && known?.session ? { command, session: known.session } : undefined;
+}
 
 const waiting = new Set<() => void>(); // the runs in a terminal whose remark has no answer yet
 
@@ -157,14 +183,12 @@ export function answersChanged(): void {
 }
 
 /**
- * Starts a new session of Claude Code for a remark in a terminal that a person can watch and answer: the remark has the session from the start.
- * The session stays open after the answer. The changed files are kept once, at the answer or when the terminal closes; a terminal that closes
- * before the answer opens the remark again. The id of its process is kept on the remark, so a run that is gone with its window is found (staleRuns).
+ * Runs a remark as a session in a terminal that a person can watch and answer: `begin` starts it there, or gives undefined when it cannot. The remark
+ * has the session from the start, and the session stays open after the answer. The changed files are kept once, at the answer or when the terminal
+ * closes; a terminal that closes before the answer opens the remark again. The id of its process is kept on the remark, so a run that is gone with
+ * its window is found (staleRuns).
  */
-function startInTerminal(store: Store, remarkId: number, prompt: string, options: RunOptions, folder: string, terminal: RunTerminal, run: CommentRun, ended: () => void): boolean {
-  const session = randomUUID();
-  const command = newRunCommand('claude-code', prompt, { ...options, inTerminal: true, sessionId: session });
-  const target = store.getRemark(remarkId)?.target;
+function startInTerminal(store: Store, remarkId: number, session: string, begin: (closed: Closed) => InTerminal | undefined, run: CommentRun, ended: () => void): boolean {
   let over = false;
   const finish = (): boolean => {
     if (over) return false;
@@ -174,7 +198,7 @@ function startInTerminal(store: Store, remarkId: number, prompt: string, options
     return true;
   };
   const look = (): void => { if (run.answered() && finish()) ended(); };
-  const started = command && terminal(command, folder, `Apostil comment · ${target?.label ?? target?.kind ?? ''}`.slice(0, 48), session, (code) => {
+  const started = begin((code) => {
     if (!finish()) return;
     if (run.answered()) return ended();
     run.noAnswer(code ? `It ended with code ${code}.` : undefined);

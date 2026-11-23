@@ -201,8 +201,8 @@ try {
   check('a new comment opens the same card, empty, beside its thing, with the cursor in its box; the picker lists each connected app with this session, a known session of the repo and a new session, each with the model and effort of its run, then "No agent"; the choice sends it there with the effort and no model, and the card stays open on its thread with no flight while the mark and the count show',
     fresh.where === 'Part "Hold service"' && fresh.threads === 0 && !/url/.test(fresh.cursor) && fresh.beside
       && JSON.stringify(menu) === JSON.stringify(['Claude Code', 'This session made this change · Opus 5.5 · Extra', 'Tests for holds used n min ago · Sonnet 5.5 · Medium', 'New session Haiku 5.5 · High', 'Codex', 'New session Luna 6 · High', 'OpenCode', "New session OpenCode's own model", 'No agent: keep it as a note'])
-      && pickedWords.trim() === 'Send to Claude Code · Tests for holds' && JSON.stringify(toSession?.to) === JSON.stringify({ app: 'claude-code', kind: 'session', session: 'made-up-session-0002', name: 'Tests for holds', effort: 'medium' })
-      && toSession.target.part === 'hold-service' && JSON.stringify(afterSend.messages) === JSON.stringify(['mine:right:::tip']) && afterSend.state === 'waiting for Claude Code · Tests for holds · Start a run · Sonnet 5.5 · Medium' && afterSend.animations === 0
+      && pickedWords.trim() === 'Send to Claude Code · "Tests for holds"' && JSON.stringify(toSession?.to) === JSON.stringify({ app: 'claude-code', kind: 'session', session: 'made-up-session-0002', name: 'Tests for holds', effort: 'medium' })
+      && toSession.target.part === 'hold-service' && JSON.stringify(afterSend.messages) === JSON.stringify(['mine:right:::tip']) && afterSend.state === 'waiting for Claude Code · "Tests for holds" · Start a run · Sonnet 5.5 · Medium' && afterSend.animations === 0
       && /\bwaiting\b/.test(afterSend.mark) && afterSend.count === '1' && noCountEmpty,
     JSON.stringify({ fresh, menu, pickedWords, to: toSession?.to, afterSend, noCountEmpty }));
   await page.evaluate(() => { App.page.remarks = []; App.render(); });
@@ -379,6 +379,31 @@ try {
   await drawn(() => page.evaluate(() => { App.page.remarks = App.page.remarks.filter((remark) => remark.id !== 97); App.render(); }));
   check('a comment to a new session that works has "new session" as the link to its session, with no "· session" after it; a click asks VS Code to open that session',
     /^Claude Code · new session is working · [^·]+$/.test(newSession.text) && newSession.link === 'new session' && newSession.opened === 97, JSON.stringify(newSession));
+
+  // A comment to a new session in a card that stays open: once the session has its id and its answer, the picker of the reply follows from "new session"
+  // to that session by its name, the answered line names it with the name as its link, and the reply goes on in that session.
+  const answeredBy = 'a0ce2976-1b2c-4d5e-8f90-123456789abc';
+  await drawn(() => page.evaluate(() => {
+    App.page.remarks.push({ id: 98, changeId: 0, target: { kind: 'part', part: 'night-job', label: 'Part "Night job"' }, text: 'Make gemini the same', createdAt: new Date().toISOString(), state: 'sent', to: { app: 'claude-code', kind: 'new' } });
+    App.render();
+  }));
+  await openMark(partTitle('night-job'));
+  const thread = { before: (await cardNow())?.picker };
+  await drawn(() => page.evaluate((session) => {
+    Object.assign(App.page.remarks.find((remark) => remark.id === 98), { state: 'done', answer: 'Done.', answeredAt: new Date().toISOString(), run: { session, startedAt: new Date().toISOString(), name: 'Fix the team' } });
+    App.render();
+  }, answeredBy));
+  const line = page.locator(`${theCard} .cth[data-thread="98"] .st`);
+  Object.assign(thread, { picker: (await cardNow())?.picker, line: (await line.textContent().catch(() => '')).trim(), link: await line.locator('a[data-session]').textContent().catch(() => '') });
+  await page.click(`${theCard} [data-field="98"]`);
+  await page.keyboard.type('And codex too.');
+  await page.keyboard.press('Enter');
+  thread.to = (await sentRemarks()).pop()?.to;
+  await closeCard();
+  await drawn(() => page.evaluate(() => { App.page.remarks = App.page.remarks.filter((remark) => remark.id !== 98 && remark.thread !== 98); App.render(); }));
+  check('a reply in a thread whose comment a new session answered goes on in that session: the picker of the open card follows from "new session" to its name, the answered line names the session with the name as its link, and the reply is sent there',
+    thread.before === 'Send to Claude Code · new session' && thread.picker === 'Send to Claude Code · "Fix the team"' && thread.line === 'answered by Claude Code · "Fix the team"' && thread.link === '"Fix the team"'
+      && thread.to?.kind === 'session' && thread.to.session === answeredBy && thread.to.name === 'Fix the team', JSON.stringify(thread));
 
   // ----- the changed files of a run: a quiet block under the answer, at most three rows, then "n more"; a row opens the change of its file -----
   await drawn(() => page.evaluate(() => {
