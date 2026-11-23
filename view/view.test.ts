@@ -263,7 +263,7 @@ test('the state line of a row and of a remark: the first case that applies, the 
   // The mark of a thread: a note to no agent, waiting, working, answered until its card shows the answer.
   assert.deepEqual(['open', 'sent', 'running', 'done'].map((state) => States.markState({ state })), ['note', 'waiting', 'working', 'answered']);
   assert.equal(States.markState({ state: 'done' }, true), 'seen');
-  assert.deepEqual(States.remarkLine({ state: 'running', to: { app: 'claude-code', kind: 'session', session: 's2', name: 'Tests for holds' } }, undefined, false), { text: 'Claude Code · Tests for holds is working', dot: 'pulse' });
+  assert.deepEqual(States.remarkLine({ state: 'running', to: { app: 'claude-code', kind: 'session', session: 's2', name: 'Tests for holds' } }, undefined, false), { text: 'Claude Code · "Tests for holds" is working', dot: 'pulse' });
 
   // The state line names whom a remark waits for, or who works on it, as the picker says the app and the place; how long it works is a relative time.
   const current = { app: 'claude-code', kind: 'current' };
@@ -319,6 +319,23 @@ test('the picker of where a comment goes: for each connected app this session, t
   assert.equal(States.startChoice(choices, null).key, 'none'); // the last comment went to no agent
   assert.equal(States.startChoice(choices, { app: 'codex', kind: 'current' }).key, 'claude-code:current');
   assert.equal(States.startChoice(States.sendChoices({ apps: ['codex', 'opencode'] }), undefined).key, 'codex:new');
+});
+
+test('a reply in a thread whose comment went to a new session goes on in that session once its run has the id, offered first by its name or short id; the answer names that session', () => {
+  const session = 'a0ce2976-1b2c-4d5e-8f90-123456789abc';
+  const lead = { id: 1, state: 'done', to: { app: 'claude-code', kind: 'new' }, run: { session, startedAt: '2026-11-23T10:00:00Z' }, answer: 'Done.', createdAt: '2026-11-23T10:00:00Z', answeredAt: '2026-11-23T10:02:00Z' };
+  const picked = (remark: object) => States.startChoice(States.sendChoices({ apps: ['claude-code', 'codex'], sessions: [], lead: remark }), States.sessionTo(remark));
+  assert.deepEqual(picked(lead).to, { app: 'claude-code', kind: 'session', session });
+  assert.deepEqual(States.sendChoices({ apps: ['claude-code', 'codex'], lead }).map((choice: { key: string }) => choice.key), [`claude-code:session:${session}`, 'claude-code:new', 'codex:new', 'none']);
+  assert.equal(States.choiceWords(picked(lead)), 'Claude Code · a0ce2976');
+  assert.deepEqual(States.remarkLine(lead, undefined, false), { text: 'answered by Claude Code · a0ce2976', dot: 'teal' });
+  const named = { ...lead, run: { ...lead.run, name: 'Fix the team' } }; // the name of the session in its app, from the extension
+  assert.deepEqual(picked(named).to, { app: 'claude-code', kind: 'session', session, name: 'Fix the team' });
+  assert.equal(States.choiceWords(picked(named)), 'Claude Code · "Fix the team"');
+  assert.equal(States.remarkLine(named, undefined, false).text, 'answered by Claude Code · "Fix the team"');
+  // Before its run has the id, a reply goes to a new session, as its thread did; while it works the line says "new session".
+  assert.equal(picked({ ...lead, state: 'sent', run: undefined, answer: undefined }).key, 'claude-code:new');
+  assert.equal(States.remarkLine({ ...lead, state: 'running', answer: undefined }, undefined, false).text, 'Claude Code · new session is working');
 });
 
 test('@ offers the session of the change first, then a new session of each connected app, and letters cut the list; the pull requests of a row fold after two lines', () => {

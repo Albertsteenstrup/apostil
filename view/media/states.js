@@ -15,6 +15,7 @@ const States = (() => {
     connect: 'connect Claude Code',
     startRun: 'Start a run',
     answered: 'answered',
+    answeredBy: (name) => `answered by ${name}`,
     session: 'session',
     closedOne: 'closed',
     resolve: 'Resolve',
@@ -37,8 +38,6 @@ const States = (() => {
     writeReply: 'Write a reply…',
     sendTo: 'Send to',
     close: 'Close',
-    moreActions: 'More',
-    openTheSession: 'Open the session',
     choiceThis: 'This session',
     choiceThisSub: 'made this change',
     choiceNew: 'New session',
@@ -160,18 +159,29 @@ const States = (() => {
   const PICKED_MAX = 3; // the known sessions of one app that the picker offers
 
   /**
+   * Where a remark went, as a known session once the run of its new session has reported its id: { app, kind: 'session', session, name }, with the name
+   * of that session in its app that the extension sends (run.name). A reply in its thread goes there at first.
+   */
+  const sessionTo = (remark) => (remark.to?.kind === 'new' && remark.run?.session
+    ? { app: remark.to.app, kind: 'session', session: remark.run.session, ...(remark.run.name ? { name: remark.run.name } : {}) } : remark.to);
+
+  /**
    * Where a comment can go, for the picker under the box of a card. For each connected app, in the order of `apps`: this session (the session that
-   * made the change, when it is of that app), the other sessions that Apostil knows in this repo and that a run can continue in this folder (newest
-   * first, at most 3), and a new session. Then the pull request on GitHub, when `github` says that it takes this comment. Last, no agent.
+   * made the change, when it is of that app), the session of the thread that a reply answers (`lead`, its lead remark: sessionTo), the other sessions
+   * that Apostil knows in this repo and that a run can continue in this folder (newest first, at most 3 with that of the thread), and a new session.
+   * Then the pull request on GitHub, when `github` says that it takes this comment. Last, no agent.
    * A page with no stored change offers only GitHub. Each choice: { key, app, to, words, sub, model }; `to` is what the remark is sent to
    * ({ app, kind: 'current' | 'new' | 'session', session }), { app: 'github' }, or null for a note.
    */
-  function sendChoices({ agent, apps = [], sessions = [], models = {}, own, github = false, pullOnly = false, now = Date.now() }) {
+  function sendChoices({ agent, apps = [], sessions = [], models = {}, own, github = false, pullOnly = false, lead, now = Date.now() }) {
     const gitHub = github ? [{ key: 'github', app: 'github', to: { app: 'github' }, words: WORDS.choiceGitHub, sub: '', run: null }] : [];
     if (pullOnly) return gitHub;
+    const thread = lead && sessionTo(lead);
     const ofApp = (app) => {
       const ofChange = hasSession(agent) && agent.app === app;
-      const known = sessions.filter((one) => one.app === app && one.session !== agent?.session).sort((a, b) => b.at.localeCompare(a.at)).slice(0, PICKED_MAX);
+      const ofThread = thread?.kind === 'session' && thread.app === app ? [sessions.find((one) => one.session === thread.session) ?? { ...thread, at: lead.answeredAt ?? lead.createdAt }] : [];
+      const others = sessions.filter((one) => one.app === app && one.session !== agent?.session && one.session !== thread?.session).sort((a, b) => b.at.localeCompare(a.at));
+      const known = [...ofThread, ...others].slice(0, PICKED_MAX);
       const menu = models[app];
       const list = menu?.list ?? [];
       return [
@@ -198,8 +208,8 @@ const States = (() => {
     return (wanted !== undefined && has(choiceKey(wanted))) || choices.find((choice) => choice.to?.kind === 'current') || choices.find((choice) => choice.to?.kind === 'new') || choices[0];
   }
 
-  /** The place of a choice in words: "this session", "new session", or the name of a known session. */
-  const placeWords = (to) => (to.kind === 'current' ? WORDS.placeThis : to.kind === 'new' ? WORDS.placeNew : to.name || to.session.slice(0, 8));
+  /** The place of a choice in words: "this session", "new session", or a known session by its name in quotes, else its short id (as sessionCalled in shared/map-run.ts). */
+  const placeWords = (to) => (to.kind === 'current' ? WORDS.placeThis : to.kind === 'new' ? WORDS.placeNew : to.name ? `"${to.name}"` : to.session.slice(0, 8));
 
   /** The closed picker in words: "Claude Code · this session", "Codex · new session", "GitHub · the pull request". The model and the effort stand on their own line. */
   function choiceWords(choice) {
@@ -209,8 +219,17 @@ const States = (() => {
   }
   const AGENT_WORDS = { 'claude-code': 'Claude Code', codex: 'Codex', antigravity: 'Antigravity', opencode: 'OpenCode' };
 
-  /** Who a remark went to, in the words of the picker, for its state line: "Claude Code · this session", "Codex · new session", "Claude Code · Tests for holds". */
+  /** Who a remark went to, in the words of the picker, for its state line: "Claude Code · this session", "Codex · new session", "Claude Code · \"Tests for holds\"". */
   const toName = (to) => `${AGENT_WORDS[to.app] ?? to.app} · ${placeWords(to)}`;
+
+  /** Whom the line of a remark names: where it went; once answered, a new session by its name or short id (sessionTo). */
+  const lineTo = (remark) => (remark.answer ? sessionTo(remark) : remark.to);
+
+  /** The words that name the session of a remark in its line, for a new or a known session: "new session", "a0ce2976", "\"Fix the team\"". */
+  const sessionWords = (remark) => {
+    const to = lineTo(remark);
+    return to?.kind === 'new' || to?.kind === 'session' ? placeWords(to) : undefined;
+  };
 
   /** How long a run has worked, in short words: "just now", "4 min", "3 hours", "2 days". */
   const forWords = (iso, now = Date.now()) => agoWords(iso, now).replace(/ ago$/, '');
@@ -235,12 +254,14 @@ const States = (() => {
    * What a remark shows under its text, in the words of the picker: "Claude Code · this session is working", "waiting for Codex · new session".
    * agent: the agent of the change ({ hostSession, link, canResume }); listening: its session has a live waiter.
    * way: what the owner can do next: "listening", "connect", "start" or none. A reply with the mention sends again.
+   * An answer of a known session names it: "answered by Claude Code · \"Fix the team\"".
    */
   function remarkLine(remark, agent, listening) {
     if (remark.state === 'open') return { text: '' };
-    const name = remark.to && toName(remark.to);
+    const to = lineTo(remark);
+    const name = to && toName(to);
     if (remark.state === 'running') return { text: name ? WORDS.isWorking(name) : WORDS.working, dot: 'pulse' };
-    if (remark.state === 'done') return { text: WORDS.answered, dot: 'teal' };
+    if (remark.state === 'done') return { text: to?.kind === 'session' ? WORDS.answeredBy(name) : WORDS.answered, dot: 'teal' };
     if (remark.state === 'closed') return { text: WORDS.closedOne };
     if (remark.to?.kind === 'new') return { text: WORDS.waitingFor(name) }; // its own run takes it
     if (remark.to?.kind === 'session') return { text: WORDS.waitingFor(name), way: 'start' }; // a run continues that session
@@ -332,7 +353,7 @@ const States = (() => {
     + `${state !== 'note' && AGENT_WORDS[app] ? `<img src="agents/${app}.svg" alt="${esc(AGENT_WORDS[app])}">` : ''}${count > 1 ? `<b class="n">${count}</b>` : ''}</i>`;
 
   return {
-    WORDS, MENTION_WORDS, agoWords, mentionChoices, cutChoices, sendChoices, choiceKey, startChoice, choiceWords, forWords, rowLine, rowState, remarkLine,
+    WORDS, MENTION_WORDS, agoWords, mentionChoices, cutChoices, sessionTo, sendChoices, choiceKey, startChoice, choiceWords, sessionWords, forWords, rowLine, rowState, remarkLine,
     effortWord, nearestEffort, runWords,
     threadLead, threadState, markState, foldPulls, foldRows, stackOrder, lineHtml, markHtml, bubbleSvg, BUBBLE_PATH, pullTip, pullIcon,
   };

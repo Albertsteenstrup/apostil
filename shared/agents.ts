@@ -229,7 +229,7 @@ export interface RunOptions {
   describe?: true; // a run that describes a change (words for an agent): what the skill apostil-describe-change runs, and no Edit; it draws diagrams
   diagrams?: true; // a run that writes the map of a repo: it reads the repo, with the most reasoning effort
   sessionId?: string; // a new Claude Code session takes this id, so that its link is known before the run ends
-  inTerminal?: true; // a Claude Code session in a terminal that a person can watch and answer: the prompt is its first message, not a print run
+  inTerminal?: true; // a Claude Code session in a terminal that a person can watch and answer: the prompt is its first message (or the next one of a session that it resumes), not a print run
 }
 
 /** The models of the runs, as the owner set them in VS Code. */
@@ -262,7 +262,10 @@ export function resumeCommand(agent: AgentSession, prompt: string, options: RunO
   const { session } = agent;
   if (!session) return undefined;
   const withModel = drawsDiagrams(options) || !!options.model;
-  if (agent.app === 'claude-code') return ['claude', '-p', '--resume', session, prompt, '--output-format', 'json', ...modelWords(agent.app, options, withModel), ...writerAgents(options), ...claudeRights(options)];
+  if (agent.app === 'claude-code') {
+    const run = options.inTerminal ? ['--resume', session, prompt] : ['-p', '--resume', session, prompt, '--output-format', 'json'];
+    return ['claude', ...run, ...modelWords(agent.app, options, withModel), ...writerAgents(options), ...claudeRights(options)];
+  }
   if (agent.app === 'codex') return ['codex', 'exec', 'resume', session, prompt, '--json', ...codexWords(options, withModel)];
   if (agent.app === 'antigravity') return ['agy', '-p', prompt, '--conversation', session, '--output-format', 'json', ...modelWords(agent.app, options, withModel), ...agyRights(options)];
   if (agent.app === 'opencode') return ['opencode', 'run', '--session', session, prompt, '--format', 'json', ...modelWords(agent.app, options, withModel)];

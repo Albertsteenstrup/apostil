@@ -204,7 +204,7 @@ export function pageData(store: Store, changeId: number, openFolder: string, app
   const newer = saved?.missing ? 0 : newerCommits(change, folder);
   return buildPage({
     changeId, folder, branch: change.branch, base, newer: newer ? { commit: change.head, at: change.savedAt, newer } : undefined, file: change.file, checks, outOfDate, saved,
-    openPoints: store.openPoints(changeId), remarks: store.remarks(changeId),
+    openPoints: store.openPoints(changeId), remarks: withSessionNames(store.remarks(changeId)),
     agent: change.agent, listening: isListening(store, change.agent), apps, map: mapOfFolder(store, folder), checked: change.checked ?? [],
     sendTo: sendToOf(store, change.repoId, change.folder, apps, models, change.agent),
   });
@@ -464,8 +464,16 @@ export function filePage(folder: string, apps: string[] = [], store?: Store, mod
 function repoComments(folder: string, apps: string[], store?: Store, models: RunModels = {}): Pick<PageData, 'remarks' | 'sendTo'> {
   const repo = store ? (() => { try { return repoId(folder); } catch { return undefined; } })() : undefined;
   if (!store || !repo) return { remarks: [] };
-  return { remarks: repoRemarksOnFiles(store.repoRemarks(repo)), sendTo: sendToOf(store, repo, folder, apps, models) };
+  return { remarks: withSessionNames(repoRemarksOnFiles(store.repoRemarks(repo))), sendTo: sendToOf(store, repo, folder, apps, models) };
 }
+
+/** The remarks for a page: one that a new session answered gets the name of that session in its app, when it has one (sessionName), which its card shows. */
+export const withSessionNames = (remarks: Remark[]): Remark[] => remarks.map((remark) => {
+  const { to, run } = remark;
+  if (to?.kind !== 'new' || remark.state !== 'done' || !run?.session) return remark;
+  const name = sessionName({ app: to.app, session: run.session });
+  return name ? { ...remark, run: { ...run, name } } : remark;
+});
 
 /** The threads of the repo whose first comment is on a file (lines of code, a note beside it): the file tab shows them, Home does not. */
 export const repoRemarksOnFiles = (remarks: Remark[]): Remark[] => {

@@ -11,11 +11,11 @@ import { homePlan, mapWorkLeft } from '../store/map-run';
 import { mapRunChart, mapRunFiles } from '../shared/map-run-chart';
 import { agentHome, teamFrom, type Team } from '../shared/models';
 import type { Store } from '../shared/store';
-import { MAP_DRAFT, mapRunCommand, startMapRun, startRun, type RunFacts } from './agent-run';
+import { MAP_DRAFT, mapRunCommand, startMapRun, type RunFacts } from './agent-run';
 import { runInTerminal } from './run-terminal';
 import { agentsNeedSetup, runNextStep } from './change-list';
 import { apostilOnPath, appName, commentRuns, runModels, showRunProblem } from './run-settings';
-import { openAgentSession, openLink, openRemarkSession, webviewHtml, type NewRemark } from './change-page';
+import { openAgentSession, openLink, openRemarkSession, sendRepoRemark, webviewHtml, type NewRemark } from './change-page';
 import { menusOf } from '../shared/page-data';
 import { graphsData, homeData, type GraphsData, type HomeData } from '../shared/home-data';
 import { repoIdOrNone } from '../shared/git';
@@ -255,21 +255,14 @@ export class HomePages {
   }
 
   /**
-   * Saves a comment on the map of the repo, or a reply. It belongs to no change. Sent to a new session of an app, it starts that run in the open folder;
-   * Home has no session of a change to send it to.
+   * Saves a comment on the map of the repo, or a reply. It belongs to no change. Sent to a new session of an app, or a reply to the session of its thread,
+   * it starts that run in the open folder (sendRepoRemark); Home has no session of a change to send it to.
    */
   saveRemark(message: NewRemark): void {
     const repo = repoIdOrNone(this.openFolder());
     if (!repo) return;
     const id = this.store.addRepoRemark(repo, withKept(message.target, keptOnMap(this.store.getMap(repo)?.map, message.target)), message.text, message.thread); // it keeps what its thing is now
-    if (message.to?.kind === 'new') {
-      this.store.sendRemark(id, message.to);
-      const { app } = message.to;
-      startRun(this.store, id, (problem) => {
-        if (problem) showRunProblem(problem, { app });
-        this.changed();
-      }, app, this.openFolder(), runModels(), commentRuns(), undefined, runInTerminal);
-    }
+    sendRepoRemark(this.store, id, message.to, this.openFolder(), () => this.changed());
     this.reload();
   }
 
