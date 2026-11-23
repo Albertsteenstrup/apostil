@@ -1,7 +1,7 @@
 // The Home tab with the map of the repo, one tab for the graphs of each folder or file, and one tab for each page of the look.
 
-import { rmSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, rmSync, watch } from 'node:fs';
+import { dirname, join, relative } from 'node:path';
 import * as vscode from 'vscode';
 import { keptOnMap, withKept } from '../shared/comment-lines';
 import type { Target } from '../shared/look';
@@ -55,6 +55,19 @@ type Message =
 export interface DiagramLayout {
   full(): boolean;
   set(full: boolean): void;
+}
+
+// A watch of the file itself, not VS Code's watcher: macOS hands that one its changes seconds late while other programs write many files.
+function followFile(folder: string, file: string, changed: () => void): vscode.Disposable[] {
+  let at = join(folder, file);
+  if (relative(folder, at).startsWith('..')) return [];
+  while (!existsSync(at)) at = dirname(at);
+  try {
+    const watcher = watch(at, changed).on('error', changed);
+    return [{ dispose: () => watcher.close() }];
+  } catch {
+    return [];
+  }
 }
 
 /** What he does on a page that goes on from a focused node: into it, to its code, to another view, a target of the look. */
@@ -382,13 +395,7 @@ export class HomePages {
     tab.follow?.forEach((one) => one.dispose());
     let timer: NodeJS.Timeout | undefined;
     const again = (): void => { clearTimeout(timer); timer = setTimeout(() => { if (this.pages.get(id) === tab) this.post(tab, this.pageMessage(id, tab)); }, 200); };
-    tab.follow = data.files.map((file) => {
-      const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(vscode.Uri.file(folder), file));
-      watcher.onDidChange(again);
-      watcher.onDidCreate(again);
-      watcher.onDidDelete(again);
-      return watcher;
-    });
+    tab.follow = data.files.flatMap((file) => followFile(folder, file, again));
     return { type: 'data', data, trail: this.trail.steps };
   }
 

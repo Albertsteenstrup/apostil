@@ -216,10 +216,9 @@ try {
     await page.keyboard.press('F1');
     await quickInput.waitFor({ state: 'visible' });
   };
-  /** Writes into the open quick input (all of it, also its ">" or ":") and presses Enter when its first row holds what was written. */
-  const pick = async (text) => {
+  /** Writes into the open quick input (all of it, also its ">" or ":") and presses Enter when its first row holds what was written, or `wanted`. */
+  const pick = async (text, wanted = text.replace(/^[>:]/, '').replace(/:\d+$/, '').toLowerCase()) => { // a line after a file name is no part of its row
     await page.locator('.quick-input-widget .quick-input-box input').fill(text); // a key typed in the first moment can go nowhere; this puts the words in at once
-    const wanted = text.replace(/^[>:]/, '').replace(/:\d+$/, '').toLowerCase(); // a line after a file name is no part of its row
     const first = () => page.evaluate(() => { const row = [...document.querySelectorAll('.quick-input-list .monaco-list-row')].find((one) => one.getBoundingClientRect().height > 0); return (row?.getAttribute('aria-label') ?? row?.textContent ?? '').toLowerCase(); });
     if (!(await until(async () => (await first()).includes(wanted), 4000))) console.log(`NOTE  the first row did not hold "${text}": "${await first()}"`);
     await page.keyboard.press('Enter');
@@ -229,8 +228,7 @@ try {
   const goTo = async (text) => {
     await palette();
     if (!text.startsWith(':')) return pick(text);
-    await page.locator('.quick-input-widget .quick-input-box input').fill(text);
-    await page.keyboard.press('Enter');
+    await pick(text, `go to line ${text.slice(1)}`);
     const there = await until(() => page.locator('[id="status.editor.selection"]').textContent({ timeout: 500 }).then((line) => line?.startsWith(`Ln ${text.slice(1)},`), () => false), 4000);
     if (!there) console.log(`NOTE  the cursor did not go to ${text}: status "${await page.locator('[id="status.editor.selection"]').textContent({ timeout: 500 }).catch(() => 'none')}", tab ${await activeTab()}, quick input ${await quickInput.isVisible()}, message "${await page.locator('.quick-input-widget').textContent().catch(() => '')}"`);
   };
@@ -357,7 +355,7 @@ try {
   // Home that opens by itself leaves the keyboard in the terminal where he types.
   await goTo('README.md');
   await command('Terminal: Create New Terminal');
-  await page.locator('.part.panel .xterm').first().waitFor({ timeout: 8000 });
+  await until(async () => (await focus()) === 'panel'); // the terminal takes the keyboard a moment after it shows
   await command('View: Close All Editors');
   const terminalTabs = await waitTabs(['Home']);
   const terminalFocus = await until(async () => (await focus()) === 'panel' && 'panel', 3000) || await focus();
@@ -1181,8 +1179,14 @@ try {
   // The right-click menu of the editor (the window draws its menus, window.menuStyle custom): the entry of a mark in a file with marks, on any line
   // (on a line with no mark it says so), and not in a file with none; its list opens a place. "Actions of the Look…" lists the actions, and the key
   // of the first action carries it out.
+  // The menu opens once the extension has the line of the cursor: what the menu of the file in front needs is set by then.
+  const extensionAt = (line) => until(async () => {
+    const [file, lines] = JSON.parse(cursorKnown());
+    return !!file && lines?.[0] === line && (await activeTab() ?? '').startsWith(path.basename(file));
+  }, 4000);
   const menuAt = async (line) => {
     await goTo(`:${line}`);
+    await extensionAt(line);
     const y = await page.evaluate((wanted) => {
       const row = [...document.querySelectorAll('.editor-group-container.active .margin-view-overlays .line-numbers')].find((one) => one.textContent.trim() === String(wanted))?.parentElement.getBoundingClientRect();
       return row && row.y + row.height / 2;
@@ -1200,19 +1204,12 @@ try {
   await page.locator('.monaco-menu .action-label', { hasText: OTHER_PLACES }).click({ timeout: 3000 }).catch(() => {});
   const noMarkSaid = await shown(toast('This line has no mark.'), 4000);
   await goTo('README.md');
-  const inPlainFile = await menuAt(1);
+  const inPlainFile = await menuAt(3); // not line 1, where its cursor stands: the extension hears of a cursor that moves
   await page.keyboard.press('Escape');
   await closeTab('README.md');
   await menuAt(46);
   await shot('7d-the-right-click-menu-of-a-marked-line');
-  // Under load the menu of VS Code can be gone before the click: the right click is made once more. Without the entry no quick pick opens, and the run would wait on a hidden field.
-  const entry = page.locator('.monaco-menu .action-label', { hasText: OTHER_PLACES });
-  if (!(await entry.click({ timeout: 3000 }).then(() => true, () => false))) {
-    console.log('NOTE  the menu entry was not there for the click; the right click once more');
-    await page.keyboard.press('Escape');
-    await menuAt(46);
-    await entry.click({ timeout: 3000 }).catch(() => {});
-  }
+  await page.locator('.monaco-menu .action-label', { hasText: OTHER_PLACES }).click({ timeout: 3000 });
   const placeCount = await until(async () => { const count = await quickCount(); return count >= 20 && count; }, 4000) || await quickCount();
   await page.locator('.quick-input-widget .quick-input-box input').fill('435'); // a line number that one place only has: two files have a mark at their line 139
   await until(async () => (await searchRows()).join() === 'src/library/night_jobs.py | line 435', 3000);
