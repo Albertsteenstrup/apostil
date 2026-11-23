@@ -1,6 +1,6 @@
 // "apostil hint": what a SessionStart hook of Claude Code tells the agent at the start of each session in a repo with a map (a person adds the hook;
 // apostil setup does not, see skills/README.md):
-// which command of Apostil to use for what. Each word is paid in every call of the session, so it stays short. No `vscode` import.
+// which command of Apostil to use for what. Each word is paid in every call of the session, so it stays short.
 // It reads the store and never writes it, never waits, and always ends with code 0. With the links and nudges off it says nothing.
 
 import { existsSync } from 'node:fs';

@@ -1,6 +1,6 @@
 // "apostil doctor": one line for each thing that Apostil needs, ok or missing, and for a missing thing the step that corrects it. It writes nothing.
 // It also lists the repos where setup ran, and ends with the command that removes Apostil.
-// The lines hold no token, no e-mail address and no code, so that a person can paste them into feedback. No `vscode` import.
+// The lines hold no token, no e-mail address and no code, so that a person can paste them into feedback.
 
 import { spawnSync } from 'node:child_process';
 import { existsSync, realpathSync } from 'node:fs';

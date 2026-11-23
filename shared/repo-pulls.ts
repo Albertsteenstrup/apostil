@@ -1,4 +1,4 @@
-// The open pull requests of a repo, and why the list may be empty: what went wrong with gh, in one plain sentence. No `vscode` import.
+// The open pull requests of a repo, and why the list may be empty: what went wrong with gh, in one plain sentence.
 
 import { execFile } from 'node:child_process';
 import { openPullsArguments, pullRequestsFromJson, type PullRequest } from './pull-requests';

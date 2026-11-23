@@ -1,4 +1,4 @@
-// Connects Claude Code: the hooks of Apostil and the rules that allow commands, in one of its settings files. No `vscode` import.
+// Connects Claude Code: the hooks of Apostil and the rules that allow commands, in one of its settings files.
 // Two hooks: the wait hook brings sent remarks into a session (apostil connect), the hint tells the agent at its start to use the map (added by hand; apostil setup leaves it out).
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';

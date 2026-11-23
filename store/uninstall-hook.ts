@@ -1,7 +1,7 @@
 // The cleanup script of the extension (package.json, "vscode:uninstall"). VS Code or a fork runs it when it removes Apostil for good,
 // which it does at its next start. It is the uninstall of "apostil uninstall", run as the editor's step: no window and no question,
 // the store stays, and what it did goes, with the date, into <store>/uninstall.log. VS Code stops the script after 5 seconds and then
-// removes the storage of the extension itself. The script always ends with exit code 0. No `vscode` import.
+// removes the storage of the extension itself. The script always ends with exit code 0.
 
 import { appendFileSync, existsSync } from 'node:fs';
 import { homedir } from 'node:os';

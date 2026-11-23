@@ -1,5 +1,5 @@
 // "apostil setup": the skills where each agent app of this machine reads them, and for Claude Code the rules that allow the commands that
-// read the map. The wait hook and the hint at the start of a session are added by hand (apostil connect, apostil hint); undo still takes them away. No `vscode` import.
+// read the map. The wait hook and the hint at the start of a session are added by hand (apostil connect, apostil hint); undo still takes them away.
 // Every function takes the home folder and the path, so that a test can give folders of its own. A setup for a repo adds the repo to the record in the store; its undo takes it out.
 
 import { cpSync, existsSync, lstatSync, readdirSync, readFileSync, realpathSync, rmdirSync, rmSync, writeFileSync } from 'node:fs';

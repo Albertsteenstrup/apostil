@@ -1,6 +1,5 @@
 // The time left of a map run: the expected time of the work that is left, from the plan of the run, multiplied by the pace of this run.
 // store/map-run.ts makes the plan when a run starts, and again when the overview is saved and when the last notes are saved; Home shows the result.
-// No `vscode` import.
 
 /** How many writers run at once: the skill starts up to this many and starts the next when one ends. Writers of all kinds share these places. */
 export const WRITERS_AT_ONCE = 16;

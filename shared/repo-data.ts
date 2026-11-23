@@ -1,6 +1,6 @@
 // Reads a file of the repo for a block of a look (shared/look.ts): only a file that Git lists, inside the repo, and no link that leads out of it.
 // A data file is CSV, TSV or JSON: rows (a CSV or TSV file, or a JSON list of objects) or keys (a JSON object). The check of a look and the data of
-// a block when its window or page opens (view/look-blocks.ts) both read through it, so they agree. No `vscode` import.
+// a block when its window or page opens (view/look-blocks.ts) both read through it, so they agree.
 
 import { readFileSync, realpathSync, statSync } from 'node:fs';
 import { join, sep } from 'node:path';

@@ -1,6 +1,6 @@
 // "apostil issue": an issue about Apostil that a person submits on GitHub under their own account. Nothing here writes to GitHub.
 // --facts gives the versions and the lines of doctor; with --kind and --title the body comes on standard input, gets the facts at its end
-// and a guard that takes private text out; --open opens GitHub's page for a new issue with it filled in. No `vscode` import.
+// and a guard that takes private text out; --open opens GitHub's page for a new issue with it filled in.
 
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, rmSync } from 'node:fs';

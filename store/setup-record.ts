@@ -1,5 +1,5 @@
 // The record of the repos where "apostil setup" or "apostil connect" wrote: a small list of folders in the store.
-// "apostil uninstall" undoes each of them, and "apostil doctor" shows them. No `vscode` import.
+// "apostil uninstall" undoes each of them, and "apostil doctor" shows them.
 
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';

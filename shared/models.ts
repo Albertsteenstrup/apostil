@@ -1,6 +1,6 @@
 // The newest models of each agent app, read only from the app's own catalog, in the order of their size; the model and the effort that a session last
 // used; and the choice of a run (a model and an effort; for a map and a description those of the lead, whose writers are fixed). Every run takes its model and effort from
-// here, and `modelWords()` in agents.ts turns them into the words of the app. No `vscode` import.
+// here, and `modelWords()` in agents.ts turns them into the words of the app.
 
 import { spawnSync } from 'node:child_process';
 import { readdirSync, readFileSync, statSync } from 'node:fs';

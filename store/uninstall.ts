@@ -1,6 +1,6 @@
 // "apostil uninstall": takes away what Apostil put on this computer, in this order: the setup of every repo of the record and of the home folder,
 // VS Code's storage of the extension, its settings, the Claude mod, the command on the path, the extension. The store stays unless it is asked to go.
-// It touches only what Apostil wrote, and prints one line for each place. A dry run prints the same lines and changes nothing. No `vscode` import.
+// It touches only what Apostil wrote, and prints one line for each place. A dry run prints the same lines and changes nothing.
 // The same function serves "apostil uninstall", "Apostil: Uninstall…" in VS Code (inVsCode) and the cleanup script that an editor runs (removing).
 
 import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
