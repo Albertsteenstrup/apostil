@@ -9,7 +9,7 @@ import { baseOf, currentBranch, headCommit, repoId } from '../shared/git';
 import { Store } from '../shared/store';
 import { makeTestRepo, tempFolder, testChangeFile } from '../shared/test-repo';
 import { sentRemarks } from '../store/inbox';
-import { deniedRules, problemFromOutput, sessionFromOutput, startRun } from './agent-run';
+import { answersChanged, deniedRules, problemFromOutput, sessionFromOutput, startRun, type RunTerminal } from './agent-run';
 
 test('a run of the session of a change keeps the permission mode that the person set as default for Claude Code; when it ends with no answer, the comment is open again and the reason says so', async () => {
   const repo = makeTestRepo();
@@ -73,6 +73,38 @@ test('a comment sent to another session that Apostil knows in the repo continues
     store.close();
     Object.assign(process.env, kept);
     if (kept.APOSTIL_HOME === undefined) delete process.env.APOSTIL_HOME;
+    repo.remove();
+  }
+});
+
+test('a comment to a new session of Claude Code runs in a terminal with its prompt as the first message and a session id of its own, which the remark has at once; its answer ends the run once, and the terminal that closes after it changes nothing', () => {
+  const repo = makeTestRepo();
+  const home = tempFolder('apostil-home-');
+  const kept = process.env.APOSTIL_HOME;
+  process.env.APOSTIL_HOME = home;
+  const store = new Store(home);
+  try {
+    const remark = store.addRepoRemark(repoId(repo.folder), { kind: 'part', part: 'app', label: 'Part "App"' }, 'Add a test.');
+    store.sendRemark(remark, { app: 'claude-code', kind: 'new' });
+    const started: { command: string[]; name: string; session: string; closed: (code?: number) => void }[] = [];
+    const terminal: RunTerminal = (command, _folder, name, session, closed) => { started.push({ command, name, session, closed }); return { processId: Promise.resolve(undefined) }; };
+    const ends: (string | undefined)[] = [];
+    startRun(store, remark, (problem) => ends.push(problem), 'claude-code', repo.folder, {}, 'read and edit', undefined, terminal);
+    const [run] = started;
+    assert.equal(run.name, 'Apostil comment · Part "App"');
+    assert.notEqual(run.command[1], '-p'); // the prompt is the first message of a session that a person can answer
+    assert.match(run.command[1], /Add a test\./);
+    assert.equal(run.command[run.command.indexOf('--session-id') + 1], run.session);
+    assert.deepEqual({ state: store.getRemark(remark)?.state, session: store.getRemark(remark)?.run?.session }, { state: 'running', session: run.session });
+    store.answerRemark(remark, 'Done.');
+    answersChanged();
+    run.closed(0);
+    assert.deepEqual(ends, [undefined]);
+    assert.equal(store.getRemark(remark)?.state, 'done');
+  } finally {
+    store.close();
+    if (kept === undefined) delete process.env.APOSTIL_HOME;
+    else process.env.APOSTIL_HOME = kept;
     repo.remove();
   }
 });

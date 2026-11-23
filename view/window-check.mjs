@@ -983,7 +983,8 @@ try {
   check('in a file tab the key and a click on a code line open the comment card there; the comment on lines from the input box has its mark there, which opens its card',
     tabBox && cardOfLines === 'Is this loop covered by a test?', `box ${tabBox}; card "${cardOfLines}"`);
 
-  // A comment to "@claude-new" in a file tab runs the stand-in claude, which answers; the session link then opens a terminal with "claude --resume <session>".
+  // A comment to "@claude-new" in a file tab runs the stand-in claude in a terminal with a session id of its own, and it answers; when that terminal has
+  // closed, the session link opens a terminal with "claude --resume <session>".
   await changeTab.click();
   await pointerToTop();
   await stage.locator('.f[data-file="src/library/lending/hold_service.py"]').click();
@@ -999,9 +1000,11 @@ try {
   const answeredRun = await shown(runCard.locator('.msg', { hasText: 'Answered by the stand-in.' }), 15000);
   const stored = await until(() => { const one = remarks().find((remark) => remark.text.startsWith('Check the index.')); return one?.run?.session && one; });
   await runCard.locator('[data-session]').click({ timeout: 5000 }).catch(() => {});
-  const terminal = await page.locator('.xterm-rows', { hasText: 'stand-in-run-0001' }).first().waitFor({ timeout: 8000 }).then(() => page.locator('.xterm-rows', { hasText: 'stand-in-run-0001' }).first().textContent(), () => '');
-  check('a comment to @claude-new runs the stand-in claude, which answers; the run keeps its session, and the session link opens a terminal with "claude --resume <session>"',
-    answeredRun && stored?.run?.session === 'stand-in-run-0001' && /claude --resume stand-in-run-0001/.test(terminal), `answered ${answeredRun}; session ${stored?.run?.session}; terminal "${terminal.trim().slice(0, 100)}"`);
+  const resumed = page.locator('.xterm-rows', { hasText: `claude --resume ${stored?.run?.session}` }).first();
+  const terminal = await resumed.waitFor({ timeout: 8000 }).then(() => resumed.textContent(), () => '');
+  const sessionArg = readFileSync(runs, 'utf8').split(RUN).find((one) => one.includes('Check the index.'))?.split('\n').find((_, at, all) => all[at - 1] === '--session-id');
+  check('a comment to @claude-new runs the stand-in claude in a terminal with a session id of its own, which the remark keeps, and it answers; the session link then opens a terminal with "claude --resume <session>"',
+    answeredRun && !!stored?.run?.session && sessionArg === stored.run.session && terminal.includes(`claude --resume ${stored.run.session}`), `answered ${answeredRun}; session ${stored?.run?.session}; argument ${sessionArg}; terminal "${terminal.trim().slice(0, 100)}"`);
   await shot('4b-session-link-opens-a-terminal');
   await command('View: Toggle Panel Visibility');
 

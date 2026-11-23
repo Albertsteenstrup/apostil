@@ -8,10 +8,10 @@ import type { Target } from '../shared/look';
 import { shownTime, type ShownTime, type TimeLeft } from '../shared/map-estimate';
 import { homeRun, QUIET_MS, runTimeLeft, withEnd, withSession } from '../shared/map-run';
 import { homePlan, mapWorkLeft } from '../store/map-run';
-import { findOnPath } from '../shared/agents';
 import { teamFrom, type Team } from '../shared/models';
 import type { Store } from '../shared/store';
-import { MAP_DRAFT, mapRunCommand, runEnvironment, startMapRun, startRun, type RunFacts } from './agent-run';
+import { MAP_DRAFT, mapRunCommand, startMapRun, startRun, type RunFacts } from './agent-run';
+import { runInTerminal } from './run-terminal';
 import { agentsNeedSetup, runNextStep } from './change-list';
 import { apostilOnPath, appName, commentRuns, runModels, showRunProblem } from './run-settings';
 import { openAgentSession, openLink, openRemarkSession, webviewHtml, type NewRemark } from './change-page';
@@ -216,7 +216,7 @@ export class HomePages {
       startRun(this.store, id, (problem) => {
         if (problem) showRunProblem(problem, { app });
         this.changed();
-      }, app, this.openFolder(), runModels(), commentRuns());
+      }, app, this.openFolder(), runModels(), commentRuns(), undefined, runInTerminal);
     }
     this.reload();
   }
@@ -277,18 +277,14 @@ export class HomePages {
    */
   private mapInTerminal(folder: string, describe: boolean, team: Team, ended: (problem?: string) => void): string | undefined {
     const run = mapRunCommand('claude-code', folder, runModels(), describe, team, true);
-    const program = run && findOnPath(run.command[0], process.env.PATH ?? '');
-    if (!run?.session || !program) return undefined;
-    const terminal = vscode.window.createTerminal({ name: 'Apostil map', cwd: folder, shellPath: program, shellArgs: run.command.slice(1), env: runEnvironment(), iconPath: new vscode.ThemeIcon('type-hierarchy') });
-    this.mapTerminal = terminal;
-    const closing = vscode.window.onDidCloseTerminal((closed) => {
-      if (closed !== terminal) return;
-      closing.dispose();
+    if (!run?.session) return undefined;
+    const terminal = runInTerminal(run.command, folder, 'Apostil map', run.session, (code) => {
       this.mapTerminal = undefined;
       rmSync(join(folder, MAP_DRAFT), { force: true });
-      const code = closed.exitStatus?.code;
       ended(code ? `It ended with code ${code}.` : undefined);
-    });
+    }, 'type-hierarchy');
+    if (!terminal) return undefined;
+    this.mapTerminal = terminal;
     terminal.show(true);
     return run.session;
   }

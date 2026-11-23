@@ -758,12 +758,15 @@ const Remarks = (() => {
     const { agent, listening } = App.page;
     const line = States.remarkLine(remark, agent, listening);
     const link = (text, attrs) => `<a ${attrs}>${esc(text)}</a>`;
-    // The session that works or worked on it: a click opens it, in its app or in a terminal that continues it.
-    const session = hasSession(remark) ? link(W.session, `data-session="${remark.id}"`) : '';
+    // The session that works or worked on it: a click shows its live terminal, else opens it in its app or in a terminal that continues it. The words "new session" are its link.
+    const sessionAttrs = `data-session="${remark.id}"`;
+    const named = hasSession(remark) && remark.to?.kind === 'new' && line.text.includes(W.placeNew);
+    const session = hasSession(remark) && !named ? link(W.session, sessionAttrs) : '';
     if (remark.state === 'running' || remark.state === 'done') {
       const start = remark.state === 'running' && remark.run?.startedAt;
       const since = start ? `<span class="ago" title="${esc(new Date(start).toLocaleString())}">${esc(States.forWords(start))}</span>` : '';
-      return States.lineHtml(line, [since, session].filter(Boolean).map((bit) => ` · ${bit}`).join(''));
+      const html = States.lineHtml(line, [since, session].filter(Boolean).map((bit) => ` · ${bit}`).join(''));
+      return named ? html.replace(esc(W.placeNew), link(W.placeNew, sessionAttrs)) : html;
     }
     const more = {
       listening: ` · ${esc(W.listening)}`,

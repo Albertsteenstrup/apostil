@@ -16,6 +16,7 @@ import { githubRepoOf, pullRequestFrom, readPullRequest, runGh, type PullRequest
 import { writePullRequest, type Write } from '../shared/write-pull-request';
 import type { AppState, RemarkTarget, RemarkTo, Store } from '../shared/store';
 import { startRun } from './agent-run';
+import { runInTerminal, showLiveSession } from './run-terminal';
 import { idOf } from './home-data';
 import { askRunOf, askView, startAsk } from './ask-run';
 import { connectedApps } from './new-repo-steps';
@@ -45,11 +46,11 @@ export function openAgentSession(agent: AgentSession | undefined, folder: string
   terminal.show();
 }
 
-/** Opens the session that worked on a remark (openAgentSession), in the folder of the change (a remark on the map: the open folder). */
+/** Opens the session that worked on a remark: its live terminal in this window, else openAgentSession in the folder of the change (a remark on the map: the open folder). */
 export function openRemarkSession(store: Store, id: number, openFolder: string): void {
   const remark = store.getRemark(id);
   const change = remark?.changeId === undefined ? undefined : store.getChange(remark.changeId);
-  if (!remark) return;
+  if (!remark || showLiveSession(remark.run?.session)) return;
   const app = remark.to?.app ?? change?.agent?.app;
   // A new session has only the id that its run reported, another known session its own id; the session of the change keeps what the change knows of it (the id in the desktop app).
   const agent = remark.to?.kind === 'new' ? app && { app, session: remark.run?.session }
@@ -655,7 +656,7 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
     startRun(this.store, id, (problem) => {
       if (problem) showRunProblem(problem, { app: newApp });
       this.reloadIfChanged();
-    }, newApp, this.noChange ? this.openFolder() : undefined, runModels(), commentRuns(), pick); // a comment of the repo runs in the open folder
+    }, newApp, this.noChange ? this.openFolder() : undefined, runModels(), commentRuns(), pick, runInTerminal); // a comment of the repo runs in the open folder
   }
 
   /**
@@ -687,7 +688,7 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
       startRun(this.store, id, (problem) => {
         if (problem) showRunProblem(problem, { app });
         this.reloadIfChanged();
-      }, app, this.openFolder(), runModels(), commentRuns());
+      }, app, this.openFolder(), runModels(), commentRuns(), undefined, runInTerminal);
     }
     this.reload();
   }

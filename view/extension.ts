@@ -23,6 +23,7 @@ import { lookPages } from './look-blocks';
 import { answerTarget, type TargetPlaces } from './look-targets';
 import { LookInVsCode } from './look-in-vscode';
 import { askOnceInNewRepo } from './new-repo-question';
+import { answersChanged } from './agent-run';
 import { registerLinks } from './link-handler';
 import { fileOfTab, NotesBesideCode } from './notes-beside-code';
 import { registerHomeWhenEmpty } from './home-when-empty';
@@ -315,7 +316,7 @@ export function activate(context: vscode.ExtensionContext) {
   const changed = (): void => {
     clearTimeout(timer);
     timer = setTimeout(() => {
-      list.refreshIfChanged(); page.reloadIfChanged(); updateHasChange(); notes.storeChanged(); lookInVsCode.storeChanged();
+      answersChanged(); list.refreshIfChanged(); page.reloadIfChanged(); updateHasChange(); notes.storeChanged(); lookInVsCode.storeChanged();
       home.changed(); // a new map or change can put new rows into a diagram, and a new look new pages: home.onNew
     }, 300);
   };
