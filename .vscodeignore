@@ -7,6 +7,7 @@ docs/**
 design/**
 research/**
 eval/**
+.apostilignore
 node_modules/**
 **/*.ts
 **/*.mjs

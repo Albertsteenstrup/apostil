@@ -500,8 +500,8 @@ try {
   await takePicture(pull, '612-custom-strip-checks-and-side-column.png');
   check('"Classic" opens first, with the side column in the order of the rule (labels, reviewers, then the others in their default order)',
     classic.mode === 'conv classic' && classic.side.join() === 'Labels,Reviewers,Assignees,Milestone,Closes,Tasks', JSON.stringify(classic));
-  check('the status strip shows its bits in the order of the rule (checks, blocker, reviewers), "Review" at its place; the list of checks has no passed or skipped one, and the strip still counts every check',
-    stripBefore.bits.join() === 'span,chk,msent,rvs,rvb,others' && checks.length === 3 && checks.every((one) => one === 'bad' || one === 'wait')
+  check('the status strip shows its bits in the order of the rule (checks, blocker, reviewers) after the icon and the number, "Review" at its place; the list of checks has no passed or skipped one, and the strip still counts every check',
+    stripBefore.bits.join() === 'span,pnum,chk,msent,rvs,rvb,others' && checks.length === 3 && checks.every((one) => one === 'bad' || one === 'wait')
       && stripAfter.checks.replace('▾', '') === plainStrip.replace('▸', ''), JSON.stringify({ stripBefore, checks, stripAfter, plainStrip }));
   // "Messages": the comments of a bot in the colour of the rule, no commit, and the day lines in the words of the rule.
   await lookOfConversation(pull, 'messages');
