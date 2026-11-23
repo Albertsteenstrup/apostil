@@ -332,6 +332,36 @@ const Overview = {
     frame.append(icon);
   },
 
+  /**
+   * The bottom edge of the frame: a drag there makes the frame taller or shorter, not less than OVERVIEW_LEAST, and does not move the drawing; that
+   * height holds for the diagram `key` while VS Code keeps the page. A double click lets it go, and the frame takes the height of its drawing again.
+   * `set` gives the frame its height (keepOverview).
+   */
+  edge(frame, key, set) {
+    frame.querySelector(':scope > .ove')?.remove();
+    const edge = html('<div class="ove" title="Drag to change the height. Double-click to fit it again."></div>');
+    const hold = (height) => {
+      const heights = { ...kept.overviewHeights, [key]: height };
+      if (!height) delete heights[key];
+      keep({ overviewHeights: heights });
+      set();
+    };
+    let drag = null;
+    edge.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0) return;
+      event.stopPropagation();
+      event.preventDefault();
+      drag = { from: event.clientY, start: frame.offsetHeight };
+      edge.setPointerCapture(event.pointerId);
+      edge.classList.add('held');
+    });
+    edge.addEventListener('pointermove', (event) => { if (drag) hold(Math.max(OVERVIEW_LEAST, Math.round(drag.start + event.clientY - drag.from))); });
+    edge.addEventListener('lostpointercapture', () => { drag = null; edge.classList.remove('held'); });
+    edge.addEventListener('click', (event) => event.stopPropagation());
+    edge.addEventListener('dblclick', (event) => { event.stopPropagation(); hold(null); });
+    frame.append(edge);
+  },
+
   /** Drawn nodes in the reading order of the drawing: top to bottom, then left to right. Nodes whose middles lie within half a node apart stand in one row. */
   inReadingOrder(nodes) {
     const rows = [];
@@ -580,20 +610,24 @@ function frameHeight({ width, height, across, room, peek, floor = 0 }) {
  * Gives the frame of a diagram in the overview its height (frameHeight), also when the tab changes its size and when the cards under it are written:
  * a small diagram keeps a small frame, and a large one may fill the tab down to the peek of the cards. `width` and `height` are the size of the
  * drawing; `readable`: the surface opens a wide drawing at the size where its words read. The room is counted from the top of the frame with nothing
- * scrolled. A page that is then a little too high for its tab takes it off the frame (Overview.trim).
+ * scrolled. A page that is then a little too high for its tab takes it off the frame (Overview.trim). A height that he dragged the bottom edge of the
+ * frame to holds for the diagram `key` instead (Overview.edge).
  */
-function keepOverview(stage, width, height, readable) {
+function keepOverview(stage, width, height, readable, key) {
   const set = () => {
     let top = stage.getBoundingClientRect().top + scrollY;
     for (let el = stage.parentElement; el; el = el.parentElement) top += el.scrollTop;
     const floor = readable ? READABLE : 0;
-    stage.dataset.height = String(frameHeight({ width, height, across: stage.clientWidth, room: innerHeight - top, peek: Overview.peek(), floor }));
-    stage.dataset.least = String(floor * width + 2 * OVERVIEW_ROOM > stage.clientWidth ? Math.ceil(height * floor) : 0); // opened readable: not cut by a trim
+    const held = kept.overviewHeights?.[key];
+    stage.dataset.height = String(held ?? frameHeight({ width, height, across: stage.clientWidth, room: innerHeight - top, peek: Overview.peek(), floor }));
+    // Opened readable, or dragged: not cut by a trim.
+    stage.dataset.least = String(held ?? (floor * width + 2 * OVERVIEW_ROOM > stage.clientWidth ? Math.ceil(height * floor) : 0));
     stage.style.height = `${stage.dataset.height}px`;
     Overview.frame = stage;
     Overview.trim();
   };
   set();
+  Overview.edge(stage, key, set);
   // Only the newest drawing of the frame sets its height: Home draws each level in the same frame (`sized`, as keepFilled in tools.js).
   const again = () => (stage.isConnected && stage.sized === again ? set() : removeEventListener('resize', again));
   stage.sized = again;

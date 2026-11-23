@@ -119,8 +119,38 @@ try {
     !smallTop.cut && smallTop.drawn[0] - smallTop.top <= 40 && smallTop.bottom - smallTop.drawn[1] <= 40 && peeked(tall1400) && peeked(tall900)
       && !readable900.cut && readable900.scale === 0.85 && readable900.head < 700, JSON.stringify({ smallTop, tall1400, tall900, readable900 }));
 
-  // 2. A click on a card goes one level down in the same layout; a click on a file of a card asks VS Code to open that file.
+  // 1d. A drag of the bottom edge of the frame makes it taller, the cards move down with it and the drawing does not move; the height holds when
+  // Home draws the map again (a level down and back); a double click on the edge gives back the height of the drawing.
   const card = (title) => home.locator('.ovc', { has: home.locator('.ovh', { hasText: new RegExp(`^${title}$`) }) });
+  const edgeNow = () => home.evaluate(() => {
+    const edge = document.querySelector('#view > .ove');
+    const box = edge.getBoundingClientRect();
+    return { x: Math.round(box.left + box.width / 2), y: Math.round(box.top + box.height / 2), title: edge.title, frame: Math.round(document.getElementById('view').getBoundingClientRect().height),
+      card: Math.round(document.querySelector('#cards .ovc').getBoundingClientRect().top), panned: leftAt.views.size > 0 };
+  });
+  await homeAt();
+  await cardsFilled();
+  await placed();
+  const fitted = await edgeNow();
+  await home.mouse.move(fitted.x, fitted.y);
+  await home.mouse.down();
+  await home.mouse.move(fitted.x, fitted.y + 120, { steps: 6 });
+  await home.mouse.up();
+  const dragged = await edgeNow();
+  await card('Lending').click({ timeout: 3000 }).catch(() => {});
+  await settled();
+  await home.click('#crumb a[data-trail="0"]', { timeout: 3000 }).catch(() => {});
+  await settled();
+  await cardsFilled();
+  const held = await edgeNow();
+  await home.mouse.dblclick(held.x, held.y);
+  const refitted = await edgeNow();
+  const near = (a, b) => Math.abs(a - b) <= 2;
+  check('a drag of the bottom edge of the frame ("Drag to change the height. Double-click to fit it again.") makes it 120 px taller, the cards start 120 px lower and the drawing does not move; the height holds after a level down and back; a double click on the edge gives back the height of the drawing',
+    fitted.title === 'Drag to change the height. Double-click to fit it again.' && near(dragged.frame, fitted.frame + 120) && near(dragged.card, fitted.card + 120) && !dragged.panned
+      && near(held.frame, dragged.frame) && near(held.card, dragged.card) && near(refitted.frame, fitted.frame) && near(refitted.card, fitted.card), JSON.stringify({ fitted, dragged, held, refitted }));
+
+  // 2. A click on a card goes one level down in the same layout; a click on a file of a card asks VS Code to open that file.
   await card('Lending').click({ timeout: 3000 }).catch(() => {});
   await settled();
   await cardsFilled();
