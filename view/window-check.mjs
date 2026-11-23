@@ -1297,7 +1297,7 @@ try {
     /^Made-up pull request 35#35review needed$/.test(bareRow ?? '') && /no description of Apostil yet\. Describe it with /.test(bareLine ?? '') && !/Describe pull request #35/.test(bareLine ?? ''), JSON.stringify({ bareRow, bareLine }));
   await shot('2b-an-open-pull-request-with-no-change');
   // Its press names the session that gets the words; a click starts a run of the stand-in claude with the words and the lead of the control after the
-  // press (the second smallest model at medium, the writers on the smallest), and the line
+  // press (the description default: the smallest model at xhigh, lead and writers), and the line
   // then says where the words went, with the link that opens that session.
   const runsBeforePress = runsNow().length;
   const pressLabel = await barePage?.evaluate(() => document.querySelector('#summary [data-ask]')?.textContent);
@@ -1307,9 +1307,9 @@ try {
   await shot('2c-the-words-went-to-a-session');
   // The sessions that Apostil knows here are on the branch of the example, and a session cannot continue in another folder, so the link names a new
   // session; Apostil checks the branch of #35 out for it, and its words say so.
-  check('the link names the Claude Code session that will describe the pull request, a new one since no known session has its branch; a click starts one run of the stand-in claude with the words and that the branch is checked out, the rights of a description (it reads the repo, gh pr view too), the lead on the second smallest model at medium effort and the writers on the smallest, and the line names the session, with "Open the session"',
-    pressLabel === 'Describe it with a new Claude Code session' && !!pressRun && pressRun.includes('Describe pull request #35 for Apostil. The branch of the pull request is checked out in this folder. You lead on Sonnet at medium effort:')
-      && pressRun.includes('--model\nsonnet\n') && pressRun.includes('--effort\nmedium\n') && pressRun.includes('"apostil-writer":{')
+  check('the link names the Claude Code session that will describe the pull request, a new one since no known session has its branch; a click starts one run of the stand-in claude with the words and that the branch is checked out, the rights of a description (it reads the repo, gh pr view too), the lead and the writers on the smallest model at xhigh effort (the description default), and the line names the session, with "Open the session"',
+    pressLabel === 'Describe it with a new Claude Code session' && !!pressRun && pressRun.includes('Describe pull request #35 for Apostil. The branch of the pull request is checked out in this folder. You lead on Haiku at xhigh effort:')
+      && pressRun.includes('--model\nhaiku\n') && pressRun.includes('--effort\nxhigh\n') && pressRun.includes('"apostil-writer":{')
       && pressRun.includes('Bash(git show *)\n') && pressRun.includes('Bash(gh pr view *)\n') && /^Description by a new Claude Code session \S.* · (working|done) · Open the session$/.test(wentLine ?? ''),
     JSON.stringify({ pressLabel, run: (pressRun || '').replace(/\n/g, ' ').slice(0, 300), wentLine }));
   // The Apostil icon in the activity bar has a badge with the count of open pull requests (the stand-in gh lists one), as Source Control has.
