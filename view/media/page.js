@@ -159,6 +159,13 @@ const App = {
     this.render();
   },
 
+  /** "Show the change" in a file tab of the code as it is: the tab shows the file in its change from now on, at its first change. */
+  showInChange() {
+    delete this.page.plain;
+    tell({ type: 'inChange' });
+    this.showCode(this.tab, null, 'first');
+  },
+
   /** True when a file opens in a tab of its own: inside VS Code, for a file that the change did not remove. */
   hasTab(file) {
     return !!vscodeApi && this.page.files.find((candidate) => candidate.path === file)?.status !== 'removed';
@@ -181,8 +188,9 @@ const App = {
     return filesByPart().flatMap((group) => group.paths);
   },
 
-  /** J and K: the next or the previous changed file, at its first or last change. */
+  /** J and K: the next or the previous changed file, at its first or last change. The code as it is has no changed files to go through. */
   step(direction, at = null) {
+    if (this.page.plain) return;
     const order = this.order();
     const index = order.indexOf(this.state.file);
     const next = order[index < 0 ? (direction > 0 ? 0 : order.length - 1) : index + direction];
@@ -533,6 +541,7 @@ document.addEventListener('click', (event) => {
   if (step) return App.diffs ? App.diffs.stepFile(Number(step.dataset.step)) : App.step(Number(step.dataset.step), 'first');
   const change = target.closest('[data-change]');
   if (change) return App.diffs ? App.diffs.step(Number(change.dataset.change)) : Code.step(Number(change.dataset.change));
+  if (target.closest('[data-in-change]')) return App.showInChange();
   const half = target.closest('[data-half]');
   if (half) return Split.setHidden(half.dataset.half, half.dataset.to === 'hide');
   const all = target.closest('[data-all]');
@@ -703,7 +712,8 @@ if (vscodeApi) {
     const pullsNow = query.get('pulls') || query.get('pull') || query.get('file') || query.get('go');
     if (pullsNow) Object.assign(App, { pulls: examplePulls, pullsKnown: true });
     if (query.get('pull')) return loadPullData(query.get('pull'));
-    App.tab = query.get('file'); // the page as a file tab
+    App.tab = query.get('file'); // the page as a file tab; "&plain=1": opened from the map or the files, the code as it is
+    if (query.get('plain')) App.page = { ...App.page, plain: true };
     if (App.tab) App.loadPull(); // the pull request of the example, so that a comment on code can go to it
     if (query.get('go')) App.go(JSON.parse(query.get('go')), true); // a view that another page opened: "?go=<place>"
     else { if (!App.tab) App.state.view = firstView(); if (!pullsNow) Object.assign(App, { pulls: examplePulls, pullsKnown: true }); App.render(); }

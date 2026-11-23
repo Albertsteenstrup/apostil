@@ -327,15 +327,13 @@ export class NotesBesideCode {
 
   /**
    * Opens a file from a place of Apostil (the tree "Files", the map on Home), at `at` (one line or `[first, last]`). With `beside`, opens in a side
-   * group (reusing an open code group if one exists, else Beside). With the way "tab", a file that has notes opens in the file tab at once.
+   * group (reusing an open code group if one exists, else Beside). With the way "tab", a file that has notes opens in the file tab at once, as it is.
    */
   async open(uri: vscode.Uri, at?: number | [number, number], options?: { beside?: boolean; preserveFocus?: boolean; fromColumn?: vscode.ViewColumn }): Promise<void> {
     const lines: [number, number] | undefined = Array.isArray(at) ? at : typeof at === 'number' ? [at, at] : undefined;
     const viewColumn = options?.beside ? chooseBesideColumn(this.openTabs(), options.fromColumn, uri.toString()) ?? vscode.ViewColumn.Beside : undefined;
     const preserveFocus = options?.preserveFocus;
-    const inTab = this.usesFileTab(uri);
-    if (inTab && lines) await this.openFileTab(uri, lines, { viewColumn, preserveFocus });
-    else if (inTab) await vscode.commands.executeCommand('vscode.openWith', uri, FILE_TAB, { preview: true, ...(viewColumn !== undefined ? { viewColumn } : {}), ...(preserveFocus !== undefined ? { preserveFocus } : {}) });
+    if (this.usesFileTab(uri)) await this.openFileTab(uri, lines, { viewColumn, preserveFocus, ...(lines ? {} : { preview: true }) });
     else {
       const selection = lines ? new vscode.Range(lines[0] - 1, 0, lines[1] - 1, 0) : undefined;
       await vscode.commands.executeCommand('vscode.open', uri, { ...(selection ? { selection } : {}), ...(viewColumn !== undefined ? { viewColumn } : {}), ...(preserveFocus !== undefined ? { preserveFocus } : {}) });

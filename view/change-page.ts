@@ -126,6 +126,7 @@ type Message =
   | { type: 'rendered'; view: string; nodes: number; notes: number; lines?: [number, number]; map?: boolean }
   | { type: 'pointer'; on: boolean }
   | { type: 'edit'; line?: number }
+  | { type: 'inChange' } // "Show the change" in a file tab that shows the code as it is
   | { type: 'looked'; repo: string; number: number }
   | { type: 'askAgent'; words: string; team?: unknown } // the press of words for an agent: they go to the session that it names, with the lead and the effort of its control
   | { type: 'openAskSession'; words: string } // "Open the session" on the line of their run
@@ -154,6 +155,9 @@ export type RemarkAction = 'resolve' | 'reopen' | 'start';
 // The change of a file that a tab starts at: its first or its last.
 type ChangeAt = 'first' | 'last';
 
+// Where a file tab starts, and how it shows the file: as it is (`plain`: opened from the map or the files), or in its change.
+type Start = { lines?: [number, number]; at?: ChangeAt; plain?: boolean };
+
 // A message to a page.
 type Posted = { type: string; [field: string]: unknown };
 
@@ -164,6 +168,7 @@ interface View {
   uri?: string; // the uri of the file of a file tab
   lines?: [number, number]; // the lines that a file tab shows first
   at?: ChangeAt; // the change that a file tab starts at
+  plain?: boolean; // a file tab that shows the file as it is, with no diff
   ready: boolean;
   waiting: Posted[];
 }
@@ -193,7 +198,7 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
   private signature = '';
   private visibleSince = 0;
   private pointerOn?: View; // the view that the pointer is on
-  private wanted = new Map<string, { lines?: [number, number]; at?: ChangeAt }>(); // where a file tab that VS Code is opening starts
+  private wanted = new Map<string, Start>(); // where a file tab that VS Code is opening starts
   page?: PageData; // what the page shows now
   rendered?: Message & { type: 'rendered' }; // what the page last drew, for the check inside VS Code
   renderedFile?: Message & { type: 'rendered'; file?: string }; // what a file tab last drew, for the check inside VS Code
@@ -229,7 +234,7 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
   }
 
   /** Puts the page into a webview and keeps it in the views. */
-  private addView(panel: vscode.WebviewPanel, file?: string, start: { lines?: [number, number]; at?: ChangeAt } = {}, uri?: string): View {
+  private addView(panel: vscode.WebviewPanel, file?: string, start: Start = {}, uri?: string): View {
     const view: View = { panel, file, uri, ...start, ready: false, waiting: [] };
     pageOptions(panel.webview, this.roots()); // the kept files of a look, and the icons of the file icon theme
     panel.webview.html = webviewHtml(panel.webview, this.media, 'page.html');
@@ -334,11 +339,20 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
     }
     const folder = this.page?.folder ?? this.openFolder();
     const key = document.uri.toString();
-    this.addView(panel, relative(folder, document.uri.fsPath).split(sep).join('/'), this.wanted.get(key), key);
+    // A tab that VS Code opens by itself (it opens again, or a file that he opened in VS Code becomes the file tab) shows the file as it is.
+    this.addView(panel, relative(folder, document.uri.fsPath).split(sep).join('/'), this.wanted.get(key) ?? { plain: true }, key);
     this.wanted.delete(key);
   }
 
-  /** Opens the file tab of a file at its lines; a tab that is open already shows the lines. */
+  /** Takes an open file tab to a start. A tab that showed the file the other way draws it again, the way of the start. */
+  private startTab(view: View, start: Start): void {
+    if (!!view.plain !== !!start.plain) {
+      Object.assign(view, { lines: start.lines, at: start.at, plain: start.plain });
+      this.post(view, this.dataFor(view));
+    } else if (start.lines || start.at) this.post(view, { type: 'lines', lines: start.lines, at: start.at });
+  }
+
+  /** Opens the file tab of a file at its lines, from the map or the files: it shows the file as it is; a tab that is open already shows the lines. */
   async openFileAt(uri: vscode.Uri, lines?: [number, number], options?: { viewColumn?: vscode.ViewColumn; preserveFocus?: boolean; preview?: boolean }): Promise<void> {
     const viewColumn = options?.viewColumn ?? this.showLines(uri, lines) ?? vscode.ViewColumn.Active;
     if (options?.viewColumn !== undefined) this.showLines(uri, lines);
@@ -347,25 +361,26 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
     });
   }
 
-  /** Tells the file tab of a file where to be: a tab that is open shows the lines, and one that VS Code is opening starts there. Returns the column of the open tab. */
+  /** Tells the file tab of a file where to be, as it is: a tab that is open shows the lines, and one that VS Code is opening starts there. Returns the column of the open tab. */
   showLines(uri: vscode.Uri, lines?: [number, number]): vscode.ViewColumn | undefined {
     const open = [...this.views].find((view) => view.uri === uri.toString());
-    if (open) this.post(open, { type: 'lines', lines });
-    else this.wanted.set(uri.toString(), { lines });
+    if (open) this.startTab(open, { lines, plain: true });
+    else this.wanted.set(uri.toString(), { lines, plain: true });
     return open?.panel.viewColumn;
   }
 
-  /** Scrolls an already-open file tab to `lines` and reveals it in its own group without stealing focus. Returns false if no tab for `uri` is open. */
+  /** Scrolls an already-open file tab to `lines`, as it is, and reveals it in its own group without stealing focus. Returns false if no tab for `uri` is open. */
   revealLines(uri: vscode.Uri, lines: [number, number], preserveFocus = true): boolean {
     const open = [...this.views].find((view) => view.uri === uri.toString());
     if (!open) return false;
-    this.post(open, { type: 'lines', lines });
+    this.startTab(open, { lines, plain: true });
     open.panel.reveal(open.panel.viewColumn, preserveFocus);
     return true;
   }
 
   /**
    * Opens the tab of a file in the editor group of the view that asks; a tab that is open already shows the lines.
+   * From the change page it shows the file in its change; from a file tab, the way that tab shows its file.
    * With `replace`, the file takes the place of the asking file tab, as VS Code's preview tab does.
    */
   private async openFileTab(message: Message & { type: 'openFileTab' }, from: View): Promise<void> {
@@ -374,8 +389,9 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
     const uri = vscode.Uri.file(join(this.page.folder, path));
     if (!existsSync(uri.fsPath)) return void vscode.window.showInformationMessage(`${path} is not in this folder.`);
     const open = [...this.views].find((view) => view.file === path);
-    if (open && (lines || at)) this.post(open, { type: 'lines', lines, at });
-    if (!open) this.wanted.set(uri.toString(), { lines, at });
+    const start = { lines, at, plain: from.plain };
+    if (open) this.startTab(open, start);
+    else this.wanted.set(uri.toString(), start);
     await vscode.commands.executeCommand('vscode.openWith', uri, ChangePage.fileEditor, { viewColumn: from.panel.viewColumn, preview: !!replace });
     if (replace && from.file !== path && this.views.has(from)) from.panel.dispose();
   }
@@ -406,12 +422,13 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
     else view.waiting.push(message);
   }
 
-  /** The data message of a view. A file tab gets its first lines or change once; later loads keep where the owner is. */
+  /** The data message of a view. A file tab gets its first lines or change once; later loads keep where the owner is. A tab that shows the file as it is gets the page as `plain`. */
   private dataFor(view: View): Posted {
     const { lines, at } = takeStart(view);
     const pulls = this.page && !this.page.pullOnly ? keptPullRequests(this.page.folder, this.page.branch) : undefined; // known now: the page opens at the right view at once
     if (pulls) this.sentPulls = JSON.stringify(pulls);
-    return { type: 'data', page: this.page, pulls, file: view.file, lines, at, trail: this.trail?.steps, full: this.layout.full(), minimap: minimapOn(), ask: this.askNow(), icons: this.iconsOf(view), ...(view.file && this.pullRead ? { pullRead: this.pullRead } : {}) };
+    const page = view.plain && this.page ? { ...this.page, plain: true } : this.page;
+    return { type: 'data', page, pulls, file: view.file, lines, at, trail: this.trail?.steps, full: this.layout.full(), minimap: minimapOn(), ask: this.askNow(), icons: this.iconsOf(view), ...(view.file && this.pullRead ? { pullRead: this.pullRead } : {}) };
   }
 
   /** The icons of the changed files, which the cards of the parts show; a file tab has no cards. */
@@ -778,6 +795,9 @@ export class ChangePage implements vscode.CustomReadonlyEditorProvider {
         break;
       case 'edit': // "Edit" in a file tab: the same change as the key, to the editor of VS Code at the line
         if (view.uri) void vscode.commands.executeCommand('apostil.toggleNotes', view.uri, message.line);
+        break;
+      case 'inChange': // the page shows the change by itself
+        view.plain = false;
         break;
       case 'rendered':
         if (view.file) this.renderedFile = { ...message, file: view.file };
