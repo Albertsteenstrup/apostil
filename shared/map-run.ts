@@ -103,6 +103,7 @@ export interface MapRunLine {
   opens?: 'app' | 'terminal' | 'shown'; // "Open the session" opens it in its app, in a terminal of VS Code that continues it (sessionOpens), or shows the terminal where it writes
   time?: TimeLeft; // while a run of the whole map writes and has a plan: the minutes left and the share of the bar
   areas?: Record<string, AreaWork>; // the areas of the top diagram with work left, by node id; an area that is not named is done (homeData adds it)
+  chart?: true; // "Live chart": a run of Home by Claude Code with a known session, whose transcripts the chart reads (shared/map-run-chart.ts)
 }
 
 /** An area of the top diagram with work left, which writers work on now; `share`: the part of its work that is done. */
@@ -161,5 +162,6 @@ export function mapRunLine(run: MapRun | undefined, has: { name?: string; alive?
   const shown = run.terminal && has.alive && state === 'writing';
   const opens = shown ? 'shown' : run.agent && (!run.home || state === 'stopped') && (!id || /^[\w-]+$/.test(id)) ? sessionOpens(run.agent) : undefined;
   const time = state === 'writing' ? runTimeLeft(run, has.now) : undefined;
-  return { state, words, ...(tip ? { tip } : {}), ...(opens ? { opens } : {}), ...(time ? { time } : {}) };
+  const chart = run.home && run.agent?.app === 'claude-code' && !!id;
+  return { state, words, ...(tip ? { tip } : {}), ...(opens ? { opens } : {}), ...(time ? { time } : {}), ...(chart ? { chart: true as const } : {}) };
 }

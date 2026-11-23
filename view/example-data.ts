@@ -13,7 +13,7 @@ import type { RepoMap } from '../shared/repo-map';
 import { Store } from '../shared/store';
 import { STATE_LOOKS, type PullRequest } from '../shared/pull-requests';
 import type { OpenPoint, Remark } from '../shared/store';
-import { madeUpAgentHome, tempFolder } from '../shared/test-repo';
+import { madeUpAgentHome, madeUpMapSession, tempFolder } from '../shared/test-repo';
 import { menuOf, sessionPick, teamOf } from '../shared/models';
 import { EXAMPLE_FILES, EXAMPLE_LOOK, makeCheckExample, putLookFiles } from './check-example';
 import { changePaths, homePaths, iconsFor, languagesOf, readIconTheme } from './file-icons';
@@ -23,6 +23,7 @@ import { addMarksToMap, setLook } from '../store/marks-save';
 import { graphsData, homeData, homeRowState, mapRunOf, type GraphsData, type HomeData } from './home-data';
 import { homeRun, withEnd, withSave, type MapRun, type MapRunLine } from '../shared/map-run';
 import type { MapPlan, SaveTime } from '../shared/map-estimate';
+import { mapRunChart } from '../shared/map-run-chart';
 import { sessionGroups, type ListRow } from './list-rows';
 import { pullRequestFrom, type Person } from '../shared/read-pull-request';
 import { iconScript } from './state-icons';
@@ -184,6 +185,14 @@ const mapRuns = {
   later: withAreas(lineOf(planned(19, [...loading, ['n', 18.5, 12]], { overview: true, areas: ['Lending', 'Desk'], ofAreas: 3, noteFiles: 30 }))),
   desktop: lineOf(desktopRun), // the last one: the row "Home" of the list reads it too
 };
+// The tab "Map run" ("?chart=live", "?chart=done"), read by the real reader from a made-up map session in the made-up agent home: 10 minutes in with
+// 7 minutes left, and the same session after its run ended at minute 12.
+const chartStart = Date.now() - 10 * 60_000;
+const chartRun = { ...homeRun('claude-code', new Date(chartStart).toISOString(), mapSession), savedAt: minutesAgo(1) };
+madeUpMapSession(agentHome, mapSession, chartStart);
+const liveChart = mapRunChart(chartRun, agentHome, Date.now(), 7);
+madeUpMapSession(agentHome, mapSession, chartStart, true);
+const charts = { live: liveChart, done: mapRunChart(withEnd(chartRun, new Date(chartStart + 12 * 60_000).toISOString())!, agentHome) };
 const homeState = homeRowState(store, repoId(folder));
 store.close();
 rmSync(storeFolder, { recursive: true, force: true });
@@ -236,7 +245,7 @@ const iconLanguages = languagesOf([{ contributes: { languages: [{ id: 'python', 
 const icons = { home: iconsFor(iconTheme, homePaths(home.map), 'dark', iconLanguages, iconAddress), page: iconsFor(iconTheme, changePaths(page), 'dark', iconLanguages, iconAddress) };
 
 const target = join(__dirname, '../../view/media/example-data.js');
-writeFileSync(target, `// Written by view/example-data.ts. Not in Git.\n${iconScript(join(__dirname, '../../view/media'))}window.APOSTIL_EXAMPLE = ${JSON.stringify({ page, pageLooks, pagePulls, readyPull, answers, list, home, homeLooks, homeNoMap, graphs, lookPages, graphsLooks, mapRuns, homeState, icons, askTeam: teamOf('claude-code', agentHome, true) })};\n`);
+writeFileSync(target, `// Written by view/example-data.ts. Not in Git.\n${iconScript(join(__dirname, '../../view/media'))}window.APOSTIL_EXAMPLE = ${JSON.stringify({ page, pageLooks, pagePulls, readyPull, answers, list, home, homeLooks, homeNoMap, graphs, lookPages, graphsLooks, mapRuns, charts, homeState, icons, askTeam: teamOf('claude-code', agentHome, true) })};\n`);
 example?.remove();
 rmSync(agentHome, { recursive: true, force: true });
 console.log(`Wrote ${target}: ${page.files.length} files, ${page.parts.length} parts, ${Object.keys(answers).length} answers, ${rows.length} list rows, ${home.map?.diagrams.length ?? 0} map diagrams, ${Object.keys(graphs).length} graphs pages.`);
