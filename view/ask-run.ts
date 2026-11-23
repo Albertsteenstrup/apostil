@@ -1,6 +1,7 @@
 // Words for an agent that one press sends: the session that gets them, the run that they start, and what the page shows of it. No `vscode` import.
 
 import { randomUUID } from 'node:crypto';
+import { repoIdOrNone } from '../shared/git';
 import { existsSync } from 'node:fs';
 import { newRunCommand, resumeCommand, runOptions, sessionName, WRITER_AGENT, type AgentSession, type RunModels } from '../shared/agents';
 import { teamFrom, teamOf, teamRun, teamSentence } from '../shared/models';
@@ -8,7 +9,7 @@ import { askLine, askPress, askTo, type AskRun, type AskTo, type AskView } from 
 import { appToStart } from '../shared/map-app';
 import { isAlive, storeFolder, type Store } from '../shared/store';
 import { spawnRun, type RunFacts } from './agent-run';
-import { idOf } from '../shared/home-data';
+
 import { connectedApps } from './new-repo-steps';
 import { pullFolder, realFolder, removePullFolder, worktreeWithHead, type PullHead } from './pull-folder';
 
@@ -30,7 +31,7 @@ export const ON_BRANCH = 'The branch of the pull request is checked out in this 
  * its last commit, counts.
  */
 function askToFrom(store: Store, folder: string, installed: string[], about: AskAbout = {}): AskTo | undefined {
-  const repo = idOf(folder);
+  const repo = repoIdOrNone(folder);
   const app = appToStart(store.startedRuns(), repo, installed, connectedApps(installed, folder));
   const known = repo ? store.knownSessions(repo, folder) : [];
   const there = about.pull && worktreeWithHead(folder, about.pull); // its branch, with the last commit of the pull request
@@ -42,7 +43,7 @@ const nameOf = (agent: AgentSession): string | undefined => sessionName(agent) ?
 
 /** The record of the run that these words started in the repo of a folder, or undefined. */
 export function askRunOf(store: Store, folder: string, words: string): AskRun | undefined {
-  const repo = idOf(folder);
+  const repo = repoIdOrNone(folder);
   return repo ? store.askRun(repo, words) : undefined;
 }
 
@@ -69,7 +70,7 @@ export function askView(store: Store, folder: string, words: string, installed: 
  * Gives back true when the run started, false when no app can be started from here, and one sentence when the branch of the pull request could not be checked out.
  */
 export async function startAsk(store: Store, folder: string, words: string, installed: string[], models: RunModels, changed: () => void, ended: (problem?: string, facts?: RunFacts) => void, about: AskAbout = {}, team?: unknown): Promise<boolean | string> {
-  const repo = idOf(folder);
+  const repo = repoIdOrNone(folder);
   const to = askToFrom(store, folder, installed, about);
   if (!repo || !to) return false;
   const got = about.pull ? await pullFolder(folder, about.pull, storeFolder()) : undefined;

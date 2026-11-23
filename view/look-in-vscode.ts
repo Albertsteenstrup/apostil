@@ -5,11 +5,12 @@
 // list, through answerTarget(), which asks before a web address or a prompt.
 
 import { join, relative, sep } from 'node:path';
+import { repoIdOrNone } from '../shared/git';
 import * as vscode from 'vscode';
 import type { LookAction, Target } from '../shared/look';
 import type { NoteHere } from '../shared/notes-beside-code';
 import type { Store } from '../shared/store';
-import { idOf } from '../shared/home-data';
+
 import { lookData, standingMarks, type ValueLook } from '../shared/look-data';
 import {
   actionRows, answersFor, ENTRIES, firstPageOf, keyOf, letterIcon, fileKeys, lineFacts, lookKeys, lookRows, marginMarks, marksIn, noteOnHome, notedFiles, placesOf, processOfStep,
@@ -76,7 +77,7 @@ export class LookInVsCode implements vscode.TreeDataProvider<LookRow> {
   /** The store changed: the look and the map are read again when they are new, and the search reads the notes again. */
   storeChanged(): void {
     this.answers = undefined;
-    const repo = idOf(this.openFolder());
+    const repo = repoIdOrNone(this.openFolder());
     const signature = JSON.stringify([repo, repo && this.store.getLook(repo)?.savedAt, repo && this.store.getMap(repo)?.savedAt]);
     if (signature !== this.signature) {
       this.signature = signature;
@@ -271,7 +272,7 @@ export class LookInVsCode implements vscode.TreeDataProvider<LookRow> {
     if (!this.look.rules.some((rule) => rule.pick.kind === 'symbol-search')) return [];
     const root = this.openFolder();
     if (!this.answers) {
-      const repo = idOf(root);
+      const repo = repoIdOrNone(root);
       const notes = repo ? notedFiles(this.store, repo).map((path) => ({ path, notes: this.notesOf(vscode.Uri.file(join(root, path))) ?? [] })) : [];
       this.answers = searchAnswers(this.look.rules, notes, this.look.map?.processes ?? []);
     }

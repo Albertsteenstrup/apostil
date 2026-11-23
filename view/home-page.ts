@@ -16,7 +16,8 @@ import { agentsNeedSetup, runNextStep } from './change-list';
 import { apostilOnPath, appName, commentRuns, runModels, showRunProblem } from './run-settings';
 import { openAgentSession, openLink, openRemarkSession, webviewHtml, type NewRemark } from './change-page';
 import { menusOf } from '../shared/page-data';
-import { graphsData, homeData, idOf, type GraphsData, type HomeData } from '../shared/home-data';
+import { graphsData, homeData, type GraphsData, type HomeData } from '../shared/home-data';
+import { repoIdOrNone } from '../shared/git';
 import { connectedApps } from './new-repo-steps';
 import { blocksAnswer, lookPages, pageData, type CustomPageData } from './look-blocks';
 import { homePaths } from './file-icons';
@@ -209,7 +210,7 @@ export class HomePages {
    * Home has no session of a change to send it to.
    */
   saveRemark(message: NewRemark): void {
-    const repo = idOf(this.openFolder());
+    const repo = repoIdOrNone(this.openFolder());
     if (!repo) return;
     const id = this.store.addRepoRemark(repo, withKept(message.target, keptOnMap(this.store.getMap(repo)?.map, message.target)), message.text, message.thread); // it keeps what its thing is now
     if (message.to?.kind === 'new') {
@@ -241,17 +242,17 @@ export class HomePages {
     const team = teamFrom(app, chosen);
     const again = (): void => this.writeMap(app, describe, chosen);
     // A folder with no commit has no id: no save of the run could keep anything (Home says so in place of the press).
-    if (!idOf(folder)) return void vscode.window.showWarningMessage('This folder has no Git commit yet. Apostil maps a repo from its first commit.');
+    if (!repoIdOrNone(folder)) return void vscode.window.showWarningMessage('This folder has no Git commit yet. Apostil maps a repo from its first commit.');
     // The run saves the map with the command apostil: without it, the fix comes first, not a run that fails at its end.
     if (!apostilOnPath()) return showRunProblem(`${appName(app)} cannot write the map yet.`, { app, again, folder, noCommand: true });
     // The other connected agent app, which a toast offers when this one cannot run now.
     const other = this.apps.find((one) => one !== app && (one === 'claude-code' || one === 'codex'));
     const instead = other ? { app: other, start: () => this.writeMap(other, describe) } : undefined;
-    const repo = idOf(folder);
+    const repo = repoIdOrNone(folder);
     const record = (change: Parameters<Store['changeMapRun']>[1]): void => { if (repo) this.store.changeMapRun(repo, change); };
     const ended = (problem?: string, facts?: RunFacts): void => {
       this.writing = undefined;
-      const id = idOf(folder);
+      const id = repoIdOrNone(folder);
       // A run that ended well but saved no map, or left work in it, says so, with the commands that it was not allowed to use.
       const run = id ? this.store.mapRun(id) : undefined;
       const why = problem ?? (id && !this.store.getMap(id) ? 'It ended and saved no map.' : undefined);
@@ -343,7 +344,7 @@ export class HomePages {
 
   /** The start of the map run of the open repo: the key of the minutes that Home shows. */
   private runStart(): string | undefined {
-    const repo = idOf(this.openFolder());
+    const repo = repoIdOrNone(this.openFolder());
     return repo ? this.store.mapRun(repo)?.startedAt : undefined;
   }
 
@@ -356,7 +357,7 @@ export class HomePages {
 
   /** Every 30 seconds while a run writes: the time left, computed again, to Home; when the run has none any more, the timer stops. */
   private tick(): void {
-    const repo = idOf(this.openFolder());
+    const repo = repoIdOrNone(this.openFolder());
     const run = repo ? this.store.mapRun(repo) : undefined;
     const time = run && runTimeLeft(run);
     if (!run || !time || !this.home) return clearInterval(this.ticker);
@@ -398,7 +399,7 @@ export class HomePages {
   }
 
   private signatureNow(): string {
-    const id = idOf(this.openFolder());
+    const id = repoIdOrNone(this.openFolder());
     const changes = id ? this.store.listChanges(id).map((change) => [change.id, change.savedAt]) : [];
     const remarks = id ? this.store.repoRemarks(id).map((remark) => [remark.id, remark.state, remark.answeredAt, remark.run?.session]) : [];
     return JSON.stringify([id && this.store.getMap(id)?.savedAt, id && this.store.getLook(id)?.savedAt, changes, remarks, this.writing, id && this.store.mapRun(id)]);
@@ -468,7 +469,7 @@ export class HomePages {
         break;
       case 'openMapSession': { // the terminal where the session writes the map; or the session in its app, or in a terminal that continues it
         if (this.mapTerminal) return this.mapTerminal.show();
-        const repo = idOf(this.openFolder());
+        const repo = repoIdOrNone(this.openFolder());
         openAgentSession(repo ? this.store.mapRun(repo)?.agent : undefined, this.openFolder());
         break;
       }

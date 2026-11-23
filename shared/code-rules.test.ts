@@ -20,8 +20,10 @@ const importsOf = (file: string): string[] => {
   for (const [, spec] of fs.readFileSync(path.join(ROOT, file), 'utf8').matchAll(IMPORT)) {
     if (spec === 'vscode') out.push('vscode');
     if (!spec.startsWith('.')) continue;
-    const base = path.join(path.dirname(file), spec);
-    const found = [base, `${base}.ts`, `${base}.js`].find((p) => fs.existsSync(path.join(ROOT, p)) && fs.statSync(path.join(ROOT, p)).isFile());
+    const fromSource = path.join(path.dirname(file), spec);
+    const fromBuild = path.join('out', path.dirname(file), spec); // a require of a .js page script runs from out/
+    const found = [fromSource, `${fromSource}.ts`, `${fromSource}.js`, fromBuild]
+      .find((p) => !p.startsWith('..') && fs.existsSync(path.join(ROOT, p)) && fs.statSync(path.join(ROOT, p)).isFile());
     if (found) out.push(found);
   }
   return [...new Set(out)];
@@ -84,6 +86,8 @@ const TIMER_RULE = 'Rule: no new setTimeout, setInterval, requestAnimationFrame,
   + 'Wait for the thing itself: await its promise, answer the message that says it is done, or listen to its event (load, transitionend, ResizeObserver, a VS Code event). '
   + 'A delay the person is meant to see (a hover that opens after 300 ms) needs the owner\'s yes: ask, and do not raise a count in OLD_TIMERS.';
 
+const GENERATED = ['view/media/mermaid.min.js', 'view/media/example-data.js']; // not written by hand
+
 // Timers from before this rule, counted for each file. Fix one at its cause, then lower its count.
 const OLD_TIMERS: Record<string, number> = {
   'shared/run-in-vscode.ts': 1,
@@ -100,7 +104,6 @@ const OLD_TIMERS: Record<string, number> = {
   'view/media/code-notes.js': 1,
   'view/media/conversation.js': 2,
   'view/media/diagram-stage.js': 1,
-  'view/media/example-data.js': 4,
   'view/media/hover-window.js': 3,
   'view/media/list.js': 3,
   'view/media/marks.js': 2,
@@ -113,7 +116,7 @@ const OLD_TIMERS: Record<string, number> = {
 
 test('no new timer: code waits for the thing it needs, not for a while', () => {
   const files = [...['shared', 'store', 'view', 'helper', 'theme'].flatMap((f) => sources(f)), ...sources('view/media', '.js')]
-    .filter((f) => f !== 'view/media/mermaid.min.js');
+    .filter((f) => !GENERATED.includes(f));
   const wrong: string[] = [];
   for (const file of new Set([...files, ...Object.keys(OLD_TIMERS)])) {
     const count = fs.existsSync(path.join(ROOT, file)) ? (fs.readFileSync(path.join(ROOT, file), 'utf8').match(TIMER) ?? []).length : 0;

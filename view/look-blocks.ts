@@ -5,11 +5,11 @@
 
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { repoRoot } from '../shared/git';
+import { repoIdOrNone, repoRoot } from '../shared/git';
 import { blockKind, blocksOfRef, LOOK_PARTS, missingIn, withBlockRefs, type Block } from '../shared/look';
 import { listedFiles, readRepoData, readRepoText, type ReadFault } from '../shared/repo-data';
 import type { Store } from '../shared/store';
-import { homeData, idOf, type HomeDiagram } from '../shared/home-data';
+import { homeData, type HomeDiagram } from '../shared/home-data';
 import { lookData, type LookData } from '../shared/look-data';
 import { repoName } from '../shared/page-data';
 
@@ -111,7 +111,7 @@ function fromFile(kind: string, source: Record<string, any>, title: { title?: st
 /** The blocks with their data now, and the files of the repo that they read. */
 export function blocksNow(store: Store, folder: string, blocks: Block[], address: (file: string) => string): { blocks: ShownBlock[]; files: string[] } {
   const root = repoRoot(folder);
-  const repo = idOf(root) ?? '';
+  const repo = repoIdOrNone(root) ?? '';
   let diagrams: HomeDiagram[] | undefined;
   const place: Place = {
     folder: root, listed: listedFiles(root), keep: store.lookFolder(repo), address, files: new Set(),
@@ -122,7 +122,7 @@ export function blocksNow(store: Store, folder: string, blocks: Block[], address
 
 /** The answer to a page that asks for the blocks of a ref (a section of its own, the window of a target): the blocks now, or why there are none. */
 export function blocksAnswer(store: Store, folder: string, ref: string, address: (file: string) => string): { blocks: ShownBlock[] } | { gone: string } {
-  const repo = idOf(folder);
+  const repo = repoIdOrNone(folder);
   const look = repo ? store.getLook(repo)?.look : undefined;
   const blocks = look && blocksOfRef(look, ref);
   if (!blocks) return { gone: 'The look of this repo changed since this page loaded.' };
@@ -131,7 +131,7 @@ export function blocksAnswer(store: Store, folder: string, ref: string, address:
 
 /** A page of the look for its tab: its title and its blocks with their data now. A diagram of a block brings the look with the marks. */
 export function pageData(store: Store, folder: string, id: string, address: (file: string) => string): CustomPageData {
-  const repo = idOf(folder);
+  const repo = repoIdOrNone(folder);
   const page = repo ? store.getLook(repo)?.look.pages?.find((one) => one.id === id) : undefined;
   const base = { kind: 'page' as const, repo: repoName(folder), folder, id };
   if (!repo || !page) return { ...base, title: id, blocks: [], files: [], gone: `The look of this repo has no page "${id}" now.` };
@@ -142,6 +142,6 @@ export function pageData(store: Store, folder: string, id: string, address: (fil
 
 /** The pages of the look of a repo, by id and title: the command that opens one lists them. */
 export const lookPages = (store: Store, folder: string): { id: string; title: string }[] => {
-  const repo = idOf(folder);
+  const repo = repoIdOrNone(folder);
   return (repo ? store.getLook(repo)?.look.pages ?? [] : []).map(({ id, title }) => ({ id, title }));
 };

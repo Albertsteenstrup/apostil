@@ -9,7 +9,7 @@ import { thingsOf } from './diagram-code';
 import { diagramGraph, type DiagramGraph } from './diagram-graph';
 import { schemaDrawing, type SchemaDrawing } from './schema';
 import { sessionName } from './agents';
-import { changedFiles, commitExists, tryGit, type ChangedFile } from './git';
+import { changedFiles, commitExists, repoFiles, repoIdOrNone, tryGit, type ChangedFile } from './git';
 import { appToStart } from './map-app';
 import { scopeCounts } from './note-groups';
 import { keptImportWords, looseBoxes, withBoxes } from './node-uses';
@@ -137,17 +137,9 @@ const nodeNames = (diagram: Diagram, ids: string[]): string[] => {
   return ids.map((id) => labels[id] ?? id);
 };
 
-/** Every file of the repo, from Git: committed files and new files that Git does not ignore. */
-export function repoFiles(folder: string): string[] {
-  return (tryGit(folder, 'ls-files', '--cached', '--others', '--exclude-standard') ?? '').split('\n').filter(Boolean);
-}
-
 const isFolder = (full: string): boolean => {
   try { return statSync(full).isDirectory(); } catch { return false; }
 };
-
-/** The id of the repo of a folder: its first commit, the same in every worktree. */
-export const idOf = (folder: string): string | undefined => tryGit(folder, 'rev-list', '--max-parents=0', 'HEAD')?.split('\n').pop();
 
 /** The changed files of a stored change with their counts, read in Git where changeWhere says; none when its base or its saved commit is gone. */
 function countedFiles(change: StoredChange, openFolder: string): ChangedFile[] {
@@ -188,7 +180,7 @@ export const homeRowState = (store: Store, id: string | undefined): string | und
  * `address` turns a kept file of the look into an address that the page may load. `writing`: see mapRunOf. `connected`: the apps with the skills of Apostil (connectedApps in view/new-repo-steps.ts), which only the last choice of the press reads.
  */
 export function homeData(store: Store, folder: string, apps: string[] = [], address: (file: string) => string = (file) => file, writing?: string, connected: string[] = []): HomeData {
-  const id = idOf(folder);
+  const id = repoIdOrNone(folder);
   const stored = id ? store.getMap(id) : undefined;
   const mapRun = mapRunOf(store, id, writing);
   const mapApp = appToStart(store.startedRuns(), id, apps, connected);
@@ -200,7 +192,7 @@ export function homeData(store: Store, folder: string, apps: string[] = [], addr
   // While a run of the whole map writes: the areas of the top diagram with work left, for the states of its nodes and cards.
   const run = store.mapRun(id);
   if (mapRun?.state === 'writing' && run?.whole && run.plan) mapRun.areas = areaWork(store, folder, stored, run);
-  const files = repoFiles(folder);
+  const files = repoFiles(folder) ?? [];
   const changes = store.listChanges(id).map((change) => ({ id: change.id, branch: change.branch, title: change.file.title, files: filesOfChange(change, folder) }));
   const count = (path: string): number => files.filter((file) => touches(path, file)).length;
   const { diagrams } = stored.map;
@@ -296,7 +288,7 @@ const remarksOnMap = (remarks: Remark[]): Remark[] => { const onFiles = new Set(
 
 /** The step of Home at the main diagram of a folder (ending with "/") or a file, with its nodes lit (see mainDiagramOf); undefined when no map has it. */
 export function mainStepOf(store: Store, folder: string, path: string): Extract<Step, { tab: 'home' }> | undefined {
-  const id = idOf(folder);
+  const id = repoIdOrNone(folder);
   const map = id ? store.getMap(id)?.map : undefined;
   const at = !path.endsWith('/') && isFolder(join(folder, path)) ? `${path}/` : path;
   const main = map && mainDiagramOf(map.diagrams, at);
@@ -306,7 +298,7 @@ export function mainStepOf(store: Store, folder: string, path: string): Extract<
 
 /** The graphs page of a folder (ending with "/") or a file: one panel for each diagram that it is a part of, the widest first. */
 export function graphsData(store: Store, folder: string, path: string, address: (file: string) => string = (file) => file): GraphsData {
-  const id = idOf(folder);
+  const id = repoIdOrNone(folder);
   const found = id ? diagramsOf(store, folder, path) : [];
   const asked = !path.endsWith('/') && isFolder(join(folder, path)) ? `${path}/` : path;
   const byBranch = new Map(id ? store.listChanges(id).map((change) => [change.branch, change]) : []);
@@ -354,7 +346,7 @@ export function graphsData(store: Store, folder: string, path: string, address: 
 
 /** Every path that some diagram of the repo stands for: the nodes of the map and of changes, the files of parts and of function diagrams. */
 export function diagramPaths(store: Store, folder: string): string[] {
-  const id = idOf(folder);
+  const id = repoIdOrNone(folder);
   if (!id) return [];
   const paths = new Set<string>();
   const addDiagram = (diagram: Diagram): void => {
