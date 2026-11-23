@@ -490,18 +490,18 @@
         },
         "apostil.claudeModel": {
           "type": "string",
-          "default": "haiku",
-          "markdownDescription": "The model that a new Claude Code session for a comment starts on, until you choose another in the line of the model under the picker of the comment. The small model `haiku` by default. A session that a comment continues keeps the model it last used. The map and a description do not use it: their lead runs on the second smallest model at medium effort, unless you choose another in the line after their press, and every writer on the smallest at medium effort. Leave it empty to use the model of your Claude Code settings."
+          "default": "",
+          "markdownDescription": "The model that a new Claude Code session for a comment starts on, at high effort, until you choose another in the line of the model under the picker of the comment. Empty by default: a new session then starts on the lead model of a map run, the second smallest model, at medium effort. A session that a comment continues keeps the model and the effort it last used. The map and a description do not use it: their lead runs on the second smallest model at medium effort, unless you choose another in the line after their press, and every writer on the smallest at medium effort."
         },
         "apostil.codexModel": {
           "type": "string",
-          "default": "gpt-6-luna",
-          "markdownDescription": "The model that a new Codex session for a comment starts on, until you choose another in the line of the model under the picker of the comment. The small model `gpt-6-luna` by default. A session that a comment continues keeps the model it last used. The map and a description do not use it: their lead runs on the second smallest model at medium effort, unless you choose another in the line after their press, and every writer on the smallest at medium effort. Leave it empty to use the model of your Codex settings. Set another when the command-line Codex refuses that model for your account."
+          "default": "",
+          "markdownDescription": "The model that a new Codex session for a comment starts on, at high effort, until you choose another in the line of the model under the picker of the comment. Empty by default: a new session then starts on the lead model of a map run, the second smallest model, at medium effort. A session that a comment continues keeps the model and the effort it last used. The map and a description do not use it: their lead runs on the second smallest model at medium effort, unless you choose another in the line after their press, and every writer on the smallest at medium effort. Set one when the command-line Codex refuses the lead model for your account."
         },
         "apostil.antigravityModel": {
           "type": "string",
-          "default": "gemini-4-hydrogen",
-          "markdownDescription": "The model that a new Antigravity session for a comment starts on, until you choose another in the line of the model under the picker of the comment. `gemini-4-hydrogen` by default. A session that a comment continues keeps the model it last used. The map and a description use `gemini-4-hydrogen` at medium effort for both lead and writers by default, unless you choose another lead in the line after their press. Leave it empty to use the model of your Antigravity settings."
+          "default": "",
+          "markdownDescription": "The model that a new Antigravity session for a comment starts on, at high effort, until you choose another in the line of the model under the picker of the comment. Empty by default: a new session then starts on the lead model of a map run, `gemini-4-hydrogen`, at medium effort. A session that a comment continues keeps the model and the effort it last used. The map and a description use `gemini-4-hydrogen` at medium effort for both lead and writers by default, unless you choose another lead in the line after their press."
         },
         "apostil.commentRuns": {
           "type": "string",

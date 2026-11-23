@@ -148,12 +148,12 @@ const States = (() => {
 
   /**
    * The run that a choice of the picker starts with: a session that a run continues, what it last used (`known`, from its own record), else the model of
-   * a new session; a new session the model of the setting (`menu.fresh`). The effort: the session's last one, else high, as the model takes it.
+   * a new session; a new session `menu.fresh` (the setting at high, else the lead of a map run at its effort). The effort: its own, else high, as the model takes it.
    */
   function choiceRun(app, menu, known) {
     if (!menu) return null;
     const base = known?.model ? known : menu.fresh ?? {};
-    const effort = nearestEffort(modelIn(menu.list, base.model)?.efforts, known?.effort ?? 'high');
+    const effort = nearestEffort(modelIn(menu.list, base.model)?.efforts, base.effort ?? 'high');
     return { ...(base.model ? { model: base.model } : {}), ...(base.name ? { name: base.name } : {}), ...(app === 'opencode' && !base.model ? {} : { effort }) };
   }
 

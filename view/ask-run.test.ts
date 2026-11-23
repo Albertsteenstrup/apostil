@@ -29,7 +29,7 @@ test('the press starts a new session with the words, its id known at once, led b
     assert.deepEqual([before.press?.label, before.team?.lead, before.team?.writer, before.team?.effort], ['Describe it with a new Claude Code session', 'haiku', 'haiku', 'xhigh']);
     let done: (end: { problem?: string; denied?: string[] }) => void = () => {};
     const ending = new Promise<{ problem?: string; denied?: string[] }>((resolve) => { done = resolve; });
-    assert.equal(await startAsk(store, repo.folder, words, ['claude-code'], { claude: 'haiku' }, () => {}, (problem, facts) => done({ problem, denied: facts?.denied })), true);
+    assert.equal(await startAsk(store, repo.folder, words, ['claude-code'], {}, () => {}, (problem, facts) => done({ problem, denied: facts?.denied })), true);
     assert.equal(askView(store, repo.folder, words, ['claude-code']).line?.state, 'working');
     const ended = await ending;
     const args = readFileSync(got, 'utf8').split('\n');

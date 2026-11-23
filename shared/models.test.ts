@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { mapPrompt } from '../view/agent-run';
 import { newRunCommand, resumeCommand, WRITER_AGENT } from './agents';
-import { antigravityCatalog, catalogOf, claudeCatalog, codexCatalog, menuOf, nearestEffort, secondSmallest, sessionPick, smallest, teamFrom, teamOf, teamRun, teamSentence } from './models';
+import { antigravityCatalog, catalogOf, claudeCatalog, codexCatalog, freshPick, menuOf, nearestEffort, secondSmallest, sessionPick, smallest, teamFrom, teamOf, teamRun, teamSentence } from './models';
 import { madeUpAgentHome, tempFolder } from './test-repo';
 
 const ids = (catalog: { models: { id: string }[] }): string[] => catalog.models.map((model) => model.id);
@@ -54,13 +54,15 @@ test('the newest models of each app in the order of size, read only from its own
   assert.equal(catalogOf('opencode', empty), undefined); // OpenCode keeps its own models
 });
 
-test('a known session starts with the model and the effort that its own record says it last used, named from the catalog; one whose model is unknown, and a new session, take the setting at high; an effort that a model does not take falls to the nearest lower one', () => {
+test('a known session starts with the model and the effort that its own record says it last used, named from the catalog; one whose record says nothing, and a new session, take the setting at high, or with no setting the lead of a map run, the second smallest model at medium; an effort that a model does not take falls to the nearest lower one', () => {
   const home = madeUpAgentHome({ claude: { 'made-up-s1': ['claude-opus-5-5', 'xhigh'], 'made-up-s2': ['claude-opus-4-8'] }, codex: { 'made-up-t1': ['gpt-6.1-sol', 'ultra'] } });
   assert.deepEqual(sessionPick('claude-code', 'made-up-s1', 'haiku', home), { model: 'opus', name: 'Opus 5.5', effort: 'xhigh' });
   assert.deepEqual(sessionPick('claude-code', 'made-up-s2', 'haiku', home), { model: 'claude-opus-4-8', name: 'Opus 4.8', effort: 'high' }); // an older model: no effort in its record
   assert.deepEqual(sessionPick('claude-code', 'made-up-none', 'haiku', home), { model: 'haiku', name: 'Haiku 5.5', effort: 'high' });
   assert.deepEqual(sessionPick('codex', 'made-up-t1', 'gpt-6-luna', home), { model: 'gpt-6.1-sol', name: 'Sol 6.1', effort: 'ultra' });
   assert.deepEqual(menuOf('codex', 'gpt-6-luna', home).fresh, { model: 'gpt-6-luna', name: 'Luna 6', effort: 'high' });
+  const lead = { model: 'sonnet', name: 'Sonnet 5.5', effort: 'medium' };
+  assert.deepEqual([freshPick('claude-code', undefined, home), menuOf('claude-code', undefined, home).fresh, sessionPick('claude-code', 'made-up-none', undefined, home)], [lead, lead, lead]);
   assert.deepEqual(menuOf('opencode', 'made-up/small', home), { list: [], fresh: { model: 'made-up/small', name: 'made-up/small', effort: 'high' } });
   assert.deepEqual([nearestEffort(['low', 'high', 'max'], 'ultra'), nearestEffort(['low', 'high', 'max'], 'medium'), nearestEffort(['high'], 'low')], ['max', 'low', 'high']);
 });

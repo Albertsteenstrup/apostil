@@ -113,13 +113,6 @@ function agyRights({ commentRuns, describe, diagrams }: RunOptions): string[] {
   return ['--mode', 'accept-edits', '--settings', JSON.stringify({ permissions })];
 }
 
-/**
- * The small model of each app, the default of the settings apostil.claudeModel, apostil.codexModel and apostil.antigravityModel: every new session of a
- * comment takes it unless the person chose another in the picker. A comment run that continues a session gives no model unless he chose one: the session
- * keeps the model that it has. Codex knows its small model by its full name only (its model list has no "luna" alone).
- */
-export const SMALL_MODELS: Record<string, string> = { 'claude-code': 'haiku', codex: 'gpt-6-luna', antigravity: 'gemini-4-hydrogen' };
-
 /** A run that draws diagrams: the map of a repo, or the description of a change (whose skill draws the diagrams of the change). */
 const drawsDiagrams = (options: RunOptions): boolean => !!(options.diagrams || options.describe);
 
@@ -226,9 +219,9 @@ export interface RunOptions {
   model?: string; // the model that the person chose for this run, or the lead of a map or description run (shared/models.ts); none: the setting of the app
   effort?: string; // the effort that the person chose, or that of the lead; none: runEffort()
   writers?: { model?: string; effort?: string }; // a map or description run: the model and effort of its writer subagents
-  claudeModel?: string; // the model of a Claude Code run (setting apostil.claudeModel, "haiku" by default); empty: Claude Code takes the model of its own settings
-  codexModel?: string; // the model of a Codex run (setting apostil.codexModel, "gpt-6-luna" by default); empty: Codex takes the model of its own settings
-  antigravityModel?: string; // the model of an Antigravity run (setting apostil.antigravityModel, "gemini-4-hydrogen" by default); empty: Antigravity takes its own
+  claudeModel?: string; // the setting apostil.claudeModel, empty by default: a new session of a comment then gets the lead of a map run as `model` (freshPick)
+  codexModel?: string; // the setting apostil.codexModel, empty by default, as claudeModel
+  antigravityModel?: string; // the setting apostil.antigravityModel, empty by default, as claudeModel
   opencodeModel?: string; // the small model that the person set for OpenCode (opencodeSmallModel); none: OpenCode keeps its own
   claudeMode?: string; // the default permission mode of the person for Claude Code (claudeDefaultMode)
   codexSandbox?: string; // the sandbox of the person for Codex (codexDefaultSandbox)
@@ -241,6 +234,10 @@ export interface RunOptions {
 
 /** The models of the runs, as the owner set them in VS Code. */
 export interface RunModels { claude?: string; codex?: string; antigravity?: string }
+
+/** The model setting of an app; none for OpenCode, which takes the small model of its own config. */
+export const modelSettingOf = (app: string, models: RunModels): string | undefined =>
+  (app === 'claude-code' ? models.claude : app === 'codex' ? models.codex : app === 'antigravity' ? models.antigravity : undefined);
 
 /** The options of a run in a folder: the store, the models, and the modes that the person set as default for Claude Code and Codex. */
 export const runOptions = (folder: string, store: string, models: RunModels = {}): RunOptions => ({

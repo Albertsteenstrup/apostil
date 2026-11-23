@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
-import { agentFromEnv, BILLING, claudeDefaultMode, claudeRunMode, codexDefaultSandbox, INSTALL, installedApps, isOptionProblem, isSignInProblem, mergeAgent, modelWords, opencodeSmallModel, runFix, runProblem, UPDATE, newestLine, newRunCommand, openSessionCommand, resumeCommand, sessionLink, sessionName, sessionOpens, SIGN_IN, SMALL_MODELS } from './agents';
+import { agentFromEnv, BILLING, claudeDefaultMode, claudeRunMode, codexDefaultSandbox, INSTALL, installedApps, isOptionProblem, isSignInProblem, mergeAgent, modelWords, opencodeSmallModel, runFix, runProblem, UPDATE, newestLine, newRunCommand, openSessionCommand, resumeCommand, sessionLink, sessionName, sessionOpens, SIGN_IN } from './agents';
 import { tempFolder } from './test-repo';
 import { pullRequestsFromJson, stateOf, type RawPullRequest } from './pull-requests';
 
@@ -87,13 +87,11 @@ test('the link, the resume command, the command of a new session and the command
   assert.equal(sessionOpens({ app: 'claude-code' }), undefined);
 });
 
-test('every new session takes the small model of its app unless the owner set another, and a comment run that continues a session keeps its own model: haiku for Claude Code, gpt-6-luna for Codex, the small_model of the OpenCode config; a run that draws diagrams thinks at max and takes the small model also in a session that it continues, other runs at high; a run that describes a change or writes the map reads the repo, and the description has no Edit', () => {
-  const models = { claudeModel: SMALL_MODELS['claude-code'], codexModel: SMALL_MODELS.codex, antigravityModel: SMALL_MODELS.antigravity, opencodeModel: 'made-up-provider/small-one' };
-  assert.deepEqual(SMALL_MODELS, { 'claude-code': 'haiku', codex: 'gpt-6-luna', antigravity: 'gemini-4-hydrogen' });
-  // The settings in VS Code start with these models: an empty setting means the model of the app's own settings.
+test('the settings of the models are empty by default; a model that the owner set goes to every new session, and a comment run that continues a session keeps its own model; OpenCode takes the small_model of its config; a run that draws diagrams with no model of its own thinks at medium and takes the set model also in a session that it continues, other runs at high; a run that describes a change or writes the map reads the repo, and the description has no Edit', () => {
+  const models = { claudeModel: 'haiku', codexModel: 'gpt-6-luna', antigravityModel: 'gemini-4-hydrogen', opencodeModel: 'made-up-provider/small-one' };
+  // Empty settings: a new session of a comment starts on the lead of a map run (freshPick, shared/models.test.ts checks that).
   const settings = JSON.parse(readFileSync(join(__dirname, '..', '..', 'package.json'), 'utf8')).contributes.configuration.properties;
-  assert.deepEqual([settings['apostil.claudeModel'].default, settings['apostil.codexModel'].default, settings['apostil.antigravityModel'].default],
-    [SMALL_MODELS['claude-code'], SMALL_MODELS.codex, SMALL_MODELS.antigravity]);
+  assert.deepEqual([settings['apostil.claudeModel'].default, settings['apostil.codexModel'].default, settings['apostil.antigravityModel'].default], ['', '', '']);
   // The model and the effort of each app: a run that is not about diagrams thinks at high; a comment run that continues a session gives no model.
   assert.deepEqual(modelWords('claude-code', models), ['--model', 'haiku', '--effort', 'high']);
   assert.deepEqual(modelWords('codex', models), ['-c', 'model="gpt-6-luna"', '-c', 'model_reasoning_effort="high"']);
@@ -101,7 +99,7 @@ test('every new session takes the small model of its app unless the owner set an
   assert.deepEqual(modelWords('antigravity', { antigravityModel: 'gemini-4-hydrogen-medium', effort: 'high' }), ['--model', 'gemini-4-hydrogen-medium']); // a slug with an effort keeps it
   assert.deepEqual(modelWords('opencode', models), ['--model', 'made-up-provider/small-one#high']); // OpenCode: the variant of the model is its effort
   assert.deepEqual(modelWords('opencode', { opencodeModel: 'made-up-provider/small-one#fast' }), ['--model', 'made-up-provider/small-one#fast']); // a variant that the person set stays
-  assert.deepEqual(modelWords('claude-code', {}), ['--effort', 'high']); // an empty setting: the model of the app's own settings, at the effort of the run
+  assert.deepEqual(modelWords('claude-code', {}), ['--effort', 'high']); // no model: the app takes its own, at the effort of the run
   assert.deepEqual(newRunCommand('claude-code', 'Do it', models)?.slice(5, 9), ['--model', 'haiku', '--effort', 'high']);
   assert.ok(!resumeCommand({ app: 'claude-code', session: 's1' }, 'Do it', models)?.includes('--model'));
   assert.deepEqual(newRunCommand('codex', 'Do it', models)?.slice(-4), ['-c', 'model="gpt-6-luna"', '-c', 'model_reasoning_effort="high"']);

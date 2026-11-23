@@ -4,8 +4,8 @@ import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { newRunCommand, resumeCommand, runOptions, WRITER_AGENT, type RunModels, type RunOptions } from '../shared/agents';
-import { pickFrom, teamOf, teamRun, teamSentence, type RunPick, type Team } from '../shared/models';
+import { modelSettingOf, newRunCommand, resumeCommand, runOptions, WRITER_AGENT, type RunModels, type RunOptions } from '../shared/agents';
+import { freshPick, pickFrom, teamOf, teamRun, teamSentence, type RunPick, type Team } from '../shared/models';
 import { changedBetween, workingFiles } from '../shared/git';
 import { WRITERS_AT_ONCE } from '../shared/map-estimate';
 import { storeFolder, type Store } from '../shared/store';
@@ -108,8 +108,9 @@ export function startRun(store: Store, remarkId: number, ended: (problem?: strin
   const change = remark?.changeId === undefined ? undefined : store.getChange(remark.changeId);
   const prompt = remark && inboxText([remark], store, commentRuns === 'read only');
   const where = change?.folder ?? folder;
-  // The model and the effort that the picker sent with the comment, or that "Start a run" chose: with no model, a session that a run continues keeps its own.
-  const chosen = { ...pickFrom(remark?.to), ...pickFrom(pick) };
+  // The model and the effort that the picker sent with the comment, or that "Start a run" chose, over those of a new session (freshPick): with no model,
+  // a session that a run continues keeps its own.
+  const chosen = { ...(newApp ? pickFrom(freshPick(newApp, modelSettingOf(newApp, models))) : {}), ...pickFrom(remark?.to), ...pickFrom(pick) };
   const options = { ...runOptions(where ?? '', storeFolder(), models), commentRuns, ...chosen }; // the modes that the person set as default for the app go with the run
   // The session that the run continues: another session that Apostil knows in the repo when the comment went there, else the session of the change.
   const agent = remark?.to?.kind === 'session' && remark.to.session ? { app: remark.to.app, session: remark.to.session } : change?.agent;

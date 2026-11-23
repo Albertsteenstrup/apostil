@@ -10,7 +10,7 @@ const CODEX_MODEL = 'apostil.codexModel';
 const ANTIGRAVITY_MODEL = 'apostil.antigravityModel';
 const COMMENT_RUNS = 'apostil.commentRuns';
 
-/** A model setting: its value ("haiku", "gpt-6-luna" and "gemini-4-hydrogen" by default, the small models of SMALL_MODELS), or undefined when the owner emptied it: the app then takes the model of its own settings. */
+/** A model setting: its value, or undefined when it is empty (the default): a new session of a comment then starts on the lead of a map run (freshPick). */
 const modelSetting = (name: string): string | undefined => vscode.workspace.getConfiguration().get<string>(name)?.trim() || undefined;
 
 /** The models of every run that Apostil starts, for Claude Code, Codex and Antigravity; OpenCode takes the small model of its own config (opencodeSmallModel). */

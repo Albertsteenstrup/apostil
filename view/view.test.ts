@@ -287,7 +287,7 @@ test('the picker of where a comment goes: for each connected app this session, t
   sessions[0].run = { model: 'sonnet', effort: 'xhigh' }; // what it last used, from its own record; the others are unknown
   sessions.push({ app: 'claude-code', session: 's1', at: at(1) }, { app: 'antigravity', session: 'a1', at: at(1) }); // the session of the change, and an app that is not connected
   const efforts = ['low', 'medium', 'high', 'xhigh', 'max'];
-  const claude = { list: [{ id: 'haiku', name: 'Haiku 5.5', efforts }, { id: 'sonnet', name: 'Sonnet 5.5', efforts }, { id: 'opus', name: 'Opus 5.5', efforts }], fresh: { model: 'haiku', name: 'Haiku 5.5', effort: 'high' } };
+  const claude = { list: [{ id: 'haiku', name: 'Haiku 5.5', efforts }, { id: 'sonnet', name: 'Sonnet 5.5', efforts }, { id: 'opus', name: 'Opus 5.5', efforts }], fresh: { model: 'sonnet', name: 'Sonnet 5.5', effort: 'medium' } }; // no setting: the lead of a map run
   const codex = { list: [{ id: 'gpt-6-luna', name: 'Luna 6', efforts }, { id: 'gpt-6.1-sol', name: 'Sol 6.1', efforts: [...efforts, 'ultra'] }], fresh: { model: 'gpt-6-luna', name: 'Luna 6', effort: 'high' } };
   const models = { 'claude-code': claude, codex, opencode: { list: [], fresh: {} } };
   const choices = States.sendChoices({ agent: { app: 'claude-code', session: 's1' }, apps: ['claude-code', 'codex', 'opencode'], sessions, models, own: { model: 'claude-opus-4-8', name: 'Opus 4.8', effort: 'max' }, github: true, now });
@@ -295,10 +295,10 @@ test('the picker of where a comment goes: for each connected app this session, t
   assert.deepEqual(shown, [
     'claude-code:current | This session | made this change | Opus 4.8 · Max', // the model that the session of the change last used, older than the menu
     'claude-code:session:known-0001 | Tests for holds | used 10 min ago | Sonnet 5.5 · Extra',
-    'claude-code:session:known-0002 | known-00 | used 20 min ago | Haiku 5.5 · High', // its model is unknown: the setting, at high
-    'claude-code:session:known-0003 | known-00 | used 30 min ago | Haiku 5.5 · High',
-    'claude-code:new | New session | Haiku 5.5 · High',
-    'codex:new | New session | Luna 6 · High',
+    'claude-code:session:known-0002 | known-00 | used 20 min ago | Sonnet 5.5 · Medium', // its model is unknown: that of a new session
+    'claude-code:session:known-0003 | known-00 | used 30 min ago | Sonnet 5.5 · Medium',
+    'claude-code:new | New session | Sonnet 5.5 · Medium',
+    'codex:new | New session | Luna 6 · High', // the setting, at high
     "opencode:new | New session | OpenCode's own model", // no small model: OpenCode takes the model of its own settings, with no choice
     'github | The pull request on GitHub',
     'none | No agent: keep it as a note',
