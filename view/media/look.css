@@ -714,6 +714,9 @@ div.nomap .runpick{margin:0 0 8px}
 .status .dot{flex:none;margin-right:7px;vertical-align:0}
 .status .dot.wait{background:var(--pr-amber)}
 .status .dot.bad{background:var(--pr-red)}
+.status .stk{margin-left:4px;color:var(--muted);cursor:pointer}
+.status .stk:hover,.status .stkpull:hover{color:var(--tealink)}
+.status .stkpull{color:var(--soft);cursor:pointer;text-decoration:underline;text-underline-offset:3px}
 .status .pnum{margin-left:6px;color:var(--muted);font-variant-numeric:tabular-nums}
 .status .pnum:hover{color:var(--tealink);text-decoration:underline;text-underline-offset:3px}
 .status .rv[data-rest]:focus-visible{outline:1px solid var(--teal);outline-offset:1px;border-radius:10px}
@@ -1172,13 +1175,13 @@ div.nomap .runpick{margin:0 0 8px}
 .conv .stack:not(.open) > .inner{display:none}
 .conv .stack > .inner{margin-top:6px;max-width:560px;border:1px solid var(--line);border-radius:8px;padding:4px 0}
 /* one row for each pull request of the stack, the top first: icon, number, title on one line, "this one" */
-.conv .srow{display:flex;align-items:center;gap:8px;padding:3px 10px;min-width:0;color:var(--soft);font-size:var(--small)}
+:is(.conv,#status) .srow{display:flex;align-items:center;gap:8px;padding:3px 10px;min-width:0;color:var(--soft);font-size:var(--small)}
 a.srow{cursor:pointer}
 a.srow:hover{background:var(--seg)}
-.conv .srow.this{background:var(--tealsoft)}
-.conv .srow .sn{flex:none;color:var(--muted);font-variant-numeric:tabular-nums}
-.conv .srow .st{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.conv .srow .sthis{flex:none;font-style:normal;color:var(--muted)}
+:is(.conv,#status) .srow.this{background:var(--tealsoft)}
+:is(.conv,#status) .srow .sn{flex:none;color:var(--muted);font-variant-numeric:tabular-nums}
+:is(.conv,#status) .srow .st{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+:is(.conv,#status) .srow .sthis{flex:none;font-style:normal;color:var(--muted)}
 .conv.classic .stackbox .srows{padding:4px 0}
 .conv.classic .stackbox .mic{width:28px;height:28px;-webkit-mask-size:16px 16px;mask-size:16px 16px;margin:2px 0 0;color:var(--muted)}
 @media (max-width:640px){ .conv.classic .stackbox > .mic{display:none} }

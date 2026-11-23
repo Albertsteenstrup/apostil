@@ -48,7 +48,7 @@ test('a local branch of that name with commits that are not in the pull request 
   try {
     const mine = ownCommit(repo.folder, repo.base); // a branch of the person with that name, with a commit of his own: not the branch of the pull request
     git(repo.folder, 'branch', repo.branch, mine);
-    assert.deepEqual(await pullFolder(repo.folder, pull, store), { problem: `Could not check out the branch ${repo.branch} of pull request #${repo.number}: the branch ${repo.branch} of this clone has commits that are not in the pull request. It is another branch with that name, or it has work that is not pushed.` });
+    assert.deepEqual(await pullFolder(repo.folder, pull, store), { problem: `Could not check out ${repo.branch} for #${repo.number}: your ${repo.branch} has commits that are not in the pull request, so it stays as it is.` });
     assert.equal(git(repo.folder, 'rev-parse', `refs/heads/${repo.branch}`), mine); // not moved to the head of the pull request
     assert.equal(existsSync(join(store, 'worktrees')), false);
 
@@ -66,7 +66,7 @@ test('a local branch of that name with commits that are not in the pull request 
     assert.ok(existsSync(mineFolder)); // never a worktree that Apostil did not make
 
     const none = await pullFolder(repo.folder, { number: 36, branch: 'made-up/other', head: '1'.repeat(40), remote: 'origin' }, store);
-    assert.deepEqual(none, { problem: "Could not check out the branch made-up/other of pull request #36: couldn't find remote ref pull/36/head." });
+    assert.deepEqual(none, { problem: "Could not check out made-up/other for #36: couldn't find remote ref pull/36/head." });
     assert.equal(tryGit(repo.folder, 'rev-parse', '--verify', '--quiet', 'refs/heads/made-up/other'), undefined);
   } finally {
     repo.remove();
@@ -94,7 +94,7 @@ test('a local branch that is only behind the pull request is brought up to its l
     git(repo.folder, 'worktree', 'add', '-q', mine, repo.branch);
     appendFileSync(join(mine, 'src/app.py'), '# not saved\n');
     const dirty = await pullFolder(repo.folder, pull, store);
-    assert.ok('problem' in dirty && /is behind the pull request, and .* has uncommitted changes/.test(dirty.problem), JSON.stringify(dirty));
+    assert.ok('problem' in dirty && /has uncommitted changes, so .* stays behind the pull request/.test(dirty.problem), JSON.stringify(dirty));
     assert.equal(branchTip(), repo.base);
 
     git(mine, 'checkout', '--', 'src/app.py');

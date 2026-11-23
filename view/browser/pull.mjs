@@ -56,7 +56,7 @@ try {
   // The strip says each fact once: after the state, the review and the checks, only the rest of the merge sentence (in the title of .msent).
   check('the page of a change with a pull request has "Conversation" in the switch, and the status strip in one short line: the icon, the reviewers as avatars that lie over each other with a dot for the state, the checks, and the first thing before a merge with a count of the others, each fact once; with seven reviewers three avatars show, who asked for changes first and people before bots, and "+4" names the others; with no reviewer it says so in words',
     strip.switchText === 'Conversation · Diagram · Diffs' && strip.icon === 'pri git-pull-request red' && strip.masked
-    && /2 of 12 checks failed▸Waits for #9 below it in the stack2 moreReview1 more pull request$/.test(strip.text) && !/approved|jonas/.test(strip.text)
+    && /2 of 12 checks failed▸Waits for #9 below it in the stack▸2 moreReview1 more pull request$/.test(strip.text) && !/approved|jonas/.test(strip.text)
     && strip.reviewers.join() === 'jonas-b: approved,lena-s: waiting,made-up/lending-team: waiting' && strip.avatars === 3 && strip.stacked && strip.dots === 'ok,wait,wait'
     && strip.all === 'Waits for #9 below it in the stack · 1 check is still running · 3 commits behind made-up/hold-store'
     && manyReviewers.shown.join() === 'cy: asked for changes,ana: approved,dee: approved' && manyReviewers.count === '+4'
@@ -1339,6 +1339,19 @@ try {
     && messages.rows.every((row) => row.oneLine) && messages.rows[2].tip === '#9 · Review needed · 1 of 3 in a stack'
     && classic.first && classic.beforeComment && classic.place === '2 of 3 in a stack onto main' && classic.head === 'Stack of 3 pull requests onto main' && classic.rows.length === 3 && classic.rows[1].endsWith('this one'),
     JSON.stringify({ messages, classic }));
+  // The line "Waits for #9 below it in the stack" in the bar: "#9" is the link of the row of #9 in the stack (the same handler), and "▸" opens the list of the stack under the bar.
+  const wait = await stack.evaluate(() => {
+    const status = document.getElementById('status');
+    const link = status.querySelector('.msent .stkpull');
+    const row = document.querySelector('.conv .srow[data-number="9"]');
+    const before = status.querySelectorAll('.srow').length;
+    status.querySelector('[data-stack-open]').click();
+    const opened = [...status.querySelectorAll('.srow')].map((one) => one.textContent);
+    status.querySelector('[data-stack-open]').click();
+    return { text: link?.textContent, same: !!link && link.dataset.stackPull === row.dataset.stackPull && link.dataset.number === '9', before, opened, after: status.querySelectorAll('.srow').length, arrow: status.querySelector('[data-stack-open]').textContent };
+  });
+  check('"#9" in "Waits for #9 below it in the stack" opens that pull request as a row of the stack does, and the small arrow after the line opens the same list of the stack under the bar and closes it again',
+    wait.text === '#9' && wait.same && wait.before === 0 && wait.opened.length === 3 && wait.opened.some((text) => /^#9Store the holds/.test(text)) && wait.after === 0 && wait.arrow === '▸', JSON.stringify(wait));
   // A click on another row asks for that pull request, as a step of the path: the line at the top keeps the way back.
   const asked = await stack.evaluate(() => {
     document.querySelector('.conv .srow[data-number="9"]').click();

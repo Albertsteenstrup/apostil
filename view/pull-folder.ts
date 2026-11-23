@@ -68,7 +68,7 @@ const reason = (said: string): string => said.replace(/^(fatal|error): /, '').re
  * Gives back one sentence when that fails; no run starts then.
  */
 export async function pullFolder(folder: string, pull: PullHead, store: string): Promise<{ folder: string; made: boolean } | { problem: string }> {
-  const fail = (said: string) => ({ problem: `Could not check out the branch ${pull.branch} of pull request #${pull.number}: ${reason(said)}` });
+  const fail = (said: string) => ({ problem: `Could not check out ${pull.branch} for #${pull.number}: ${reason(said)}` });
   if (!pull.branch) return { problem: `Pull request #${pull.number} is not read yet. Try again in a moment.` };
   if (pull.branch.startsWith('-')) return fail('a branch name that starts with "-" would be read as an option of git'); // the name comes from GitHub
   // The last commit first: a branch of that name counts only when it holds it.
@@ -85,7 +85,7 @@ export async function pullFolder(folder: string, pull: PullHead, store: string):
   }
   const there = worktrees(folder).find((one) => one.branch === pull.branch);
   if (there && existsSync(there.folder)) return { folder: there.folder, made: isOwn(there.folder, store) };
-  if (there && !isOwn(there.folder, store)) return fail(`it is checked out in ${there.folder}, which is gone (git worktree prune lets it go)`);
+  if (there && !isOwn(there.folder, store)) return fail(`its worktree ${there.folder} is gone (run git worktree prune)`);
   if (there) await gitLater(folder, ['worktree', 'remove', '--force', there.folder]); // its own worktree, whose folder is gone
 
   const said = known ? undefined : newBranch(folder, pull, head);
@@ -106,12 +106,12 @@ function fastForward(folder: string, branch: string, head: string): string | und
   const ref = `refs/heads/${branch}`;
   const tip = tryGit(folder, 'rev-parse', ref) ?? '';
   if (!head || !commitExists(folder, head) || tryGit(folder, 'merge-base', '--is-ancestor', tip, head) === undefined) {
-    return `the branch ${branch} of this clone has commits that are not in the pull request. It is another branch with that name, or it has work that is not pushed`;
+    return `your ${branch} has commits that are not in the pull request, so it stays as it is`;
   }
   const there = worktrees(folder).find((one) => one.branch === branch);
   try {
     if (there && existsSync(there.folder)) {
-      if (git(there.folder, 'status', '--porcelain')) return `the branch ${branch} is behind the pull request, and ${there.folder} has uncommitted changes, so it was not brought up to date`;
+      if (git(there.folder, 'status', '--porcelain')) return `${there.folder} has uncommitted changes, so ${branch} stays behind the pull request`;
       git(there.folder, 'merge', '--ff-only', head);
     } else git(folder, 'update-ref', '-m', 'apostil: bring the branch up to its pull request', ref, head, tip);
     return undefined;
