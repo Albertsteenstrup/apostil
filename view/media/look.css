@@ -372,8 +372,9 @@ p.fact{margin:0;padding:8px 12px;color:var(--muted)} /* what a file is, in one l
 .cbox .tl{display:grid;place-items:center;width:26px;height:26px;border-radius:7px;color:var(--soft)}
 .cbox .tl:hover{background:var(--seg);color:var(--ink)}
 .cbox .tl svg{width:16px;height:16px}
-.cbox .moremenu{display:flex;flex-direction:column;align-items:flex-start;gap:2px;margin:0 0 6px;padding:4px 0;border-bottom:1px solid var(--line);font-size:var(--small)}
-.cbox .moremenu a{color:var(--tealink)}
+/* a long card fits the tab: its head and its box stay, the threads between them scroll; -4px takes back the margin of the head, which no longer collapses */
+.cbox:not(.ask){display:flex;flex-direction:column;max-height:calc(100vh - 16px)}
+.cbox .cthreads{margin:-4px -14px 0;padding:0 14px;overflow:hidden auto}
 .cbox .sub{margin-top:8px;font-size:var(--small);color:var(--muted)}
 .cbox .cth{border-left:2px solid transparent}
 .cbox .cth.cur{border-left-color:var(--tealline);margin-left:-8px;padding-left:6px}

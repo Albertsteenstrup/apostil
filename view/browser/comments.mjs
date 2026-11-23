@@ -141,8 +141,8 @@ try {
   const reply = (await sentRemarks()).pop();
   const replied = { open: await page.$$eval(theCard, (all) => all.length), last: await page.$$eval(`${theCard} .cth .msg .tx`, (all) => all.at(-1)?.textContent) };
   await closeCard();
-  check('a click on the bubble opens the card beside its part, not over it: ✓ ⋯ ✕ in its head; his own words at the right, the agent at the left with its icon and name, the exact time as a tooltip; the state line and the picker, with the model and the effort that the session last used on their own line; it marks the answer read; Escape and a click outside close it; a reply belongs to its thread and the card stays open',
-    beside && opened.tools === 'Resolve,More,Close' && opened.state === 'answered · session' && opened.picker === 'Send to Claude Code · this session' && opened.run === 'Opus 5.5 · Extra'
+  check('a click on the bubble opens the card beside its part, not over it: ✓ ✕ in its head; his own words at the right, the agent at the left with its icon and name, the exact time as a tooltip; the state line and the picker, with the model and the effort that the session last used on their own line; it marks the answer read; Escape and a click outside close it; a reply belongs to its thread and the card stays open',
+    beside && opened.tools === 'Resolve,Close' && opened.state === 'answered · session' && opened.picker === 'Send to Claude Code · this session' && opened.run === 'Opus 5.5 · Extra'
       && JSON.stringify(opened.messages) === JSON.stringify(['mine:right:::tip', 'agent:left:Claude Code:agents/claude-code.svg:tip', 'mine:right:::tip', 'agent:left:Claude Code:agents/claude-code.svg:tip'])
       && /\bseen\b/.test(seen) && afterEsc === 0 && afterOutside === 0 && reply?.thread === 4 && reply.text === 'Good, thanks.' && replied.open === 1 && replied.last === 'Good, thanks.',
     JSON.stringify({ beside, opened, seen, afterEsc, afterOutside, reply, replied }));

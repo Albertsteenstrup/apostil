@@ -38,12 +38,10 @@ const Remarks = (() => {
     const inside = (el) => el?.contains(event.target);
     if (list && !inside(list.el) && !event.target.closest?.('[data-comments]')) closeList();
     if (mentions && !inside(mentions.el)) closeMentions(); // the names after "@" close on a click elsewhere, as a menu does
-    // An open menu of the card (where it goes, or ⋯) closes on a click outside it; a click outside the card then does nothing else.
-    if (card && (card.menu || card.moreOpen) && !event.target.closest?.('.pmenu, [data-pick], .moremenu, [data-more]')) {
-      const more = card.moreOpen;
-      Object.assign(card, { menu: false, moreOpen: false });
-      if (more) drawCard();
-      else redrawPicker();
+    // The open menu of where it goes closes on a click outside it; a click outside the card then does nothing else.
+    if (card?.menu && !event.target.closest?.('.pmenu, [data-pick]')) {
+      card.menu = false;
+      redrawPicker();
       if (!inside(card.el)) { event.preventDefault(); swallow = true; return; }
     }
     if (!card || card.sending || inside(card.el) || inside(mentions?.el) || inside(asking)) return;
@@ -287,7 +285,6 @@ const Remarks = (() => {
 
   const DOWN = '<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10l5 5 5-5"/></svg>';
   const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
-  const MORE = '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5.5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="18.5" cy="12" r="1.7"/></svg>';
   const CLOSE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
   const appIcon = (app) => (app === 'github' ? '<i class="ico git-pull-request"></i>' : agentIcon({ app }));
 
@@ -806,46 +803,38 @@ const Remarks = (() => {
     return `<div class="cth${many && thread[0].id === card.reply ? ' cur' : ''}" data-thread="${thread[0].id}">${fields.map((field) => parts[field] ?? '').join('')}</div>`;
   }
 
-  /** The less used actions of a card, behind "⋯": open the session of the thread, start a run for a comment that waits. */
-  function moreActions() {
-    const lead = card.reply && threadOf(card.reply) && States.threadLead(threadOf(card.reply));
-    if (!lead) return [];
-    const line = States.remarkLine(lead, App.page.agent, App.page.listening);
-    return [
-      ...(['running', 'done'].includes(lead.state) && hasSession(lead) ? [`<a data-session="${lead.id}">${esc(W.openTheSession)}</a>`] : []),
-      ...(line.way === 'start' ? [`<a data-start="${lead.id}">${esc(W.startRun)}</a>`] : []),
-    ];
-  }
-
-  /** Draws the card: a quiet head with the place and the tools, the threads as a small chat, the box and the picker under it. */
+  /** Draws the card: a quiet head with the place and the tools, the threads as a small chat that scrolls in a long card, the box and the picker under it. */
   function drawCard() {
     if (!card) return;
     const shown = card.threads.map(threadOf).filter((thread) => thread && !isResolved(thread));
     if (card.key !== 'new' && !shown.length) return closeCard(); // resolved meanwhile
     if (card.key !== 'new' && !shown.some((thread) => thread[0].id === card.reply)) card.reply = shown.at(-1)[0].id;
     const focused = card.el?.contains(document.activeElement) ? document.activeElement.dataset.field : undefined;
+    const scrolled = card.el?.querySelector('.cthreads').scrollTop;
     card.choices = choicesFor(card.target);
     if (!card.picked || !card.choices.some((choice) => choice.key === card.picked.key)) card.picked = firstChoice(card.choices);
     else card.picked = card.choices.find((choice) => choice.key === card.picked.key);
-    const actions = moreActions();
-    const tools = card.key === 'new' ? `<a class="tl" data-close title="${esc(W.close)}">${CLOSE}</a>`
-      : `<a class="tl" data-resolve title="${esc(W.resolve)}">${CHECK}</a>${actions.length ? `<a class="tl" data-more title="${esc(W.moreActions)}">${MORE}</a>` : ''}<a class="tl" data-close title="${esc(W.close)}">${CLOSE}</a>`;
+    const close = `<a class="tl" data-close title="${esc(W.close)}">${CLOSE}</a>`;
+    const tools = card.key === 'new' ? close : `<a class="tl" data-resolve title="${esc(W.resolve)}">${CHECK}</a>${close}`;
     const point = card.key === 'new' && card.point ? points().find((one) => one.id === card.point) : null;
     const key = card.key === 'new' ? 'new' : card.reply;
     const replies = card.key === 'new' || (slotsOfThread(threadOf(card.reply)).content?.fields ?? ['reply']).includes('reply');
     const github = card.key === 'new' ? pullPage()?.codeLine(card.target) ?? '' : '';
     const body = `<div class="ch">${whereHtml(card.target)}<span class="tools">${tools}</span></div>`
-      + (card.moreOpen && actions.length ? `<div class="moremenu">${actions.join('')}</div>` : '')
+      + '<div class="cthreads">'
       + (point ? `<div class="msg agent point"><div><div class="who"><b>${esc(W.openPoint)}</b></div><div class="tx">${esc(point.text)}</div></div></div>` : '')
       + shown.map((thread) => threadHtml(thread, shown.length > 1)).join('')
+      + '</div>'
       + (replies ? `<div class="cbx">${fieldHtml(key, card.key === 'new' ? W.writeComment : W.writeReply)}<div class="pickbox">${pickerHtml()}</div></div>` : '')
       + `<p class="cbline"${github ? '' : ' hidden'}>${esc(github)}</p>`;
     if (!card.el) {
       card.el = html('<div class="cbox card"></div>');
       card.el.addEventListener('pointerdown', dragCard);
+      card.el.addEventListener('wheel', wheelOnCard, { passive: false });
       document.body.append(card.el);
     }
     card.el.innerHTML = body;
+    card.el.querySelector('.cthreads').scrollTop = scrolled ?? 0;
     if (shown[0]) Marks.paintBox(card.el, slotsOfThread(shown.at(-1)));
     for (const field of card.el.querySelectorAll('[data-field]')) if (typed[field.dataset.field]) field.innerHTML = typed[field.dataset.field];
     if (focused) focusField(card.el, focused);
@@ -950,6 +939,16 @@ const Remarks = (() => {
     addEventListener('pointermove', move);
     addEventListener('pointerup', stop);
   }
+  /**
+   * The wheel over a card too long for the tab scrolls its threads, also at their ends, and never the page under it. Over a short card the page scrolls;
+   * a menu and a sideways scroll (a wide code block) keep their own scroll.
+   */
+  function wheelOnCard(event) {
+    const threads = event.currentTarget.querySelector('.cthreads');
+    if (threads.scrollHeight <= threads.clientHeight || event.target.closest('.pmenu') || Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
+    event.preventDefault();
+    threads.scrollBy(0, event.deltaY);
+  }
   addEventListener('resize', () => { placeCard(); placeList(); });
   addEventListener('scroll', () => placeCard(), true);
 
@@ -968,7 +967,6 @@ const Remarks = (() => {
     if (!card?.el?.contains(target)) return;
     if (target.closest('[data-close]')) return closeCard();
     if (target.closest('[data-resolve]')) return act(card.reply, 'resolve');
-    if (target.closest('[data-more]')) { card.moreOpen = !card.moreOpen; return drawCard(); }
     if (target.closest('[data-pick]')) { card.menu = !card.menu; RunPick.close('card'); return redrawPicker(); }
     const choice = target.closest('[data-choice]');
     if (choice) { pick(choice.dataset.choice); return focusField(card.el, card.key === 'new' ? 'new' : card.reply); }
