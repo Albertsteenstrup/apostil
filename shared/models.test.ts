@@ -112,6 +112,23 @@ test('a map run defaults to medium effort for lead and writers: the lead in the 
   assert.deepEqual(teamRun({ app: 'codex', lead: 'gpt-6.1-terra', writer: 'gpt-6-luna', effort: 'low', list: noMedium }).writers, { model: 'gpt-6-luna', effort: 'high' });
 });
 
+test('a description run defaults to the smallest model at xhigh effort for lead and writers (the nearest effort that it takes); a map run keeps its default; a choice of a page still wins', () => {
+  const home = madeUpAgentHome();
+  const claude = teamOf('claude-code', home, true);
+  assert.deepEqual([claude.lead, claude.writer, claude.effort], ['haiku', 'haiku', 'xhigh']);
+  assert.deepEqual(teamRun(claude), { model: 'haiku', effort: 'xhigh', writers: { model: 'haiku', effort: 'xhigh' }, opencodeModel: undefined });
+  assert.match(teamSentence(claude, WRITER_AGENT), /You lead on Haiku 5\.5 at xhigh effort:.*Start every writer and checker subagent on Haiku 5\.5 at xhigh effort: /);
+  assert.deepEqual([teamOf('claude-code', home).lead, teamOf('claude-code', home).effort], ['sonnet', 'medium']); // a map run is as before
+  // A choice of the page wins for the lead and its effort; the writers stay on the smallest at xhigh.
+  assert.deepEqual(teamRun(teamFrom('claude-code', { app: 'claude-code', lead: 'opus', effort: 'low' }, home, true)), { model: 'opus', effort: 'low', writers: { model: 'haiku', effort: 'xhigh' }, opencodeModel: undefined });
+  assert.deepEqual([teamFrom('claude-code', { app: 'codex', lead: 'opus' }, home, true).lead, teamFrom('claude-code', {}, home, true).effort], ['haiku', 'xhigh']);
+  // Codex: Luna leads and writes at the nearest effort to xhigh that it takes. Antigravity: Hydrogen, as for a map.
+  const codex = teamRun(teamOf('codex', home, true));
+  assert.deepEqual([codex.model, codex.writers?.model, codex.effort, codex.writers?.effort], ['gpt-6-luna', 'gpt-6-luna', nearestEffort(teamOf('codex', home, true).list[0].efforts, 'xhigh'), nearestEffort(teamOf('codex', home, true).list[0].efforts, 'xhigh')]);
+  const agy = teamOf('antigravity', home, true);
+  assert.deepEqual([agy.lead, agy.writer, agy.effort], ['gemini-4-hydrogen', 'gemini-4-hydrogen', nearestEffort(agy.list[0].efforts, 'xhigh')]);
+});
+
 test('a comment run that continues a session gives no model when he did not change it, and the effort; with a model that he chose, both; a new session the chosen model', () => {
   const same = resumeCommand({ app: 'claude-code', session: 's1' }, 'Do it', { claudeModel: 'haiku', effort: 'max' })!;
   assert.deepEqual([same.includes('--model'), same[same.indexOf('--effort') + 1], same.includes('--agents')], [false, 'max', false]);

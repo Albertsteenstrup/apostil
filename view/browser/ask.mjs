@@ -54,8 +54,8 @@ try {
       && pressed.press?.tip === 'Starts a new Claude Code session that writes the description.' && !pressed.text.includes(WORDS) && !before.plain.includes(WORDS) && !pressed.copy && !/Copy/.test(pressed.text) && before.views.join() === 'Conversation,Diffs',
     JSON.stringify({ before, pressed }));
 
-  // The control after the press: the model of the lead at Medium, as everywhere else; its menu has one model list and the efforts. A choice goes with the
-  // press, and no writer: the writers are always the smallest model at Medium (teamFrom and teamRun in shared/models.ts).
+  // The control after the press: the model of the lead at Extra (a description: the smallest model at xhigh); its menu has one model list and the efforts. A choice goes with the
+  // press, and no writer: the writers are always the smallest model at xhigh (teamFrom and teamRun in shared/models.ts).
   await page.click('#summary [data-rp-open]', { timeout: 3000 }).catch(() => {});
   const menu = await page.$$eval('#summary .rmenu :is(.ph, .pi, .chip)', (rows) => rows.map((row) => `${row.textContent.trim()}${row.classList.contains('on') ? ' ✓' : ''}`).filter(Boolean));
   await page.click('#summary [data-rp-model="opus"]', { timeout: 3000 }).catch(() => {});
@@ -74,9 +74,9 @@ try {
   await takePicture(page.locator('#summary'), '75-the-line-after-the-press.png');
   await page.click('#summary [data-ask-open]', { timeout: 3000 }).catch(() => {});
   const opened = await page.evaluate(() => window.apostilSent.filter((message) => message.type === 'openAskSession'));
-  check('after the press the control says "Sonnet 5.5 · Medium", and its menu has one model list and the efforts, as on a comment card; a click on the press sends the words once to VS Code with the model and the effort that the control shows and no writer, and the line then names the session that writes the description, its state and one link that opens it, with no words for the agent (a click asks VS Code to open it); nothing in the line moves',
-    pressed.control === 'Sonnet 5.5 · Medium'
-      && JSON.stringify(menu) === JSON.stringify(['Model', 'Haiku 5.5', 'Sonnet 5.5 ✓', 'Opus 5.5', 'Fable 5.2', 'Effort', 'Low', 'Medium ✓', 'High', 'Extra', 'Max'])
+  check('after the press the control says "Haiku 5.5 · Extra", and its menu has one model list and the efforts, as on a comment card; a click on the press sends the words once to VS Code with the model and the effort that the control shows and no writer, and the line then names the session that writes the description, its state and one link that opens it, with no words for the agent (a click asks VS Code to open it); nothing in the line moves',
+    pressed.control === 'Haiku 5.5 · Extra'
+      && JSON.stringify(menu) === JSON.stringify(['Model', 'Haiku 5.5 ✓', 'Sonnet 5.5', 'Opus 5.5', 'Fable 5.2', 'Effort', 'Low', 'Medium', 'High', 'Extra ✓', 'Max'])
       && chosen === 'Opus 5.5 · Extra'
       && JSON.stringify(sent) === JSON.stringify([{ type: 'askAgent', words: WORDS, team: { app: 'claude-code', lead: 'opus', effort: 'xhigh' } }])
       && after.text === 'Description by a new Claude Code session 1a2b3c4d · working · Open the session' && !after.press && after.open?.tip === 'Opens a terminal of VS Code that continues the session'

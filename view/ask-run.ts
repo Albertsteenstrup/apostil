@@ -3,7 +3,7 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { newRunCommand, resumeCommand, runOptions, sessionName, WRITER_AGENT, type AgentSession, type RunModels } from '../shared/agents';
-import { teamFrom, teamOf, teamRun, teamSentence } from '../shared/models';
+import { agentHome, teamFrom, teamOf, teamRun, teamSentence } from '../shared/models';
 import { askLine, askPress, askTo, type AskRun, type AskTo, type AskView } from '../shared/ask';
 import { appToStart } from '../shared/map-app';
 import { isAlive, storeFolder, type Store } from '../shared/store';
@@ -56,7 +56,7 @@ export function askView(store: Store, folder: string, words: string, installed: 
   const run = askRunOf(store, folder, words);
   const line = run && askLine(run, run.pid !== undefined && isAlive(run.pid), nameOf(run.agent));
   const to = !line || line.state === 'stopped' ? askToFrom(store, folder, installed, about) : undefined;
-  return { words, ...(to ? { press: askPress(to, to.kind === 'current' ? nameOf(to.agent) : undefined), team: teamOf(appOf(to)) } : {}), ...(line ? { line } : {}) };
+  return { words, ...(to ? { press: askPress(to, to.kind === 'current' ? nameOf(to.agent) : undefined), team: teamOf(appOf(to), agentHome(), true) } : {}), ...(line ? { line } : {}) };
 }
 
 /**
@@ -64,8 +64,8 @@ export function askView(store: Store, folder: string, words: string, installed: 
  * apostil-describe-change runs (`describe`). A new session runs in `folder`; for a pull request, in a folder with its head branch checked out, which Apostil
  * finds or makes (view/pull-folder.ts) and removes when the run ends, if it made it. The record keeps the session (a new Claude Code session gets its id at
  * once) and the end. `changed` is called when the record changes, `ended` when the run ends, with its problem when it failed or was not allowed a command.
- * `team`: the lead and the effort that the control after the press sent (checked by teamFrom), else the default: the second smallest model leads at the
- * most effort. The writers are always the smallest model at its most effort. A session that the run continues takes the lead's model.
+ * `team`: the lead and the effort that the control after the press sent (checked by teamFrom), else the default of a description: the smallest model leads
+ * at xhigh effort (or its nearest). The writers are always the smallest model at that effort. A session that the run continues takes the lead's model.
  * Gives back true when the run started, false when no app can be started from here, and one sentence when the branch of the pull request could not be checked out.
  */
 export async function startAsk(store: Store, folder: string, words: string, installed: string[], models: RunModels, changed: () => void, ended: (problem?: string, facts?: RunFacts) => void, about: AskAbout = {}, team?: unknown): Promise<boolean | string> {
@@ -77,7 +77,7 @@ export async function startAsk(store: Store, folder: string, words: string, inst
   const where = got?.folder ?? (to.kind === 'current' && to.folder && existsSync(to.folder) ? to.folder : folder);
   /** Removes the worktree that Apostil made for this run, once the run is over or did not start. */
   const tidy = async (): Promise<void> => { if (got?.made) await removePullFolder(folder, got.folder, storeFolder()); };
-  const lead = teamFrom(appOf(to), team);
+  const lead = teamFrom(appOf(to), team, agentHome(), true);
   const first = about.pull ? `${words}. ${ON_BRANCH}` : words;
   const sentence = teamSentence(lead, WRITER_AGENT); // the models of the lead and the writers, in plain words
   const prompt = sentence ? `${first.replace(/\.?$/, '.')} ${sentence}` : first;

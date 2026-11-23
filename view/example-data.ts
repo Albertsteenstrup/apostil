@@ -236,7 +236,7 @@ const iconLanguages = languagesOf([{ contributes: { languages: [{ id: 'python', 
 const icons = { home: iconsFor(iconTheme, homePaths(home.map), 'dark', iconLanguages, iconAddress), page: iconsFor(iconTheme, changePaths(page), 'dark', iconLanguages, iconAddress) };
 
 const target = join(__dirname, '../../view/media/example-data.js');
-writeFileSync(target, `// Written by view/example-data.ts. Not in Git.\n${iconScript(join(__dirname, '../../view/media'))}window.APOSTIL_EXAMPLE = ${JSON.stringify({ page, pageLooks, pagePulls, readyPull, answers, list, home, homeLooks, homeNoMap, graphs, lookPages, graphsLooks, mapRuns, homeState, icons, askTeam: teamOf('claude-code') })};\n`);
+writeFileSync(target, `// Written by view/example-data.ts. Not in Git.\n${iconScript(join(__dirname, '../../view/media'))}window.APOSTIL_EXAMPLE = ${JSON.stringify({ page, pageLooks, pagePulls, readyPull, answers, list, home, homeLooks, homeNoMap, graphs, lookPages, graphsLooks, mapRuns, homeState, icons, askTeam: teamOf('claude-code', agentHome, true) })};\n`);
 example?.remove();
 rmSync(agentHome, { recursive: true, force: true });
 console.log(`Wrote ${target}: ${page.files.length} files, ${page.parts.length} parts, ${Object.keys(answers).length} answers, ${rows.length} list rows, ${home.map?.diagrams.length ?? 0} map diagrams, ${Object.keys(graphs).length} graphs pages.`);

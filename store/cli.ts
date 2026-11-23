@@ -20,6 +20,7 @@ import { cleanup } from './cleanup';
 import { connectClaudeCode } from './connect-claude-code';
 import { doctor } from './doctor';
 import { hintCommand } from './hint';
+import { prHookCommand } from './pr-hook';
 import { runIssue } from './issue';
 import { setup, thisInstall } from './setup';
 import { uninstall } from './uninstall';
@@ -68,6 +69,7 @@ const USAGE: Record<string, string> = {
   ...MAP_USAGE,
   why: 'apostil why <path> [<path> ...] (plain lines: whether each file gets notes or only its path, and why: the line of .apostilignore that decides, else the rule of the code files)',
   hint: 'apostil hint [--text] (for the SessionStart hook of Claude Code: in a repo with a map, the JSON that tells the agent which commands read the map; --text: the text alone; else nothing, and never exit code 1)',
+  'pr-hook': 'apostil pr-hook (for the PostToolUse hook of Claude Code, matcher Bash; reads its JSON on standard input: after a gh pr create that printed a pull request address, the JSON that tells the agent to describe the pull request; else nothing, and never exit code 1)',
   ...PROMPT_USAGE,
 };
 const POINT_KINDS = ['note-not-supported', 'no-note', 'thing-not-supported'];
@@ -272,6 +274,18 @@ export async function main(args: string[]): Promise<void> {
     const at = words.indexOf('--folder');
     const hint = hintCommand(words, resolve((at >= 0 && words[at + 1]) || process.cwd()));
     if (hint) console.log(hint);
+    return;
+  }
+  // Run by a hook after each Bash command: it prints the JSON or nothing, reads standard input only when a hook sends it (never a terminal), and never fails.
+  if (command === 'pr-hook' && !args.includes('--help')) {
+    let stdin = '';
+    try {
+      if (!process.stdin.isTTY) stdin = readFileSync(0, 'utf8');
+    } catch {
+      // no input: nothing to say
+    }
+    const said = prHookCommand(stdin);
+    if (said) console.log(said);
     return;
   }
   // link, links and prompt print text, not JSON; a problem goes to the error output, with exit code 1.

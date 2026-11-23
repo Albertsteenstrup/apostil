@@ -1,5 +1,6 @@
 // Connects Claude Code: the hooks of Apostil and the rules that allow commands, in one of its settings files.
-// Two hooks: the wait hook brings sent remarks into a session (apostil connect), the hint tells the agent at its start to use the map (added by hand; apostil setup leaves it out).
+// Three hooks: the wait hook brings sent remarks into a session (apostil connect), the hint tells the agent at its start to use the map (added by hand; apostil setup leaves it out),
+// and the pull-request hook tells the agent to describe a pull request that it opened (apostil setup adds it).
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -10,9 +11,10 @@ import { recordRepo } from './setup-record';
 
 const OWN_SETTINGS = '.claude/settings.local.json'; // a person's own settings for one repo, not shared through Git
 
-/** A hook of Apostil: the events where it runs, and its entry as Claude Code wants it. Its command alone finds it again. */
+/** A hook of Apostil: the events where it runs, the tools it is for (a matcher; none: all), and its entry as Claude Code wants it. Its command alone finds it again. */
 export interface ApostilHook {
   events: string[];
+  matcher?: string;
   hook: { type: 'command'; command: string; asyncRewake?: boolean; timeout: number };
 }
 
@@ -21,6 +23,9 @@ export const WAIT_HOOK: ApostilHook = { events: ['SessionStart', 'Stop'], hook: 
 
 /** The hint: at the start of a session in a repo with a map, it tells the agent which commands read the map (store/hint.ts). */
 export const HINT_HOOK: ApostilHook = { events: ['SessionStart'], hook: { type: 'command', command: 'apostil hint', timeout: 10 } };
+
+/** The pull-request hook: after a Bash command, it tells the agent to describe a pull request that the command opened (store/pr-hook.ts). */
+export const PR_HOOK: ApostilHook = { events: ['PostToolUse'], matcher: 'Bash', hook: { type: 'command', command: 'apostil pr-hook', timeout: 10 } };
 
 /** The rules that allow the commands that only read the map, so that the person is not asked for each. */
 export const READ_MAP_RULES = ['overview*', 'find *', 'notes *', 'process *', 'diagram *', 'diagrams*', 'tests *', 'why *'].map((command) => `Bash(apostil ${command})`);
@@ -64,7 +69,7 @@ export function addHook(file: string, apostil: ApostilHook): Connected {
     const groups = (settings.hooks[event] ??= []);
     if (!Array.isArray(groups)) return problem;
     if (groups.some(holds(apostil))) continue;
-    groups.push({ hooks: [{ ...apostil.hook }] });
+    groups.push({ ...(apostil.matcher ? { matcher: apostil.matcher } : {}), hooks: [{ ...apostil.hook }] });
     added = true;
   }
   if (added) writeSettings(file, settings);
