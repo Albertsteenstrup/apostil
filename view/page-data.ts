@@ -133,7 +133,7 @@ export interface PageData {
 export interface SendTo {
   // the other sessions that Apostil knows in the repo and that a run can continue in its folder, newest first, each with the model and effort it last used
   sessions: { app: string; session: string; name?: string; at: string; run?: RunPick }[];
-  models: Record<string, ModelMenu>; // by app: its newest models (shared/models.ts) and the model of a new session (its setting, the small model of OpenCode)
+  models: Record<string, ModelMenu>; // by app: its newest models (shared/models.ts) and the choice of a new session (freshPick; the small model of OpenCode)
   own?: RunPick; // the model and effort that the session of the change last used
   last?: RemarkTo | null; // where the newest comment of the repo went (null: to no agent); missing when the repo has none
 }
@@ -149,7 +149,7 @@ export const menusOf = (apps: string[], models: RunModels, folder: string): Reco
 
 /**
  * The sessions, models and last choice of the picker of a change: only connected apps, and sessions other than the session of the change. Each session
- * has what it last used, from its own record; a new session the model of the setting.
+ * has what it last used, from its own record; a new session the setting, else the lead of a map run (freshPick).
  */
 export function sendToOf(store: Store, repo: string, folder: string, apps: string[], models: RunModels, own?: AgentSession): SendTo {
   const newest = new Map<string, SendTo['sessions'][number]>();

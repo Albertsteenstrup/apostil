@@ -200,7 +200,7 @@ try {
     menuGone.menus === 0 && menuGone.cards === 1, JSON.stringify(menuGone));
   check('a new comment opens the same card, empty, beside its thing, with the cursor in its box; the picker lists each connected app with this session, a known session of the repo and a new session, each with the model and effort of its run, then "No agent"; the choice sends it there with the effort and no model, and the card stays open on its thread with no flight while the mark and the count show',
     fresh.where === 'Part "Hold service"' && fresh.threads === 0 && !/url/.test(fresh.cursor) && fresh.beside
-      && JSON.stringify(menu) === JSON.stringify(['Claude Code', 'This session made this change · Opus 5.5 · Extra', 'Tests for holds used n min ago · Sonnet 5.5 · Medium', 'New session Haiku 5.5 · High', 'Codex', 'New session Luna 6 · High', 'OpenCode', "New session OpenCode's own model", 'No agent: keep it as a note'])
+      && JSON.stringify(menu) === JSON.stringify(['Claude Code', 'This session made this change · Opus 5.5 · Extra', 'Tests for holds used n min ago · Sonnet 5.5 · Medium', 'New session Sonnet 5.5 · Medium', 'Codex', 'New session Luna 6 · High', 'OpenCode', "New session OpenCode's own model", 'No agent: keep it as a note'])
       && pickedWords.trim() === 'Send to Claude Code · Tests for holds' && JSON.stringify(toSession?.to) === JSON.stringify({ app: 'claude-code', kind: 'session', session: 'made-up-session-0002', name: 'Tests for holds', effort: 'medium' })
       && toSession.target.part === 'hold-service' && JSON.stringify(afterSend.messages) === JSON.stringify(['mine:right:::tip']) && afterSend.state === 'waiting for Claude Code · Tests for holds · Start a run · Sonnet 5.5 · Medium' && afterSend.animations === 0
       && /\bwaiting\b/.test(afterSend.mark) && afterSend.count === '1' && noCountEmpty,
@@ -258,9 +258,9 @@ try {
   await page.evaluate(() => { App.page.remarks = []; App.render(); });
   await settle();
   const EFFORTS = ['Low', 'Medium', 'High', 'Extra high', 'Max'];
-  check('under the picker one quiet line says the model and the effort of the run, "Haiku 5.5 · High" for a new Claude Code session; its menu lists the newest model of each family, the one in use ticked, then the efforts of that model; one click sets each and the menu stays open until Escape, which leaves the card; a choice of Opus 5.5 and Max sends both; a Codex session on Luna offers no Ultra, Sol offers it, and Luna again takes Max',
-    model.fresh === 'Haiku 5.5 · High'
-      && JSON.stringify(model.menu) === JSON.stringify(['Model', 'Haiku 5.5 ✓', 'Sonnet 5.5', 'Opus 5.5', 'Fable 5.2', 'Effort', 'Low', 'Medium', 'High ✓', 'Extra', 'Max'])
+  check('under the picker one quiet line says the model and the effort of the run, "Sonnet 5.5 · Medium" for a new Claude Code session with no setting (the lead of a map run); its menu lists the newest model of each family, the one in use ticked, then the efforts of that model; one click sets each and the menu stays open until Escape, which leaves the card; a choice of Opus 5.5 and Max sends both; a Codex session on Luna offers no Ultra, Sol offers it, and Luna again takes Max',
+    model.fresh === 'Sonnet 5.5 · Medium'
+      && JSON.stringify(model.menu) === JSON.stringify(['Model', 'Haiku 5.5', 'Sonnet 5.5 ✓', 'Opus 5.5', 'Fable 5.2', 'Effort', 'Low', 'Medium ✓', 'High', 'Extra', 'Max'])
       && model.open === 1 && model.chosen === 'Opus 5.5 · Max' && model.afterEscape.menu === 0 && model.afterEscape.card === 1
       && JSON.stringify(model.sent) === JSON.stringify({ app: 'claude-code', kind: 'new', model: 'opus', effort: 'max' })
       && JSON.stringify(model.luna) === JSON.stringify(['Low', 'Medium', 'High ✓', ...EFFORTS.slice(3)]) && JSON.stringify(model.sol) === JSON.stringify(['Low', 'Medium', 'High ✓', ...EFFORTS.slice(3), 'Ultra'])

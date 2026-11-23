@@ -78,11 +78,12 @@ const labels = { review: { name: 'needs review', color: 'fbca04' }, borrowing: {
 // ----- end of the made-up part -----
 
 const apps = ['claude-code', 'codex', 'opencode']; // made up: the connected apps (on the path, with the skills of Apostil)
-// Made up: one more Claude Code session that Apostil knows in this repo, with what each session last used, and the models that a new session would take.
+// Made up: one more Claude Code session that Apostil knows in this repo, with what each session last used, and the models that a new session would take:
+// Claude Code with no setting, Codex with the setting gpt-6-luna.
 const sendTo: SendTo = {
-  sessions: [{ app: 'claude-code', session: 'made-up-session-0002', name: 'Tests for holds', at: minutesAgo(4), run: sessionPick('claude-code', 'made-up-session-0002', 'haiku') }],
-  models: { 'claude-code': menuOf('claude-code', 'haiku'), codex: menuOf('codex', 'gpt-6-luna'), opencode: menuOf('opencode', undefined) },
-  own: sessionPick('claude-code', agent.session, 'haiku'),
+  sessions: [{ app: 'claude-code', session: 'made-up-session-0002', name: 'Tests for holds', at: minutesAgo(4), run: sessionPick('claude-code', 'made-up-session-0002', undefined) }],
+  models: { 'claude-code': menuOf('claude-code', undefined), codex: menuOf('codex', 'gpt-6-luna'), opencode: menuOf('opencode', undefined) },
+  own: sessionPick('claude-code', agent.session, undefined),
 };
 const base = example?.base ?? baseOf(folder, currentBranch(folder));
 

@@ -256,6 +256,13 @@ export function teamOf(app: string, home = agentHome(), describing = false): Tea
   return { app, lead: lead?.id, writer: writer?.id, effort: defaultTeamEffort(lead, describing), writerEffort: defaultTeamEffort(writer, describing), list: catalog.models };
 }
 
+/** The choice of a new session of a comment: the model of the setting at high effort; with no setting, the lead of a map run at its effort (teamOf). */
+export function freshPick(app: string, setting: string | undefined, home = agentHome()): RunPick {
+  const catalog = catalogOf(app, home);
+  const team = !setting && catalog ? teamOf(app, home) : undefined;
+  return pickOf(catalog, setting || team?.lead, team?.effort ?? 'high');
+}
+
 // ----- what a session last used, from its own record -----
 
 const records = new Map<string, { size: number; mtime: number; pick?: RunPick }>();
@@ -322,21 +329,20 @@ export function sessionRecord(app: string, session: string | undefined, home = a
 
 /**
  * The choice that a session starts with in a picker: the model and the effort that it last used (its name from the catalog: "claude-opus-5-5" is
- * "Opus 5.5"); a session whose model is unknown the model of the setting. The effort: the session's last one, else high.
+ * "Opus 5.5"; with no effort in its record, high); a session whose record says nothing the choice of a new session (freshPick).
  */
 export function sessionPick(app: string, session: string | undefined, setting: string | undefined, home = agentHome()): RunPick {
   const record = sessionRecord(app, session, home);
-  return pickOf(catalogOf(app, home), record?.model ?? setting, record?.effort ?? 'high');
+  return record ? pickOf(catalogOf(app, home), record.model, record.effort ?? 'high') : freshPick(app, setting, home);
 }
 
-/** What the picker of a comment offers for each app: the newest models of its catalog, and the model of a new session (its setting). */
+/** What the picker of a comment offers for each app: the newest models of its catalog, and the choice of a new session (freshPick). */
 export interface ModelMenu { list: ModelInfo[]; fresh?: RunPick }
 
-/** The menu of an app: the setting as the model of a new session ("haiku" is the newest Haiku); OpenCode its small model with no choice, or its own model. */
+/** The menu of an app: its newest models and the choice of a new session ("haiku" is the newest Haiku); OpenCode its small model with no choice, or its own model. */
 export function menuOf(app: string, setting: string | undefined, home = agentHome()): ModelMenu {
   if (app === 'opencode') return { list: [], fresh: setting ? { model: setting, name: setting, effort: 'high' } : {} };
-  const catalog = catalogOf(app, home);
-  return { list: catalog?.models ?? [], fresh: pickOf(catalog, setting, 'high') };
+  return { list: catalogOf(app, home)?.models ?? [], fresh: freshPick(app, setting, home) };
 }
 
 // ----- a choice from a page, and what a run takes from it -----
