@@ -700,6 +700,26 @@ try {
   check('a click on the row of a node in the list of the comments after one level down goes back to the top map, lights that node and opens its card, and the path ends at Home; the small panels of the graphs page hold no comment: the comment key does nothing there',
     lowerCrumb === 'Home›Lending: holds, requests and mails' && cardLit.flashed.join() === 'node:lib-top:lending' && cardLit.crumb === 'Home' && cardLit.card === 'What lives in lending?' && !graphsPicking, JSON.stringify({ lowerCrumb, cardLit, graphsPicking }));
 
+  // The answer of a run names code, a node of its diagram and another diagram, each a quiet link: the code opens at its lines, the node lights, the diagram opens.
+  await homeAt('?diagram=lib-lending');
+  await home.click(`${nodeOf('service')} .cb`).catch(() => {});
+  await home.mouse.move(2, 2);
+  const answerLink = (text) => home.locator('.cbox.card .msg.agent .ref', { hasText: text });
+  const links = await home.$$eval('.cbox.card .msg.agent .ref', (all) => all.map((el) => `${el.textContent} ${getComputedStyle(el).color}`)).catch(() => []);
+  await answerLink('hold_service.py').click({ timeout: 3000 }).catch(() => {});
+  const codeSent = await home.evaluate(() => window.apostilSent.at(-1));
+  await answerLink('Hold models').click({ timeout: 3000 }).catch(() => {});
+  await home.waitForSelector('.paper .flash', { timeout: 3000 }).catch(() => {});
+  const nodeLit = await home.evaluate(() => ({ flashed: [...new Set([...document.querySelectorAll('.paper .flash')].map((el) => el.dataset.rk))].join(), card: !!document.querySelector('.cbox.card') }));
+  await answerLink('The tables of holds').click({ timeout: 3000 }).catch(() => {});
+  await home.waitForFunction(() => Home.at === 'lib-tables', null, { timeout: 3000 }).catch(() => {});
+  const toDiagram = await home.evaluate(() => ({ at: Home.at, crumb: document.getElementById('crumb').textContent, card: !!document.querySelector('.cbox.card') }));
+  check('in the answer of a run the code, a node of its diagram and another diagram are links in the teal ink: the code asks VS Code to open its file at those lines, the node lights and the card stays, and the diagram opens as a step',
+    links.join() === ['src/library/lending/hold_service.py:86-117', 'Hold models', 'The tables of holds'].map((text) => `${text} rgb(11, 95, 88)`).join()
+      && JSON.stringify(codeSent) === JSON.stringify({ type: 'openFile', path: 'src/library/lending/hold_service.py', line: 86, lines: [86, 117] })
+      && nodeLit.flashed === 'node:lib-lending:models' && nodeLit.card && toDiagram.at === 'lib-tables' && /›The tables of holds$/.test(toDiagram.crumb) && !toDiagram.card,
+    JSON.stringify({ links, codeSent, nodeLit, toDiagram }));
+
   // On the change page, the wider diagram that the map holds too links to Home.
   await home.goto(`file://${pageFile}`);
   await homeDrawn();

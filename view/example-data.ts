@@ -98,6 +98,12 @@ if (map) {
   const saved = saveMapDraft(store, folder, map); // by the same save as a map of an agent, so that its notes keep the text of their lines
   if (!saved.saved) throw new Error(`The save refused the example map: ${saved.problems.join(' ')}`);
 }
+// Made up: a question on a node of the map, and an answer that names code, a node of its diagram and another diagram.
+if (example && map) {
+  const asked = store.addRepoRemark(repoId(folder), { kind: 'node', diagram: 'lib-lending', node: 'service', label: 'Node "Hold service", diagram "Lending: holds, requests and mails"' }, 'Where does a hold start?');
+  store.sendRemark(asked, { app: 'claude-code', kind: 'new' });
+  store.answerRemark(asked, 'In place_hold, src/library/lending/hold_service.py:86-117, which keeps it with "Hold models"; its rows are in "The tables of holds".');
+}
 // The made-up marks and look (view/check-example/look/), saved as writers save them: the services first, which the default look shows;
 // then the look with a second set and its marks. The files of the look are copied next to the page, which loads them as a file in a browser.
 const lookFiles = join(__dirname, '../../view/media/example-look');

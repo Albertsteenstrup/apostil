@@ -45,6 +45,7 @@ export function inboxText(remarks: Remark[], store?: Store, readOnly = false): s
     `The owner sent ${count} in Apostil. You may read the repo. A question gets an answer and no change of code. A remark that asks for a change gets that change and no more. `
       + 'When a remark shows that a note, a title or a diagram of Apostil is wrong, correct it with the apostil commands of the skill, and say so. '
       + 'Touch nothing that no remark points at. Then store your answer with: apostil answer <id> "<one to three sentences>". The answer names each file that you changed. '
+      + 'In the answer, name code as path:line or path:from-to, and a diagram, a node or a step by its title in double quotes: Apostil turns them into links. '
       + 'Follow the skill apostil-review-remarks if you have it; do not search for it.'
       + (readOnly ? ' In this run you may not change any file: say what the change would be.' : ''),
     ...remarks.flatMap((remark) => [`- remark ${remark.id} (${placeOf(remark)}): ${remark.text}`, ...(store ? [...earlierLines(store, remark), ...aboutLines(store, remark)] : [])]),
