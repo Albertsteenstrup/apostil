@@ -9,9 +9,9 @@ const ROOT = path.resolve(__dirname, '..', '..'); // out/shared → the repo
 const IMPORT = /(?:from\s+|require\(\s*|import\(\s*|import\s+)['"]([^'"]+)['"]/g;
 const TEST_HELPERS = ['shared/test-repo.ts']; // test code that runs the apostil command, though its name has no .test
 
-/** Every non-test .ts file of a top folder, as a path from the repo. */
-const sources = (folder: string): string[] =>
-  fs.readdirSync(path.join(ROOT, folder)).filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts')).map((f) => `${folder}/${f}`)
+/** Every non-test file of a folder with this ending, as a path from the repo. */
+const sources = (folder: string, ending = '.ts'): string[] =>
+  fs.readdirSync(path.join(ROOT, folder)).filter((f) => f.endsWith(ending) && !f.endsWith('.test.ts')).map((f) => `${folder}/${f}`)
     .filter((f) => !TEST_HELPERS.includes(f));
 
 /** What a file imports: "vscode", another file of the repo (as a path from the repo), or nothing for a Node or npm module. */
@@ -64,7 +64,7 @@ test('shared/, store/ and helper/ import only the folders below them', () => {
 
 test('no file of shared/, store/ or helper/ reaches vscode, also through other files', () => {
   const wrong: string[] = [];
-  for (const start of Object.keys(MAY_IMPORT).flatMap(sources)) {
+  for (const start of Object.keys(MAY_IMPORT).flatMap((f) => sources(f))) {
     const cameFrom = new Map<string, string>([[start, '']]);
     const queue = [start];
     while (queue.length) {
@@ -83,3 +83,48 @@ test('no file of shared/, store/ or helper/ reaches vscode, also through other f
   assert.deepEqual(wrong, [], `${RULE}\nKeep the vscode call in view/ and pass the value in; never import vscode, or a file that does, from these folders.`);
 });
 
+const TIMER = /\b(?:setTimeout|setInterval|requestAnimationFrame|requestIdleCallback|queueMicrotask)\(/g;
+const TIMER_RULE = 'Rule: no new setTimeout, setInterval, requestAnimationFrame, requestIdleCallback or queueMicrotask. '
+  + 'A timer that waits until something is ready hides an ordering bug, and the next agent copies it. '
+  + 'Wait for the thing itself: await its promise, answer the message that says it is done, or listen to its event (load, transitionend, ResizeObserver, a VS Code event). '
+  + 'A delay the person is meant to see (a hover that opens after 300 ms) needs the owner\'s yes: ask, and do not raise a count in OLD_TIMERS.';
+
+// Timers from before this rule, counted for each file. Fix one at its cause, then lower its count.
+const OLD_TIMERS: Record<string, number> = {
+  'shared/run-in-vscode.ts': 1,
+  'store/cli.ts': 1,
+  'view/extension.ts': 2,
+  'view/home-page.ts': 3,
+  'view/home-when-empty.ts': 3,
+  'view/look-in-vscode.ts': 1,
+  'view/notes-beside-code.ts': 1,
+  'view/package-check.ts': 1,
+  'view/report-issue.ts': 1,
+  'view/sort-filter-pick.ts': 1,
+  'view/media/code-map.js': 1,
+  'view/media/code-notes.js': 1,
+  'view/media/conversation.js': 2,
+  'view/media/diagram-stage.js': 1,
+  'view/media/example-data.js': 4,
+  'view/media/hover-window.js': 3,
+  'view/media/list.js': 3,
+  'view/media/marks.js': 2,
+  'view/media/overview.js': 1,
+  'view/media/page.js': 2,
+  'view/media/remarks.js': 5,
+  'view/media/split.js': 5,
+  'view/media/tools.js': 3,
+};
+
+test('no new timer: code waits for the thing it needs, not for a while', () => {
+  const files = [...['shared', 'store', 'view', 'helper', 'theme'].flatMap((f) => sources(f)), ...sources('view/media', '.js')]
+    .filter((f) => f !== 'view/media/mermaid.min.js');
+  const wrong: string[] = [];
+  for (const file of new Set([...files, ...Object.keys(OLD_TIMERS)])) {
+    const count = fs.existsSync(path.join(ROOT, file)) ? (fs.readFileSync(path.join(ROOT, file), 'utf8').match(TIMER) ?? []).length : 0;
+    const allowed = OLD_TIMERS[file] ?? 0;
+    if (count > allowed) wrong.push(`${file}: ${count} timers, ${allowed} allowed`);
+    if (count < allowed) wrong.push(`${file}: ${count} timers now, so lower its count in OLD_TIMERS to ${count}`);
+  }
+  assert.deepEqual(wrong, [], TIMER_RULE);
+});
