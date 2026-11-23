@@ -84,7 +84,7 @@ try {
     JSON.stringify({ control: pressed.control, menu, chosen, sent, after, opened }));
 
   // A press that started no run (Apostil could not get the branch of the pull request): the line says why in one sentence, with the press again.
-  const why = 'Could not check out the branch made-up/reminders of pull request #35: couldn\'t find remote ref pull/35/head.';
+  const why = 'Could not check out made-up/reminders for #35: couldn\'t find remote ref pull/35/head.';
   await page.evaluate(({ words, why }) => window.postMessage({ type: 'asked', ask: { words, problem: why, press: { label: 'Describe it with a new Claude Code session', tip: 'Starts a new Claude Code session that writes the description.' } } }, '*'), { words: WORDS, why });
   await page.waitForFunction(() => !document.querySelector('#summary [data-ask-open]'), null, { timeout: 3000 }).catch(() => {});
   const failed = await line();

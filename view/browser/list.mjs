@@ -338,7 +338,7 @@ try {
   const emptyBranch = await openBranch(0, 0);
   const changedBranch = await openBranch(2, 3);
   check('every open pull request with no stored change stands under the head "Pull requests", with the count of all the open ones beside it as on the badge of the icon, 20 and "3 more" that opens the rest, none twice for a branch that has a row; a click asks for its page, the search finds it by its title; the open branch with no commit and no changed file opens Home, and with changes it does not',
-    before.head === 'Changes|Pull requests' && before.count === '24' && before.countTip === '24 open pull requests in this repo' && before.rows === 20 && before.more === '3 more' && before.first === 'Made-up pull request 0' && /^#100/.test(before.line) && !before.twice && opened.join() === '100'
+    before.head === 'Changes|Pull requests' && before.count === '24' && before.countTip === '24 open pull requests: 23 here, 1 under their changes above' && before.rows === 20 && before.more === '3 more' && before.first === 'Made-up pull request 0' && /^#100/.test(before.line) && !before.twice && opened.join() === '100'
     && unfolded.rows === 23 && !unfolded.twice && searched.join() === 'Made-up pull request 17' && emptyBranch === 1 && changedBranch === 0, JSON.stringify({ before, opened, unfolded, searched, emptyBranch, changedBranch }));
 
   // When gh fails the list says why, once, in one quiet line in place of the rows.

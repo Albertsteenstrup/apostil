@@ -37,7 +37,7 @@ import type { ChangeGo, Step, WindowTrail } from './trail';
  */
 export function openAgentSession(agent: AgentSession | undefined, folder: string): void {
   const link = agent && sessionLink(agent);
-  if (link) return openLink(link);
+  if (link) return void openLink(link);
   const command = agent?.session && openSessionCommand(agent.app, agent.session);
   if (!agent || !command) return void vscode.window.showWarningMessage('This session cannot be opened from here.');
   const terminal = vscode.window.createTerminal({ name: `${agent.app} ${agent.session}`, cwd: folder });
@@ -58,15 +58,22 @@ export function openRemarkSession(store: Store, id: number, openFolder: string):
   openAgentSession(agent || undefined, change?.folder ?? openFolder);
 }
 
-/** Opens a link from a page in its app: a pull request in the browser, a session in the Claude or Codex app. */
-export function openLink(url: string): void {
-  if (/^(https|claude|codex):/.test(url)) void vscode.env.openExternal(vscode.Uri.parse(url));
+/** Opens a link from a page in its app: a pull request in the browser, a session in the Claude or Codex app. When nothing opens, one short message says why. */
+export async function openLink(url: string): Promise<void> {
+  if (!/^(https|claude|codex):/.test(url)) return;
+  const opened = await Promise.resolve(vscode.env.openExternal(vscode.Uri.parse(url))).catch(() => false);
+  if (!opened) void vscode.window.showWarningMessage(couldNotOpen(url));
 }
+
+/** The words for a link that did not open: a session lives in an app on the computer of the owner, which a remote window (a Codespace) cannot reach. */
+export const couldNotOpen = (url: string): string => (url.startsWith('https:')
+  ? 'Could not open the link from here.'
+  : `Could not open this session from here. It runs in the ${url.startsWith('claude:') ? 'Claude' : 'Codex'} app on another computer.`);
 
 /** Opens the web address of a button of the look after a yes: a page never leaves for the web by itself. */
 export async function askAndOpen(url: string): Promise<void> {
   const open = 'Open';
-  if (await vscode.window.showInformationMessage(`Open ${url} in the browser?`, { modal: true }, open) === open) openLink(url);
+  if (await vscode.window.showInformationMessage(`Open ${url} in the browser?`, { modal: true }, open) === open) await openLink(url);
 }
 
 /** True when VS Code shows its small code map beside the code: the file tab of Apostil then shows its own. */

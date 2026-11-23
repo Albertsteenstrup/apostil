@@ -19,6 +19,7 @@ const Conversation = (() => {
   let chosen = kept.conversationMode; // "messages" or "classic" as he chose last, kept for the window
   let mode = 'messages'; // set by each drawing: his choice, else the look of the repo, else "Messages"
   let checksOpen = false; // the list of checks under the strip
+  let stackOpen = false; // the list of the stack under the strip, from the line "Waits for #33 below it in the stack"
   const earlyRows = new Map(); // the folded code lines of each thread, drawn when he opens them
 
   // The look of the repo on the parts of a pull request (PartLook in part-look.js, LOOK_PARTS in shared/look.ts). With no rule for a part, it keeps its default look.
@@ -195,7 +196,9 @@ const Conversation = (() => {
   /** The icon of the state of a pull request, with its word when there is room; its tooltip says "#12 · Review needed". `slots`: an icon of the look in its place. */
   const icon = (pull, word = true, slots = {}) => `${lookIcon(slots['text.icon']) || States.pullIcon(pull)}${word ? `<span class="prw">${esc(pull.state)}</span>` : ''}`;
   /** The first part of the strip, the icon of the state, in the colour of a rule of the look. */
-  const stateBit = (pull, word, slots) => { const color = PartLook.wordsAttrs(slots['text.color']); return `<span${color.cls ? ` class="${color.cls.trim()}"` : ''}${color.style}>${icon(pull, word, slots)}</span>`; };
+  const stateBit = (pull, word, slots) => { const color = PartLook.wordsAttrs(slots['text.color']); return `<span${color.cls ? ` class="${color.cls.trim()}"` : ''}${color.style}>${icon(pull, word, slots)}</span>${numberBit(pull)}`; };
+  /** The number of the pull request right after its state icon: a quiet link to its page on GitHub. */
+  const numberBit = (pull) => `<a class="pnum" data-link="${esc(pull.url)}" title="Open #${pull.number} on GitHub">#${pull.number}</a>`;
 
   /**
    * The merge sentence of the strip: the parts that the strip does not say before it. The state word says a draft and conflicts,
@@ -229,17 +232,48 @@ const Conversation = (() => {
     const checks = checksLine(full);
     const checksBit = checks.dot === 'none' ? bit(checks) : `<a class="chk${checksOpen ? ' on' : ''}" data-checks title="Show the checks">${checks.dot === 'none' ? '' : `<i class="dot ${REVIEW_DOTS[checks.dot] ?? ''}"></i>`}${esc(checks.text)}<span class="chev">${checksOpen ? '▾' : '▸'}</span></a>`;
     const [first, ...rest] = stripSentence(full);
-    const sentence = first ? `<span class="msent${full.merge.ready ? ' ok' : ''}"${rest.length ? ` title="${esc([first, ...rest].join(' · '))}"` : ''}>${esc(first)}${rest.length ? `<i class="muted">${rest.length} more</i>` : ''}</span>` : '';
+    const sentence = first ? `<span class="msent${full.merge.ready ? ' ok' : ''}"${rest.length ? ` title="${esc([first, ...rest].join(' · '))}"` : ''}>${stackWait(full, first)}${rest.length ? `<i class="muted">${rest.length} more</i>` : ''}</span>` : '';
     // The bits in the order of a rule of the look; "Merge", "Review" and the choice of pull requests keep their place at the end, since they write to GitHub.
     const bits = { reviewers: () => (full.reviewers.length ? reviewersHtml(full) : ''), review: () => bit(reviewLine(full)), checks: () => checksBit, blocker: () => sentence };
     const shown = PartLook.stripBits(pageLook(), full).map((name) => bits[name]()).join('');
     return `<div class="status">${stateBit(full, full.state === 'draft' || full.state === 'conflicts', look)}${shown}${mergeBit(full)}${reviewBit(full)}${choice}</div>`
-      + (checksOpen ? `<section class="checks-panel">${checksHtml(full)}</section>` : '') + reviewHtml(full);
+      + (checksOpen ? `<section class="checks-panel">${checksHtml(full)}</section>` : '') + (stackOpen && full.stack ? `<section class="checks-panel">${stackRows(full)}</section>` : '') + reviewHtml(full);
+  }
+
+  /**
+   * The first sentence of the strip. "Waits for #33 below it in the stack": "#33" opens that pull request (as a row of the stack does), and a small ▸ after the line
+   * opens the list of the stack under the strip (stackRows, the same as "2 of 4 in a stack"). Any other sentence is plain.
+   */
+  function stackWait(pull, text) {
+    const number = /^Waits for #(\d+) below it/.exec(text)?.[1];
+    const below = number && pull.stack?.entries.find((entry) => entry.number === Number(number));
+    if (!below) return esc(text);
+    const link = `<a class="stkpull" data-stack-pull="${esc(below.url)}" data-number="${below.number}" title="${esc(below.title)}">#${below.number}</a>`;
+    return `${esc(text).replace(`#${below.number}`, link)}<a class="stk" data-stack-open tabindex="0" title="Show the stack">${stackOpen ? '▾' : '▸'}</a>`;
+  }
+
+  /** The hidden reviewers ("+2") in a small window, on the pointer and on the keyboard focus, with the avatar, the name and the state of each; the plain title goes. */
+  function bindRest(el) {
+    const rest = el.querySelector('.rv[data-rest]');
+    const pull = lastStrip?.[1];
+    if (!rest || !pull) return;
+    rest.removeAttribute('title');
+    rest.tabIndex = 0;
+    const load = () => ({ title: 'More reviewers', width: 260, pad: true, body: hiddenReviewers(pull.reviewers).map(reviewerRow).join('') });
+    Hover.attach(rest, load);
+    rest.addEventListener('focus', () => { if (rest.matches(':focus-visible')) Hover.now(rest, load, undefined, true); });
+    rest.addEventListener('blur', () => Hover.hide());
   }
 
   let lastStrip = null;
   /** A click on the checks of the strip opens or closes their list under it. */
   function bindStrip(el) {
+    bindRest(el);
+    el.querySelector('[data-stack-open]')?.addEventListener('click', () => {
+      stackOpen = !stackOpen;
+      el.innerHTML = stripHtml(...lastStrip);
+      bindStrip(el);
+    });
     el.querySelector('[data-checks]')?.addEventListener('click', () => {
       checksOpen = !checksOpen;
       el.innerHTML = stripHtml(...lastStrip);
@@ -964,7 +998,9 @@ const Conversation = (() => {
     comment: 'Write a comment…', commentButton: 'Comment', sending: 'Sending…', sendingMark: 'sending', keys: '⌘ Enter',
     review: 'Review', reviewText: 'Write what the review says…', sendReview: 'Send review', needsText: 'Write what the review says first.',
     verdicts: { COMMENT: 'Comment', APPROVE: 'Approve', REQUEST_CHANGES: 'Request changes' },
-    own: 'This is your pull request: GitHub lets you comment on it, not approve it or ask for changes.',
+    // GitHub's own short line under each verdict, and why two of them are off on one's own pull request.
+    verdictLines: { COMMENT: 'Submit general feedback without explicit approval.', APPROVE: 'Submit feedback and approve merging these changes.', REQUEST_CHANGES: 'Submit feedback that must be addressed before merging.' },
+    ownOff: { APPROVE: "Pull request authors can't approve their own pull request", REQUEST_CHANGES: "Pull request authors can't request changes on their own pull request" },
     pending: (count) => `Your review is not sent: ${plural(count, 'comment')}`,
     locked: 'This conversation is locked. Nothing can be written here.',
     example: 'example',
@@ -1033,18 +1069,22 @@ const Conversation = (() => {
     : '');
 
   /**
-   * The review panel under the strip: the text, the three verdicts, "Send review". On his own pull request GitHub takes only a comment: the panel
-   * says so in one quiet line and shows no verdict, since a choice of one is none and greyed verdicts look broken.
+   * The review panel under the strip: the text, the three verdicts each with its short line as on GitHub, "Send review". On his own pull request GitHub
+   * takes only a comment: "Approve" and "Request changes" stand greyed with GitHub's reason in place of their line, and "Comment" is picked.
    */
   function reviewHtml(pull) {
     if (!reviewOpen || !canWrite(pull) || !pull.open) return '';
     const key = `review:${pull.id}`;
     const chosen = verdicts[pull.id] ?? 'COMMENT';
-    const choice = (verdict) => `<label class="ghv"><input type="radio" name="verdict-${esc(pull.id)}" value="${verdict}"${verdict === chosen ? ' checked' : ''}>${esc(WRITE.verdicts[verdict])}</label>`;
-    return `<section class="review-panel">${pull.mine ? `<p class="ghown">${esc(WRITE.own)}</p>` : ''}<div class="ghw on" data-gh="${esc(key)}">`
+    const choice = (verdict) => {
+      const off = pull.mine ? WRITE.ownOff[verdict] : '';
+      return `<label class="ghv${off ? ' off' : ''}"${off ? ` title="${esc(off)}"` : ''}><input type="radio" name="verdict-${esc(pull.id)}" value="${verdict}"${verdict === (pull.mine ? 'COMMENT' : chosen) ? ' checked' : ''}${off ? ' disabled' : ''}>`
+        + `<span class="ghvt"><b>${esc(WRITE.verdicts[verdict])}</b><span class="ghvl">${esc(off || WRITE.verdictLines[verdict])}</span></span></label>`;
+    };
+    return `<section class="review-panel"><div class="ghw on" data-gh="${esc(key)}">`
       + `<textarea class="ghf" rows="3" placeholder="${esc(WRITE.reviewText)}" aria-label="${esc(WRITE.reviewText)}">${esc(drafts[key] ?? '')}</textarea>`
-      + `<div class="gha"><span class="ghvs">${pull.mine ? '' : Object.keys(WRITE.verdicts).map(choice).join('')}</span>`
-      + `<button class="ghs" data-gh-send>${esc(WRITE.sendReview)}</button><span class="ghk">${esc(WRITE.keys)}</span></div>`
+      + `<div class="ghvs">${Object.keys(WRITE.verdicts).map(choice).join('')}</div>`
+      + `<div class="gha"><button class="ghs" data-gh-send>${esc(WRITE.sendReview)}</button><span class="ghk">${esc(WRITE.keys)}</span></div>`
       + `${errorHtml(key)}</div></section>`;
   }
 

@@ -2,7 +2,7 @@
 // The sidebar of the view and the "apostil list" command both show these rows.
 
 import { existsSync } from 'node:fs';
-import { changedFiles, commitExists, commitsOf, repoId, tryGit } from './git';
+import { baseBranchOf, changedFiles, commitExists, commitsOf, repoId, tryGit } from './git';
 import type { Store, StoredChange } from './store';
 
 export interface ChangeRow {
@@ -10,6 +10,7 @@ export interface ChangeRow {
   branch: string;
   title: string;
   folder: string;
+  readIn: string; // where Git is read for this change (changeWhere): its folder while it exists, else the open folder
   savedAt: string;
   firstSavedAt?: string; // missing in a change of an older version
   firstCommitAt?: string; // when the first commit of the branch since its base was written
@@ -38,6 +39,25 @@ export function changeWhere(change: StoredChange, openFolder: string): { folder:
   return { folder, saved: { commit: change.head, on, missing: !commitExists(folder, change.head) || !commitExists(folder, change.base) } };
 }
 
+/**
+ * The commit that the files of a change are counted from. The stored base while it is still under the head (the branch below moved on, or not at all);
+ * when the branch was rebased and the stored base is no longer under it, the point where it now leaves the branch it is compared with (what GitHub shows).
+ */
+export function diffBaseOf(change: StoredChange, folder: string, saved?: SavedAt): string {
+  if (saved?.missing) return change.base;
+  const head = saved ? change.head : change.branch;
+  if (tryGit(folder, 'merge-base', '--is-ancestor', change.base, head) !== undefined) return change.base;
+  const below = baseBranchOf(folder, change.branch, change.base) ?? change.base;
+  return tryGit(folder, 'merge-base', below, head) ?? change.base;
+}
+
+/** How many commits the branch of a change has after the commit it was described at, not counting copies of its own commits (a rebase); for the quiet line. */
+export function newerCommits(change: StoredChange, folder: string): number {
+  const tip = tryGit(folder, 'rev-parse', '--verify', '-q', change.branch);
+  if (!tip || tip === change.head || !commitExists(folder, change.head)) return 0;
+  return Number(tryGit(folder, 'rev-list', '--count', '--right-only', '--cherry-pick', `${change.head}...${tip}`)) || 0;
+}
+
 /** The quiet line of a change that is not checked out. */
 export const savedWords = (saved: SavedAt): string => saved.missing
   ? `commit ${saved.commit.slice(0, 7)} is not in this clone, so there are no counts; this folder is on ${saved.on}`
@@ -51,10 +71,11 @@ export function changeRows(store: Store, folder: string): ChangeRow[] {
 function rowOf(store: Store, change: StoredChange, openFolder: string): ChangeRow {
   const { folder: here, saved } = changeWhere(change, openFolder);
   const head = saved ? change.head : tryGit(here, 'rev-parse', change.branch);
-  const files = saved?.missing ? [] : changedFiles(here, change.base, saved && change.head);
-  const commits: { count: number; first?: string } = saved?.missing ? { count: 0 } : commitsOf(here, `${change.base}..${head ?? change.head}`);
+  const base = diffBaseOf(change, here, saved);
+  const files = saved?.missing ? [] : changedFiles(here, base, saved && change.head);
+  const commits: { count: number; first?: string } = saved?.missing ? { count: 0 } : commitsOf(here, `${base}..${head ?? change.head}`);
   return {
-    id: change.id, branch: change.branch, title: change.file.title, folder: change.folder, savedAt: change.savedAt,
+    id: change.id, branch: change.branch, title: change.file.title, folder: change.folder, readIn: here, savedAt: change.savedAt,
     ...(change.firstSavedAt ? { firstSavedAt: change.firstSavedAt } : {}), ...(commits.first ? { firstCommitAt: commits.first } : {}),
     commits: commits.count,
     files: files.length,

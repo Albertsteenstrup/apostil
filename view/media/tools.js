@@ -382,6 +382,16 @@ const REVIEWER_LOOK = {
 };
 const REVIEWERS_SHOWN = 3; // the reviewers that show as avatars; the others are a count
 
+/** The reviewers in the order that the faces show them: who asked for changes, who approved, who is asked, then the others; a person before a team before a bot. */
+function sortedReviewers(reviewers) {
+  const order = ['changes requested', 'approved', 'asked'];
+  const rank = ({ state, person }) => (order.indexOf(state) + 1 || order.length + 1) * 3 + (person.bot ? 2 : person.team ? 1 : 0);
+  return [...reviewers].sort((a, b) => rank(a) - rank(b));
+}
+
+/** The reviewers that the faces leave out (the "+2"). */
+const hiddenReviewers = (reviewers) => sortedReviewers(reviewers).slice(REVIEWERS_SHOWN);
+
 /**
  * The reviewers as avatars that lie over each other, the first one on top and whole; each has a small dot in the colour of its state at its lower right.
  * The pointer says the name and the state. Three show: first who asked for changes, then who approved, then who is asked, then the others; with the same
@@ -389,9 +399,7 @@ const REVIEWERS_SHOWN = 3; // the reviewers that show as avatars; the others are
  * round face with their count ("+2"), and the pointer on it names each with the state. The status strip of a pull request and its line in the list of the side bar use it.
  */
 function reviewerFaces(reviewers, size = 's') {
-  const order = ['changes requested', 'approved', 'asked'];
-  const rank = ({ state, person }) => (order.indexOf(state) + 1 || order.length + 1) * 3 + (person.bot ? 2 : person.team ? 1 : 0);
-  const sorted = [...reviewers].sort((a, b) => rank(a) - rank(b));
+  const sorted = sortedReviewers(reviewers);
   const tipOf = (reviewer) => `${reviewer.person.login}: ${(REVIEWER_LOOK[reviewer.state] ?? REVIEWER_LOOK.reviewed)[2]}`;
   const one = (reviewer, index) => {
     const [, look] = REVIEWER_LOOK[reviewer.state] ?? REVIEWER_LOOK.reviewed;
@@ -399,7 +407,7 @@ function reviewerFaces(reviewers, size = 's') {
   };
   const rest = sorted.slice(REVIEWERS_SHOWN);
   // The others are one more face in the row, round and as large as the faces, with their count, behind the third face (look.css), so that it reads as the next person.
-  const more = rest.length ? `<span class="rv rest" title="${esc(rest.map(tipOf).join(', '))}"><span class="av ${size}">+${rest.length}</span></span>` : '';
+  const more = rest.length ? `<span class="rv rest" data-rest title="${esc(rest.map(tipOf).join(', '))}"><span class="av ${size}">+${rest.length}</span></span>` : '';
   return `<span class="rvs">${sorted.slice(0, REVIEWERS_SHOWN).map(one).join('')}${more}</span>`;
 }
 

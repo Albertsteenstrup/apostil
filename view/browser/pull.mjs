@@ -56,11 +56,37 @@ try {
   // The strip says each fact once: after the state, the review and the checks, only the rest of the merge sentence (in the title of .msent).
   check('the page of a change with a pull request has "Conversation" in the switch, and the status strip in one short line: the icon, the reviewers as avatars that lie over each other with a dot for the state, the checks, and the first thing before a merge with a count of the others, each fact once; with seven reviewers three avatars show, who asked for changes first and people before bots, and "+4" names the others; with no reviewer it says so in words',
     strip.switchText === 'Conversation · Diagram · Diffs' && strip.icon === 'pri git-pull-request red' && strip.masked
-    && /2 of 12 checks failed▸Waits for #9 below it in the stack2 moreReview1 more pull request$/.test(strip.text) && !/approved|jonas/.test(strip.text)
+    && /2 of 12 checks failed▸Waits for #9 below it in the stack▸2 moreReview1 more pull request$/.test(strip.text) && !/approved|jonas/.test(strip.text)
     && strip.reviewers.join() === 'jonas-b: approved,lena-s: waiting,made-up/lending-team: waiting' && strip.avatars === 3 && strip.stacked && strip.dots === 'ok,wait,wait'
     && strip.all === 'Waits for #9 below it in the stack · 1 check is still running · 3 commits behind made-up/hold-store'
     && manyReviewers.shown.join() === 'cy: asked for changes,ana: approved,dee: approved' && manyReviewers.count === '+4'
-    && manyReviewers.rest === 'review-bot: approved, ben: waiting, made-up/team: waiting, Copilot: commented' && /^(no review yet|review required)/.test(manyReviewers.none), JSON.stringify({ strip, manyReviewers }));
+    && manyReviewers.rest === 'review-bot: approved, ben: waiting, made-up/team: waiting, Copilot: commented' && /^#12(no review yet|review required)/.test(manyReviewers.none), JSON.stringify({ strip, manyReviewers }));
+  // The number of the pull request stands right after the state icon, before the avatars, as a quiet link to GitHub; "+4" opens a small window with each hidden reviewer.
+  const bar = await conv.evaluate(() => {
+    const pull = structuredClone(Object.values(App.read)[0].pull);
+    const person = (login, more = {}) => ({ login, avatar: '', bot: false, ...more });
+    pull.reviewers = ['ana', 'ben', 'cy', 'dee', 'eli'].map((login, at) => ({ person: person(login), state: ['approved', 'changes requested', 'asked', 'reviewed', 'approved'][at] }));
+    const el = document.getElementById('status');
+    el.innerHTML = Conversation.stripHtml(pull, pull, 0);
+    Conversation.bindStrip(el);
+    const link = el.querySelector('.pnum');
+    const order = [...el.querySelectorAll('.status > *')];
+    return { text: link?.textContent, url: link?.dataset.link, want: pull.url, title: link?.title, number: pull.number, afterIcon: order.indexOf(link) === 1 && order[2]?.classList.contains('rvs'), restTitle: el.querySelector('.rv.rest')?.getAttribute('title') };
+  });
+  await conv.hover('#status .rv.rest');
+  await conv.waitForSelector('.win', { timeout: 3000 });
+  const hiddenWindow = await conv.evaluate(() => ({ rows: [...document.querySelectorAll('.win .pp')].map((row) => `${row.querySelector('.pn')?.textContent}: ${row.querySelector('.pw')?.textContent}`), faces: document.querySelectorAll('.win .pp .av').length }));
+  await conv.mouse.move(2, 2);
+  await conv.waitForSelector('.win', { state: 'detached', timeout: 3000 });
+  await conv.keyboard.press('Tab'); // so that the focus is from the keyboard, as :focus-visible wants
+  await conv.evaluate(() => document.querySelector('#status .rv.rest').focus());
+  const focused = await conv.waitForSelector('.win', { timeout: 3000 }).then(() => true, () => false);
+  await conv.evaluate(() => document.activeElement.blur());
+  await conv.waitForSelector('.win', { state: 'detached', timeout: 3000 }).catch(() => {});
+  await conv.evaluate(() => drawStrip());
+  check('the bar of the pull request has "#12" right after the state icon and before the avatars, a quiet link to the pull request on GitHub with the title "Open #12 on GitHub"; the "+2" has no plain title, and the pointer or the keyboard focus on it opens a small window with the avatar, the name and the state word of each hidden reviewer',
+    bar.text === `#${bar.number}` && bar.url === bar.want && bar.title === `Open #${bar.number} on GitHub` && bar.afterIcon && bar.restTitle === null
+    && hiddenWindow.rows.join() === 'cy: waiting,dee: commented' && hiddenWindow.faces === 2 && focused, JSON.stringify({ bar, hiddenWindow, focused }));
   // The tooltip of the icon: "#12 · Checks failing", dark, above the icon, after a short moment; gone when the pointer leaves; also on keyboard focus.
   const tipOf = () => conv.evaluate(() => {
     const tip = document.querySelector('.tip');
@@ -510,7 +536,7 @@ try {
   check('the choice lists the pull requests of the branch with their icons, and a pick shows that one; a merged pull request: the strip says who merged it and when, and no more, and "closed" right after "merged" is left out',
     choice.length === 2 && choice[0][0] === 'pri git-pull-request red' && choice[1][0] === 'pri git-merge purple'
     && merged.icon === 'pri git-merge purple' && merged.title === 'First half of the holds #11' && merged.none === 'No description'
-    && /^merged ?Merged by jonas-b on .+ with a squash(1 more pull request)?$/.test(merged.strip) && !/review|checks/.test(merged.strip) && !merged.events.some((one) => /closed it/.test(one)), JSON.stringify({ choice, merged }));
+    && /^merged ?#11Merged by jonas-b on .+ with a squash(1 more pull request)?$/.test(merged.strip) && !/review|checks/.test(merged.strip) && !merged.events.some((one) => /closed it/.test(one)), JSON.stringify({ choice, merged }));
   await conversationAfter(() => conv.evaluate(() => { App.state.pull = 12; App.render(); }));
 
   // ----- writing to GitHub from the conversation. As a file in a browser a send goes to the example, which answers as GitHub does: nothing reaches GitHub. -----
@@ -718,12 +744,12 @@ try {
   await conv.click('#status [data-review]');
   const panelOf = () => conv.evaluate(() => {
     const panel = document.querySelector('#status .review-panel');
-    return panel && { verdicts: [...panel.querySelectorAll('.ghv')].map((label) => `${label.textContent}${label.querySelector('input').disabled ? ' (off)' : ''}`), line: panel.querySelector('.ghown')?.textContent ?? '',
+    return panel && { verdicts: [...panel.querySelectorAll('.ghv')].map((label) => `${label.querySelector('b').textContent}${label.querySelector('input').disabled ? ' (off)' : ''}`), lines: [...panel.querySelectorAll('.ghvl')].map((one) => one.textContent), titles: [...panel.querySelectorAll('.ghv.off')].map((one) => one.title),
       chosen: panel.querySelector('input:checked')?.value, button: panel.querySelector('[data-gh-send]')?.textContent, focus: document.activeElement === panel.querySelector('textarea'),
       strip: document.querySelector('#status .status').textContent };
   });
   const reviewPanel = await panelOf();
-  // His own pull request: the panel shows no verdict and says why in one quiet line.
+  // His own pull request: "Approve" and "Request changes" are greyed with GitHub's reason, and "Comment" is picked.
   await conversationAfter(() => conv.evaluate((link) => { App.read[link].pull.mine = true; App.render(); }, LINK12));
   const ownPanel = await panelOf();
   await conv.click('#status .review-panel textarea');
@@ -733,9 +759,11 @@ try {
   await conv.click('#status .review-panel [data-gh-send]');
   await conv.waitForFunction(() => /A note on my own work\./.test([...document.querySelectorAll('.conv .feed .card.review')].at(-1)?.textContent ?? ''), null, { timeout: 3000 }).catch(() => {});
   const ownSent = { write: (await writes()).at(-1), panel: !!(await conv.$('#status .review-panel')), last: await conv.evaluate(() => [...document.querySelectorAll('.conv .feed .card.review')].at(-1)?.textContent ?? '') };
-  check('"Review" in the strip opens a panel with the text, "Comment", "Approve" and "Request changes", and "Send review"; the cursor is in its text; on his own pull request it shows no verdict and one quiet line says that GitHub lets him comment, not approve or ask for changes, and "Send review" sends a comment review once',
-    !!reviewPanel && reviewPanel.verdicts.join() === 'Comment,Approve,Request changes' && reviewPanel.chosen === 'COMMENT' && reviewPanel.button === 'Send review' && reviewPanel.focus && reviewPanel.line === ''
-    && ownPanel?.verdicts.length === 0 && ownPanel.line === 'This is your pull request: GitHub lets you comment on it, not approve it or ask for changes.' && ownPanel.button === 'Send review'
+  check('"Review" in the strip opens a panel with the text, "Comment", "Approve" and "Request changes", and "Send review"; the cursor is in its text; each verdict has its short line as on GitHub; on his own pull request "Approve" and "Request changes" are greyed and not pickable, the reason of GitHub stands in place of their line and is their title, "Comment" is picked, and "Send review" sends a comment review once',
+    !!reviewPanel && reviewPanel.verdicts.join() === 'Comment,Approve,Request changes' && reviewPanel.chosen === 'COMMENT' && reviewPanel.button === 'Send review' && reviewPanel.focus
+    && reviewPanel.lines[1] === 'Submit feedback and approve merging these changes.'
+    && ownPanel?.verdicts.join() === 'Comment,Approve (off),Request changes (off)' && ownPanel.chosen === 'COMMENT'
+    && ownPanel.lines.slice(1).join() === ownPanel.titles.join() && ownPanel.titles[0] === "Pull request authors can't approve their own pull request" && /^Pull request authors can't request changes/.test(ownPanel.titles[1]) && ownPanel.button === 'Send review'
     && same(ownSent.write, { kind: 'review', pullId: 'made-up-pull-12', verdict: 'COMMENT', body: 'A note on my own work.' }) && (await writes()).length === 11 && !ownSent.panel && /reviewed.*A note on my own work\./.test(ownSent.last),
     JSON.stringify({ reviewPanel, ownPanel, ownSent }));
   // The hint of the answer field: with a review that is not sent yet, an answer goes into it.
@@ -745,6 +773,8 @@ try {
   const hintWithReview = await answerHint();
   if (!(await conv.$('#status .review-panel'))) await conv.click('#status [data-review]');
   const pendingPanel = await panelOf();
+  await conv.click('#status .review-panel .ghv:has(input[value="REQUEST_CHANGES"])'); // someone else's pull request: every verdict can be picked
+  const pickedOther = await conv.evaluate(() => document.querySelector('#status .review-panel input:checked')?.value);
   await conv.click('#status .review-panel .ghv:has(input[value="APPROVE"])');
   await conv.click('#status .review-panel textarea');
   await conv.keyboard.type('Good to go.');
@@ -753,7 +783,7 @@ try {
   const reviewed = await conv.evaluate(() => ({ panel: !!document.querySelector('#status .review-panel'), strip: document.querySelector('#status .status').textContent, focus: document.activeElement?.matches('[data-review]'),
     last: [...document.querySelectorAll('.conv .feed .card.review')].at(-1)?.textContent }));
   check('his review that is not sent yet: the answer field of a thread says that the answer goes into it (with none it says nothing); the strip says "Your review is not sent: 2 comments"; Cmd+Enter sends that review with the verdict once, the panel closes and the review shows',
-    hintBefore === '' && hintWithReview === 'This goes into your review that is not sent yet.'
+    pendingPanel.verdicts.join() === 'Comment,Approve,Request changes' && pickedOther === 'REQUEST_CHANGES' && hintBefore === '' && hintWithReview === 'This goes into your review that is not sent yet.'
     && /Your review is not sent: 2 comments/.test(pendingPanel?.strip) && same((await writes()).at(-1), { kind: 'review', pullId: 'made-up-pull-12', verdict: 'APPROVE', body: 'Good to go.', pendingId: 'made-up-review-1' })
     && (await writes()).length === 12 && !reviewed.panel && !/not sent/.test(reviewed.strip) && reviewed.focus && /approved.*Good to go\./.test(reviewed.last), JSON.stringify({ hintBefore, hintWithReview, pendingPanel, reviewed }));
 
@@ -1309,6 +1339,19 @@ try {
     && messages.rows.every((row) => row.oneLine) && messages.rows[2].tip === '#9 · Review needed · 1 of 3 in a stack'
     && classic.first && classic.beforeComment && classic.place === '2 of 3 in a stack onto main' && classic.head === 'Stack of 3 pull requests onto main' && classic.rows.length === 3 && classic.rows[1].endsWith('this one'),
     JSON.stringify({ messages, classic }));
+  // The line "Waits for #9 below it in the stack" in the bar: "#9" is the link of the row of #9 in the stack (the same handler), and "▸" opens the list of the stack under the bar.
+  const wait = await stack.evaluate(() => {
+    const status = document.getElementById('status');
+    const link = status.querySelector('.msent .stkpull');
+    const row = document.querySelector('.conv .srow[data-number="9"]');
+    const before = status.querySelectorAll('.srow').length;
+    status.querySelector('[data-stack-open]').click();
+    const opened = [...status.querySelectorAll('.srow')].map((one) => one.textContent);
+    status.querySelector('[data-stack-open]').click();
+    return { text: link?.textContent, same: !!link && link.dataset.stackPull === row.dataset.stackPull && link.dataset.number === '9', before, opened, after: status.querySelectorAll('.srow').length, arrow: status.querySelector('[data-stack-open]').textContent };
+  });
+  check('"#9" in "Waits for #9 below it in the stack" opens that pull request as a row of the stack does, and the small arrow after the line opens the same list of the stack under the bar and closes it again',
+    wait.text === '#9' && wait.same && wait.before === 0 && wait.opened.length === 3 && wait.opened.some((text) => /^#9Store the holds/.test(text)) && wait.after === 0 && wait.arrow === '▸', JSON.stringify(wait));
   // A click on another row asks for that pull request, as a step of the path: the line at the top keeps the way back.
   const asked = await stack.evaluate(() => {
     document.querySelector('.conv .srow[data-number="9"]').click();
