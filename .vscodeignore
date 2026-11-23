@@ -6,6 +6,7 @@ FEEDBACK.md
 docs/**
 design/**
 research/**
+eval/**
 node_modules/**
 **/*.ts
 **/*.mjs

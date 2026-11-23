@@ -46,7 +46,7 @@ export async function run(): Promise<void> {
   if (!extension) throw new Error('The extension apostil.apostil is not installed.');
   pass('the extension is the installed one, not a checkout', extension.extensionPath.startsWith(join(trial, 'e')), extension.extensionPath);
   const files = readdirSync(extension.extensionPath).filter((name) => name !== '.vsixmanifest').sort();
-  pass('the install holds out, skills, view, theme and package.json, and no docs, design or research', files.join() === 'out,package.json,readme.md,skills,theme,view', files.join());
+  pass('the install holds out, skills, view, theme and package.json, and no docs, design, research or eval', files.join() === 'out,package.json,readme.md,skills,theme,view', files.join());
   const api = await extension.activate();
 
   // The set-up step is open: the stand-ins claude and codex are on the path, and no skill is there yet. Home with no map then shows "Set up for agents".
