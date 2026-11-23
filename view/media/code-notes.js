@@ -721,11 +721,14 @@ function navHtml(file, files, cur, changes, steps = true) {
  */
 const counterHtml = ({ file, files, cur, changes }) => navHtml(file, files, cur, changes, changes > 0 || file < 0);
 
-/** The quiet control at the top right of a file tab, at once while it opens; the steps of the file write it again after each key and each rest of the scroll. */
+/**
+ * The quiet control at the top right of a file tab, at once while it opens; the steps of the file write it again after each key and each rest of the scroll.
+ * The code as it is has no control: only "Show the change" when the change touches the file.
+ */
 function drawNav() {
   const nav = document.querySelector('.cvw .nav .steps');
   if (!nav || !Code.shown) return;
-  if (App.page.plain) return void (nav.innerHTML = ''); // a file with no change: nothing to step through
+  if (App.page.plain) return void (nav.innerHTML = App.page.files.some((file) => file.path === Code.shown.path) ? '<a data-in-change title="The changes of this file in its change">Show the change</a>' : '');
   const order = App.order();
   const changes = Code.shown.runs.length;
   nav.innerHTML = counterHtml({ file: order.indexOf(Code.shown.path), files: order.length, cur: changes ? 0 : -1, changes });
@@ -741,7 +744,7 @@ function drawNav() {
  */
 async function fileView(into, path, { focus = null, nav = false, head = false, fill = true } = {}) {
   const page = App.page;
-  const file = page.files.find((candidate) => candidate.path === path);
+  const file = page.plain ? undefined : page.files.find((candidate) => candidate.path === path);
   const name = head ? `<div class="fh" ${Places.attrs({ kind: 'file', file: path })}><a data-open-file="${esc(path)}">${esc(path)}</a>${renamedHtml(file)}<i class="c">${countsHtml(file)}</i></div>`
     : file?.renamedFrom ? `<p class="fact">${renamedHtml(file)}</p>` : '';
   const edit = nav && App.tab ? `<a data-edit title="Open this file in the editor of VS Code (${/Mac/.test(navigator.platform) ? 'Cmd' : 'Ctrl'}+Shift+,). The same key brings the notes back.">Edit</a>` : '';
@@ -750,10 +753,12 @@ async function fileView(into, path, { focus = null, nav = false, head = false, f
     into.innerHTML = shell(await factHtml(file));
     return { scroller: into.querySelector('.cv'), holder: null, view: null, rows: null };
   }
-  const code = await ask(`code:${path}`);
-  if (!code) { into.innerHTML = '<p class="quiet">There is no code to show for this file.</p>'; return null; }
+  const asked = await ask(`code:${path}`);
+  if (!asked) { into.innerHTML = '<p class="quiet">There is no code to show for this file.</p>'; return null; }
+  const code = page.plain ? { ...asked, changed: [], removed: [] } : asked; // the answer is the file in its change, which a tab can show plain
   const rows = fileRows(code);
-  const notes = [...page.notes.filter((note) => note.file === path), ...(code.notes ?? [])]; // the notes of the change, then those of other saved changes
+  // The notes of the change, then those of other saved changes; the code as it is has no removed lines.
+  const notes = [...page.notes.filter((note) => note.file === path && !(page.plain && note.removed)), ...(code.notes ?? [])];
   // The notes column stands in place while the width is measured.
   into.innerHTML = shell(`<div class="cvc">${notes.length ? '<div class="cn"><div class="notes"></div></div>' : ''}</div>`);
   const scroller = into.querySelector('.cv');

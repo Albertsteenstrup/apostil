@@ -125,7 +125,7 @@ export interface PageData {
   savedWords?: string; // one quiet line: the change is shown as saved at a commit, or that this clone has no such commit
   pullOnly?: PullOnly; // a pull request with no stored change: the page has "Conversation" and "Diffs"
   branchOnly?: true; // the open branch with no change file: the page has "Diffs", and "Conversation" when the branch has a pull request
-  plain?: true; // a file tab with no change: the code as it is, with no diff, and the notes beside it
+  plain?: true; // a file tab of the code as it is, with no diff, and the notes beside it: the branch has no change, or he opened it from the map or the files
   look?: LookData; // the look of the repo for the page and its file tabs; the marks of a file come with its code
 }
 

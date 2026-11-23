@@ -546,6 +546,22 @@ try {
   check('a click on "file 10 of 40" lists every changed file under the names of the parts, each with its counts; picking one opens it',
     fileList.rows === 40 && fileList.groups[0] === 'Holds tab' && fileList.groups.at(-1) === 'In no part' && fileList.on === 'src/library/night_jobs.py' && /^\+/.test(fileList.counts) && fileList.picked === 'web/src/member/HoldsPanel.tsx',
     JSON.stringify(fileList));
+
+  // Opened from the map or the files, the file tab of a changed file shows it as it is; "Show the change" shows it in its change, at its first change.
+  const modeOf = () => tab.evaluate(() => ({
+    nav: document.querySelector('.nav .steps').textContent, changes: Code.shown.runs.length, removed: Code.shown.rows.filter((row) => row.kind === 'del').length,
+    toned: document.querySelectorAll('.cv .mc.add, .cv .mc.del').length, file: App.tab,
+  }));
+  await tab.goto(`file://${pageFile}?file=src/library/night_jobs.py&plain=1`);
+  await loaded(tab);
+  await tab.keyboard.press('j');
+  await tab.keyboard.press('Alt+ArrowDown');
+  const asItIs = await modeOf();
+  await drawn(() => tab.click('.nav [data-in-change]'), tab);
+  const inChange = { ...await modeOf(), told: await tab.evaluate(() => window.apostilSent.some((message) => message.type === 'inChange')) };
+  check('opened from the map or the files, the file tab of a changed file shows the code as it is: no control, no change, no removed line, no colour of the diff, and J and Alt+Down go nowhere; its one link "Show the change" shows the file in its change, at its first change',
+    asItIs.nav === 'Show the change' && asItIs.changes === 0 && asItIs.removed === 0 && asItIs.toned === 0 && asItIs.file === 'src/library/night_jobs.py'
+      && counter.test(inChange.nav) && inChange.changes > 0 && inChange.removed > 0 && inChange.told, JSON.stringify({ asItIs, inChange }));
   await tab.close();
 
   // ----- "Diffs": the list of every changed file at the left as closed rows, part by part, and one file at the right -----

@@ -658,7 +658,12 @@ try {
     await intoNode(processHome, 's7').catch(() => {});
     stepTab = await inStepTab();
   }
-  check('from Home the card of a node goes down to its processes, and the card of a step opens its file at its first line, in the file tab with its notes', !!stepTab && /^requests\.py/.test(await activeTab() ?? ''), `tab ${await activeTab()}`);
+  // Opened from the map, the changed file shows as it is, with no control of the change; "Show the change" shows it in its change.
+  const stepAsItIs = await stepTab?.evaluate(() => ({ plain: !!App.page.plain, nav: document.querySelector('.nav .steps')?.textContent })).catch(() => ({}));
+  await stepTab?.locator('.nav [data-in-change]').click({ timeout: 4000 }).catch(() => {});
+  const stepInChange = await stepTab?.waitForFunction(() => /file \d+ of \d+/.test(document.querySelector('.nav .steps')?.textContent ?? ''), null, { timeout: 4000 }).then(() => true, () => false);
+  check('from Home the card of a node goes down to its processes, and the card of a step opens its file at its first line, in the file tab with its notes, as it is with no control of the change; "Show the change" shows it in its change',
+    !!stepTab && /^requests\.py/.test(await activeTab() ?? '') && stepAsItIs?.plain && stepAsItIs.nav === 'Show the change' && stepInChange, `tab ${await activeTab()}; ${JSON.stringify(stepAsItIs)}; in its change ${stepInChange}`);
 
   // A click whose target is a prompt (a look of the repo): VS Code asks with the whole words and "Send". With no "Send" the stand-in claude
   // gets no run; with "Send" it gets one, with the words. A browser cannot show VS Code's question.
