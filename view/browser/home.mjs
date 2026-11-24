@@ -714,7 +714,7 @@ try {
   });
   await low.click(`${nodeOf('lending')} .cb`, { timeout: 3000 }).catch(() => {});
   await low.waitForSelector('.cbox.card .cthreads .msg.agent', { timeout: 3000 }).catch(() => {});
-  await low.evaluate(() => scrollBy(0, 100));
+  await low.evaluate(() => new Promise((done) => { addEventListener('scroll', done, { once: true }); scrollBy(0, 100); }));
   const longCard = () => low.evaluate(() => {
     const [card, threads, box] = ['.cbox.card', '.cbox.card .cthreads', '.cbox.card .cbx'].map((selector) => document.querySelector(selector));
     if (!threads) return {};

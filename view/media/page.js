@@ -372,9 +372,7 @@ function pullChoice(anchor) {
   const shown = App.pull();
   frame.body.innerHTML = `<div class="rows">${App.pulls.map((pull) => `<a data-pick="${pull.number}" class="${pull === shown ? 'on' : ''}">${Conversation.icon(pull, false)}<span>#${pull.number}</span><span class="ttl">${esc(pull.title)}</span><i class="c">${esc(pull.state)}</i></a>`).join('')}</div>`;
   placeWindow(frame.el, anchor.getBoundingClientRect());
-  const close = () => { frame.el.remove(); removeEventListener('mousedown', outside, true); };
-  const outside = (event) => { if (!frame.el.contains(event.target)) close(); };
-  addEventListener('mousedown', outside, true);
+  const close = closeOnPressAway(frame);
   frame.el.addEventListener('click', (event) => {
     const pick = event.target.closest('[data-pick]');
     if (pick || event.target.closest('[data-close]')) close();
@@ -507,9 +505,7 @@ function fileList(anchor, part = null) {
   frame.body.innerHTML = `<div class="rows">${groups.map(group).join('')}</div>`;
   placeWindow(frame.el, anchor.getBoundingClientRect());
   frame.body.querySelector('.on')?.scrollIntoView({ block: 'center' });
-  const close = () => { frame.el.remove(); removeEventListener('mousedown', outside, true); };
-  const outside = (event) => { if (!frame.el.contains(event.target)) close(); };
-  addEventListener('mousedown', outside, true);
+  const close = closeOnPressAway(frame);
   frame.el.addEventListener('click', (event) => {
     const show = event.target.closest('[data-show]');
     if (show || event.target.closest('[data-close]')) close();

@@ -146,7 +146,7 @@ try {
       const row = document.querySelector(`.cv .l[data-line="${first}"]`).getBoundingClientRect();
       return all.findIndex((mark) => Math.abs(mark.getBoundingClientRect().top - row.top) <= 2 && mark.style.left !== '4px');
     }, 62);
-    await pointAt(`.cv .mk >> nth=${stepMark}`, '.win .mc');
+    await pointAt(`.cv .mk >> nth=${stepMark}`, `.win .mc:has-text(${JSON.stringify(stepNote.title)})`);
     const markWindow = await one.locator('.win .mc').first().textContent({ timeout: 1000 }).catch(() => '');
     await snap('45-apostil-5-narrow-marks-and-the-window-of-a-step');
     check('on a narrow tab the mark of a function stands beside the marks of its steps, no two marks lie on top of each other, and the pointer on the mark of a step opens its note as a window',

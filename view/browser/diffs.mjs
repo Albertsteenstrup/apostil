@@ -622,7 +622,7 @@ async function twoHalves() {
   const hidden = await halves();
   await wide.reload();
   await loaded();
-  const hiddenAfterReload = await halves();
+  const hiddenAfterReload = { ...(await halves()), stored: await wide.evaluate((key) => localStorage.getItem(key), HIDDEN_KEY) };
   await wide.click('[data-half="code"]');
   await when(() => !!document.querySelector('#view > .half.left svg'));
   await quiet();
@@ -893,7 +893,7 @@ async function twoHalves() {
   await pointAtLabel('offer_returned_copies');
   await linkRows();
   const byLabel = await linkShown();
-  await toGutter();
+  await away();
   await nothingShown();
   await pointAtLink('hold-service', 'tables');
   await places(1);
@@ -1269,10 +1269,11 @@ async function fiveBehaviours() {
   const settled = await wide.evaluate(() => Math.round(document.querySelector('.half.right .dp[data-part="holds-tab"]').getBoundingClientRect().top - document.querySelector('.half.right').getBoundingClientRect().top));
   await wide.click('.win.files [data-show="web/src/member/member.css"]');
   await when(() => !document.querySelector('.win.files') && !!document.querySelector('.half.right .dfile.open[data-file="web/src/member/member.css"]'));
+  await wide.waitForTimeout(500); // the rest of the pointer (300 ms) and what it opens are over: the node now under the pointer that did not move takes nothing away
   await quiet();
   const picked = await state();
-  check('a click on "5 more files" opens a window in the diagram half with all 8 files of its part and their counts, the list brings the part to its top, and a file in the window opens its diff in the list',
-    windowOf.title === 'Holds tab' && windowOf.rows.length === 8 && windowOf.rows.every((row) => /[+−]\d/.test(row)) && windowOf.inDiagram && Math.abs(settled) <= 2 && picked.opened.includes('web/src/member/member.css'),
+  check('a click on "5 more files" opens a window in the diagram half with all 8 files of its part and their counts, the list brings the part to its top, and a file in the window opens its diff in the list; the file name that the closed window leaves under the pointer opens nothing of another part',
+    windowOf.title === 'Holds tab' && windowOf.rows.length === 8 && windowOf.rows.every((row) => /[+−]\d/.test(row)) && windowOf.inDiagram && Math.abs(settled) <= 2 && picked.opened.includes('web/src/member/member.css') && picked.opened.every((file) => windowOf.rows.some((row) => row.startsWith(file))),
     JSON.stringify({ windowOf, settled, picked }));
   await away();
 
