@@ -13,6 +13,14 @@ function windowFrame({ title, sub = '', actions = '', width: wanted = 420 }) {
   return { el, body };
 }
 
+/** Takes a window frame away on a press outside it or on its Close, and returns its close. What it leaves under the pointer gets no hover until the pointer moves. */
+function closeOnPressAway(frame) {
+  const close = () => { frame.el.remove(); removeEventListener('mousedown', press, true); Hover.hide(); };
+  const press = (event) => { if (!frame.el.contains(event.target) || event.target.closest('[data-close]')) close(); };
+  addEventListener('mousedown', press, true);
+  return close;
+}
+
 /** Places a window beside a box, on the side with room, so it does not cover the neighbours of the box. */
 function placeWindow(win, box) {
   const gap = 10;

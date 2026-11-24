@@ -1924,9 +1924,7 @@ const Conversation = (() => {
       frame.body.classList.add('pad');
       frame.body.innerHTML = `<img class="big" src="${esc(picture.src)}" alt="${esc(picture.alt)}">`;
       placeWindow(frame.el, { top: 12, bottom: 12, left: 12, right: 12 });
-      const close = () => { frame.el.remove(); removeEventListener('mousedown', outside, true); };
-      const outside = (inner) => { if (!frame.el.contains(inner.target) || inner.target.closest('[data-close]')) close(); };
-      addEventListener('mousedown', outside, true);
+      closeOnPressAway(frame);
     }
   });
   // A picture that does not load becomes its text and a link: never a broken icon.
