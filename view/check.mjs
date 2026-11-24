@@ -50,11 +50,16 @@ writeExampleData();
 const built = { name: 'build', passed: 0, failed: 0, seconds: seconds(start), ok: true, output: '' };
 
 const node = process.execPath;
+// The window run makes its example repos alone, before VS Code starts: beside the other parts its git commands take 20 times as long.
+let windowStarts;
+const exampleReady = new Promise((done) => { windowStarts = done; });
+const windowRun = runPart('window', node, ['view/window-check.mjs', ...args], {}, (text) => { if (text.includes('VS Code starts')) windowStarts(); });
+await Promise.race([exampleReady, windowRun]);
 // The .vsix file of this build, for its check; made while the window run goes on.
 // vsce is a dev dependency with an exact version, so its packages are in the lockfile and get audited.
 const vsix = runPart('package', 'node_modules/.bin/vsce', ['package', '--no-dependencies', '--allow-missing-repository', '--skip-license', '--readme-path', 'skills/README.md'], {});
 const windowParts = (async () => {
-  const window = await runPart('window', node, ['view/window-check.mjs', ...args]);
+  const window = await windowRun;
   const made = await vsix;
   const packageCheck = made.code === 0 ? await runPart('package check', node, ['out/view/package-check.js']) : { ...made, name: 'package check', ok: false };
   return [window, packageCheck];

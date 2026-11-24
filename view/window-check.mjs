@@ -170,6 +170,7 @@ if (await fetch(`http://127.0.0.1:${PORT}/json/version`).then(() => true, () => 
   console.log(`FAIL  port ${PORT} is taken, by a window of an earlier run; close it first`);
   process.exit(1);
 }
+console.log('NOTE  the example repos are ready; VS Code starts');
 const agentHome = process.env.APOSTIL_AGENT_HOME ?? `${temp}/agents`;
 const child = spawn(CODE, [
   `--extensionDevelopmentPath=${apostil}`, `--user-data-dir=${temp}/u`, `--extensions-dir=${temp}/e`, `--remote-debugging-port=${PORT}`,
@@ -292,11 +293,14 @@ try {
   const setiRow = (row, language) => !!row && row.content === setiIcon(language, row.light)?.content && row.color === setiIcon(language, row.light)?.color && /fi-seti/.test(row.family) && row.font === 'loaded' && row.room > 0;
   const runsNow = () => (existsSync(runs) ? readFileSync(runs, 'utf8').split(`${RUN}\n`).slice(1) : []);
   const remarks = () => store.remarks(changeId);
-  /** Sets one setting in the settings file of the window; VS Code reads the file again when it changes. */
+  let settingsWritten = 0;
+  /** Sets one setting in the settings file of the window, and waits until VS Code read the file: it shows the window title written with it. */
   const setSetting = async (name, value) => {
     const now = settingsNow();
     if (value === undefined) delete now[name]; else now[name] = value;
-    writeFileSync(settingsFile, JSON.stringify(now, null, 2));
+    const title = `Apostil check ${++settingsWritten}`;
+    writeFileSync(settingsFile, JSON.stringify({ ...now, 'window.title': title }, null, 2));
+    if (!(await until(() => page.evaluate((wanted) => document.title.includes(wanted), title)))) console.log(`NOTE  VS Code did not show the window title "${title}" of the settings`);
   };
 
   // ---- 1. The first start, Home in place of the empty editor area, and the questions of a new repo ----
@@ -384,7 +388,6 @@ try {
   await command('View: Toggle Panel Visibility');
   // With the setting off nothing opens. The rest of the run keeps it off, as every other check window does.
   await setSetting('apostil.homeWhenEmpty', false);
-  await sleep(800); // VS Code reads the settings file again
   await goTo('README.md');
   await command('View: Close All Editors');
   await sleep(1500); // calm: nothing must open by itself
@@ -393,7 +396,6 @@ try {
 
   // ---- 2. The notes beside the code in the editor of VS Code, first, before Apostil opens their file in a tab of its own ----
   await setSetting('apostil.notesBesideCode', 'editor');
-  await sleep(1000); // VS Code reads the settings file again: nothing on the screen says when
   const FILE_TITLE = 'Hold back on a closed day'; // a note of the example in hold_service.py, with a text and a function
   /** The titles of notes after their lines in the editor in front, with the text of each line, the lines marked at their left, and the count in the status bar. */
   const editorState = () => page.evaluate(() => {
@@ -457,7 +459,6 @@ try {
   await setSetting('apostil.notesBesideCode', 'off');
   const off = await stateWhere((now) => now.titles.length === 0 && now.status === '', 4000);
   await setSetting('apostil.notesBesideCode', 'tab');
-  await sleep(1000); // VS Code reads the settings file again: nothing on the screen says when
   await command('View: Close All Editors');
   const tabAt = (line) => frameWhere((lines) => typeof App === 'object' && App.tab?.endsWith('hold_service.py') && App.state?.lines?.join() === lines, `${line},${line}`, 6000);
   await goTo('hold_service.py:245');
@@ -1268,14 +1269,12 @@ try {
   await setSetting('apostil.homeWhenEmpty', true);
   await command('View: Focus Active Editor Group');
   const keyboardInEditor = () => page.evaluate(() => !!document.activeElement?.closest('.editor-group-container.active .monaco-editor'));
-  await sleep(1000); // VS Code reads the settings file again: nothing on the screen says when
   await page.keyboard.press(START_KEY);
   const firstPage = await frameWhere(() => typeof Home === 'object' && Home.data?.kind === 'page' && document.body.textContent.includes('The hours of each branch.'), undefined, 6000);
   const besideTabs = await page.$$eval('.editor-group-container', (groups) => groups.map((group) => [...group.querySelectorAll('.tab .label-name')].map((el) => el.textContent.trim()).join('+')));
   const keptKeyboard = await keyboardInEditor() && /^night_jobs\.py/.test(await activeTab() ?? '');
   await shot('7e-the-first-page-beside-the-tab');
   await setSetting('apostil.homeWhenEmpty', false);
-  await sleep(1000); // VS Code reads the settings file again
   await command('View: Close Editors in Other Groups');
   await page.keyboard.press(START_KEY);
   await sleep(1500); // calm: nothing must open
@@ -1377,7 +1376,9 @@ try {
 } finally {
   await Promise.all(failed);
   // The whole window, also when VS Code left the process that was started: the answer may never come, as the window closes.
-  try { await Promise.race([browser.newBrowserCDPSession().then((session) => session.send('Browser.close')), sleep(3000)]); } catch { /* closed */ }
+  const disconnected = browser?.isConnected() ? new Promise((done) => browser.once('disconnected', done)) : Promise.resolve();
+  browser?.newBrowserCDPSession().then((session) => session.send('Browser.close')).catch(() => { /* closed */ });
+  await Promise.race([disconnected, sleep(3000)]);
   try { await browser?.close(); } catch { /* closed */ }
   child.kill('SIGTERM');
   await sleep(500);
