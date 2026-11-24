@@ -3,13 +3,13 @@
 
 import { spawn } from 'node:child_process';
 
-/** Starts one part and resolves when it ends, with its counts, its time in seconds, its exit code and all it printed. */
-export function runPart(name, command, args, env = {}) {
+/** Starts one part and resolves when it ends, with its counts, its time in seconds, its exit code and all it printed. `heard` gets what it prints as it prints it. */
+export function runPart(name, command, args, env = {}, heard = () => {}) {
   const start = Date.now();
   return new Promise((done) => {
     const child = spawn(command, args, { env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'pipe'] });
     let output = '';
-    child.stdout.on('data', (data) => { output += data; });
+    child.stdout.on('data', (data) => { output += data; heard(String(data)); });
     child.stderr.on('data', (data) => { output += data; });
     // A program that is not there (a dev dependency not installed) is a failed part with one line, not the end of the whole run: the other parts close their windows.
     child.on('error', (error) => done({ name, passed: 0, failed: 0, code: 1, seconds: (Date.now() - start) / 1000, output: `Could not start ${command}: ${error.message}. Run npm ci.`, ok: false }));
