@@ -14,7 +14,7 @@ export type Corner = 'upper-left' | 'upper-right' | 'lower-left' | 'lower-right'
 export const CORNERS: Corner[] = ['upper-left', 'upper-right', 'lower-left', 'lower-right'];
 
 /** What the code does with a service. */
-export const RELATIONS = ['calls', 'stores', 'sends', 'runs on'] as const;
+export const RELATIONS = ['calls', 'stores', 'sends', 'runs on', 'loads'] as const;
 export type Relation = typeof RELATIONS[number];
 
 /** One value of a mark set: a service, or a value of a set of a look. `icon` is the ending of its kept icon file ("png"), when it has one. */
@@ -63,7 +63,7 @@ export interface IconRefused {
 /** The built-in set: the services that the code reaches. Its values are kept for every repo, so another repo needs no new icon. */
 export const SERVICES: MarkSet = {
   id: 'services', name: 'Services', corner: { node: 'upper-right', note: 'upper-right' },
-  rule: 'Mark each line where the code reaches a service outside the repo: a hosted API, a cloud product, a database, a tool for traces or events, or a platform that runs the code.',
+  rule: 'Mark each line where the code depends on something outside the repo that others make, host or own, and that the owner knows by its name and logo.',
 };
 
 /** The sets of a repo: the built-in services, then the sets of its look. */
@@ -160,50 +160,13 @@ export function marksNow<T extends Pick<Mark, 'file' | 'line' | 'code'>>(folder:
 
 // ----- the work for the writers of a set -----
 
-/**
- * The signs of a service that the candidates of `mark-groups --set services` come from: the one list. Each finds lines; the writer keeps a line
- * when it reaches a service, and drops it otherwise. `may` guesses the service from the words that the sign found.
- */
-const SIGNS: { why: string; find: RegExp; may: (found: RegExpExecArray) => string }[] = [
-  { why: 'a web address', find: /https?:\/\/([a-z0-9.-]+\.[a-z]{2,})/i, may: (found) => found[1].toLowerCase().replace(/^(www|api)\./, '') },
-  { why: 'a key or an address read from the environment', find: /(?:environ|getenv|process\.env|import\.meta\.env)\W{1,4}([A-Z][A-Z0-9_]*_(?:URL|URI|KEY|TOKEN|SECRET|HOST|DSN|ENDPOINT))\b/, may: (found) => found[1].split('_')[0].toLowerCase() },
-  { why: 'an HTTP client', find: /\b(?:requests|httpx|aiohttp|axios|urllib\.request)\.(?:get|post|put|patch|delete|request|urlopen)\b|\bfetch\(/, may: () => '' },
-  { why: 'a query of a database', find: /\b(?:select\b.+\bfrom|insert\s+into|update\s+\w+\s+set|delete\s+from|create\s+table)\s+([a-z_][\w.]*)/i, may: () => '' },
-  { why: 'a client of a service', find: /\b([A-Z][A-Za-z0-9]*?)(?:Client|Api|API|SDK)\(|\b([a-z0-9_]+)\.(?:client|resource|create_client|connect)\(/, may: (found) => (found[1] ?? found[2] ?? '').toLowerCase() },
-];
-
 /** Files that set up services for the code: compose files, infrastructure files, and the files of a platform that runs it. */
 const SERVICE_FILES = /(^|\/)((docker-)?compose\.ya?ml|serverless\.ya?ml|[^/]+\.tf|template\.ya?ml|vercel\.json|netlify\.toml|fly\.toml|app\.ya?ml)$/i;
 
-/** A line that a sign found, with the service that it may be. */
-export interface Candidate {
-  line: number;
-  text: string;
-  why: string;
-  may?: string;
-}
-
-const CANDIDATE_TEXT = 160; // a long line is cut in the list
-
-/** The lines of a text that a sign of a service finds; every line of a file that sets up services. */
-export function candidatesIn(path: string, text: string): Candidate[] {
-  const found: Candidate[] = [];
-  const all = SERVICE_FILES.test(path);
-  text.split('\n').forEach((line, index) => {
-    if (!line.trim()) return;
-    const hit = SIGNS.map((sign) => ({ sign, match: sign.find.exec(line) })).find((one) => one.match);
-    if (!hit && !(all && /\b(image|service|provider|resource|url|endpoint|bucket|function)\b/i.test(line))) return;
-    const may = hit?.sign.may(hit.match!);
-    found.push({ line: index + 1, text: line.trim().slice(0, CANDIDATE_TEXT), why: hit?.sign.why ?? 'a file that sets up services', ...(may ? { may } : {}) });
-  });
-  return found;
-}
-
-/** One file for a writer of marks; for services, with its candidate lines. */
+/** One file for a writer of marks. */
 export interface MarkFile {
   path: string;
   lines: number;
-  candidates?: Candidate[];
 }
 
 export interface MarkGroup {
@@ -212,17 +175,11 @@ export interface MarkGroup {
   files: MarkFile[];
 }
 
-const GROUP_LINES = 3000; // a writer of a custom set reads whole files: about this many lines in a group
-const GROUP_CANDIDATES = 60; // a service writer reads the lines around its candidates
-
-/** What a file of a set is now: the fingerprint of the text that the writer read (for services, its candidate lines), to know when it needs work again. */
-const readPrint = (set: string, text: string, path: string): string =>
-  fingerprint(set === SERVICES.id ? candidatesIn(path, text).map((one) => one.text).join('\n') : text);
+const GROUP_LINES = 3000; // a writer of marks reads whole files: about this many lines in a group
 
 /**
  * The work for the writers of a set, by area as note-groups gives it: only the files that need work, unless `all`. A file needs work when no writer of
- * the set has read it, when its text (for services, its candidate lines) changed since, or when a mark of it no longer stands at its line.
- * For services only the files with candidates are listed, each with its candidate lines. The groups are listed largest first, by their lines of code.
+ * the set has read it, when its text changed since, or when a mark of it no longer stands at its line. The groups are listed largest first, by their lines of code.
  */
 export function markGroups(folder: string, map: RepoMap | undefined, set: string, all = false): { groups: MarkGroup[]; skipped: number } {
   const { files, skipped } = codeFiles(folder);
@@ -235,14 +192,11 @@ export function markGroups(folder: string, map: RepoMap | undefined, set: string
   const hidden = new Set(marksNow(folder, own).filter((one) => one.at === undefined).map((one) => one.mark.file));
   const byArea = new Map<string | undefined, MarkFile[]>();
   for (const { path, text } of [...files, ...setUp].sort((a, b) => a.path.localeCompare(b.path))) {
-    const candidates = services ? candidatesIn(path, text) : undefined;
-    if (services && !candidates!.length && !own.some((mark) => mark.file === path)) continue;
-    if (!all && read[path] === readPrint(set, text, path) && !hidden.has(path)) continue;
+    if (!all && read[path] === fingerprint(text) && !hidden.has(path)) continue;
     const area = areaOf(map, path);
-    byArea.set(area, [...(byArea.get(area) ?? []), { path, lines: text.split('\n').length, ...(candidates ? { candidates } : {}) }]);
+    byArea.set(area, [...(byArea.get(area) ?? []), { path, lines: text.split('\n').length }]);
   }
   const groups: MarkGroup[] = [];
-  const size = (file: MarkFile): number => (services ? file.candidates?.length ?? 1 : file.lines);
   for (const area of areaOrder(map)) {
     let current: MarkFile[] = [];
     const close = (): void => {
@@ -250,7 +204,7 @@ export function markGroups(folder: string, map: RepoMap | undefined, set: string
       current = [];
     };
     for (const file of byArea.get(area) ?? []) {
-      if (current.length && current.reduce((sum, one) => sum + size(one), 0) + size(file) > (services ? GROUP_CANDIDATES : GROUP_LINES)) close();
+      if (current.length && current.reduce((sum, one) => sum + one.lines, 0) + file.lines > GROUP_LINES) close();
       current.push(file);
     }
     close();
@@ -271,7 +225,7 @@ export function readyMarkGroups(folder: string, stored: StoredMap | undefined, s
 
 /** The fingerprints that a save of a group keeps for the files that its writer read. */
 export const readPrints = (folder: string, set: string, paths: string[]): Record<string, string> =>
-  Object.fromEntries(paths.flatMap((path) => { const text = fileText(folder, path); return text === undefined ? [] : [[path, readPrint(set, text, path)]]; }));
+  Object.fromEntries(paths.flatMap((path) => { const text = fileText(folder, path); return text === undefined ? [] : [[path, fingerprint(text)]]; }));
 
 // ----- what `apostil marks` prints -----
 

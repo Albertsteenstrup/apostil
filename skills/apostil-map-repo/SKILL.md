@@ -139,13 +139,13 @@ Do this step once, when the last process writer has ended, also of a second roun
 
 The groups of an area are ready as soon as the notes of that area are saved, as in Step 4: a service writer marks lines of code and needs no process. So this step runs at the same time as the notes writers of other areas, the process writers and Steps 5 and 6. Its writers share the 16 places with the others; notes come first.
 
-Run `apostil mark-groups --set services` when `apostil process-groups` shows that the notes of another area are all saved (`waiting` went down), in the same message as the process writers that you start then, and once more when all notes writers have ended. It prints `{ "set", "values", "groups": [ ... ], "waiting": <n> }`: each group has a `name`, its `area` and its `files`, each file with its `candidates` (lines that a list of signs found, with the service that each may be), largest first. It lists only the groups of areas whose notes are all saved, and only the files that need work; `waiting` says how many areas still wait for notes. Use `--all` only when the owner wants all services written again.
+Run `apostil mark-groups --set services` when `apostil process-groups` shows that the notes of another area are all saved (`waiting` went down), in the same message as the process writers that you start then, and once more when all notes writers have ended. It prints `{ "set", "values", "groups": [ ... ], "waiting": <n> }`: each group has a `name`, its `area` and its `files`, largest first. It lists only the groups of areas whose notes are all saved, and only the files that need work; `waiting` says how many areas still wait for notes. Use `--all` only when the owner wants all services written again.
 
 Use the model that Apostil names. When it names none, use a small model. Start one service writer for each group that it lists and that you have not started yet, in the order listed, in the places that are free, and the next when one ends. Give each writer:
 
 - the line "First run `apostil prompt service` and follow what it prints.",
 - the path of the repo folder,
-- its group: the `name` and the `files` of that group with their candidates, as the command printed them.
+- its group: the `name` and the `files` of that group, as the command printed them.
 
 Then, for each set of `apostil look` other than `services`, run `apostil mark-groups --set <id of the set>` at the same times, and start one mark writer for each group it lists that you have not started yet, on the model that Apostil names, else a small model. Give each writer the line "First run `apostil prompt mark` and follow what it prints.", the path of the repo folder, its group as the command printed it, and the id, the name, the rule and the values of the set, as `apostil look` printed them: the writer reads them in place of the words in `<…>` of its prompt.
 

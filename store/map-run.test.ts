@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import { headCommit, repoId } from '../shared/git';
 import { findInMap, notesNow } from '../shared/map-read';
 import { areaWork, homeRun, mapRunLine, mapRunState, QUIET_MS, withEnd, withSave, type MapRun } from '../shared/map-run';
+import { markGroups } from '../shared/marks';
 import { noteGroups } from '../shared/note-groups';
 import { processFacts } from '../shared/processes';
 import { Store } from '../shared/store';
@@ -49,15 +50,17 @@ test('the first save of a writer opens the record with the session from the envi
   assert.equal(grown.startedAt, opened.startedAt);
   assert.equal(grown.endedAt, undefined); // the code files still need notes
   assert.deepEqual(grown.saves?.map(([kind]) => kind), ['o', 'a']);
-  // The cards of Home: the area "code" has notes to write, so a writer works on it now; "docs" has no code file and is done.
-  assert.deepEqual(areaWork(store, repo.folder, store.getMap(id)!, grown), { code: { state: 'working', share: 0.33 } });
+  // The cards of Home: the area "code" has notes, processes and services to write, so a writer works on it now; "docs" has no code file and is done.
+  assert.deepEqual(areaWork(store, repo.folder, store.getMap(id)!, grown), { code: { state: 'working', share: 0 } });
 
-  // The notes of every code file: the test repo reaches no service and has no notes for a process, so no writer has work after this save.
+  // The notes of every code file, then the services of every code file: the test repo reaches no service and has no notes for a process, so no writer has work after these saves.
   const files = noteGroups(repo.folder, store.getMap(id)).groups.flatMap((group) => group.files.map((file) => file.path));
   assert.deepEqual(files, ['src/app.py', 'src/new_tool.py']);
   assert.ok(save('add-notes', { notes: [], files }));
+  assert.equal(store.mapRun(id)!.endedAt, undefined); // the services of the code files are not read yet
+  assert.ok(save('add-marks', { group: 'code', set: 'services', files, values: [], marks: [] }));
   const ended = store.mapRun(id)!;
-  assert.deepEqual(ended.parts, { ofAreas: 2, overview: true, areas: ['Area one'], noteFiles: 2 });
+  assert.deepEqual(ended.parts, { ofAreas: 2, overview: true, areas: ['Area one'], noteFiles: 2, marks: ['services'] });
   assert.ok(ended.endedAt);
   assert.equal(mapRunState(ended), 'done');
   assert.equal(mapRunLine(ended), undefined);
@@ -74,7 +77,10 @@ test('the cards of Home count a long file that is cut into parts as one file tha
   writeFileSync(join(drafts, 'map.json'), JSON.stringify({ format: 1, diagrams: [{ id: 'top', kind: 'flow', title: 'The test repo', mermaid: 'flowchart LR\n  code --> docs', nodePaths: { code: ['src/'], docs: ['README.md'] } }] }));
   assert.ok(runMapCommand(store, 'save-map', join(drafts, 'map.json'), repo.folder, {}, { CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: SESSION }).ok);
   assert.equal(noteGroups(repo.folder, store.getMap(id)).groups.filter((group) => group.files[0].part).length, 3);
-  // Its three code files all need notes: a third of the work of the area is done (its marks), as with whole files.
+  // Once the services of its code files are read, its three code files all need notes: a third of the work of the area is done (its marks), as with whole files.
+  const read = markGroups(repo.folder, store.getMap(id)!.map, 'services').groups.flatMap((group) => group.files.map((file) => file.path));
+  writeFileSync(join(drafts, 'marks.json'), JSON.stringify({ group: 'code', set: 'services', files: read, values: [], marks: [] }));
+  assert.ok(runMapCommand(store, 'add-marks', join(drafts, 'marks.json'), repo.folder, {}, { CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: SESSION }).ok);
   assert.deepEqual(areaWork(store, repo.folder, store.getMap(id)!, store.mapRun(id)!), { code: { state: 'working', share: 0.33 } });
   store.close();
   repo.remove();

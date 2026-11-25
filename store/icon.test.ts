@@ -68,7 +68,7 @@ test('apostil icon keeps a picture of the service\'s own site, and a page gives 
   assert.equal(valuesOf(store, repoName, 'services').find((one) => one.id === 'bookfeed')?.icon, 'svg');
 });
 
-test('apostil icon refuses a host that is not the site, a picture over 100 KB, a redirect to another host, and a service with no known site', async () => {
+test('apostil icon refuses a host that is not the site, a picture over 100 KB and a service with no known site; the site may send it to another host', async () => {
   const { repo, store } = setUp();
   const own = { site: 'feed.example.org' };
   const elsewhere = web({ 'https://other.example.net/icon.png': { body: PNG } });
@@ -82,9 +82,21 @@ test('apostil icon refuses a host that is not the site, a picture over 100 KB, a
   assert.match((await saveIcon(store, repo.folder, 'bookfeed', 'https://feed.example.org/big.png', own, big.fetcher)).problem!, /is 102 KB\. Give an icon of at most 100 KB/);
 
   const redirect = web({ 'https://feed.example.org/go.png': { status: 302, location: 'https://cdn.example.net/icon.png' }, 'https://cdn.example.net/icon.png': { body: PNG } });
-  const bounced = await saveIcon(store, repo.folder, 'bookfeed', 'https://feed.example.org/go.png', own, redirect.fetcher);
-  assert.match(bounced.problem!, /cdn\.example\.net is not the site/);
-  assert.deepEqual(redirect.asked, ['https://feed.example.org/go.png']);
+  // A redirect from the site, and a picture that a page of the site names, may be on another host: the site chose it.
+  assert.equal((await saveIcon(store, repo.folder, 'bookfeed', 'https://feed.example.org/go.png', own, redirect.fetcher)).saved, true);
+  const named = web({ 'https://feed.example.org': { body: '<html><head><link rel="icon" href="https://cdn.example.net/icon.png"></head></html>', type: 'text/html' }, 'https://cdn.example.net/icon.png': { body: PNG } });
+  assert.equal((await saveIcon(store, repo.folder, 'bookfeed', 'https://feed.example.org', own, named.fetcher)).saved, true);
+  // An ICO over 100 KB gives its largest frame that fits.
+  const ico = Buffer.alloc(6 + 32);
+  ico.writeUInt16LE(1, 2);
+  ico.writeUInt16LE(2, 4);
+  const frames = [Buffer.alloc(120 * 1024), PNG];
+  let offset = ico.length;
+  frames.forEach((frame, at) => { ico[6 + at * 16] = at ? 32 : 0; ico.writeUInt32LE(frame.length, 6 + at * 16 + 8); ico.writeUInt32LE(offset, 6 + at * 16 + 12); offset += frame.length; });
+  const bigIco = web({ 'https://feed.example.org/favicon.ico': { body: Buffer.concat([ico, ...frames]) } });
+  const shrunk = await saveIcon(store, repo.folder, 'bookfeed', 'https://feed.example.org/favicon.ico', own, bigIco.fetcher);
+  assert.equal(shrunk.saved, true, shrunk.problem ?? '');
+  assert.equal(shrunk.icon, 'png');
   // A redirect inside the site is followed.
   const inside = web({ 'https://feed.example.org/go.png': { status: 301, location: 'https://static.feed.example.org/icon.png' }, 'https://static.feed.example.org/icon.png': { body: PNG } });
   assert.equal((await saveIcon(store, repo.folder, 'bookfeed', 'https://feed.example.org/go.png', own, inside.fetcher)).saved, true);

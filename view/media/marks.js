@@ -893,7 +893,7 @@ const Marks = (() => {
     return holder.firstChild;
   }
 
-  const relationWords = { calls: 'calls it', stores: 'keeps data in it', sends: 'sends to it', 'runs on': 'runs on it' };
+  const relationWords = { calls: 'calls it', stores: 'keeps data in it', sends: 'sends to it', 'runs on': 'runs on it', loads: 'loads it' };
   const placesWord = (count) => `${count} ${count === 1 ? 'place' : 'places'}`;
   const baseName = (path) => path.split('/').pop();
 
