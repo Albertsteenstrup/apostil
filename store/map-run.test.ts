@@ -138,7 +138,7 @@ test('the words of the line of Home: the run of Home, his own session that opens
   const desktopLine = mapRunLine(desktop, { now, name: 'Map of library-app' })!;
   assert.deepEqual([desktopLine.words, desktopLine.tip?.split('\n')[0]], ['Writing the map', 'Claude Code session "Map of library-app" · overview, 3 of 8 areas, notes of 40 files']);
   assert.equal(desktopLine.opens, 'app');
-  assert.ok(!desktopLine.chart && !mapRunLine(homeRun('codex', AT, SESSION), { now })?.chart); // the chart reads only the files of a run of Home by Claude Code
+  assert.ok(desktopLine.chart && !mapRunLine(homeRun('codex', AT, SESSION), { now })?.chart); // the chart reads the files of any session of Claude Code
   assert.ok(!JSON.stringify(desktopLine).includes('reader@example.com'));
 
   // His own session in a terminal has no link: it opens in a terminal that continues it. A session that did not name itself is an agent session.

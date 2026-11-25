@@ -89,8 +89,8 @@ export interface HomeData {
   sendTo?: SendTo; // what the picker of a comment on the map offers: a new session of each app, with its models
   writing?: string; // the app that writes the map now
   mapRun?: MapRunLine; // while a map run writes, or after one stopped: which session, and what is saved so far
-  chart?: MapRunChart; // while a run of Home writes the map: its live chart, which Home's frame holds (home-page.ts adds it)
-  runChart?: true; // the last run of Home ended: "Map run" in the head opens its chart
+  chart?: MapRunChart; // while a run by Claude Code writes the map (hasChart): its live chart, which Home's frame holds (home-page.ts adds it)
+  runChart?: true; // the last run by Claude Code ended: "Map run" in the head opens its chart
   needsSetup?: boolean; // with no map: no agent app has the skills, so Home shows "Set up for agents"
   scope?: { leftOut: number; added: number }; // with no map and a .apostilignore: the files that it leaves out and adds (scopeCounts), a quiet line under the press
   noCommit?: true; // the folder is no Git repo or has no commit yet: it has no id, so no map can be saved

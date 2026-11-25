@@ -521,7 +521,7 @@ try {
       presses: [...document.querySelectorAll('[data-write]')].map((a) => a.textContent),
       moves: [line, ...line.querySelectorAll('*:not(.spin)'), ...document.querySelectorAll('.nomap .dot')].filter((el) => getComputedStyle(el).animationName !== 'none').length,
       firstLine: document.querySelector('.nomap p')?.textContent, nodes: document.querySelectorAll('#view g.node.go').length, lines: document.querySelectorAll('.maprun').length,
-      underHead: !!document.querySelector('#summary .maprun'), bar: line.querySelector('.ovbar i')?.style.width ?? '',
+      underHead: !!document.querySelector('#summary .maprun'), bar: line.querySelector('.ovbar i')?.style.width ?? '', chart: !!document.querySelector('#view > .runchart'),
     };
   });
   await homeAt('?run=desktop');
@@ -542,8 +542,8 @@ try {
   await home.goto(`file://${listFile}?run=1`);
   await home.waitForFunction(() => window.apostilListDone, null, { timeout: 5000 });
   const homeRow = await home.$eval('.cl .home', (row) => ({ text: row.textContent, state: row.querySelector('.state')?.textContent }));
-  check('while a map run writes, Home says in one quiet line "Writing the map" with the turning mark and the bar of the run (the session and what is saved so far stand in the tooltip), and nothing else in it moves: on the map, for a session of the desktop app with "Open the session", which opens it in its app (a click asks VS Code to open it); for a session in a terminal with "Open the session", which opens a terminal that continues it; in a repo with no map, for the run of Home, under the head in place of the press, with no link to its chart, which the frame holds; after the run of Home ended, "Map run" at the right of the head opens the tab "Map run"; and the row "Home" of the list says "writing the map"',
-    ownRun?.text === 'Writing the map · Open the session' && ownRun.lines === 1 && ownRun.nodes === 8 && ownRun.moves === 0 && /^\d+%$/.test(ownRun.bar) && ownRun.presses.length === 0
+  check('while a map run writes, Home says in one quiet line "Writing the map" with the turning mark and the bar of the run (the session and what is saved so far stand in the tooltip), and nothing else in it moves: on the map, for a session of the desktop app with "Open the session", which opens it in its app (a click asks VS Code to open it), and its chart in the frame; for a session in a terminal with "Open the session", which opens a terminal that continues it; in a repo with no map, for the run of Home, under the head in place of the press, with no link to its chart, which the frame holds; after the run of Home ended, "Map run" at the right of the head opens the tab "Map run"; and the row "Home" of the list says "writing the map"',
+    ownRun?.text === 'Writing the map · Open the session' && ownRun.lines === 1 && ownRun.chart && ownRun.nodes === 0 && ownRun.moves === 0 && /^\d+%$/.test(ownRun.bar) && ownRun.presses.length === 0
       && ownRun.tip === `Claude Code session "Map of library-app" · ${SAVED}\nSession 1a2b3c4d-0000-4000-8000-00000000cafe\nAreas: Lending, Desk, Catalogue` && ownRun.opens === 'Opens the session in its app' && !!opened
       && terminalRun?.text === 'Writing the map · Open the session' && terminalRun.opens === 'Opens a terminal of VS Code that continues the session'
       && homeRun?.text === 'Writing the map' && homeRun.chartLink === 0 && ran.text === 'Map run' && ran.shown && ran.right < 150 && ran.sent && /one time axis/.test(ran.tip) && homeRun.underHead && homeRun.presses.length === 0 && homeRun.moves === 0 && !homeRun.opens
@@ -559,10 +559,10 @@ try {
   const stoppedOnMap = await runLine();
   await home.click('.maprun [data-write]', { timeout: 3000 }).catch(() => {});
   const again = await home.evaluate(() => window.apostilSent.find((message) => message.type === 'writeMap'));
-  check('after a map run that stopped, Home says so in one line with the session and what was saved: in a repo with no map in place of its first line, above the press that maps the repo; on the map with one "Start again" for the app of the press (a click asks VS Code to start it)',
-    stoppedNoMap?.text === `${STOPPED} · Open the session` && stoppedNoMap.state === 'stopped' && stoppedNoMap.firstLine === stoppedNoMap.text && stoppedNoMap.lines === 1
+  check('after a map run that stopped, Home says so in one line with the session, what was saved and "Run chart": in a repo with no map in place of its first line, above the press that maps the repo; on the map with one "Start again" for the app of the press (a click asks VS Code to start it)',
+    stoppedNoMap?.text === `${STOPPED} · Open the session · Run chart` && stoppedNoMap.state === 'stopped' && stoppedNoMap.firstLine === stoppedNoMap.text && stoppedNoMap.lines === 1
       && stoppedNoMap.presses.join() === 'Map this repo'
-      && stoppedOnMap?.text === `${STOPPED} · Open the session · Start again · Another app` && stoppedOnMap.nodes === 8 && stoppedOnMap.lines === 1 && again?.app === 'claude-code',
+      && stoppedOnMap?.text === `${STOPPED} · Open the session · Run chart · Start again · Another app` && stoppedOnMap.nodes === 8 && stoppedOnMap.lines === 1 && again?.app === 'claude-code',
     JSON.stringify({ stoppedNoMap, stoppedOnMap, again }));
 
   // The tab "Map run", from the made-up map session of example-data.ts as the real reader reads it: 10 minutes in, and after the run ended.
