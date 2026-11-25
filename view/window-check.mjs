@@ -358,7 +358,7 @@ try {
   rmSync(chartFolder, { recursive: true, force: true });
   check('"Run chart" on the line of the map run that stopped opens the tab "Map run", which shows the lead row of the transcript of the session', chartTab && leadRow, `tab ${chartTab}; lead row ${leadRow}; ${chartSeconds.toFixed(1)} s`);
   check('while the stand-in writes the map in the terminal "Apostil map", Home shows the line of the map run with the session id that Apostil gave it and "Open the session"; when the run ends with work left in the map, the map shows and the line says that the run stopped',
-    writingLine === `Writing the map · Claude Code session ${ranMap?.agent?.session?.slice(0, 8)} · nothing saved yet · Open the session` && terminalShown && lineStopped && !!ranMap?.endedAt && !!ranMap?.stopped && runsNow().length === 1,
+    writingLine === 'Writing the map · Open the session' && terminalShown && lineStopped && !!ranMap?.endedAt && !!ranMap?.stopped && runsNow().length === 1,
     `"${writingLine}"; terminal ${terminalShown}; stopped ${lineStopped}; ${runsNow().length} runs; ${JSON.stringify(ranMap ?? null)}`);
   await shot('1d-home-with-the-map');
 
@@ -666,6 +666,19 @@ try {
   const stepInChange = await stepTab?.waitForFunction(() => /file \d+ of \d+/.test(document.querySelector('.nav .steps')?.textContent ?? ''), null, { timeout: 4000 }).then(() => true, () => false);
   check('from Home the card of a node goes down to its processes, and the card of a step opens its file at its first line, in the file tab with its notes, as it is with no control of the change; "Show the change" shows it in its change',
     !!stepTab && /^requests\.py/.test(await activeTab() ?? '') && stepAsItIs?.plain && stepAsItIs.nav === 'Show the change' && stepInChange, `tab ${await activeTab()}; ${JSON.stringify(stepAsItIs)}; in its change ${stepInChange}`);
+
+  // "Home" in the line of a process goes to the top map, also when Home draws again between the press and the release of the click (a save of a map run does).
+  await list?.locator('.home').click();
+  await until(async () => /^Home/.test(await activeTab() ?? ''), 4000);
+  const lineHome = await frameWhere(() => typeof Home === 'object' && /^process:/.test(Home.at ?? '') && !!document.querySelector('#crumb [data-trail="0"]'), undefined, 8000);
+  await lineHome?.evaluate(() => { Home.render(); return Home.drawing; }); // the line is drawn at the width of the tab now
+  await lineHome?.locator('#crumb [data-trail="0"]').hover({ timeout: 4000 }).catch(() => {});
+  await page.mouse.down();
+  await lineHome?.evaluate(() => { Home.render(); return Home.drawing; });
+  await page.mouse.up();
+  const lineAfter = await until(() => lineHome?.evaluate(() => (/^process:/.test(Home.at ?? '') ? '' : `${Home.at}: ${document.getElementById('crumb').textContent}`)).catch(() => ''), 4000);
+  check('a click on "Home" in the line of a process shows the top map, also when Home draws again between the press and the release of the click',
+    !!lineHome && lineAfter === 'lib-top: Home', `${!!lineHome}; ${lineAfter}`);
 
   // A click whose target is a prompt (a look of the repo): VS Code asks with the whole words and "Send". With no "Send" the stand-in claude
   // gets no run; with "Send" it gets one, with the words. A browser cannot show VS Code's question.

@@ -108,7 +108,7 @@ const Trail = (() => {
    */
   function show(el, step, { attrs = '', extra = '', look } = {}) {
     own = step;
-    line = { el, attrs, extra, look };
+    line = { el, attrs, extra, look, drawn: line?.el === el ? line.drawn : undefined };
     draw();
   }
 
@@ -171,9 +171,13 @@ const Trail = (() => {
     if (!line || !own) return;
     const { el } = line;
     const shown = upTo(steps, own);
+    const whole = lineHtml(shown, 0);
+    const drawn = `${whole}${unfolded}${el.clientWidth}`;
+    if (drawn === line.drawn && el.hasChildNodes()) return; // the same line stays as it is: a click that began on it still ends on it
+    line.drawn = drawn;
     el.classList.toggle('open', unfolded);
     let fold = 0;
-    el.innerHTML = lineHtml(shown, 0);
+    el.innerHTML = whole;
     while (!unfolded && el.scrollWidth > el.clientWidth && fold < shown.length - 2) el.innerHTML = lineHtml(shown, ++fold);
     el.dataset.folded = fold;
   }
