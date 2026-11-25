@@ -295,7 +295,7 @@ const Remarks = (() => {
   const appIcon = (app) => (app === 'github' ? '<i class="ico git-pull-request"></i>' : agentIcon({ app }));
 
   /** The control of the model and the effort of the run of a choice (RunPick in tools.js): it starts again in a new card and for another choice. */
-  const runControl = (choice) => (choice.run ? RunPick.html('card', { app: choice.app, list: choice.list, run: choice.run, reset: `${card.serial}:${choice.key}`, onOpen: () => { if (card.menu) { card.menu = false; redrawPicker(); } } }) : '');
+  const runControl = (choice) => (choice.run ? RunPick.html('card', { app: choice.app, list: choice.list, run: choice.run, reset: `${card.serial}:${choice.key}`, onOpen: () => { if (card.menu) { card.menu = false; redrawPicker(); } }, onChange: () => redrawPicker() }) : '');
 
   /**
    * The closed picker: "Send to <icon> Claude Code · this session", or "Keep it as a note", and on its own line after the place the model and the effort
@@ -311,30 +311,55 @@ const Remarks = (() => {
     return `<a class="pick${card.menu ? ' on' : ''}" data-pick tabindex="0">${shown}${DOWN}</a>${run ? `<div class="prun">${run}</div>` : ''}${card.menu ? menuHtml() : ''}`;
   }
 
-  /** The menu of the picker: each connected app with its sessions and a new session, then GitHub, then no agent; the model of each run in faint words. */
+  const SHOWN_SESSIONS = 5;
+
+  /**
+   * The menu of the picker: the connected apps side by side, the one of the choice lit; the models of that app and the efforts of its model; its sessions
+   * (this session, a new session, the newest 5 known ones and the rest after "Show more"); then GitHub and no agent.
+   */
   function menuHtml() {
-    let app = null;
-    const rows = card.choices.map((choice) => {
-      const head = choice.app !== app && choice.to?.kind ? `<div class="ph">${appIcon(choice.app)}${esc(appName({ app: choice.app }))}</div>` : '';
-      const sep = choice.app !== app && !choice.to?.kind ? '<div class="psep"></div>' : '';
-      app = choice.app;
-      const sub = [choice.sub, States.runWords(choice.app, choice.run, choice.list)].filter(Boolean).join(' · ');
+    const agents = card.choices.filter((choice) => choice.to?.kind);
+    const apps = [...new Set(agents.map((choice) => choice.app))];
+    const app = card.picked?.to?.kind ? card.picked.app : null;
+    const tabs = apps.length ? `<div class="ptabs">${apps.map((one) => `<a class="ptab${one === app ? ' on' : ''}" data-menu-app="${esc(one)}">${appIcon(one)}${esc(appName({ app: one }))}</a>`).join('')}</div>` : '';
+    const row = (choice) => {
+      const sub = [choice.sub, choice.to?.kind ? '' : States.runWords(choice.app, choice.run, choice.list)].filter(Boolean).join(' · ');
       const lead = choice.app === 'github' ? appIcon('github') : '';
-      return `${head}${sep}<a class="pi${choice.to?.kind ? '' : ' flat'}${choice === card.picked ? ' on' : ''}" data-choice="${esc(choice.key)}">${lead}<span>${esc(choice.words)}${sub ? `<i>${esc(sub)}</i>` : ''}</span>${choice === card.picked ? CHECK : ''}</a>`;
-    }).join('');
+      return `<a class="pi${choice.to?.kind ? '' : ' flat'}${choice === card.picked ? ' on' : ''}" data-choice="${esc(choice.key)}">${lead}<span>${esc(choice.words)}${sub ? `<i>${esc(sub)}</i>` : ''}</span>${choice === card.picked ? CHECK : ''}</a>`;
+    };
+    const ofApp = agents.filter((choice) => choice.app === app);
+    const known = ofApp.filter((choice) => choice.to.kind === 'session');
+    const shown = card.allSessions ? known : known.slice(0, SHOWN_SESSIONS);
+    const more = known.length > shown.length ? `<a class="pmore" data-more-sessions>${esc(W.showMore(known.length - shown.length))}</a>` : '';
+    const sessions = app ? `<div class="ph">${esc(W.sessionHead)}</div>${[...ofApp.filter((choice) => choice.to.kind !== 'session'), ...shown].map(row).join('')}${more}` : '';
+    const rest = card.choices.filter((choice) => !choice.to?.kind);
     const none = (App.page.apps ?? []).length || App.page.pullOnly ? '' : `<p class="pnone">${esc(W.noAppConnected)} <a data-setup>${esc(W.setUpAgents)}</a></p>`;
-    return `<div class="pmenu">${rows}${none}</div>`;
+    return `<div class="pmenu">${tabs}${app ? RunPick.inline('card') : ''}${sessions}${rest.length && apps.length ? '<div class="psep"></div>' : ''}${rest.map(row).join('')}${none}</div>`;
   }
 
-  /** Picks a choice: the picker shows it, and the next comment of this page starts there. */
-  function pick(key) {
+  /** Picks a choice: the picker shows it, and the next comment of this page starts there. With `open` the menu stays open (a click on an app). */
+  function pick(key, open = false) {
     const choice = card?.choices.find((one) => one.key === key);
     if (!choice) return;
     card.picked = choice;
-    card.menu = false;
+    card.menu = open;
     lastPick = choice.to ?? null;
     redrawPicker();
   }
+
+  /** A click on an app in the menu: its choice that the picker would start at, this session, else a new session; the menu stays open for its model. */
+  function pickApp(app) {
+    if (card.picked?.app === app) return;
+    card.allSessions = false;
+    const ofApp = card.choices.filter((choice) => choice.app === app);
+    pick((ofApp.find((choice) => choice.to?.kind === 'current') ?? ofApp.find((choice) => choice.to?.kind === 'new') ?? ofApp[0]).key, true);
+  }
+
+  /** The hover window of a known session: its whole name, its folder and when it was last active. */
+  const sessionWindow = (choice) => () => ({
+    title: choice.seen.name || choice.to.session, width: 320, pad: true,
+    body: `<div class="mr-win"><p>${esc(choice.seen.folder ?? '')}</p><p>${esc(W.lastActive(choice.seen.at))}</p></div>`,
+  });
 
   function redrawPicker() {
     const at = card?.el.querySelector('.pickbox');
@@ -343,6 +368,10 @@ const Remarks = (() => {
     RunPick.placeIn(at);
     const menu = at.querySelector('.pmenu:not(.rmenu)');
     if (!menu) return;
+    for (const el of menu.querySelectorAll('[data-choice]')) {
+      const choice = card.choices.find((one) => one.key === el.dataset.choice);
+      if (choice?.seen) Hover.attach(el, sessionWindow(choice));
+    }
     // Under the picker when it fits, else above it; when neither fits, on the side with more room, which it scrolls.
     const pick = at.getBoundingClientRect();
     const [below, above] = [innerHeight - pick.bottom - 16, pick.top - 16];
@@ -1002,6 +1031,9 @@ const Remarks = (() => {
     if (target.closest('[data-close]')) return closeCard();
     if (target.closest('[data-resolve]')) return act(card.reply, 'resolve');
     if (target.closest('[data-pick]')) { card.menu = !card.menu; RunPick.close('card'); return redrawPicker(); }
+    const app = target.closest('[data-menu-app]');
+    if (app) return pickApp(app.dataset.menuApp);
+    if (target.closest('[data-more-sessions]')) { card.allSessions = true; return redrawPicker(); }
     const choice = target.closest('[data-choice]');
     if (choice) { pick(choice.dataset.choice); return focusField(card.el, card.key === 'new' ? 'new' : card.reply); }
     const reply = target.closest('[data-reply-to]');

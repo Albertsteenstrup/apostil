@@ -280,7 +280,7 @@ test('the state line of a row and of a remark: the first case that applies, the 
   assert.deepEqual(States.remarkLine({ state: 'open' }, undefined, false), { text: '' });
 });
 
-test('the picker of where a comment goes: for each connected app this session, the known sessions of the repo (at most 3, newest first) and a new session, each with the model and effort of its run; GitHub only when the pull request takes it; no agent last; a page with no stored change offers only GitHub', () => {
+test('the picker of where a comment goes: for each connected app this session, the known sessions of the repo (at most 15, newest first; the menu shows 5 and the rest after "Show more") and a new session, each with the model and effort of its run; GitHub only when the pull request takes it; no agent last; a page with no stored change offers only GitHub', () => {
   const now = Date.parse('2026-11-18T12:00:00Z');
   const at = (minutes: number) => new Date(now - minutes * 60_000).toISOString();
   const sessions: { app: string; session: string; name?: string; at: string; run?: object }[] = [1, 2, 3, 4].map((n) => ({ app: 'claude-code', session: `known-000${n}`, name: n === 1 ? 'Tests for holds' : undefined, at: at(n * 10) }));
@@ -297,6 +297,7 @@ test('the picker of where a comment goes: for each connected app this session, t
     'claude-code:session:known-0001 | Tests for holds | used 10 min ago | Sonnet 5.5 · Extra',
     'claude-code:session:known-0002 | known-00 | used 20 min ago | Sonnet 5.5 · Medium', // its model is unknown: that of a new session
     'claude-code:session:known-0003 | known-00 | used 30 min ago | Sonnet 5.5 · Medium',
+    'claude-code:session:known-0004 | known-00 | used 40 min ago | Sonnet 5.5 · Medium',
     'claude-code:new | New session | Sonnet 5.5 · Medium',
     'codex:new | New session | Luna 6 · High', // the setting, at high
     "opencode:new | New session | OpenCode's own model", // no small model: OpenCode takes the model of its own settings, with no choice
@@ -305,7 +306,7 @@ test('the picker of where a comment goes: for each connected app this session, t
   ]);
   assert.deepEqual(choices[1].to, { app: 'claude-code', kind: 'session', session: 'known-0001', name: 'Tests for holds' });
   assert.equal(States.choiceWords(choices[0]), 'Claude Code · this session');
-  assert.equal(States.choiceWords(choices[5]), 'Codex · new session');
+  assert.equal(States.choiceWords(choices[6]), 'Codex · new session');
   // An effort that a model does not take falls to the nearest lower one.
   assert.deepEqual([States.nearestEffort(efforts, 'ultra'), States.nearestEffort([...efforts, 'ultra'], 'ultra'), States.nearestEffort(['high', 'max'], 'medium')], ['max', 'ultra', 'high']);
   assert.equal(States.choiceWords(choices.at(-1)), 'Keep it as a note');

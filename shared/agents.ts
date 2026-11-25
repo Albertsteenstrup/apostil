@@ -1,6 +1,6 @@
 // The agent app and session that made a change: how to find it, open it and continue it, or start a new session.
 
-import { accessSync, closeSync, constants, existsSync, fstatSync, openSync, readdirSync, readFileSync, readSync, statSync } from 'node:fs';
+import { accessSync, closeSync, constants, existsSync, fstatSync, openSync, readdirSync, readFileSync, readSync, realpathSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { delimiter, join } from 'node:path';
 import { WRITERS_AT_ONCE } from './map-estimate';
@@ -471,12 +471,17 @@ function nameIn<T>(path: string, session: string, read: (path: string) => T | un
   return name;
 }
 
-/** The newest title that he gave a Claude Code session, and the newest one that Claude Code gave it, in one read from the end of its transcript. */
+const TITLE_LINES = 50; // Claude Code writes both titles again on each turn, so a title that he gave stands within these lines of its newest title
+
+/** The newest title that he gave a Claude Code session, and the newest one that Claude Code gave it, read from the end of its transcript. */
 function claudeTitles(path: string): { given?: string; auto?: string } {
   let auto: string | undefined;
+  let after = 0;
   const given = newestLine(path, (line) => {
+    const own = field(line, 'custom-title', (record) => record.type === 'custom-title', 'customTitle');
+    if (own) return own;
     auto ??= field(line, 'ai-title', (record) => record.type === 'ai-title', 'aiTitle');
-    return field(line, 'custom-title', (record) => record.type === 'custom-title', 'customTitle');
+    return auto && ++after > TITLE_LINES ? '' : undefined;
   });
   return { ...(given ? { given } : {}), ...(auto ? { auto } : {}) };
 }
@@ -487,6 +492,19 @@ export function claudeTranscript(session: string, home: string): string | undefi
   let folders: string[];
   try { folders = readdirSync(projects); } catch { return undefined; }
   return folders.map((folder) => join(projects, folder, `${session}.jsonl`)).find((path) => existsSync(path));
+}
+
+/** The newest sessions of Claude Code in a folder, from its transcripts (the folder of ~/.claude/projects named after its path and after its real path). */
+export function claudeSessionsIn(folder: string, most: number, home = homedir()): { session: string; at: string }[] {
+  let real = folder;
+  try { real = realpathSync(folder); } catch { /* the folder as it is */ }
+  const found = [...new Set([folder, real].map((path) => path.replace(/[^a-zA-Z0-9]/g, '-')))].flatMap((name) => {
+    const projects = join(home, '.claude', 'projects', name);
+    let files: string[];
+    try { files = readdirSync(projects).filter((file) => /^[\w-]+\.jsonl$/.test(file)); } catch { return []; }
+    return files.map((file) => ({ session: file.slice(0, -'.jsonl'.length), at: statSync(join(projects, file), { throwIfNoEntry: false })?.mtimeMs ?? 0 }));
+  });
+  return found.sort((a, b) => b.at - a.at).slice(0, most).map(({ session, at }) => ({ session, at: new Date(at).toISOString() }));
 }
 
 /** The name of a conversation of Antigravity, from ~/.gemini/antigravity-cli/cache/conversation_metadata.json, kept while the file does not change. */

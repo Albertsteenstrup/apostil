@@ -2,9 +2,9 @@
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { appendFileSync, chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, chmodSync, mkdirSync, utimesSync, readFileSync, writeFileSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
-import { agentFromEnv, BILLING, claudeDefaultMode, claudeRunMode, codexDefaultSandbox, INSTALL, installedApps, isOptionProblem, isSignInProblem, mergeAgent, modelWords, opencodeSmallModel, runFix, runProblem, UPDATE, newestLine, newRunCommand, openSessionCommand, resumeCommand, sessionLink, sessionName, sessionOpens, SIGN_IN } from './agents';
+import { agentFromEnv, BILLING, claudeSessionsIn, claudeDefaultMode, claudeRunMode, codexDefaultSandbox, INSTALL, installedApps, isOptionProblem, isSignInProblem, mergeAgent, modelWords, opencodeSmallModel, runFix, runProblem, UPDATE, newestLine, newRunCommand, openSessionCommand, resumeCommand, sessionLink, sessionName, sessionOpens, SIGN_IN } from './agents';
 import { tempFolder } from './test-repo';
 import { pullRequestsFromJson, stateOf, type RawPullRequest } from './pull-requests';
 
@@ -346,3 +346,17 @@ test('a run keeps the default permission mode of Claude Code when a run can work
 });
 
 
+
+test('claudeSessionsIn lists the newest Claude Code sessions of a folder from its transcripts, newest first, and no subagent of a session', () => {
+  const home = tempFolder('apostil-home-');
+  const folder = '/made-up/work/library.app';
+  const projects = join(home, '.claude', 'projects', '-made-up-work-library-app');
+  mkdirSync(join(projects, 'made-up-1', 'subagents'), { recursive: true });
+  for (const [session, minute] of [['made-up-1', 1], ['made-up-2', 3], ['made-up-3', 2]] as const) {
+    writeFileSync(join(projects, `${session}.jsonl`), '{}\n');
+    utimesSync(join(projects, `${session}.jsonl`), new Date(Date.UTC(2026, 10, 25, 9, minute)), new Date(Date.UTC(2026, 10, 25, 9, minute)));
+  }
+  writeFileSync(join(projects, 'made-up-1', 'subagents', 'agent-a.jsonl'), '{}\n');
+  assert.deepEqual(claudeSessionsIn(folder, 2, home), [{ session: 'made-up-2', at: '2026-11-25T09:03:00.000Z' }, { session: 'made-up-3', at: '2026-11-25T09:02:00.000Z' }]);
+  assert.deepEqual(claudeSessionsIn('/made-up/other', 5, home), []);
+});
