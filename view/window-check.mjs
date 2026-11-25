@@ -329,10 +329,10 @@ try {
     questionButtons.join() === 'New Claude Code session,New Codex session,New Antigravity session,Not now' && mapRun.startsWith('Write the map of this repo for Apostil Home') && mapRun.includes('Then describe the change of this branch'),
     `${questionButtons.join()}; ${mapRun.slice(0, 120).replace(/\n/g, ' | ')}`);
 
-  // While the stand-in writes in its terminal, Home says which session writes the map (the id that Apostil gave it), with the link that shows the
-  // terminal. Then the stand-in saves the map and ends, and the terminal closes.
-  const writingFrame = await frameWhere(() => /Claude Code session [0-9a-f]{8} /.test(document.querySelector('#summary .maprun[data-run="writing"]')?.textContent ?? ''), undefined, 8000);
-  const writingLine = writingFrame ? await writingFrame.evaluate(() => document.querySelector('.maprun').textContent) : '';
+  // While the stand-in writes in its terminal, Home says that the map is written, with the link that shows the terminal; its tooltip names the
+  // session (the id that Apostil gave it). Then the stand-in saves the map and ends, and the terminal closes.
+  const writingFrame = await frameWhere(() => /^Writing the map/.test(document.querySelector('#summary .maprun[data-run="writing"]')?.textContent ?? ''), undefined, 8000);
+  const [writingLine, writingTip] = writingFrame ? await writingFrame.evaluate(() => [document.querySelector('.maprun').textContent, document.querySelector('.maprun [title]')?.title ?? '']) : ['', ''];
   const terminalShown = await until(() => page.evaluate(() => /Apostil map/.test(document.querySelector('.part.panel')?.textContent ?? '')), 5000);
   await shot('1c2-home-while-the-map-is-written');
   // After the run, "Run chart" opens the tab "Map run", which reads a small made-up transcript of the session in the window's agent home and shows the lead row.
@@ -357,8 +357,8 @@ try {
   if (chartTab) await closeTab('Map run');
   rmSync(chartFolder, { recursive: true, force: true });
   check('"Run chart" on the line of the map run that stopped opens the tab "Map run", which shows the lead row of the transcript of the session', chartTab && leadRow, `tab ${chartTab}; lead row ${leadRow}; ${chartSeconds.toFixed(1)} s`);
-  check('while the stand-in writes the map in the terminal "Apostil map", Home shows the line of the map run with the session id that Apostil gave it and "Open the session"; when the run ends with work left in the map, the map shows and the line says that the run stopped',
-    writingLine === 'Writing the map · Open the session' && terminalShown && lineStopped && !!ranMap?.endedAt && !!ranMap?.stopped && runsNow().length === 1,
+  check('while the stand-in writes the map in the terminal "Apostil map", Home shows "Writing the map" and "Open the session", with the session id that Apostil gave it in the tooltip; when the run ends with work left in the map, the map shows and the line says that the run stopped',
+    writingLine === 'Writing the map · Open the session' && writingTip.includes(`Claude Code session ${ranMap?.agent?.session?.slice(0, 8)}`) && terminalShown && lineStopped && !!ranMap?.endedAt && !!ranMap?.stopped && runsNow().length === 1,
     `"${writingLine}"; terminal ${terminalShown}; stopped ${lineStopped}; ${runsNow().length} runs; ${JSON.stringify(ranMap ?? null)}`);
   await shot('1d-home-with-the-map');
 
