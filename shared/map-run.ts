@@ -164,9 +164,9 @@ export function mapRunLine(run: MapRun | undefined, has: { name?: string; alive?
   if (state === 'done') return undefined;
   const session = sessionWords(run, has.name);
   const saved = partsWords(run.parts);
-  const words = state === 'writing' ? `Writing the map · ${session} · ${saved || 'nothing saved yet'}` : `The map run of ${session} stopped ${saved ? `after ${saved}` : 'with nothing saved'}`;
+  const words = state === 'writing' ? 'Writing the map' : `The map run of ${session} stopped ${saved ? `after ${saved}` : 'with nothing saved'}`;
   const id = run.agent?.session;
-  const tip = [id ? `Session ${id}` : '', run.parts.areas?.length ? `Areas: ${run.parts.areas.join(', ')}` : ''].filter(Boolean).join('\n');
+  const tip = [state === 'writing' ? `${session} · ${saved || 'nothing saved yet'}` : '', id ? `Session ${id}` : '', run.parts.areas?.length ? `Areas: ${run.parts.areas.join(', ')}` : ''].filter(Boolean).join('\n');
   const shown = run.terminal && has.alive && state === 'writing';
   const opens = shown ? 'shown' : run.agent && (!run.home || state === 'stopped') && (!id || /^[\w-]+$/.test(id)) ? sessionOpens(run.agent) : undefined;
   const time = state === 'writing' ? runTimeLeft(run, has.now) : undefined;

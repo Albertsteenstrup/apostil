@@ -161,6 +161,7 @@ g.node foreignObject{overflow:visible}
 .state a:hover{text-decoration:underline;text-underline-offset:3px}
 /* the line of a map run: quiet words, a link, and the command that resumes a session, which one click selects */
 .maprun a{cursor:pointer}
+.maprun .ovw{display:inline-flex;margin-left:8px;vertical-align:middle}
 .dot{display:inline-block;width:6px;height:6px;border-radius:3px;background:var(--teal);margin-right:6px;vertical-align:1px}
 .dot.pulse{animation:pulse 2.4s ease-in-out infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}

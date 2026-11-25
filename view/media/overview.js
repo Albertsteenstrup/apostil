@@ -6,7 +6,7 @@
 'use strict';
 
 const FULL_KEY = 'apostil.diagramFull'; // as a file in a browser, the storage of the browser stands in for the state of VS Code
-const GROW = 1.4; // in the overview a small diagram is drawn up to this much larger, so that it fills the width; a drawing card grows only so far
+const GROW = 1; // a diagram is never drawn larger than its own size (the words as Mermaid drew them), however few nodes it has; it only shrinks to fit
 const OVERVIEW_LEAST = 220; // the least height of its frame
 const OVERVIEW_ROOM = 24; // the room between the drawing and each edge of its frame
 const PEEK_CONTENT = 36; // under the head of the first row of cards, this much of their content shows at the bottom of the tab
@@ -379,7 +379,7 @@ const Overview = {
    * The cards under the diagram, into `holder`: one for each item, in its order. An item is { title, draw(box), shape, open() } for a node with a diagram
    * of its own, drawn small and read only (`shape`: drawingShape() of its drawing), or { title, files: [{ path, line?, folder?, count?, counts?, diff? }] }
    * for a node that leads to files; `changes`: the changes that touch the node, as rows at its bottom; `node` is the id of its node, and `run` ({ state, share }) the state of its area while a map is written: a card
-   * that a writer works on shows a sketch that shimmers, a turning mark and its own bar; a card that waits is empty, with a dashed edge and a faint name.
+   * that a writer works on shows a turning mark and its own bar, and a sketch that shimmers while its diagram is not written yet; a card that waits is empty, with a dashed edge and a faint name.
    * A card with a drawing is filled when it comes into view, so a level with many nodes opens at once. A click on a card with a diagram goes one level
    * down (open); a click on a file row does what the page does for that row. The cards take the sizes of their contents and are placed with no gaps.
    */
@@ -400,9 +400,9 @@ const Overview = {
     for (const card of holder.querySelectorAll('.ovc')) {
       const item = items[Number(card.dataset.card)];
       const body = card.querySelector('.ovb');
-      if (item.run?.state === 'working') body.innerHTML = sketchHtml(true);
+      if (item.run?.state === 'working' && !item.draw) body.innerHTML = sketchHtml(true);
       else if (item.files) body.innerHTML = `<div class="ovf">${item.files.map(fileRowHtml).join('')}</div>`;
-      if (item.run || item.files) card.dataset.drawn = '';
+      if (item.files || (item.run && !item.draw)) card.dataset.drawn = '';
     }
     this.layout(holder, items);
     const seen = new IntersectionObserver((entries) => {
@@ -414,7 +414,7 @@ const Overview = {
     }, { rootMargin: '200px' });
     for (const card of holder.querySelectorAll('.ovc')) {
       const item = items[Number(card.dataset.card)];
-      if (item.draw && !item.run) seen.observe(card);
+      if (item.draw) seen.observe(card);
       if (item.open) card.addEventListener('click', (event) => { if (!event.target.closest('[data-open], [data-tree], [data-open-file], [data-change-id]')) item.open(event); });
     }
     if (!this.watched?.has(holder)) {
@@ -552,11 +552,8 @@ const Overview = {
     return this.peeked;
   },
 
-  /**
-   * The card of the node that has the focus is focused too: its accent edge, and the other cards fade as the other nodes do; no card has it
-   * when no node has the focus. With `reveal`, the page scrolls smoothly, by the least amount, when no part of the card is in view.
-   */
-  focused(node, reveal = false) {
+  /** The card of the node that has the focus is focused too: its accent edge, and the other cards fade as the other nodes do; no card has it when no node has the focus. The page never moves. */
+  focused(node) {
     let own = null;
     for (const card of document.querySelectorAll('.ovc[data-node]')) {
       const on = !!node && card.dataset.node === node;
@@ -564,13 +561,6 @@ const Overview = {
       if (on) own = card;
     }
     for (const holder of document.querySelectorAll('.ovcards')) holder.classList.toggle('focus', !!own && holder.contains(own));
-    if (!own || !reveal) return;
-    // In view: the part of the tab that shows, and beside the code the half that scrolls.
-    const box = own.getBoundingClientRect();
-    const half = own.closest('.half')?.getBoundingClientRect();
-    const [top, bottom] = [Math.max(0, half?.top ?? 0), Math.min(innerHeight, half?.bottom ?? innerHeight)];
-    if (box.bottom > top && box.top < bottom) return;
-    own.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
   },
 };
 

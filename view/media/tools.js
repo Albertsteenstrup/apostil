@@ -124,16 +124,17 @@ const RUN_CHART_TIP = 'Opens a tab with what the lead session and each writer di
 const OPENS_TIP = { app: 'Opens the session in its app', terminal: 'Opens a terminal of VS Code that continues the session', shown: 'Shows the terminal where the session writes the map' };
 
 /**
- * The quiet line of a map run (`run`, a MapRunLine of shared/map-run.ts): which session writes the map and what is saved so far, or that the run stopped.
+ * The quiet line of a map run (`run`, a MapRunLine of shared/map-run.ts): "Writing the map" with the turning mark and the bar of the run, or the words of a run that stopped; the session and what is saved so far stand in the tooltip.
  * After the words, "Open the session", which VS Code opens in its app or in a terminal that continues it, and after a run of Home that stopped "Run chart" (the tab "Map run").
- * `again`: after a run that stopped, on the map, the press "Start again" (it starts `again.app`, the pointer says which) and "Another app". Nothing in the line moves.
+ * `again`: after a run that stopped, on the map, the press "Start again" (it starts `again.app`, the pointer says which) and "Another app". The bar moves with the run (barTo in home.js).
  */
 function mapRunHtml(run, again = null) {
   const words = `<span${run.tip ? ` title="${esc(run.tip)}"` : ''}>${esc(run.words)}</span>`;
+  const work = run.state === 'writing' ? workHtml(run.time?.share ?? 0) : '';
   const reach = run.opens ? `<a data-open-run title="${OPENS_TIP[run.opens]}">Open the session</a>` : '';
   const chart = run.chart && run.state !== 'writing' ? `<a data-run-chart title="${RUN_CHART_TIP}">Run chart</a>` : '';
   const press = again?.app ? `<a data-write="${esc(again.app)}" title="Starts a new ${esc(AGENT_NAMES[again.app] ?? again.app)} session">Start again</a>` : '';
-  return `<span class="state maprun" data-run="${esc(run.state)}">${[words, reach, chart, press, again?.app ? anotherAppHtml(again.apps) : ''].filter(Boolean).join(' · ')}</span>`;
+  return `<span class="state maprun" data-run="${esc(run.state)}">${[words + work, reach, chart, press, again?.app ? anotherAppHtml(again.apps) : ''].filter(Boolean).join(' · ')}</span>`;
 }
 
 /** The words of the time left of a map run: "About 14 min left", or "Less than a minute left". */
@@ -262,7 +263,7 @@ function teamChoice(key) {
  * agent and never asks the person to give them: they ride in `data-ask` for VS Code alone. Before the press: `intro` and the press, with the control of
  * the model of the run after it (`ask.team`); with no app that can be started, `intro` and the links that install one. After it: the session that does
  * the work, its state ("working", "done", "stopped") and "Open the session"; after a run that stopped, the press once more.
- * A press that started no run: why, in one sentence, and the press again. Nothing in the line moves.
+ * A press that started no run: why, in one sentence, and the press again. The bar moves with the run (barTo in home.js).
  */
 function askHtml(ask, intro) {
   const control = ask.press && ask.team ? ` · ${teamPickHtml('ask', ask.team)}` : '';

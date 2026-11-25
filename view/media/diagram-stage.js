@@ -111,6 +111,8 @@ async function drawMermaid(into, text, plain, schema, key, again = false) {
     svg.classList.toggle('litnames', /^\s*classDef lit\b/m.test(text)); // a drawing of shared/change-diagram.ts: its lit nodes have their names in teal (look.css)
     cutLifelines(svg);
     oneLineGroupTitles(svg);
+    plateGroupTitles(svg);
+    slideLabelsOffGroupTitles(svg);
     fitToContent(svg);
     // Words wider than their box: the measure of Mermaid was off (the font changed while it drew). Drawn once more, they fit.
     if (!again && wordsOverflow(svg)) return drawMermaid(into, text, plain, schema, key, true);
@@ -152,6 +154,75 @@ function oneLineGroupTitles(svg) {
       label.classList.add('pl');
       label.addEventListener('click', (event) => { event.stopPropagation(); showPaths([title]); });
     }
+  }
+}
+
+/** The rectangles on screen that the words of the group titles cover, with a little room around them. */
+function groupTitleRects(svg) {
+  const rects = [];
+  for (const label of svg.querySelectorAll('g.cluster .cluster-label')) {
+    const line = label.querySelector('p') ?? label.querySelector('span');
+    if (!line) continue;
+    const range = document.createRange();
+    range.selectNodeContents(line);
+    const [words, room] = [range.getBoundingClientRect(), line.getBoundingClientRect()];
+    if (words.width) rects.push({ left: words.left - 4, right: Math.min(words.right, room.right) + 4, top: words.top - 2, bottom: words.bottom + 2 });
+  }
+  return rects;
+}
+
+const rectsMeet = (a, b) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+
+/** A title stands on a plate: the arrows pass behind it (a mask on each group of arrows leaves out the place of the words), so the words stay whole over the colour of their group. */
+function plateGroupTitles(svg) {
+  const titles = groupTitleRects(svg);
+  if (!titles.length) return;
+  for (const arrows of svg.querySelectorAll('.edgePaths')) {
+    const toLocal = arrows.getScreenCTM().inverse();
+    const mask = document.createElementNS(SVG_NS, 'mask');
+    mask.id = `plates-${++drawCount}`;
+    mask.setAttribute('maskUnits', 'userSpaceOnUse');
+    for (const [name, value] of Object.entries({ x: -1e5, y: -1e5, width: 2e5, height: 2e5 })) mask.setAttribute(name, value);
+    const plate = (fill, left, top, right, bottom) => {
+      const [from, to] = [new DOMPoint(left, top).matrixTransform(toLocal), new DOMPoint(right, bottom).matrixTransform(toLocal)];
+      const rect = document.createElementNS(SVG_NS, 'rect');
+      for (const [name, value] of Object.entries({ x: from.x, y: from.y, width: to.x - from.x, height: to.y - from.y, fill })) rect.setAttribute(name, value);
+      mask.append(rect);
+    };
+    plate('#fff', -1e5, -1e5, 1e5, 1e5);
+    for (const title of titles) plate('#000', title.left, title.top, title.right, title.bottom);
+    arrows.before(mask);
+    arrows.setAttribute('mask', `url(#${mask.id})`);
+  }
+}
+
+/** An edge label that lies on a group title slides along its own arrow to the nearest spot that holds no title, node or other label; with no such spot it stays. */
+function slideLabelsOffGroupTitles(svg) {
+  const titles = groupTitleRects(svg);
+  if (!titles.length) return;
+  const nodes = [...svg.querySelectorAll('g.node')].map((node) => node.getBoundingClientRect());
+  for (const group of svg.querySelectorAll('.edgeLabels')) {
+    const arrows = [...group.parentElement.querySelectorAll(':scope > .edgePaths > path:not(.hit)')];
+    const labels = [...group.children];
+    labels.forEach((label, index) => {
+      const [path, box] = [arrows[index], label.getBoundingClientRect()];
+      if (!path || !label.textContent.trim() || !titles.some((title) => rectsMeet(box, title))) return;
+      const others = labels.filter((one) => one !== label && one.textContent.trim()).map((one) => one.getBoundingClientRect());
+      const toScreen = path.getScreenCTM();
+      const spots = [];
+      for (let at = 0; at <= path.getTotalLength(); at += 4) spots.push({ at, point: path.getPointAtLength(at).matrixTransform(toScreen) });
+      const [x, y] = [box.left + box.width / 2, box.top + box.height / 2];
+      const from = spots.reduce((best, spot) => (Math.hypot(spot.point.x - x, spot.point.y - y) < Math.hypot(best.point.x - x, best.point.y - y) ? spot : best)).at;
+      const fits = ({ point }) => {
+        const there = { left: point.x - box.width / 2, right: point.x + box.width / 2, top: point.y - box.height / 2, bottom: point.y + box.height / 2 };
+        return ![...titles, ...nodes, ...others].some((one) => rectsMeet(there, one));
+      };
+      const spot = spots.filter(fits).sort((a, b) => Math.abs(a.at - from) - Math.abs(b.at - from))[0];
+      if (!spot) return;
+      const local = spot.point.matrixTransform(label.parentElement.getScreenCTM().inverse());
+      label.setAttribute('transform', `translate(${local.x}, ${local.y})`);
+      label.dataset.slid = '';
+    });
   }
 }
 
@@ -202,7 +273,7 @@ const leftAt = { page: null, views: new Map() };
  * where its words read, and at most most of the half; a scroll that the drawing cannot take (all of it shows that way) scrolls the half.
  * With `key` (the name of the diagram in its view), the same diagram drawn again keeps the zoom and the place that he left it at (leftAt); a fit forgets them.
  * With `overview` (cards stand under it), the card takes the height of the drawing at the scale that it is drawn at, at most the tab down to the
- * peek of the cards (keepOverview), or the height that he dragged its bottom edge to for this `key`; a small diagram is drawn larger, up to GROW, to fill its width.
+ * peek of the cards (keepOverview), or the height that he dragged its bottom edge to for this `key`; a small diagram stays at its own size (GROW), centered.
  */
 function makeSurface(stage, readable = false, stack = false, key = undefined, overview = false) {
   const page = typeof Trail === 'object' ? Trail.ownKey() : null;
@@ -241,7 +312,7 @@ function makeSurface(stage, readable = false, stack = false, key = undefined, ov
     const [w, h] = [stage.clientWidth, stage.clientHeight];
     if (!w || !h) return;
     const room = overview ? 2 * OVERVIEW_ROOM : 0; // in the overview the drawing keeps some room from the edges of its frame
-    let scale = Math.min(overview ? GROW : 1, (w - room) / width, (h - room) / height);
+    let scale = Math.min(GROW, (w - room) / width, (h - room) / height);
     const columns = stage.classList.contains('columns'); // a long chain in columns: tall, but it opens where its words read, at its top
     const wide = (readable || half) && (half || columns || w / width < h / height) && scale < READABLE;
     if (wide && !whole) scale = READABLE;
@@ -411,7 +482,7 @@ function focusOn(stage, graph, node, diagram, quiet = false) {
   endFocusLine();
   const extra = focusListener ? focusListener(focus, quiet) : '';
   if (name) document.getElementById('crumb')?.insertAdjacentHTML('afterend', `<span class="mk-filter fc">Focus: ${esc(name)}${extra ? ` · ${extra}` : ''} · <a data-end-focus title="End the focus (Escape)">×</a></span>`);
-  if (typeof Overview === 'object') Overview.focused(focus?.node ?? null, !quiet);
+  if (typeof Overview === 'object') Overview.focused(focus?.node ?? null);
 }
 
 /** The line of the focus goes: the focus ended, or the page draws another view (a new drawing starts with no focus). */

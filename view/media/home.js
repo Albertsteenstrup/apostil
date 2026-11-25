@@ -526,6 +526,8 @@ function runBar(frame, time) {
 
 /** The bar glides to a new share. */
 function barTo(share) {
+  const line = document.querySelector('#summary .ovbar i');
+  if (line) line.style.width = `${Math.round(share * 100)}%`;
   const fill = document.querySelector('#view > .runbar > i');
   if (!fill) return;
   void fill.offsetWidth; // the width it stands at now, so that it glides from there

@@ -53,8 +53,8 @@ try {
   const top = await shown();
   const smallTop = await frameNow();
   await takePicture(home, 'overview-1-home.png');
-  check('Home opens in the overview: the top map in the upper part of the tab as large as its width allows, the icon "Full screen" at its top right, and under it one card for each of the 8 areas in the reading order of the map: an area with a diagram under it drawn small, an area that leads to folders and files with their list; the cards stand a little apart from the frame, on a surface of their own',
-    top.crumb === 'Home' && top.icon === 'Full screen' && top.frame.height < 900 * 0.5 && top.scale > 1 && top.wide > 1200
+  check('Home opens in the overview: the top map in the upper part of the tab at its own size, never larger, the icon "Full screen" at its top right, and under it one card for each of the 8 areas in the reading order of the map: an area with a diagram under it drawn small, an area that leads to folders and files with their list; the cards stand a little apart from the frame, on a surface of their own',
+    top.crumb === 'Home' && top.icon === 'Full screen' && top.frame.height < 900 * 0.5 && top.scale > 0.95 && top.scale <= 1.001 && top.wide > 1000
       && top.titles.join() === 'Web pages,Web routes,Guides and notes,Night jobs,Lending,Database,Front desk,Tests' && top.drawings.join() === 'Web pages,Web routes,Lending,Database'
       && top.files['Guides and notes']?.join() === 'docs/+26 −9 · 4 files,README.md' && top.files.Tests?.join() === 'tests/+105 −67 · 4 files' && Object.keys(top.files).length === 4
       && top.shows && top.under >= 16 && top.well !== top.paper, JSON.stringify(top));

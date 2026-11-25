@@ -186,10 +186,10 @@ try {
   await home.keyboard.press('Escape');
   const ended = await cardNow();
   await home.setViewportSize({ width: 1400, height: 900 });
-  check('where cards show under the diagram, one click on a node focuses it and its card: the card has an accent edge and the other cards fade as the other nodes do; the page does not move while some of the card shows, and scrolls to it when none of it shows; a second click on the focused node goes in, as its card does, and so does a double click; Escape ends the focus of the node and of its card',
+  check('where cards show under the diagram, one click on a node focuses it and its card: the card has an accent edge and the other cards fade as the other nodes do; the page does not move, also when none of the card shows; a second click on the focused node goes in, as its card does, and so does a double click; Escape ends the focus of the node and of its card',
     clicked.on && clicked.focused === inView && clicked.card === inView && clicked.faint === clicked.cards - 1 && clicked.edge !== clicked.plain && clicked.scrolled === 0 && /^Focus: /.test(clicked.line)
       && (second.at !== 'lib-top' || second.led.length > 0) && double.at === 'lib-lending'
-      && scrolledTo.card === below && scrolledTo.scrolled > 0 && scrolledTo.shows[below] && ended.card === '' && ended.faint === 0,
+      && scrolledTo.card === below && scrolledTo.scrolled === 0 && !scrolledTo.shows[below] && ended.card === '' && ended.faint === 0,
     JSON.stringify({ inView, below, clicked, second, double, scrolledTo, ended }));
 
   // Alone (full screen; where cards show a node has no window): the window of a focused node with a way in has only "Open" in its title bar,

@@ -55,6 +55,18 @@ try {
     }).length,
   }));
   await takePicture(home, '30-home-with-a-map.png');
+  // A diagram is never drawn larger than its own size, however much room the frame has; it sits in the middle, and a wider one in a narrow frame shrinks.
+  const sizeOfMap = () => home.evaluate(() => {
+    const [svg, frame] = [document.querySelector('#view svg'), document.getElementById('view')].map((el) => el.getBoundingClientRect());
+    const box = [...document.querySelectorAll('#view g.node')].reduce((all, g) => { const r = g.getBoundingClientRect(); return { left: Math.min(all.left, r.left), right: Math.max(all.right, r.right) }; }, { left: Infinity, right: -Infinity });
+    return { scale: svg.width / Number(document.querySelector('#view svg').getAttribute('viewBox').split(' ')[2]), font: parseFloat(getComputedStyle(document.querySelector('#view g.node .nodeLabel')).fontSize), gap: Math.abs(box.left - frame.left - (frame.right - box.right)), frame: frame.width };
+  });
+  const roomy = await sizeOfMap();
+  check('a map in a frame wider than itself keeps the size of its own words and stands in the middle', roomy.scale > 0.98 && roomy.scale <= 1.001 && roomy.font <= 13 && roomy.gap < 20, JSON.stringify(roomy));
+  await home.setViewportSize({ width: 900, height: 900 });
+  const narrow = await sizeOfMap();
+  await home.setViewportSize({ width: 1400, height: 900 });
+  check('a map wider than its frame still shrinks to fit', narrow.scale < 0.9, JSON.stringify(narrow));
   // The window of a node, alone: where its card shows it has none.
   await alone(true);
   await homeAt('');
@@ -507,9 +519,9 @@ try {
     return line && {
       text: line.textContent, state: line.dataset.run, tip: line.querySelector('span[title]')?.title, opens: line.querySelector('[data-open-run]')?.title,
       presses: [...document.querySelectorAll('[data-write]')].map((a) => a.textContent),
-      moves: [line, ...line.querySelectorAll('*'), ...document.querySelectorAll('.nomap .dot')].filter((el) => getComputedStyle(el).animationName !== 'none').length,
+      moves: [line, ...line.querySelectorAll('*:not(.spin)'), ...document.querySelectorAll('.nomap .dot')].filter((el) => getComputedStyle(el).animationName !== 'none').length,
       firstLine: document.querySelector('.nomap p')?.textContent, nodes: document.querySelectorAll('#view g.node.go').length, lines: document.querySelectorAll('.maprun').length,
-      underHead: !!document.querySelector('#summary .maprun'),
+      underHead: !!document.querySelector('#summary .maprun'), bar: line.querySelector('.ovbar i')?.style.width ?? '',
     };
   });
   await homeAt('?run=desktop');
@@ -530,11 +542,11 @@ try {
   await home.goto(`file://${listFile}?run=1`);
   await home.waitForFunction(() => window.apostilListDone, null, { timeout: 5000 });
   const homeRow = await home.$eval('.cl .home', (row) => ({ text: row.textContent, state: row.querySelector('.state')?.textContent }));
-  check('while a map run writes, Home says in one quiet line which session writes the map and what is saved so far, and nothing in it moves: on the map, for a session of the desktop app with "Open the session", which opens it in its app (a click asks VS Code to open it); for a session in a terminal with "Open the session", which opens a terminal that continues it; in a repo with no map, for the run of Home, under the head in place of the press, with no link to its chart, which the frame holds; after the run of Home ended, "Map run" at the right of the head opens the tab "Map run"; and the row "Home" of the list says "writing the map"',
-    ownRun?.text === `Writing the map · Claude Code session "Map of library-app" · ${SAVED} · Open the session` && ownRun.lines === 1 && ownRun.nodes === 8 && ownRun.moves === 0 && ownRun.presses.length === 0
-      && ownRun.tip === 'Session 1a2b3c4d-0000-4000-8000-00000000cafe\nAreas: Lending, Desk, Catalogue' && ownRun.opens === 'Opens the session in its app' && !!opened
-      && terminalRun?.text === `Writing the map · Claude Code session 1a2b3c4d · ${SAVED} · Open the session` && terminalRun.opens === 'Opens a terminal of VS Code that continues the session'
-      && homeRun?.text === `Writing the map · Claude Code session 1a2b3c4d (a session with no window) · ${SAVED}` && homeRun.chartLink === 0 && ran.text === 'Map run' && ran.shown && ran.right < 150 && ran.sent && /one time axis/.test(ran.tip) && homeRun.underHead && homeRun.presses.length === 0 && homeRun.moves === 0 && !homeRun.opens
+  check('while a map run writes, Home says in one quiet line "Writing the map" with the turning mark and the bar of the run (the session and what is saved so far stand in the tooltip), and nothing else in it moves: on the map, for a session of the desktop app with "Open the session", which opens it in its app (a click asks VS Code to open it); for a session in a terminal with "Open the session", which opens a terminal that continues it; in a repo with no map, for the run of Home, under the head in place of the press, with no link to its chart, which the frame holds; after the run of Home ended, "Map run" at the right of the head opens the tab "Map run"; and the row "Home" of the list says "writing the map"',
+    ownRun?.text === 'Writing the map · Open the session' && ownRun.lines === 1 && ownRun.nodes === 8 && ownRun.moves === 0 && /^\d+%$/.test(ownRun.bar) && ownRun.presses.length === 0
+      && ownRun.tip === `Claude Code session "Map of library-app" · ${SAVED}\nSession 1a2b3c4d-0000-4000-8000-00000000cafe\nAreas: Lending, Desk, Catalogue` && ownRun.opens === 'Opens the session in its app' && !!opened
+      && terminalRun?.text === 'Writing the map · Open the session' && terminalRun.opens === 'Opens a terminal of VS Code that continues the session'
+      && homeRun?.text === 'Writing the map' && homeRun.chartLink === 0 && ran.text === 'Map run' && ran.shown && ran.right < 150 && ran.sent && /one time axis/.test(ran.tip) && homeRun.underHead && homeRun.presses.length === 0 && homeRun.moves === 0 && !homeRun.opens
       && homeRow.state === 'writing the map' && homeRow.text === 'Homelibrary-appwriting the map',
     JSON.stringify({ ownRun, opened, terminalRun, homeRun, ran, homeRow }));
 
@@ -640,7 +652,7 @@ try {
   const reading = await runState();
   await takePicture(home, '84-1-before-the-overview.png');
   check('before the overview of a run of Home is saved, the frame holds the live chart of the run (the lead row and the writers, no head of its own) in place of the wordmark, and the one card is the overview as a soft sketch that shimmers slowly; the line of the run stands under the head; no time and no bar show before the run has measured its pace',
-    reading.chart.thinks > 0 && reading.chart.writers === 4 && !reading.chart.head && !reading.sketch && !reading.wordmark && reading.time === '' && reading.line.startsWith('Writing the map · Claude Code')
+    reading.chart.thinks > 0 && reading.chart.writers === 4 && !reading.chart.head && !reading.sketch && !reading.wordmark && reading.time === '' && reading.line.startsWith('Writing the map')
       && !reading.bar && reading.cards.length === 1 && reading.cards[0].title === 'Overview' && reading.cards[0].sketch && reading.cards[0].state === 'working', JSON.stringify(reading));
 
   // While the areas load: the states of the nodes of the top map and of their cards, the bar and the time.
@@ -649,12 +661,13 @@ try {
   const loading = await runState();
   await takePicture(home, '84-2-areas-loading.png');
   const cardOf = (title) => loading.cards.find((card) => card.title === title) ?? {};
-  const working = ['Web routes', 'Lending'].map(cardOf);
+  const working = loading.cards.filter((card) => card.state === 'working');
+  const [withDiagram, withoutDiagram] = [cardOf('Web routes'), working.find((card) => card.title !== 'Web routes') ?? {}];
   const done = loading.cards.filter((card) => card.state === 'done');
   const TOP_MAP = await home.evaluate(() => diagramOf(Home.data.map.top).title);
-  check('while the areas load, the frame holds the live chart of the run, and the first card is the top map drawn small, before the cards of the areas; the card of an area that writers work on shows a sketch, a turning mark and its own bar, and a card whose area is done shows its diagram or files; the time stays, the striped minutes of the chart are as many as it says, and the frame has no bar of its own',
+  check('while the areas load, the frame holds the live chart of the run, and the first card is the top map drawn small, before the cards of the areas; an area that writers work on shows a turning mark and its own bar, over its diagram when it has one and over a sketch when it has none, and a card whose area is done shows its diagram or files; the time stays, the striped minutes of the chart are as many as it says, and the frame has no bar of its own',
     loading.chart.thinks > 0 && loading.chart.writers === 4 && loading.mapNodes === 0 && loading.cards[0]?.title === TOP_MAP && loading.cards[0].content
-      && working.every((card) => card.state === 'working' && card.sketch && card.spin === 'ov-turn' && !card.content) && working.map((card) => card.bar).join() === '45%,20%'
+      && working.length === 2 && working.every((card) => card.spin === 'ov-turn') && withDiagram.content && !withDiagram.sketch && withDiagram.bar === '45%' && withoutDiagram.sketch && !withoutDiagram.content && withoutDiagram.bar === '20%'
       && done.length === 7 && done.every((card) => card.content && card.edge === 'solid')
       && !loading.bar && /^About \d+ min left$/.test(loading.time) && loading.aheadMinutes === Number(loading.time.match(/\d+/)[0]), JSON.stringify(loading));
 
@@ -679,7 +692,7 @@ try {
   await homeSettled();
   const chartAgain = await runState();
   check('during a run a click on the card of the top map shows the map in the frame, as the step after "Home", with the accent edge on the areas that writers work on and the cards of the areas; "Home" goes back to the chart',
-    mapChosen.mapNodes === 8 && mapChosen.chart.writers === 0 && mapChosen.crumb === `Home›${TOP_MAP}` && JSON.stringify(mapChosen.nodes) === JSON.stringify({ routes: 'working', lending: 'working' })
+    mapChosen.mapNodes === 8 && mapChosen.chart.writers === 0 && mapChosen.crumb === `Home›${TOP_MAP}` && JSON.stringify(mapChosen.nodes) === JSON.stringify({ routes: 'working', jobs: 'working' })
       && mapChosen.cards.length === 8 && chartAgain.chart.writers === 4 && chartAgain.cards[0]?.title === TOP_MAP && chartAgain.crumb === 'Home', JSON.stringify({ mapChosen, chartAgain }));
   const newChart = await home.evaluate(() => {
     const card = document.querySelector('#cards .ovc');

@@ -650,8 +650,8 @@ try {
     const svg = document.querySelector('#view .sec .surface svg');
     return { rows: Object.values(byRow).join(), scale: +(svg.getBoundingClientRect().width / Number(svg.getAttribute('viewBox').split(' ')[2])).toFixed(2) };
   });
-  // The frame of the overview takes the drawing at the size that fills its width, up to 1.4 times (GROW): never smaller than its own size.
-  check('nine parts with no links stand in three rows of three, and their words have at least their normal size, at most 1.4 times', nineDrawn.rows === '3,3,3' && nineDrawn.scale >= 1 && nineDrawn.scale <= 1.4, JSON.stringify(nineDrawn));
+  // The frame of the overview takes the drawing at the size that fills its width, never larger than its own size (GROW).
+  check('nine parts with no links stand in three rows of three, and their words have their normal size', nineDrawn.rows === '3,3,3' && nineDrawn.scale > 0.98 && nineDrawn.scale <= 1.001, JSON.stringify(nineDrawn));
   await readsShot('38-nine-parts-in-rows');
 
   // A part with two diagrams of two functions opens the first one, and the switch names both by their function.

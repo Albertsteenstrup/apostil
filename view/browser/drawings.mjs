@@ -108,6 +108,50 @@ try {
   check('a box of the example with two calls shows "1" and "2" before the words of its arrows, in the order of their lines, and a comment names each arrow by its words alone',
     numbers.join() === '1 make the service,2 fetch the rows' && names.join() === 'make the service,fetch the rows', `${numbers.join()} / ${names.join()}`);
   await takePicture(home, 'two-numbered-arrows.png');
+
+  // A group whose node has many labelled arrows to nodes above it: Mermaid puts some labels on the title of the group (set here by hand, the way the owner saw them);
+  // they slide along their arrows off it, and a label that moved still lies on its arrow.
+  const arrows = Array.from({ length: 7 }, (_, at) => `  inside -->|"${at + 1} serve the app ${at}"| up${at}["Outside node ${at}"]`).join('\n');
+  const text = `flowchart BT\n  subgraph a["some-folder/approaches/some-long-name-with-many-words/serve_thing.py"]\n    inside["Inside node"]\n  end\n${arrows}`;
+  const crowded = await home.evaluate(async ({ text, slide }) => {
+    const probe = Object.assign(document.body.appendChild(document.createElement('div')), { id: 'probe', style: 'position:fixed;left:0;top:0;width:1300px;background:#fff;z-index:9' });
+    const svg = await drawMermaid(probe, text);
+    const overlap = (a, b) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+    const line = probe.querySelector('g.cluster .cluster-label p').getBoundingClientRect();
+    const labels = [...probe.querySelectorAll('.edgeLabels > g.edgeLabel')];
+    labels.slice(2, 5).forEach((label, at) => {
+      const box = label.getBoundingClientRect();
+      const toLocal = label.parentElement.getScreenCTM().inverse();
+      const point = new DOMPoint(line.left + line.width / 2 + (at - 1) * 70, line.top + line.height / 2).matrixTransform(toLocal);
+      label.setAttribute('transform', `translate(${point.x}, ${point.y})`);
+    });
+    const titles = () => [...probe.querySelectorAll('g.cluster .cluster-label p')].map((one) => {
+      const range = document.createRange();
+      range.selectNodeContents(one);
+      return range.getBoundingClientRect();
+    });
+    const covering = () => labels.filter((label) => titles().some((title) => overlap(label.getBoundingClientRect(), title))).length;
+    const before = covering();
+    if (slide) slideLabelsOffGroupTitles(svg);
+    const paths = [...probe.querySelectorAll('.edgePaths > path:not(.hit)')];
+    const off = [...probe.querySelectorAll('.edgeLabels > g.edgeLabel[data-slid]')].map((label) => {
+      const box = label.getBoundingClientRect();
+      const middle = { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+      const path = paths[labels.indexOf(label)];
+      const matrix = path.getScreenCTM();
+      let near = Infinity;
+      for (let at = 0; at <= path.getTotalLength(); at += 0.5) {
+        const point = path.getPointAtLength(at).matrixTransform(matrix);
+        near = Math.min(near, Math.hypot(point.x - middle.x, point.y - middle.y));
+      }
+      return near;
+    });
+    return { labels: labels.length, before, covering: covering(), slid: off.length, farthest: Math.max(0, ...off), masked: svg.querySelectorAll('.edgePaths[mask]').length };
+  }, { text, slide: true });
+  await takePicture(home.locator('#probe'), 'group-title-labels.png');
+  await home.evaluate(() => document.getElementById('probe').remove());
+  check('a label of an arrow that lay on the title of a group slides along its arrow off it and stays on the arrow (within 2 px), and the arrows pass behind the title',
+    crowded.labels === 7 && crowded.before === 3 && crowded.covering === 0 && crowded.slid === 3 && crowded.farthest <= 2 && crowded.masked === 1, JSON.stringify(crowded));
   await home.close();
 } catch (error) {
   check('the checks ran to the end', false, error.message.split('\n').slice(0, 14).join(' / '));

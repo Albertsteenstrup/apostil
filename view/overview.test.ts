@@ -117,8 +117,8 @@ test('the size of a card with a drawing follows its shape: a wide drawing more u
 
 test('the frame of the diagram takes the height of the drawing at the scale that the surface draws it at, from its least height to the tab less the peek of the cards', () => {
   const tab = { across: 1300, room: 800, peek: 96 };
-  // A small drawing grows to fill the width only up to GROW, and keeps a small frame; a very small one keeps the least height.
-  assert.equal(frameHeight({ ...tab, width: 400, height: 150 }), Math.round(150 * GROW + 2 * OVERVIEW_ROOM));
+  // A small drawing is never drawn above its own size (GROW), keeps a small frame; a very small one keeps the least height.
+  assert.equal(frameHeight({ ...tab, width: 400, height: 300 }), Math.round(300 * GROW + 2 * OVERVIEW_ROOM));
   assert.equal(frameHeight({ ...tab, width: 300, height: 40 }), OVERVIEW_LEAST);
   // A wide map fits the width; where the surface opens it readable, the frame takes its height at that size, so its bottom is not cut.
   const fitted = (1300 - 2 * OVERVIEW_ROOM) / 2400;
