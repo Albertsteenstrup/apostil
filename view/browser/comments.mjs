@@ -89,29 +89,35 @@ try {
     };
     const view = document.getElementById('view').getBoundingClientRect();
     const working = markOf(partOf(3));
+    const answered = markOf(partOf(4));
+    const count = document.querySelector('.cmc');
     return {
       viewRight: Math.round(view.right), width: innerWidth,
       circles: document.querySelectorAll('.rk').length,
       // 1 a note to no agent, 2 sent and waiting, 3 working, 4 answered, 5 resolved
-      states: [1, 2, 3, 4, 5].map(stateOf), still: working && getComputedStyle(working, '::after').animationName,
+      states: [1, 2, 3, 4, 5].map(stateOf), blink: working && getComputedStyle(working, '::after').animationName,
+      answeredDot: getComputedStyle(answered, '::after').content !== 'none' && getComputedStyle(answered, '::after').animationName,
+      count: count && { working: count.classList.contains('working'), blink: getComputedStyle(count.querySelector('.cmd')).animationName },
       answeredFill: getComputedStyle(markOf(partOf(4)).querySelector('path')).fill, tealsoft: getComputedStyle(document.body).getPropertyValue('--tealsoft').trim(),
     };
   }, changeSection);
-  // Two open threads on one thing share one bubble with a count.
+  // Two open threads on one thing share one bubble with a count; a newer note beside a thread whose run works leaves the bubble working.
   await drawn(() => page.evaluate(() => {
-    App.page.remarks.push({ id: 90, changeId: 0, target: App.page.remarks.find((remark) => remark.id === 2).target, text: 'A second thread here.', createdAt: new Date().toISOString(), state: 'open' });
+    const at = (id) => App.page.remarks.find((remark) => remark.id === id).target;
+    App.page.remarks.push({ id: 90, changeId: 0, target: at(2), text: 'A second thread here.', createdAt: new Date().toISOString(), state: 'open' });
+    App.page.remarks.push({ id: 91, changeId: 0, target: at(3), text: 'A note beside the run.', createdAt: new Date().toISOString(), state: 'open' });
     App.render();
   }));
   const shared = await page.evaluate((section) => {
-    const target = App.page.remarks.find((remark) => remark.id === 2).target.part;
-    const all = document.querySelectorAll(`${section} b[data-part="${target}"] .cb`);
-    return { bubbles: all.length, count: all[0]?.querySelector('.n')?.textContent, threads: all[0]?.dataset.threads };
+    const bubblesOf = (id) => document.querySelectorAll(`${section} b[data-part="${App.page.remarks.find((remark) => remark.id === id).target.part}"] .cb`);
+    const all = bubblesOf(2);
+    return { bubbles: all.length, count: all[0]?.querySelector('.n')?.textContent, threads: all[0]?.dataset.threads, besideRun: bubblesOf(3)[0]?.classList.contains('working') };
   }, changeSection);
-  await drawn(() => page.evaluate(() => { App.page.remarks = App.page.remarks.filter((remark) => remark.id !== 90); App.render(); }));
-  check('the page takes the full width; each part with an open thread has a chat bubble with the icon of its agent in place of the circle: empty for a note, the icon faint while it waits, a still teal dot while it works, tinted when answered; a resolved thread has no mark, and two threads on one thing share one bubble with a count',
+  await drawn(() => page.evaluate(() => { App.page.remarks = App.page.remarks.filter((remark) => ![90, 91].includes(remark.id)); App.render(); }));
+  check('the page takes the full width; each part with an open thread has a chat bubble with the icon of its agent in place of the circle: empty for a note, the icon faint while it waits, a teal dot that blinks while it works, tinted with a still dot when answered; the count in the top bar blinks too; a resolved thread has no mark, and two threads on one thing share one bubble with a count, working while one of them works',
     marks.viewRight > marks.width - 40 && marks.circles === 0
       && JSON.stringify(marks.states) === JSON.stringify(['note', 'waiting agents/claude-code.svg', 'working agents/claude-code.svg', 'answered agents/claude-code.svg', 'none'])
-      && marks.still === 'none' && marks.answeredFill !== 'rgb(255, 255, 255)' && !!marks.tealsoft && shared.bubbles === 1 && shared.count === '2' && shared.threads === '2 90',
+      && marks.blink === 'pulse' && marks.answeredDot === 'none' && marks.count?.working && marks.count.blink === 'pulse' && shared.besideRun && marks.answeredFill !== 'rgb(255, 255, 255)' && !!marks.tealsoft && shared.bubbles === 1 && shared.count === '2' && shared.threads === '2 90',
     JSON.stringify({ marks, shared }));
 
   // The marks in the dark theme, for a person to look at.
