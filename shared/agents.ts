@@ -418,7 +418,7 @@ export const installedApps = (path = process.env.PATH ?? ''): string[] =>
 // ----- the name of a session, from the files of its app -----
 
 const PIECE = 64 * 1024; // a transcript is read from its end in pieces of this size, never whole
-const names = new Map<string, { size: number; mtime: number; name?: string }>(); // by file and session, while the file does not change
+const names = new Map<string, { size: number; mtime: number; name?: unknown }>(); // by file and session, while the file does not change
 
 /** The value of the newest line of a file that `pick` takes, reading the file from its end in pieces. */
 export function newestLine<T>(path: string, pick: (line: string) => T | undefined): T | undefined {
@@ -459,16 +459,26 @@ const field = (line: string, mark: string, test: (record: Record<string, unknown
   }
 };
 
-/** The newest name of a session in a file, kept while the file keeps its size and time. */
-function nameIn(path: string, session: string, pick: (line: string) => string | undefined): string | undefined {
+/** The name of a session read from a file, kept while the file keeps its size and time. */
+function nameIn<T>(path: string, session: string, read: (path: string) => T | undefined): T | undefined {
   let stat;
   try { stat = statSync(path); } catch { return undefined; }
   const key = `${path}\n${session}`;
   const kept = names.get(key);
-  if (kept && kept.size === stat.size && kept.mtime === stat.mtimeMs) return kept.name;
-  const name = newestLine(path, pick);
+  if (kept && kept.size === stat.size && kept.mtime === stat.mtimeMs) return kept.name as T | undefined;
+  const name = read(path);
   names.set(key, { size: stat.size, mtime: stat.mtimeMs, name });
   return name;
+}
+
+/** The newest title that he gave a Claude Code session, and the newest one that Claude Code gave it, in one read from the end of its transcript. */
+function claudeTitles(path: string): { given?: string; auto?: string } {
+  let auto: string | undefined;
+  const given = newestLine(path, (line) => {
+    auto ??= field(line, 'ai-title', (record) => record.type === 'ai-title', 'aiTitle');
+    return field(line, 'custom-title', (record) => record.type === 'custom-title', 'customTitle');
+  });
+  return { ...(given ? { given } : {}), ...(auto ? { auto } : {}) };
 }
 
 /** The transcript of a Claude Code session: <session id>.jsonl in one of the folders under ~/.claude/projects. */
@@ -485,7 +495,7 @@ function agyConversationName(path: string, session: string): string | undefined 
   try { stat = statSync(path); } catch { return undefined; }
   const key = `${path}\n${session}`;
   const kept = names.get(key);
-  if (kept && kept.size === stat.size && kept.mtime === stat.mtimeMs) return kept.name;
+  if (kept && kept.size === stat.size && kept.mtime === stat.mtimeMs) return kept.name as string | undefined;
   let name: string | undefined;
   try {
     const summary = JSON.parse(readFileSync(path, 'utf8'))?.conversations?.[session]?.summary;
@@ -505,10 +515,11 @@ export function sessionName(agent: AgentSession, home = homedir()): string | und
   if (!session || !/^[\w-]+$/.test(session)) return undefined;
   if (agent.app === 'claude-code') {
     const transcript = claudeTranscript(session, home);
-    return transcript && nameIn(transcript, session, (line) => field(line, 'custom-title', (record) => record.type === 'custom-title', 'customTitle'));
+    const titles = transcript ? nameIn(transcript, session, claudeTitles) : undefined;
+    return titles?.given ?? agent.name ?? titles?.auto;
   }
   if (agent.app === 'codex') {
-    return nameIn(join(home, '.codex', 'session_index.jsonl'), session, (line) => field(line, session, (record) => record.id === session, 'thread_name'));
+    return nameIn(join(home, '.codex', 'session_index.jsonl'), session, (path) => newestLine(path, (line) => field(line, session, (record) => record.id === session, 'thread_name')));
   }
   if (agent.app === 'antigravity') {
     return agyConversationName(join(home, '.gemini', 'antigravity-cli', 'cache', 'conversation_metadata.json'), session);

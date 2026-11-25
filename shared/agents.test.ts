@@ -2,7 +2,7 @@
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import { agentFromEnv, BILLING, claudeDefaultMode, claudeRunMode, codexDefaultSandbox, INSTALL, installedApps, isOptionProblem, isSignInProblem, mergeAgent, modelWords, opencodeSmallModel, runFix, runProblem, UPDATE, newestLine, newRunCommand, openSessionCommand, resumeCommand, sessionLink, sessionName, sessionOpens, SIGN_IN } from './agents';
 import { tempFolder } from './test-repo';
@@ -188,7 +188,7 @@ test('stateOf gives one state for each fixture; only the newest run of a check c
   assert.deepEqual(pull.checks, { passed: 2, failed: 2, pending: 1 });
 });
 
-test('sessionName reads the newest title near the end of a large Claude Code transcript and the name of a Codex thread; newestLine reads the lines of a file from its end in pieces', () => {
+test('sessionName reads the newest title near the end of a large Claude Code transcript (his own title, else the name in the desktop app, else the title of Claude Code) and the name of a Codex thread; newestLine reads the lines of a file from its end in pieces', () => {
   const home = tempFolder('apostil-home-');
   const folder = join(home, '.claude', 'projects', '-made-up-project');
   mkdirSync(folder, { recursive: true });
@@ -200,6 +200,12 @@ test('sessionName reads the newest title near the end of a large Claude Code tra
   assert.equal(sessionName({ app: 'claude-code', session: 'made-up-1' }, home), 'VS Code repo understanding tool');
   writeFileSync(join(folder, 'made-up-2.jsonl'), filler);
   assert.equal(sessionName({ app: 'claude-code', session: 'made-up-2' }, home), undefined);
+  // With no title that he gave it: the name that the desktop app gave it, else the newest title that Claude Code gave it.
+  writeFileSync(join(folder, 'made-up-3.jsonl'), line({ type: 'ai-title', aiTitle: 'Old title', sessionId: 'made-up-3' }) + filler + line({ type: 'ai-title', aiTitle: 'Review the context', sessionId: 'made-up-3' }));
+  assert.equal(sessionName({ app: 'claude-code', session: 'made-up-3' }, home), 'Review the context');
+  assert.equal(sessionName({ app: 'claude-code', session: 'made-up-3', name: 'Named in the app' }, home), 'Named in the app');
+  appendFileSync(join(folder, 'made-up-3.jsonl'), line({ type: 'custom-title', customTitle: 'His own name', sessionId: 'made-up-3' }) + line({ type: 'ai-title', aiTitle: 'Newer title', sessionId: 'made-up-3' }));
+  assert.equal(sessionName({ app: 'claude-code', session: 'made-up-3', name: 'Named in the app' }, home), 'His own name');
   assert.equal(sessionName({ app: 'claude-code', session: 'missing' }, home), undefined);
   assert.equal(sessionName({ app: 'claude-code', session: '../x' }, home), undefined);
 
