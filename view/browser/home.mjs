@@ -307,6 +307,10 @@ try {
   await home.waitForURL(/diagram=/, { timeout: 5000 }).catch(() => {});
   await homeDrawn();
   const large = await home.evaluate(() => ({ crumb: document.getElementById('crumb').textContent, lit: [...document.querySelectorAll('#view g.node.lit')].map((g) => nodeKey(g)) }));
+  await homeAt(`?path=${encodeURIComponent('db/')}`);
+  await home.waitForFunction(() => document.querySelectorAll('.pnl .pd[data-lit]').length >= 4, null, { timeout: 15000 });
+  const scales = await home.$$eval('.pnl .pd[data-lit] svg', (all) => all.map((svg) => { const own = svg.viewBox.baseVal; const box = svg.getBoundingClientRect(); return +Math.min(box.width / own.width, box.height / own.height).toFixed(2); }));
+  check('no panel of the graphs page draws its diagram larger than its own size: a small diagram stays small, a large one shrinks to fit', scales.length > 2 && scales.every((scale) => scale <= 1.01) && scales.some((scale) => scale < 0.9), JSON.stringify(scales));
   const [sequence] = graphs.sequence;
   check('the graphs of hold_service.py show one panel for each of its 5 diagrams, the map first, each with a lit part and a line under it that says where the path is ("in: Hold service"); two panels stand in a row at 1400 px and at 1060 px, large; the panel of a sequence chart is filled by the chart; opened from outside the line is "Home › the file"; a click on a panel of the map shows that diagram on Home with the same node lit',
     graphs.lines.length === 5 && graphs.lit.every((lit) => lit > 0) && /the map$/.test(graphs.lines[0]) && /the map$/.test(graphs.lines[1]) && /^Adds holds for books that are out change · branch/.test(graphs.lines[2])

@@ -611,9 +611,9 @@ function drawPanel(box, panel, card = false) {
       const pick = (thing, one) => (one.marks.length === 1 ? (openAt(one.marks[0].file, one.marks[0].at), true) : false);
       if (Marks.decorate(svg, things, shaped.edges, look, shaped.filled, { nodeKey, open: openAt, pick }, shaped.boxes)) fitToContent(svg);
     }
-    // A drawing that a rule left with few nodes is drawn at most half again its size, not blown up to the panel.
-    const natural = Object.values(things).some((thing) => thing.slots['show.shown'] === false) && [Number(svg.getAttribute('width')), Number(svg.getAttribute('height'))];
-    if (natural?.[0]) Object.assign(svg.style, { maxWidth: `${natural[0] * 1.5}px`, maxHeight: `${natural[1] * 1.5}px`, margin: '0 auto' });
+    // A small drawing, such as a process of one step, is never drawn larger than its own size, as on Home (GROW); it only shrinks to fit the panel.
+    const own = svg.viewBox.baseVal;
+    if (own?.width) Object.assign(svg.style, { maxWidth: `${own.width * GROW}px`, maxHeight: `${own.height * GROW}px`, margin: '0 auto' });
     svg.removeAttribute('width');
     svg.removeAttribute('height');
     box.classList.toggle('rest', panel.lit.length > 0); // only the lit part stands out
