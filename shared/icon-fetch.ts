@@ -1,8 +1,8 @@
-// `apostil icon`: downloads the picture of a service and checks it. It reaches only the service's own site; the fetch is given, so a test needs no network.
+// `apostil icon`: downloads the picture of a service and checks it. It starts on the service's own site; the fetch is given, so a test needs no network.
 
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
-import { fileProblem, iconEndingOf, siteOf } from './marks';
+import { FILE_USES, fileProblem, iconEndingOf, siteOf } from './marks';
 
 export type Fetcher = (address: string, init: { redirect: 'manual'; signal: AbortSignal }) => Promise<Response>;
 
@@ -74,6 +74,26 @@ export function iconLinks(html: string, page: string): string[] {
   return found.sort((a, b) => b.score - a.score).map((one) => one.address);
 }
 
+/** The largest frame of an ICO file that is small enough: a PNG frame as it is, else an ICO of that frame alone; undefined when none is. */
+export function smallerIco(bytes: Buffer, most = FILE_USES.icon.most): { bytes: Buffer; ending: string } | undefined {
+  if (bytes.length < 6 || bytes.readUInt16LE(2) !== 1) return undefined;
+  const frames = Array.from({ length: bytes.readUInt16LE(4) }, (_, at) => 6 + at * 16)
+    .filter((entry) => entry + 16 <= bytes.length)
+    .map((entry) => ({ entry, width: bytes[entry] || 256, size: bytes.readUInt32LE(entry + 8), offset: bytes.readUInt32LE(entry + 12) }))
+    .filter((frame) => frame.offset + frame.size <= bytes.length && frame.size + 22 <= most)
+    .sort((a, b) => b.width - a.width);
+  const best = frames[0];
+  if (!best) return undefined;
+  const data = bytes.subarray(best.offset, best.offset + best.size);
+  if (iconEndingOf(data) === 'png') return { bytes: Buffer.from(data), ending: 'png' };
+  const head = Buffer.alloc(22);
+  head.writeUInt16LE(1, 2);
+  head.writeUInt16LE(1, 4);
+  bytes.copy(head, 6, best.entry, best.entry + 12);
+  head.writeUInt32LE(22, 18);
+  return { bytes: Buffer.concat([head, data]), ending: 'ico' };
+}
+
 /** Reads a body of at most `most` bytes; undefined when it is longer. */
 async function readBody(response: Response, most: number): Promise<Buffer | undefined> {
   const chunks: Buffer[] = [];
@@ -87,7 +107,7 @@ async function readBody(response: Response, most: number): Promise<Buffer | unde
   return Buffer.concat(chunks);
 }
 
-/** What one address gives: the bytes, or a sentence. It follows a redirect only to a host that fits. */
+/** What one address gives: the bytes, or a sentence. The address must fit; a redirect that it sends may go to any public host. */
 async function get(address: string, fits: (host: string) => boolean, fetcher: Fetcher, signal: AbortSignal, isPublic: (host: string) => Promise<boolean>): Promise<{ bytes?: Buffer; type?: string; problem?: string; tooLong?: true }> {
   let at = address;
   for (let step = 0; step <= MOST_REDIRECTS; step++) {
@@ -98,7 +118,7 @@ async function get(address: string, fits: (host: string) => boolean, fetcher: Fe
       return { problem: `${at} is no web address.` };
     }
     if (url.protocol !== 'https:') return { problem: `${at} is not an https address. Only https is used.` };
-    if (!fits(url.hostname)) return { problem: `${url.hostname} is not the site of this service. Use an address on its own site.` };
+    if (step === 0 && !fits(url.hostname)) return { problem: `${url.hostname} is not the site of this service. Use an address on its own site.` };
     if (!(await isPublic(url.hostname))) return { problem: `${url.hostname} is no public website. An icon comes only from a public website.` };
     const response = await fetcher(at, { redirect: 'manual', signal });
     if (response.status >= 300 && response.status < 400) {
@@ -117,7 +137,8 @@ async function get(address: string, fits: (host: string) => boolean, fetcher: Fe
 
 /**
  * The icon at an address of the service's own site: a picture, or a web page that names pictures with link rel="icon" and rel="apple-touch-icon".
- * Without `otherSite` the host must be `site` or a host under it, also after a redirect. Every host must be a public website (publicHost).
+ * Without `otherSite` that address must be on `site` or a host under it; a redirect from it, and a picture that its page names, may be on another
+ * host, since the site chose it. Every host must be a public website (publicHost).
  */
 export async function fetchIcon(
   address: string, site: string, otherSite: boolean, fetcher?: Fetcher,
@@ -130,7 +151,9 @@ export async function fetchIcon(
     const first = await get(address, fits, ask, signal, isPublic);
     if (first.problem || !first.bytes) return { problem: first.problem };
     const kind = /html/i.test(first.type ?? '') ? undefined : iconEndingOf(first.bytes);
-    const asPicture = (bytes: Buffer, at: string): { icon?: IconPicture; problem?: string } => {
+    const asPicture = (whole: Buffer, at: string): { icon?: IconPicture; problem?: string } => {
+      const small = iconEndingOf(whole) === 'ico' && whole.length > FILE_USES.icon.most ? smallerIco(whole) : undefined;
+      const bytes = small?.bytes ?? whole;
       const ending = iconEndingOf(bytes);
       const bad = ending ? fileProblem(`icon.${ending}`, bytes, 'icon') : 'it is no PNG, SVG, ICO or WebP picture.';
       return bad || !ending ? { problem: `${at}: ${bad}` } : { icon: { bytes, ending, address: at } };
@@ -141,7 +164,7 @@ export async function fetchIcon(
     if (!links.length) return { problem: `${address} names no icon (no link rel="icon" or "apple-touch-icon").` };
     const problems: string[] = [];
     for (const link of links) {
-      const one = await get(link, fits, ask, signal, isPublic);
+      const one = await get(link, () => true, ask, signal, isPublic);
       if (one.bytes) {
         const picture = asPicture(one.bytes, link);
         if (picture.icon) return picture;

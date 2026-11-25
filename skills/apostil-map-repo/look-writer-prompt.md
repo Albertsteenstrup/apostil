@@ -22,7 +22,7 @@ A file of the look (a picture, a film, an icon) is a file of the repo, or a file
 
 ## Step 3: A new kind of mark
 
-When he wants icons for lines that no set marks yet, add a set to `sets`: `apostil look-slots marks` gives its form. A writer who does not know the owner reads its `rule`: say in plain words which lines get a mark, and which value each gets. After the save, start the mark writers (Step 7 of the skill).
+When he wants icons for lines that no set marks yet, add a set to `sets`: `apostil look-slots marks` gives its form. The built-in set `services` already marks each line where the code depends on something outside the repo that others make, host or own, and that the owner knows by its name and logo. Lines that fit that rule are no new set: the service writers mark them, and their icons stand with the other services, side by side in the default corner. When the owner asks about the icons or the corner of such a set that the look already has, take that set out of the look, with its corners, and tell him that its icons now stand with the services. Put the icons of a new set in a top corner of a node, the upper left, and use a lower corner only when the owner asks for one. A writer who does not know the owner reads its `rule`: say in plain words which lines get a mark, and which value each gets. After the save, start the mark writers (Step 7 of the skill).
 
 ## Step 4: Check, then save
 

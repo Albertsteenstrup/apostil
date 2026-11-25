@@ -1,71 +1,62 @@
-# Write the services of a group of files
+# Write the outside things of a group of files
 
-You find the places where the code of a repo reaches a service, and you write each place as a mark at its line. Apostil shows the icon of each service on the nodes of the diagrams and on the notes, so the owner sees at once which parts of the code talk to which services. A tool checks each mark against the code.
+You find the places where the code of a repo depends on something outside the repo, and you write each place as a mark at its line. Apostil shows the logo of each outside thing on the nodes of the diagrams and on the notes, so the owner sees at once what each part of the code relies on that the repo does not hold itself. A tool checks each mark against the code.
 
-You get the path of the repo folder, the name of your group, its `files`, and for each file its `candidates`. A candidate is a line that a list of signs found, with the service that it may be (`may`). You also have the text rules (`text-rules.md`). Run every command in the top folder of the repo. Change no file of the repo and run none of its code.
+You get the path of the repo folder, the name of your group and its `files`. You also have the text rules (`text-rules.md`). Run every command in the top folder of the repo. Change no file of the repo and run none of its code.
 
-## What a service is
+## Step 1: Read and decide
 
-A service runs outside the repo, and the code reaches it over a network or through a cloud account:
+Read each file of your group in full, with line numbers. Do not guess about code that you did not read.
 
-- a hosted API: a model API, a payment API, a hub of models or datasets
-- a cloud product: a function that runs on demand, a store of files, a queue
-- a database or a store that runs as its own server
-- a tool for traces, logs, events, errors or evaluations
-- a workflow tool
-- a platform that runs the code: a function platform, a job on a cluster
-- a program on this computer that the code reaches over a port
+Mark a line when, at that line, the code reaches, keeps data in, sends to, runs on or loads something that people outside the repo make, host or own. That thing can also run on the owner's own machines: what counts is that others make it. Decide each line by what the code does there, not by the words on it. Mark it only when both answers are yes:
 
-These are not services:
+- Would this part of the code stop, or work differently, if that outside thing changed or went away?
+- Does its maker or host have a name and a logo that tell the owner more than the names in the code do?
 
-- A library that runs inside the program. When a library sends data to a service, the service is the one that gets the data: traces that a tracing library sends to a hosted tool are a use of that tool.
-- A name that only holds the name of a company: a dataset named after a company that the code loads from a hub is a use of the hub. A model that the code calls through a cloud product is a use of that cloud product.
-- A test, a fixture or a fake client.
-- A service that a config file starts only for another service, for example the cache that the container of a tracing tool needs.
-- A word that only looks like a service, for example a variable that has the name of a product.
+Leave out:
 
-## Step 1: Check each candidate
+- the repo's own code, and code that only builds, tests or checks it;
+- a tool that only works inside the program and that most programs of its kind use: its logo would stand everywhere and tell nothing. When such a tool reaches or loads an outside thing, mark that outside thing, at the line where the tool reaches or loads it. A tool made for one kind of outside thing names that thing, also when the code names nothing else;
+- a fake, a fixture or a test double;
+- a word that only looks like the name of an outside thing.
 
-For each candidate:
+A file that only sets up one outside thing, such as its config file, depends on it as a whole: it is one mark, at its first line that sets a value.
 
-1. Read 10 lines before it and 10 lines after it, and the function that holds it.
-2. Keep it when the line reaches the service: it makes a client, calls the service, names its address, reads a key that only this service uses, or a config file declares the service for this code.
-3. Drop it when it is one of the things in "These are not services".
-4. Drop an import when another line of the same file reaches the service. The mark goes on that other line.
-5. One place is one mark. Lines in a row that call the same service for the same thing are one mark, at the first line.
-6. Several named things of one service are several marks: one mark for each line that names another thing. The 25 models of a table are 25 marks. Apostil shows them under one icon, so this adds no clutter.
+Then for each line that you keep:
 
-Then look in your files for places that the list missed: an address (`https://…`), an HTTP client, a key or an address that the code reads from the environment (`…_URL`, `…_KEY`, `…_TOKEN`, `…_HOST`). Add a mark only when a word on its line names the service or its address.
+1. **Name who makes it**, as the owner knows them by their logo. A value is a maker or a host with a site of its own, never the named work itself: that work is the `thing` of the mark (Step 2). In a name of the form `<maker>/<name>`, the part before `/` is who makes it. When the code gets it from a host, or uses the host's own interface, that host is a second value, with its own mark. When the maker has no logo that the owner knows, name only the host.
+2. **Find the name in the code**: an address, a key, a driver, a client, the name of what is loaded, a config file. When neither the code nor the tool that it uses shows who makes or hosts it, leave the line out. Never guess.
+3. **One place is one mark.** Lines in a row that use the same thing for the same purpose are one mark, at the first line. When an import and a use are in one file, the mark goes on the use.
+4. **Several named parts of one thing are several marks**: one mark for each line that names another part. Apostil shows them under one logo, so this adds no clutter.
 
 ## Step 2: Write the JSON
 
-Run `apostil mark-groups --set services`. Its `values` are the services that Apostil has seen before, in any repo, each with its `id`, `name`, `site` and whether Apostil keeps its icon (`icon`).
+Run `apostil mark-groups --set services`. Its `values` are the outside things that Apostil has seen before, in any repo, each with its `id`, `name`, `site` and whether Apostil keeps its icon (`icon`).
 
     {
       "group": "<name of your group>",
       "set": "services",
       "files": ["<every path of your group>"],
-      "values": [ { "id": "book-feed", "name": "Book Feed", "site": "book-feed.example.org" } ],
+      "values": [ { "id": "<new id>", "name": "<its name>", "site": "<its site>" } ],
       "marks": [
-        { "value": "book-feed", "relation": "calls", "file": "src/feed.py", "line": 12, "name": "requests.get" },
-        { "value": "postgresql", "relation": "stores", "file": "src/save.py", "line": 40, "name": "book_row",
-          "thing": { "kind": "table", "name": "book_row" } }
+        { "value": "<id>", "relation": "<relation>", "file": "<path>", "line": <line>, "name": "<a word on that line>",
+          "thing": { "kind": "<one word>", "name": "<the text in the code>" } }
       ],
-      "iconRefused": [ { "value": "night-bell", "tried": "night-bell.example.org" } ]
+      "iconRefused": [ { "value": "<id>", "tried": "<site>" } ]
     }
 
-1. **value**: the id of the service. Use an id of `values` when it fits. For a service that is not there, add it once under `values`: `id` (small letters, words joined with `-`), `name` (as the company writes it) and `site` (its web address, without `https://`). The tool refuses a second id for a web address that it knows.
-   **A database is named by its type**, as the code reaches it: PostgreSQL, MySQL, SQLite, MongoDB, Redis and the like, also when a cloud product hosts it, so its icon is the icon of that type. Find the type in the code: the driver, the connection, the SQL of the migrations. A cloud product is a service of its own only where the code calls its API, for example its storage or its sign-in.
-2. **icon**: the icon comes before the marks. For each service of your marks that has no icon yet (`"icon": false`, or new), run `apostil icon <id> https://<its site>`. Apostil downloads the picture itself, from the service's own site only, and keeps it. It prints `{ "saved", "problem" }`. Try in three plain ways, and stop at the first that saves: the home page of the service (Apostil reads its `link rel="icon"`), then `https://<its site>/favicon.ico`, then `https://<its site>/apple-touch-icon.png`. For a service that is new, add `--site <its site>` to the command. When the service has a well-known icon of its own, that is the one that its own site gives, not the icon of the company that makes it. Never take an icon from another site: that needs the owner's word, and the main agent asks him.
-   When all three tries fail, add the service to `"iconRefused"` with the address that you tried, and leave `icon` out. Until it has an icon, Apostil shows the first letter of its name. A service with marks and no icon and no `iconRefused` entry makes `apostil add-marks` refuse the save. As a last way, you may name a picture of the service's own website in `"icon"`: a file `apostil-icon-<id>.png` (or `.svg`, `.ico`, `.webp`) in the top folder, at most 100 KB, with no script in an SVG.
-3. **relation**: one of these four.
-   - `calls`: the code asks the service and uses the answer.
-   - `stores`: the code keeps data in the service, or reads data from it: a table, a bucket, a queue.
-   - `sends`: the code sends events, logs, traces or scores, and does not use an answer.
-   - `runs on`: the code runs inside the service: a function, a job, a workflow.
-4. **file** and **line**: the place, counted from 1. **name**: a word that stands on that line and shows the service or its call. The tool checks that the word is on the line.
-5. **thing** (only when the code names it): a named thing inside the service, written as fixed text in the code: a model, a dataset, a table, a bucket, a function, an endpoint, an event, a trace name, a score, a prompt, a workflow. `kind` is one word. `name` is the text as it stands in the code. When the code makes the name while it runs, leave `thing` out. When a fixed part of the name stands on the line, write that part and `*` for the rest: `judge-*`. Never guess a name.
-6. **files**: every path of your group, also the files where you found no service. The tool then knows that they are done.
+1. **value**: the id of the outside thing. Use an id of `values` when it fits. For a thing that is not there, add it once under `values`: `id` (small letters, words joined with `-`), `name` (as its maker writes it) and `site` (the web address of the thing itself, or of its maker when it has none of its own, without `https://`). The tool refuses a second id for a web address that it knows.
+2. **icon**: the icon comes before the marks. For each value of your marks that has no icon yet (`"icon": false`, or new), run `apostil icon <id> https://<its site>`. Apostil downloads the picture itself, from that site only, and keeps it. It prints `{ "saved", "problem" }`. Try in three plain ways, and stop at the first that saves: the home page (Apostil reads its `link rel="icon"`), then `https://<its site>/favicon.ico`, then `https://<its site>/apple-touch-icon.png`. For a value that is new, add `--site <its site>` to the command. Take the logo that the owner knows the thing by. Never take an icon from another site: that needs the owner's word, and the main agent asks him.
+   When all three tries fail, add the value to `"iconRefused"` with the address that you tried, and leave `icon` out. Until it has an icon, Apostil shows the first letter of its name. A value with marks and no icon and no `iconRefused` entry makes `apostil add-marks` refuse the save. As a last way, you may name a picture from the thing's own website in `"icon"`: a file `apostil-icon-<id>.png` (or `.svg`, `.ico`, `.webp`) in the top folder, at most 100 KB, with no script in an SVG.
+3. **relation**: what the code does with it, one of these five.
+   - `calls`: the code asks it and uses the answer.
+   - `stores`: the code keeps data in it, or reads data that it keeps.
+   - `sends`: the code sends to it and does not use an answer.
+   - `runs on`: the code itself runs inside it.
+   - `loads`: the code takes in something that it made and runs or reads it inside the program.
+4. **file** and **line**: the place, counted from 1, as the line numbers show it. **name**: a word that stands on that line and shows the thing or its use. When no word on the line names it, take the first word of the line. The tool checks that the word is on the line.
+5. **thing** (only when the code names it): the named part of the outside thing that the line uses, written as fixed text in the code. `kind` is one word. `name` is the text as it stands in the code. When the code makes the name while it runs, leave `thing` out. When a fixed part of the name stands on the line, write that part and `*` for the rest. Never guess a name.
+6. **files**: every path of your group, also the files where you found nothing. The tool then knows that they are done.
 7. Write no text. The notes of the code say what the code does.
 
 ## Step 3: Save
@@ -85,4 +76,4 @@ Run `apostil mark-groups --set services`. No file of your group may be in it: a 
 
 ## Your report
 
-Reply with one line: `saved <count> marks of <the ids of the services>`, and the services whose icon was refused, or the problem that remains. Nothing else.
+Reply with one line: `saved <count> marks of <the ids>`, and the ids whose icon was refused, or the problem that remains. Nothing else.

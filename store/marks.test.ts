@@ -1,4 +1,4 @@
-// Tests for the marks and the look: add-marks with its checks and its icons, mark-groups with candidates, marks whose line changed, marks and look,
+// Tests for the marks and the look: add-marks with its checks and its icons, mark-groups, marks whose line changed, marks and look,
 // and set-look with its checks and its files. A made-up repo with made-up services; no test reaches a network.
 
 import assert from 'node:assert/strict';
@@ -150,20 +150,14 @@ test('add-marks refuses each fault with one sentence that a model can act on, an
   repo.remove();
 });
 
-test('mark-groups gives the files of services with their candidates, by area, and a second run lists only the files that changed or whose mark is hidden', () => {
+test('mark-groups gives every code file to the service writers, by area, and a second run lists only the files that changed or whose mark is hidden', () => {
   const { repo, store, map } = setUp();
   const first = markGroups(repo.folder, map(), 'services');
   assert.deepEqual(first.groups.map((group) => group.area), ['src']);
-  const [feed] = first.groups[0].files;
-  assert.equal(feed.path, 'src/feed.py');
-  assert.deepEqual(feed.candidates?.map((one) => [one.line, one.why, one.may ?? '']), [
-    [4, 'a key or an address read from the environment', 'feed'], [7, 'a web address', 'feed.example.org'], [10, 'a query of a database', ''], [11, 'a query of a database', ''],
-  ]);
-  // A file with no sign of a service is no work for the service writers; it is for the writers of a set of a look.
-  assert.equal(first.groups.flatMap((group) => group.files).some((file) => file.path === 'src/quiet.py'), false);
-  assert.ok(markGroups(repo.folder, map(), 'checks').groups.flatMap((group) => group.files).some((file) => file.path === 'src/quiet.py'));
-  // After a save the file is done; a changed candidate line makes it work again.
-  addMarksToMap(store, repo.folder, services(first.groups[0].name, [{ value: 'bookfeed', file: 'src/feed.py', line: 7, name: 'requests', relation: 'calls' }], { values: [FEED_SERVICE], files: ['src/feed.py'] }));
+  const paths = first.groups[0].files.map((file) => file.path);
+  assert.deepEqual(paths, ['src/app.py', 'src/feed.py', 'src/new_tool.py', 'src/quiet.py']);
+  // After a save the files are done; a changed file is work again.
+  addMarksToMap(store, repo.folder, services(first.groups[0].name, [{ value: 'bookfeed', file: 'src/feed.py', line: 7, name: 'requests', relation: 'calls' }], { values: [FEED_SERVICE], files: paths }));
   assert.deepEqual(markGroups(repo.folder, map(), 'services').groups, []);
   assert.equal(markGroups(repo.folder, map(), 'services', true).groups.length, 1);
   repo.write('src/feed.py', FEED.replace('feed.example.org/new', 'feed.example.org/newer'));
