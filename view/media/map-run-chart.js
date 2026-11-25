@@ -77,7 +77,7 @@ const RunChart = (() => {
     if (live) svg.push(`<line class="mr-now" x1="${x(chart.now)}" x2="${x(chart.now)}" y1="${TOP - 14}" y2="${bottom + 4}">${glide('x1', x(chart.now), x(total))}${glide('x2', x(chart.now), x(total))}</line><text class="mr-nowword" x="${x(chart.now)}" y="${TOP - 18}">now${later(chart.now)}</text>`);
     const label = (top, name, run) => `<div class="mr-label" style="top:${top}px"><b>${name}</b><span>${esc(run?.name ?? '')}</span></div>`;
     return `<div class="mr-plot"><div class="mr-labels" style="height:${height}px">${label(TOP - 4, 'Lead', chart.lead.run)}${chart.writers.length ? label(WRITERS - 4, 'Writers', chart.writersRun) : ''}</div>`
-      + `<svg width="100%" height="${height}">${svg.join('')}</svg></div>`;
+      + `<svg width="100%" height="${height}" data-rows="${ends.length}">${svg.join('')}</svg></div>`;
   }
 
   function keyHtml(chart) {
@@ -126,5 +126,5 @@ const RunChart = (() => {
     fill(view, Home.data);
   });
 
-  return { draw, fill, update };
+  return { draw, fill, update, ROW };
 })();

@@ -371,6 +371,8 @@ async function drawHome() {
   view.className = 'view';
   view.style.height = ''; // the frame of a run before its overview took the height of the tab
   view.sized = null; // and no earlier drawing sets its height again (keepFilled, keepOverview)
+  delete view.dataset.height; // nor gives it back when the cards are placed (Overview.trim)
+  delete view.dataset.least;
   const cards = document.getElementById('cards');
   Overview.cards(cards, []);
   const diagram = map && (diagramOf(Home.at) ?? diagramOf(map.top));
@@ -491,7 +493,7 @@ function runFrame(view, summary, run, time) {
   view.className = 'view runframe';
   view.innerHTML = sketchHtml();
   runBar(view, time);
-  keepFilled(view);
+  keepFilled(view, 240, 'run-sketch');
 }
 
 /** While a run of Home writes the map: its chart (map-run-chart.js), which Home's frame holds in place of the top map. */
@@ -511,10 +513,31 @@ function chartFrame(view, summary, run, time, diagram, areas) {
   view.className = 'view runframe mr';
   view.innerHTML = '<div class="runchart"></div>';
   fillChart();
+  if (Overview.isFull()) keepFilled(view);
+  else keepChartHeight(view);
   if (diagram) Overview.icon(view, Overview.isFull(), () => Home.render());
   const top = diagram ? { title: diagram.title, open: () => walkTo(topMapStep()), ...smallDiagram(diagram) } : { title: 'Overview', run: { state: 'working', share: time?.share ?? 0 } };
   const areaCards = diagram ? Object.keys(diagram.graph.nodes).filter((key) => leadsSomewhere(diagram.nodes[key])).map((key) => homeCard(key, diagram.nodes[key], openOf(diagram.nodes[key]), diagram.graph, areas?.[key])) : [];
   Overview.cards(document.getElementById('cards'), Overview.isFull() ? [] : [top, ...areaCards]);
+}
+
+const CHART_ROWS = 16; // the rows that Home's frame has room for: as many as writers run at once (WRITERS_AT_ONCE in shared/map-estimate.ts)
+
+/**
+ * The height of Home's frame while it holds the chart: the height of the chart with CHART_ROWS rows of writers, so the frame keeps one height while the run
+ * writes and a full chart has no empty room under it. A taller chart scrolls up and down inside the frame. A drag on its bottom edge holds another height.
+ */
+function keepChartHeight(view) {
+  const set = () => {
+    const held = heldHeight('run-chart');
+    view.style.height = '';
+    const box = view.querySelector('.runchart');
+    const rows = Number(box.querySelector('svg[data-rows]')?.dataset.rows ?? 0);
+    const borders = view.offsetHeight - view.clientHeight;
+    view.style.height = `${held ?? box.scrollHeight + borders + (CHART_ROWS - rows) * RunChart.ROW}px`;
+  };
+  set();
+  frameEdge(view, 'run-chart', set, OVERVIEW_LEAST);
 }
 
 /** The bar of the whole run on the top edge of the frame: it fills by the expected work done, out of all, and glides from where it stood before. */

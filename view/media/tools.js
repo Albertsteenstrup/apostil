@@ -597,11 +597,47 @@ function virtualRows(scroller, box, count, row, size = () => 1) {
  * Gives an element the height that is left in the tab, now and after each resize of the tab, until it leaves the page or another drawing in it sets its
  * height (`sized`, as keepOverview in overview.js).
  */
-function keepFilled(el, least = 240) {
-  fillHeight(el, least);
-  const refill = () => (el.isConnected && el.sized === refill ? fillHeight(el, least) : removeEventListener('resize', refill));
+function keepFilled(el, least = 240, key = undefined) {
+  // With `key`, he can drag its bottom edge, and the height that he dragged it to holds instead (frameEdge).
+  const set = () => { const held = key && heldHeight(key); if (held) el.style.height = `${held}px`; else fillHeight(el, least); };
+  set();
+  if (key) frameEdge(el, key, set, least);
+  const refill = () => (el.isConnected && el.sized === refill ? set() : removeEventListener('resize', refill));
   el.sized = refill;
   addEventListener('resize', refill);
+}
+
+/** The height that he dragged the bottom edge of the frame `key` to (frameEdge), or undefined. */
+const heldHeight = (key) => kept.frameHeights?.[key];
+
+/**
+ * The bottom edge of a frame, the same on every page: a drag there makes the frame taller or shorter, not less than `least`, and does not move what it
+ * shows; that height holds for `key` while VS Code keeps the page (heldHeight). A double click lets it go, and the frame takes its own height again.
+ * `set` gives the frame its height: the held one, else its own.
+ */
+function frameEdge(frame, key, set, least) {
+  frame.querySelector(':scope > .ove')?.remove();
+  const edge = html('<div class="ove" title="Drag to change the height. Double-click to fit it again."></div>');
+  const hold = (height) => {
+    const heights = { ...kept.frameHeights, [key]: height };
+    if (!height) delete heights[key];
+    keep({ frameHeights: heights });
+    set();
+  };
+  let drag = null;
+  edge.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0) return;
+    event.stopPropagation();
+    event.preventDefault();
+    drag = { from: event.clientY, start: frame.offsetHeight };
+    edge.setPointerCapture(event.pointerId);
+    edge.classList.add('held');
+  });
+  edge.addEventListener('pointermove', (event) => { if (drag) hold(Math.max(least, Math.round(drag.start + event.clientY - drag.from))); });
+  edge.addEventListener('lostpointercapture', () => { drag = null; edge.classList.remove('held'); });
+  edge.addEventListener('click', (event) => event.stopPropagation());
+  edge.addEventListener('dblclick', (event) => { event.stopPropagation(); hold(null); });
+  frame.append(edge);
 }
 
 /** Glides an element that scrolls (or window) to a place in a short animation; `to` can be a function, for a place that moves meanwhile. Returns how to stop it. */
