@@ -371,6 +371,7 @@ async function drawHome() {
   // While a run of the whole map writes: the time left at the right end of the head, and the bar of the run on the top edge of the frame.
   const time = run?.state === 'writing' ? run.time : undefined;
   showTime(time);
+  Object.assign(document.getElementById('lastrun'), { hidden: !Home.data.runChart, title: RUN_CHART_TIP });
   const areas = run?.areas && diagram && diagram.id === map.top ? run.areas : null; // the areas of the top map with work left, by node id
   let nodes = 0;
   const chart = liveChart() && (!diagram || (diagram.id === map.top && !Home.mapChosen));
@@ -727,6 +728,7 @@ if (vscodeApi) {
     if (query.get('chart')) Home.data = example.charts[query.get('chart')]; // "?chart=live" or "?chart=done": the tab "Map run" of a made-up map session
     const run = example.mapRuns?.[query.get('run')]; // "?run=<name>": Home while a made-up map run writes, or after one stopped; with "?nomap=1" too
     if (run && Home.data.kind === 'home') Home.data = { ...Home.data, mapRun: run, ...(run.chart ? { chart: example.charts.live } : {}) }; // a run of Home has its chart
+    if (query.get('ran') && Home.data.kind === 'home') Home.data = { ...Home.data, runChart: true }; // "?ran=1": the last run of Home ended
     Home.at = query.get('diagram') || null;
     Home.lit = (query.get('lit') ?? '').split(',').filter(Boolean);
     if (query.get('icons') !== 'none') FileIcons.set(example.icons?.home); // the made-up icon theme; "?icons=none": no theme

@@ -38,7 +38,7 @@ type Message =
   | { type: 'remarkAction'; id: number; action: 'resolve' | 'reopen' | 'start' }
   | { type: 'openSession'; id: number }
   | { type: 'openMapSession' } // "Open the session" on the line of the map run
-  | { type: 'openMapChart' } // "Live chart" on the line of the map run
+  | { type: 'openMapChart' } // "Run chart" on the line of a run that stopped, or "Map run" in the head of Home after a run ended
   | { type: 'pointer'; on: boolean }
   | { type: 'openLink'; url: string }
   | { type: 'target'; target: Target; diagram?: string }

@@ -108,7 +108,7 @@ export interface MapRunLine {
   opens?: 'app' | 'terminal' | 'shown'; // "Open the session" opens it in its app, in a terminal of VS Code that continues it (sessionOpens), or shows the terminal where it writes
   time?: TimeLeft; // while a run of the whole map writes and has a plan: the minutes left and the share of the bar
   areas?: Record<string, AreaWork>; // the areas of the top diagram with work left, by node id; an area that is not named is done (homeData adds it)
-  chart?: true; // "Live chart": a run of Home by Claude Code with a known session, whose transcripts the chart reads (shared/map-run-chart.ts)
+  chart?: true; // hasChart: after a run that stopped the line has "Run chart"; while it writes, Home's frame holds the chart
 }
 
 /** An area of the top diagram with work left, which writers work on now; `share`: the part of its work that is done. */
@@ -155,6 +155,9 @@ function sessionWords(run: MapRun, name?: string): string {
  * A session of the Claude desktop app or of Codex opens in its app. Any other session that is known opens in a terminal that continues it; a run of Home
  * only when it stopped, because it still works while it writes. A run of Home in a terminal that this window started shows that terminal while it writes.
  */
+/** A run of Home by Claude Code with a known session, whose transcripts the chart reads (shared/map-run-chart.ts). */
+export const hasChart = (run: MapRun): boolean => !!run.home && run.agent?.app === 'claude-code' && !!run.agent.session;
+
 export function mapRunLine(run: MapRun | undefined, has: { name?: string; alive?: boolean; now?: number } = {}): MapRunLine | undefined {
   if (!run) return undefined;
   const state = mapRunState(run, has.now, has.alive);
@@ -167,7 +170,7 @@ export function mapRunLine(run: MapRun | undefined, has: { name?: string; alive?
   const shown = run.terminal && has.alive && state === 'writing';
   const opens = shown ? 'shown' : run.agent && (!run.home || state === 'stopped') && (!id || /^[\w-]+$/.test(id)) ? sessionOpens(run.agent) : undefined;
   const time = state === 'writing' ? runTimeLeft(run, has.now) : undefined;
-  const chart = run.home && run.agent?.app === 'claude-code' && !!id;
+  const chart = hasChart(run);
   return { state, words, ...(tip ? { tip } : {}), ...(opens ? { opens } : {}), ...(time ? { time } : {}), ...(chart ? { chart: true as const } : {}) };
 }
 

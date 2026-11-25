@@ -658,6 +658,8 @@ div.nomap .runpick{margin:0 0 8px}
 .runbar i{border-radius:0 2px 2px 0}
 .home .bar .runtime{margin-left:auto;flex:none;position:relative;font-size:var(--small);font-variant-numeric:tabular-nums;white-space:nowrap}
 .home .bar .runtime[hidden]{display:none}
+.home .bar .lastrun{margin-left:auto;flex:none;font-size:var(--small);color:var(--tealink);cursor:pointer}
+.home .bar .lastrun[hidden]{display:none}
 .home .bar .runtime:not([hidden]) ~ .cmc{margin-left:0}
 .rt{display:inline-block}
 .rt-in{animation:rt-in 1.4s ease both}
@@ -1548,6 +1550,9 @@ body:where(.vscode-dark,.vscode-high-contrast:not(.vscode-high-contrast-light)){
 .mr .k-diagram{fill:var(--kind-diagram);stroke:var(--kind-diagram)}.mr .k-notes{fill:var(--kind-notes);stroke:var(--kind-notes)}
 .mr .k-process{fill:var(--kind-process);stroke:var(--kind-process)}.mr .k-service{fill:var(--kind-service);stroke:var(--kind-service)}.mr .k-other{fill:var(--kind-other);stroke:var(--kind-other)}
 .mr-writer.hot .mr-bar{stroke:var(--ink);stroke-width:1}
+.mr-writer.runs circle{transform-box:fill-box;transform-origin:center;animation:mr-breathe 2.4s ease-in-out infinite}
+@keyframes mr-breathe{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(1.7)}}
+@media (prefers-reduced-motion:reduce){.mr-writer.runs circle{animation:none}}
 .mr-key{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:8px;color:var(--muted);font-size:var(--small)}
 .mr-key span{display:flex;align-items:center;gap:6px}
 .mr-key i{width:10px;height:10px;border-radius:2.5px;background:var(--region)}

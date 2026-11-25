@@ -112,18 +112,20 @@ const MAP_RUN_WORDS = 'A new agent session reads the repo, draws its map and wri
 /** The quiet link under the press that picks another app (VS Code's quick pick); only with two or more installed apps. */
 const anotherAppHtml = (apps) => (apps.length > 1 ? '<a data-other-app>Another app</a>' : '');
 
+const RUN_CHART_TIP = 'Opens a tab with what the lead session and each writer did, on one time axis';
+
 /** What "Open the session" does, in its tooltip: the one way of opening a session (sessionOpens in shared/agents.ts), never a page in the browser. */
 const OPENS_TIP = { app: 'Opens the session in its app', terminal: 'Opens a terminal of VS Code that continues the session', shown: 'Shows the terminal where the session writes the map' };
 
 /**
  * The quiet line of a map run (`run`, a MapRunLine of shared/map-run.ts): which session writes the map and what is saved so far, or that the run stopped.
- * After the words, "Open the session", which VS Code opens in its app or in a terminal that continues it, and "Live chart" (the tab "Map run").
+ * After the words, "Open the session", which VS Code opens in its app or in a terminal that continues it, and after a run of Home that stopped "Run chart" (the tab "Map run").
  * `again`: after a run that stopped, on the map, the press "Start again" (it starts `again.app`, the pointer says which) and "Another app". Nothing in the line moves.
  */
 function mapRunHtml(run, again = null) {
   const words = `<span${run.tip ? ` title="${esc(run.tip)}"` : ''}>${esc(run.words)}</span>`;
   const reach = run.opens ? `<a data-open-run title="${OPENS_TIP[run.opens]}">Open the session</a>` : '';
-  const chart = run.chart ? '<a data-run-chart title="Opens a tab with what the lead session and each writer do, on one time axis">Live chart</a>' : '';
+  const chart = run.chart && run.state !== 'writing' ? `<a data-run-chart title="${RUN_CHART_TIP}">Run chart</a>` : '';
   const press = again?.app ? `<a data-write="${esc(again.app)}" title="Starts a new ${esc(AGENT_NAMES[again.app] ?? again.app)} session">Start again</a>` : '';
   return `<span class="state maprun" data-run="${esc(run.state)}">${[words, reach, chart, press, again?.app ? anotherAppHtml(again.apps) : ''].filter(Boolean).join(' · ')}</span>`;
 }

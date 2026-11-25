@@ -335,7 +335,7 @@ try {
   const writingLine = writingFrame ? await writingFrame.evaluate(() => document.querySelector('.maprun').textContent) : '';
   const terminalShown = await until(() => page.evaluate(() => /Apostil map/.test(document.querySelector('.part.panel')?.textContent ?? '')), 5000);
   await shot('1c2-home-while-the-map-is-written');
-  // "Live chart" opens the tab "Map run", which reads a small made-up transcript of the session in the window's agent home and shows the lead row.
+  // After the run, "Run chart" opens the tab "Map run", which reads a small made-up transcript of the session in the window's agent home and shows the lead row.
   const chartFrom = Date.now();
   const chartFolder = path.join(agentHome, '.claude', 'projects', 'made-up-map-check');
   const second = (at) => new Date(chartFrom + at * 1000).toISOString();
@@ -344,20 +344,21 @@ try {
     { type: 'user', timestamp: second(0), message: { content: 'Write the map.' } }, { type: 'api-request', timestamp: second(0) },
     { type: 'assistant', timestamp: second(1), message: { id: 'made-up', model: 'claude-sonnet-5-5', usage: { output_tokens: 10 } } },
   ].map((record) => `${JSON.stringify(record)}\n`).join(''));
-  await writingFrame?.click('.maprun [data-run-chart]', { timeout: 2000 }).catch(() => {});
-  const chartTab = await until(async () => (await tabs()).includes('Map run'), 3000);
-  const leadRow = !!await frameWhere(() => document.querySelectorAll('.mr-plot .mr-think').length > 0, undefined, 3000);
-  const chartSeconds = (Date.now() - chartFrom) / 1000;
-  if (chartTab) await closeTab('Map run');
-  rmSync(chartFolder, { recursive: true, force: true });
-  check('"Live chart" on the line of the map run opens the tab "Map run", which shows the lead row of the transcript of the session', chartTab && leadRow, `tab ${chartTab}; lead row ${leadRow}; ${chartSeconds.toFixed(1)} s`);
   writeFileSync(mapGo, '');
   const homeFrame = () => frameWhere(() => typeof Home === 'object' && Home.data?.kind === 'home' && document.querySelectorAll('#view g.node.go').length === 8);
   const mapped = await homeFrame();
   const lineStopped = !!mapped && await until(() => mapped.evaluate(() => !!document.querySelector('.maprun[data-run="stopped"]')).catch(() => false), 6000);
   const ranMap = store.mapRun(repoId(repo));
+  const chartAt = Date.now();
+  await mapped?.click('.maprun [data-run-chart]', { timeout: 2000 }).catch(() => {});
+  const chartTab = await until(async () => (await tabs()).includes('Map run'), 3000);
+  const leadRow = !!await frameWhere(() => document.querySelectorAll('.mr-plot .mr-think').length > 0, undefined, 3000);
+  const chartSeconds = (Date.now() - chartAt) / 1000;
+  if (chartTab) await closeTab('Map run');
+  rmSync(chartFolder, { recursive: true, force: true });
+  check('"Run chart" on the line of the map run that stopped opens the tab "Map run", which shows the lead row of the transcript of the session', chartTab && leadRow, `tab ${chartTab}; lead row ${leadRow}; ${chartSeconds.toFixed(1)} s`);
   check('while the stand-in writes the map in the terminal "Apostil map", Home shows the line of the map run with the session id that Apostil gave it and "Open the session"; when the run ends with work left in the map, the map shows and the line says that the run stopped',
-    writingLine === `Writing the map · Claude Code session ${ranMap?.agent?.session?.slice(0, 8)} · nothing saved yet · Open the session · Live chart` && terminalShown && lineStopped && !!ranMap?.endedAt && !!ranMap?.stopped && runsNow().length === 1,
+    writingLine === `Writing the map · Claude Code session ${ranMap?.agent?.session?.slice(0, 8)} · nothing saved yet · Open the session` && terminalShown && lineStopped && !!ranMap?.endedAt && !!ranMap?.stopped && runsNow().length === 1,
     `"${writingLine}"; terminal ${terminalShown}; stopped ${lineStopped}; ${runsNow().length} runs; ${JSON.stringify(ranMap ?? null)}`);
   await shot('1d-home-with-the-map');
 

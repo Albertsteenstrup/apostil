@@ -474,19 +474,22 @@ try {
   const terminalRun = await runLine();
   await homeAt('?nomap=1&run=home');
   const homeRun = await runLine();
-  homeRun.chartTip = await home.getAttribute('.maprun [data-run-chart]', 'title').catch(() => '');
-  await home.click('.maprun [data-run-chart]', { timeout: 3000 }).catch(() => {});
-  homeRun.chartSent = await home.evaluate(() => window.apostilSent.some((message) => message.type === 'openMapChart'));
+  homeRun.chartLink = await home.$$eval('[data-run-chart]:not([hidden])', (all) => all.length);
+  await homeAt('?ran=1');
+  const ran = await home.evaluate(() => { const link = document.getElementById('lastrun'); return { text: link.textContent, shown: !link.hidden, tip: link.title, right: Math.round(innerWidth - link.getBoundingClientRect().right) }; });
+  await takePicture(home, '35-home-after-a-run-of-home.png');
+  await home.click('#lastrun', { timeout: 3000 }).catch(() => {});
+  ran.sent = await home.evaluate(() => window.apostilSent.some((message) => message.type === 'openMapChart'));
   await home.goto(`file://${listFile}?run=1`);
   await home.waitForFunction(() => window.apostilListDone, null, { timeout: 5000 });
   const homeRow = await home.$eval('.cl .home', (row) => ({ text: row.textContent, state: row.querySelector('.state')?.textContent }));
-  check('while a map run writes, Home says in one quiet line which session writes the map and what is saved so far, and nothing in it moves: on the map, for a session of the desktop app with "Open the session", which opens it in its app (a click asks VS Code to open it); for a session in a terminal with "Open the session", which opens a terminal that continues it; in a repo with no map, for the run of Home, under the head in place of the press, with "Live chart" (a click asks VS Code to open the tab "Map run"); and the row "Home" of the list says "writing the map"',
+  check('while a map run writes, Home says in one quiet line which session writes the map and what is saved so far, and nothing in it moves: on the map, for a session of the desktop app with "Open the session", which opens it in its app (a click asks VS Code to open it); for a session in a terminal with "Open the session", which opens a terminal that continues it; in a repo with no map, for the run of Home, under the head in place of the press, with no link to its chart, which the frame holds; after the run of Home ended, "Map run" at the right of the head opens the tab "Map run"; and the row "Home" of the list says "writing the map"',
     ownRun?.text === `Writing the map · Claude Code session "Map of library-app" · ${SAVED} · Open the session` && ownRun.lines === 1 && ownRun.nodes === 8 && ownRun.moves === 0 && ownRun.presses.length === 0
       && ownRun.tip === 'Session 1a2b3c4d-0000-4000-8000-00000000cafe\nAreas: Lending, Desk, Catalogue' && ownRun.opens === 'Opens the session in its app' && !!opened
       && terminalRun?.text === `Writing the map · Claude Code session 1a2b3c4d · ${SAVED} · Open the session` && terminalRun.opens === 'Opens a terminal of VS Code that continues the session'
-      && homeRun?.text === `Writing the map · Claude Code session 1a2b3c4d (a session with no window) · ${SAVED} · Live chart` && homeRun.chartSent && /one time axis/.test(homeRun.chartTip) && homeRun.underHead && homeRun.presses.length === 0 && homeRun.moves === 0 && !homeRun.opens
+      && homeRun?.text === `Writing the map · Claude Code session 1a2b3c4d (a session with no window) · ${SAVED}` && homeRun.chartLink === 0 && ran.text === 'Map run' && ran.shown && ran.sent && /one time axis/.test(ran.tip) && homeRun.underHead && homeRun.presses.length === 0 && homeRun.moves === 0 && !homeRun.opens
       && homeRow.state === 'writing the map' && homeRow.text === 'Homelibrary-appwriting the map',
-    JSON.stringify({ ownRun, opened, terminalRun, homeRun, homeRow }));
+    JSON.stringify({ ownRun, opened, terminalRun, homeRun, ran, homeRow }));
 
   // After a run that stopped: one line says so, with the press that starts again.
   const STOPPED = `The map run of Claude Code session "Map of library-app" stopped after ${SAVED}`;
@@ -517,7 +520,7 @@ try {
   });
   await homeAt('?chart=live');
   const live = await chartNow();
-  await home.hover('.mr-writer[data-writer="2"] .mr-bar');
+  await home.hover('.mr-writer[data-writer="2"] .mr-bar', { force: true });
   const writerWindow = await home.waitForSelector('.win', { timeout: 3000 }).then(() => home.evaluate(() => document.querySelector('.win').innerText.replace(/\s+/g, ' ').trim()), () => '');
   await home.evaluate(() => new Promise((done) => { // a new chart comes, and Home has handled it
     addEventListener('message', () => Home.drawing.then(done), { once: true });
@@ -607,6 +610,19 @@ try {
       && working.every((card) => card.state === 'working' && card.sketch && card.spin === 'ov-turn' && !card.content) && working.map((card) => card.bar).join() === '45%,20%'
       && done.length === 7 && done.every((card) => card.content && card.edge === 'solid')
       && !loading.bar && /^About \d+ min left$/.test(loading.time) && loading.aheadMinutes === Number(loading.time.match(/\d+/)[0]), JSON.stringify(loading));
+
+  const moving = () => home.evaluate(() => {
+    const plot = document.querySelector('#view .mr-plot svg');
+    const box = (selector) => plot.querySelector(selector).getBoundingClientRect();
+    return { now: box('.mr-now').left, bar: box('.mr-writer.runs .mr-bar').width, ahead: box('.mr-ahead').width, left: box('.mr-writer.runs .mr-bar').left,
+      dot: getComputedStyle(plot.querySelector('.mr-writer.runs circle')).animationName, still: getComputedStyle(plot.querySelector('.mr-writer:not(.runs) .mr-bar')).animationName };
+  });
+  const before = await moving();
+  await home.waitForTimeout(2200);
+  const after = await moving();
+  check('while a run writes, the dot at the end of a running writer breathes slowly, and the now line and the running bars move on with the clock while the striped minutes left get shorter by as much; a writer that is done stays still',
+    after.dot === 'mr-breathe' && after.still === 'none' && after.now - before.now > 0.5 && after.now - before.now < 3 && after.left === before.left && Math.abs((after.bar - before.bar) - (after.now - before.now)) < 0.1 && Math.abs((before.ahead - after.ahead) - (after.now - before.now)) < 0.1,
+    JSON.stringify({ before, after }));
 
   // A click on the card of the top map shows the map in the frame as a step of its own, with the states of the areas on its nodes; "Home" in the line goes back to the chart.
   await home.click('#cards .ovc[data-card="0"]');

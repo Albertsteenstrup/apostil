@@ -44,6 +44,10 @@ const RunChart = (() => {
     const total = Math.max(MINUTE, chart.now + (live ? (chart.minutesLeft ?? 0) * MINUTE : 0));
     const x = (ms) => `${((ms / total) * 100).toFixed(3)}%`;
     const width = (span) => `${(((span.to - span.from) / total) * 100).toFixed(3)}%`;
+    const left = live ? total - chart.now : 0;
+    const glide = (name, from, to) => (left > 0 ? `<animate attributeName="${name}" from="${from}" to="${to}" dur="${left / 1000}s" fill="freeze"/>` : '');
+    const later = (ms) => glide('x', x(ms), x(ms + left));
+    const longer = (span) => glide('width', width(span), width({ ...span, to: span.to + left }));
     const ends = [];
     const rows = chart.writers.map((writer) => {
       let row = ends.findIndex((end) => end + total * 0.004 <= writer.from);
@@ -56,20 +60,21 @@ const RunChart = (() => {
     const tall = bottom + 4 - (TOP - 6);
     const svg = [`<defs><pattern id="mr-ahead" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6"/></pattern></defs>`];
     for (const span of chart.alone) svg.push(`<rect class="mr-alone" x="${x(span.from)}" y="${TOP - 6}" width="${width(span)}" height="${tall}"/>`);
-    if (live) svg.push(`<rect class="mr-ahead" x="${x(chart.now)}" y="${TOP - 6}" width="${width({ from: chart.now, to: total })}" height="${tall}"/>`);
+    if (live) svg.push(`<rect class="mr-ahead" x="${x(chart.now)}" y="${TOP - 6}" width="${width({ from: chart.now, to: total })}" height="${tall}">${later(chart.now)}${glide('width', width({ from: chart.now, to: total }), '0%')}</rect>`);
     for (let minute = 0; minute * MINUTE <= total; minute += 5) {
       svg.push(`<line class="mr-grid" x1="${x(minute * MINUTE)}" x2="${x(minute * MINUTE)}" y1="${TOP - 6}" y2="${bottom + 4}"/><text class="mr-tick" x="${x(minute * MINUTE)}" y="${bottom + 20}">${minute} min</text>`);
     }
-    svg.push(`<rect class="mr-track" x="0" y="${TOP}" width="${x(live ? chart.now : total)}" height="${LEAD}" rx="3"/>`);
+    svg.push(`<rect class="mr-track" x="0" y="${TOP}" width="${x(live ? chart.now : total)}" height="${LEAD}" rx="3">${live ? longer({ from: 0, to: chart.now }) : ''}</rect>`);
     for (const span of chart.lead.thinks) svg.push(`<rect class="mr-think" x="${x(span.from)}" y="${TOP}" width="${width(span)}" height="${LEAD}"/>`);
     for (const span of chart.lead.commands) svg.push(`<rect class="mr-command" x="${x(span.from)}" y="${TOP}" width="${width(span)}" height="${LEAD}"/>`);
     chart.writers.forEach((writer, at) => {
       const y = WRITERS + rows[at] * ROW;
-      const dot = writer.running ? `<circle class="k-${writer.kind}" cx="${x(writer.to)}" cy="${y + ROW / 2}" r="2.6"/>` : '';
-      svg.push(`<g class="mr-writer" data-writer="${at}"><rect class="mr-hit" x="${x(writer.from)}" y="${y}" width="${width(writer)}" height="${ROW}"/>`
-        + `<rect class="mr-bar k-${writer.kind}" x="${x(writer.from)}" y="${y + 1}" width="${width(writer)}" height="${ROW - 2}" rx="1.5"/>${dot}</g>`);
+      const grows = writer.running ? longer(writer) : '';
+      const dot = writer.running ? `<circle class="k-${writer.kind}" cx="${x(writer.to)}" cy="${y + ROW / 2}" r="2.6">${glide('cx', x(writer.to), x(writer.to + left))}</circle>` : '';
+      svg.push(`<g class="mr-writer${writer.running ? ' runs' : ''}" data-writer="${at}"><rect class="mr-hit" x="${x(writer.from)}" y="${y}" width="${width(writer)}" height="${ROW}">${grows}</rect>`
+        + `<rect class="mr-bar k-${writer.kind}" x="${x(writer.from)}" y="${y + 1}" width="${width(writer)}" height="${ROW - 2}" rx="1.5">${grows}</rect>${dot}</g>`);
     });
-    if (live) svg.push(`<line class="mr-now" x1="${x(chart.now)}" x2="${x(chart.now)}" y1="${TOP - 14}" y2="${bottom + 4}"/><text class="mr-nowword" x="${x(chart.now)}" y="${TOP - 18}">now</text>`);
+    if (live) svg.push(`<line class="mr-now" x1="${x(chart.now)}" x2="${x(chart.now)}" y1="${TOP - 14}" y2="${bottom + 4}">${glide('x1', x(chart.now), x(total))}${glide('x2', x(chart.now), x(total))}</line><text class="mr-nowword" x="${x(chart.now)}" y="${TOP - 18}">now${later(chart.now)}</text>`);
     const label = (top, name, run) => `<div class="mr-label" style="top:${top}px"><b>${name}</b><span>${esc(run?.name ?? '')}</span></div>`;
     return `<div class="mr-plot"><div class="mr-labels" style="height:${height}px">${label(TOP - 4, 'Lead', chart.lead.run)}${chart.writers.length ? label(WRITERS - 4, 'Writers', chart.writersRun) : ''}</div>`
       + `<svg width="100%" height="${height}">${svg.join('')}</svg></div>`;

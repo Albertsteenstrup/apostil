@@ -13,7 +13,7 @@ import { changedFiles, commitExists, repoFiles, repoIdOrNone, tryGit, type Chang
 import { appToStart } from './map-app';
 import { scopeCounts } from './note-groups';
 import { keptImportWords, looseBoxes, withBoxes } from './node-uses';
-import { areaWork, mapRunLine, type MapRunLine } from './map-run';
+import { areaWork, hasChart, mapRunLine, type MapRunLine } from './map-run';
 import type { MapRunChart } from './map-run-chart';
 import { teamOf, type Team } from './models';
 import { diagramsOf, downOf, mainDiagramOf, touches, type DiagramOfPath } from './repo-map';
@@ -90,6 +90,7 @@ export interface HomeData {
   writing?: string; // the app that writes the map now
   mapRun?: MapRunLine; // while a map run writes, or after one stopped: which session, and what is saved so far
   chart?: MapRunChart; // while a run of Home writes the map: its live chart, which Home's frame holds (home-page.ts adds it)
+  runChart?: true; // the last run of Home ended: "Map run" in the head opens its chart
   needsSetup?: boolean; // with no map: no agent app has the skills, so Home shows "Set up for agents"
   scope?: { leftOut: number; added: number }; // with no map and a .apostilignore: the files that it leaves out and adds (scopeCounts), a quiet line under the press
   noCommit?: true; // the folder is no Git repo or has no commit yet: it has no id, so no map can be saved
@@ -194,6 +195,7 @@ export function homeData(store: Store, folder: string, apps: string[] = [], addr
   // While a run of the whole map writes: the areas of the top diagram with work left, for the states of its nodes and cards.
   const run = store.mapRun(id);
   if (mapRun?.state === 'writing' && run?.whole && run.plan) mapRun.areas = areaWork(store, folder, stored, run);
+  if (!mapRun && run && hasChart(run)) base.runChart = true;
   const files = repoFiles(folder) ?? [];
   const changes = store.listChanges(id).map((change) => ({ id: change.id, branch: change.branch, title: change.file.title, files: filesOfChange(change, folder) }));
   const count = (path: string): number => files.filter((file) => touches(path, file)).length;
