@@ -501,7 +501,7 @@ const liveChart = () => {
   const run = Home.data.mapRun;
   return run?.state === 'writing' && Home.data.chart ? { ...Home.data.chart, minutesLeft: run.time?.minutes } : null;
 };
-const fillChart = () => { const box = document.querySelector('#view > .runchart'); if (box && liveChart()) RunChart.fill(box, liveChart(), false); };
+const fillChart = () => { const box = document.querySelector('#view > .runchart'); if (box && liveChart()) { RunChart.fill(box, liveChart(), false); box.parentElement.sized?.(); } };
 
 /**
  * While a run of Home writes the map, the frame holds its chart, its striped minutes as long as the time left on Home, and the top map is the first card, before the
@@ -521,23 +521,30 @@ function chartFrame(view, summary, run, time, diagram, areas) {
   Overview.cards(document.getElementById('cards'), Overview.isFull() ? [] : [top, ...areaCards]);
 }
 
-const CHART_ROWS = 16; // the rows that Home's frame has room for: as many as writers run at once (WRITERS_AT_ONCE in shared/map-estimate.ts)
+const CHART_ROWS = { least: 12, most: 16 }; // the rows of writers that Home's frame has room for; the most: as many as run at once (WRITERS_AT_ONCE in shared/map-estimate.ts)
 
 /**
- * The height of Home's frame while it holds the chart: the height of the chart with CHART_ROWS rows of writers, so the frame keeps one height while the run
- * writes and a full chart has no empty room under it. A taller chart scrolls up and down inside the frame. A drag on its bottom edge holds another height.
+ * The height of Home's frame while it holds the chart: the height of the chart with room for 12 rows of writers, and taller with each row after the 12th,
+ * up to 16. A taller chart scrolls up and down inside the frame. A drag on its bottom edge holds another height. Each new chart sets the height again (fillChart).
  */
 function keepChartHeight(view) {
   const set = () => {
-    const held = heldHeight('run-chart');
-    view.style.height = '';
     const box = view.querySelector('.runchart');
+    if (!box) return;
+    const held = heldHeight('run-chart');
+    const scrolled = box.scrollTop;
+    view.style.height = '';
     const rows = Number(box.querySelector('svg[data-rows]')?.dataset.rows ?? 0);
+    const room = Math.min(CHART_ROWS.most, Math.max(CHART_ROWS.least, rows)) - rows; // negative: the rows that scroll
     const borders = view.offsetHeight - view.clientHeight;
-    view.style.height = `${held ?? box.scrollHeight + borders + (CHART_ROWS - rows) * RunChart.ROW}px`;
+    view.style.height = `${held ?? box.scrollHeight + borders + room * RunChart.ROW}px`;
+    box.scrollTop = scrolled;
   };
   set();
   frameEdge(view, 'run-chart', set, OVERVIEW_LEAST);
+  const again = () => (view.isConnected && view.sized === again ? set() : removeEventListener('resize', again));
+  view.sized = again;
+  addEventListener('resize', again);
 }
 
 /** The bar of the whole run on the top edge of the frame: it fills by the expected work done, out of all, and glides from where it stood before. */

@@ -740,8 +740,8 @@ try {
       && ended.cards.length === 8 && !ended.cards.some((card) => card.title === TOP_MAP) && ended.cards.every((card) => card.state === 'done' && card.content),
     JSON.stringify({ fullRun, ended }));
 
-  // Home's frame while it holds the chart, after the map stood in it: as high as a chart with 16 rows of writers; a chart with more rows scrolls up and
-  // down inside it; its bottom edge acts as on every frame.
+  // Home's frame while it holds the chart, after the map stood in it: as high as a chart with 12 rows of writers, taller with each row up to 16, and a
+  // chart with more rows scrolls up and down inside it; a new chart from VS Code sets its height again; its bottom edge acts as on every frame.
   await homeAt('');
   await home.evaluate(() => { const example = window.APOSTIL_EXAMPLE; window.postMessage({ type: 'data', data: { ...Home.data, mapRun: example.mapRuns.areas, chart: example.charts.live } }, '*'); });
   await home.waitForSelector('#view > .runchart .mr-writer', { timeout: 5000 }).catch(() => {});
@@ -753,14 +753,16 @@ try {
     return { frame: Math.round(frame.getBoundingClientRect().height), rows: Number(box?.querySelector('svg[data-rows]')?.dataset.rows), underKey: Math.round(frame.getBoundingClientRect().bottom - box?.querySelector('.mr-key').getBoundingClientRect().bottom),
       upDown: box?.scrollHeight > box?.clientHeight, across: box?.scrollWidth > box?.clientWidth, edge: edge && { x: edge.left + edge.width / 2, y: edge.top + edge.height / 2 } };
   });
-  const fitted = await chartFrameNow();
-  await home.evaluate(() => {
-    const chart = Home.data.chart;
+  const moreWriters = (count) => home.evaluate((added) => {
+    const chart = window.APOSTIL_EXAMPLE.charts.live;
     const one = chart.writers[0];
-    Home.data = { ...Home.data, chart: { ...chart, writers: [...chart.writers, ...Array.from({ length: 20 }, (_, at) => ({ ...one, from: one.from + at * 1000, running: true }))] } };
-    Home.render();
-  });
-  await homeSettled();
+    window.postMessage({ type: 'chart', chart: { ...chart, writers: [...chart.writers, ...Array.from({ length: added }, (_, at) => ({ ...one, from: one.from + at * 1000, running: true }))] } }, '*');
+    return new Promise((done) => setTimeout(done, 300));
+  }, count);
+  const fitted = await chartFrameNow();
+  await moreWriters(10);
+  const grown = await chartFrameNow();
+  await moreWriters(20);
   const crowded = await chartFrameNow();
   await takePicture(home, '84-5-a-full-chart-scrolls-in-its-frame.png');
   await home.mouse.move(crowded.edge.x, crowded.edge.y);
@@ -772,9 +774,10 @@ try {
   const heldTaller = await chartFrameNow();
   await home.mouse.dblclick(heldTaller.edge.x, heldTaller.edge.y);
   const fitAgain = await chartFrameNow();
-  check('while Home\'s frame holds the chart, also after the map stood in it, it is as high as a chart with 16 rows of writers, with the room of the rows that are not there yet under the key; a chart with more rows keeps that height and scrolls up and down inside it, never across; a drag on its bottom edge holds another height when Home draws again, and a double click gives that height back',
-    fitted.rows === 4 && Math.abs(fitted.underKey - (24 + 12 * 9)) <= 4 && !fitted.upDown && crowded.rows > 16 && crowded.frame === fitted.frame && crowded.upDown && !crowded.across
-      && heldTaller.frame === fitted.frame + 100 && fitAgain.frame === fitted.frame, JSON.stringify({ fitted, crowded, heldTaller, fitAgain }));
+  check('while Home\'s frame holds the chart, also after the map stood in it, it is as high as a chart with 12 rows of writers, with the room of the rows that are not there yet under the key; a new chart with 14 rows makes it two rows taller; one with more than 16 rows makes it as high as 16 rows and scrolls up and down inside it, never across; a drag on its bottom edge holds another height when Home draws again, and a double click gives that height back',
+    fitted.rows === 4 && Math.abs(fitted.underKey - (24 + 8 * 9)) <= 4 && !fitted.upDown && grown.rows === 14 && grown.frame === fitted.frame + 2 * 9 && !grown.upDown
+      && crowded.rows > 16 && crowded.frame === fitted.frame + 4 * 9 && crowded.upDown && !crowded.across && heldTaller.frame === crowded.frame + 100 && fitAgain.frame === crowded.frame,
+    JSON.stringify({ fitted, grown, crowded, heldTaller, fitAgain }));
 
   // Comments on the map of Home: a node and an arrow hold one, as on the change page; "@" offers only new sessions; a row of the list after a level down lights its node.
   await homeAt('');
