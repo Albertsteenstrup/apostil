@@ -529,18 +529,21 @@ const Remarks = (() => {
   const readAnswers = kept.readAnswers ?? {};
   const newestAnswer = (thread) => thread.map((remark) => remark.answeredAt ?? '').sort().at(-1);
   const isRead = (thread) => !!newestAnswer(thread) && readAnswers[thread[0].id] === newestAnswer(thread);
+  /** The thread whose state a mark or the count shows: one whose run works, else one with an answer not read yet, else the newest. */
+  const shownThread = (list) => list.find((thread) => States.threadLead(thread).state === 'running')
+    ?? list.find((thread) => States.threadLead(thread).state === 'done' && !isRead(thread)) ?? list.at(-1);
 
   /**
-   * The mark of the open threads of a thing: one chat bubble in the state of the newest thread, with the icon of its app and a count for more than one.
+   * The mark of the open threads of a thing: one chat bubble in the state of the thread that shownThread picks, with the icon of its app and a count for more than one.
    * A rule of the look on the comment mark gives it a colour and an icon in place of the icon of the app, or leaves it out.
    */
   function markOf(list) {
     if (!list.length) return '';
     const slots = lookOf({ kind: 'comment-mark', fields: { count: list.length } });
     if (slots['show.shown'] === false) return '';
-    const newest = list[list.length - 1];
-    const lead = States.threadLead(newest);
-    const html = States.markHtml(States.markState(lead, isRead(newest)), appOf(lead), list.length);
+    const shown = shownThread(list);
+    const lead = States.threadLead(shown);
+    const html = States.markHtml(States.markState(lead, isRead(shown)), appOf(lead), list.length);
     const el = document.createElement('i');
     el.innerHTML = html;
     const mark = el.firstChild;
@@ -581,7 +584,7 @@ const Remarks = (() => {
     const icon = bubble.querySelector('img');
     const count = bubble.querySelector('.n');
     g.innerHTML = `<path d="${States.BUBBLE_PATH}"/>${icon ? `<image href="${esc(icon.getAttribute('src'))}" x="8" y="5.8" width="12" height="12"/>` : ''}`
-      + (bubble.classList.contains('working') ? '<circle class="wd" cx="24.5" cy="4" r="3.5"/>' : '') + (count ? `<text class="n" x="25" y="4">${esc(count.textContent)}</text>` : '');
+      + (bubble.matches('.working, .answered') ? '<circle class="wd" cx="24.5" cy="4" r="3.5"/>' : '') + (count ? `<text class="n" x="25" y="4">${esc(count.textContent)}</text>` : '');
     if (el.tagName === 'g') el.append(g);
     else el.after(g);
   }
@@ -880,6 +883,7 @@ const Remarks = (() => {
       document.querySelectorAll(`.cb[data-threads~="${id}"]`).forEach((el) => el.classList.replace('answered', 'seen'));
       document.querySelectorAll(`.cb[data-threads~="${id}"]`).forEach((el) => el.classList.add('on'));
     }
+    drawCount();
     placeCard();
     RunPick.placeIn(card.el);
   }
@@ -1027,7 +1031,10 @@ const Remarks = (() => {
 
   // ----- the list of all comments, from the count in the top bar -----
 
-  /** The count in the top bar: a chat bubble with the number of open threads, beside the switch of views; only when there is a thread or an open point. */
+  /**
+   * The count in the top bar: a chat bubble with the number of open threads, beside the switch of views; only when there is a thread or an open point.
+   * Its dot is that of the thread that shownThread picks: it blinks while a run works, and stays until an answer is read.
+   */
   function drawCount() {
     const bar = document.querySelector('.paper > .bar');
     if (!bar) return;
@@ -1035,12 +1042,16 @@ const Remarks = (() => {
     const open = openThreads().length;
     if (!open && !points().length && !threads().length) { count?.remove(); return closeList(); }
     if (!count) {
-      count = html(`<a class="cmc" data-comments tabindex="0" title="Comments">${States.bubbleSvg('cmi')}<span class="n"></span></a>`);
+      count = html(`<a class="cmc" data-comments tabindex="0" title="Comments">${States.bubbleSvg('cmi')}<span class="n"></span><i class="cmd"></i></a>`);
       const after = bar.querySelector('.switch');
       if (after) after.after(count);
       else bar.append(count);
     }
     count.querySelector('.n').textContent = open || '';
+    const shown = open ? shownThread(openThreads()) : null;
+    const state = shown ? States.markState(States.threadLead(shown), isRead(shown)) : '';
+    count.classList.toggle('working', state === 'working');
+    count.classList.toggle('answered', state === 'answered');
     count.classList.toggle('on', !!list);
   }
 
