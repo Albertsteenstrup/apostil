@@ -85,10 +85,11 @@ export function withSave(run: MapRun | undefined, save: MapSave, agent: AgentSes
 
 /**
  * The time left of a run that writes the whole map and has a plan, at `now` (shared/map-estimate.ts). Undefined for any other, and until its first notes
- * are saved: before that the pace of the run is not measured, and a time from the size of the repo alone is a guess.
+ * are saved: before that the pace of the run is not measured, and a time from the size of the repo alone is a guess. A plan with no notes to write counts
+ * the real groups of the map, so its time starts at the first save of any writer.
  */
 export const runTimeLeft = (run: MapRun, now = Date.now()): TimeLeft | undefined =>
-  (run.plan && run.whole && !run.endedAt && run.saves?.some(([kind]) => kind === 'n') ? timeLeft(run.plan, run.saves, Date.parse(run.startedAt), now) : undefined);
+  (run.plan && run.whole && !run.endedAt && run.saves?.some(([kind]) => kind === 'n' || !run.plan?.notes) ? timeLeft(run.plan, run.saves, Date.parse(run.startedAt), now) : undefined);
 
 /** The record of a run of Home with the session that the run reports on its output. Any other record stays as it is. */
 export const withSession = (run: MapRun | undefined, session: string): MapRun | undefined =>

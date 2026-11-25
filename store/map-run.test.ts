@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { headCommit, repoId } from '../shared/git';
 import { findInMap, notesNow } from '../shared/map-read';
-import { areaWork, homeRun, mapRunLine, mapRunState, QUIET_MS, withEnd, withSave, type MapRun } from '../shared/map-run';
+import { areaWork, homeRun, mapRunLine, mapRunState, QUIET_MS, runTimeLeft, withEnd, withSave, type MapRun } from '../shared/map-run';
 import { markGroups } from '../shared/marks';
 import { noteGroups } from '../shared/note-groups';
 import { processFacts } from '../shared/processes';
@@ -101,6 +101,17 @@ test('an open record with no save for 30 minutes counts as stopped; a run that w
   // A save 40 minutes after the last one starts a new record, which goes on with the whole map of the run that stopped.
   const after = withSave(whole, { noteFiles: 3 }, { app: 'claude-code', session: 'another-session' }, 8, new Date(later(40)).toISOString());
   assert.deepEqual([after.startedAt, after.whole, after.parts, after.agent?.session], [new Date(later(40)).toISOString(), true, { ofAreas: 8, noteFiles: 3 }, 'another-session']);
+});
+
+test('the time left starts at the first saved notes, or at the first save of any writer when the plan has no notes to write', () => {
+  const plan = { at: 0, done: 0, lines: 20_000, overview: 0, areas: 0, notes: 0, noteFiles: 0, noteLines: 0, longest: 0, processes: 3, services: 10, again: 1, fit: 1 };
+  const run: MapRun = { ...homeRun('claude-code', AT, SESSION), plan, saves: [] };
+  assert.equal(runTimeLeft(run, later(2)), undefined); // nothing saved: the pace is not measured
+  assert.ok(runTimeLeft({ ...run, saves: [['p', 2.3]] }, later(3))!.minutes > 20);
+  // A plan with notes to write waits for the first notes, also after a process is saved.
+  const withNotes: MapRun = { ...run, plan: { ...plan, notes: 2, noteFiles: 10, noteLines: 900, longest: 500 } };
+  assert.equal(runTimeLeft({ ...withNotes, saves: [['p', 2.3]] }, later(3)), undefined);
+  assert.ok(runTimeLeft({ ...withNotes, saves: [['p', 2.3], ['n', 4, 5]] }, later(5)));
 });
 
 test('the words of the line of Home: the run of Home, his own session that opens in its app or in a terminal that continues it, and a run that stopped', () => {
