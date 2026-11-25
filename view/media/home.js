@@ -471,10 +471,14 @@ function runFrame(view, summary, run, time) {
 }
 
 /** While a run of Home writes the map: its chart (map-run-chart.js), which Home's frame holds in place of the top map. */
-const liveChart = () => (Home.data.mapRun?.state === 'writing' && Home.data.chart) || null;
+const liveChart = () => {
+  const run = Home.data.mapRun;
+  return run?.state === 'writing' && Home.data.chart ? { ...Home.data.chart, minutesLeft: run.time?.minutes } : null;
+};
+const fillChart = () => { const box = document.querySelector('#view > .runchart'); if (box && liveChart()) RunChart.fill(box, liveChart(), false); };
 
 /**
- * While a run of Home writes the map, the frame holds its chart, with the bar of the run on its top edge, and the top map is the first card, before the
+ * While a run of Home writes the map, the frame holds its chart, its striped minutes as long as the time left on Home, and the top map is the first card, before the
  * cards of its areas: drawn small, or a sketch before it is written. A click on that card shows the map in the frame, as a step of its own.
  */
 function chartFrame(view, summary, run, time, diagram, areas) {
@@ -482,8 +486,7 @@ function chartFrame(view, summary, run, time, diagram, areas) {
   frameDouble = null;
   view.className = 'view runframe mr';
   view.innerHTML = '<div class="runchart"></div>';
-  RunChart.fill(view.firstChild, liveChart(), false);
-  runBar(view, time);
+  fillChart();
   if (diagram) Overview.icon(view, Overview.isFull(), () => Home.render());
   const top = diagram ? { title: diagram.title, open: () => walkTo(topMapStep()), ...smallDiagram(diagram) } : { title: 'Overview', run: { state: 'working', share: time?.share ?? 0 } };
   const areaCards = diagram ? Object.keys(diagram.graph.nodes).filter((key) => leadsSomewhere(diagram.nodes[key])).map((key) => homeCard(key, diagram.nodes[key], openOf(diagram.nodes[key]), diagram.graph, areas?.[key])) : [];
@@ -690,10 +693,10 @@ window.addEventListener('message', (event) => {
   if (message?.type === 'layout' && Overview.heard(message.full)) Home.render(); // he chose on another page
   if (message?.type === 'chart' && Home.data?.kind === 'home') {
     Home.data.chart = message.chart;
-    RunChart.update(() => { const box = document.querySelector('#view > .runchart'); if (box && liveChart()) RunChart.fill(box, liveChart(), false); });
+    RunChart.update(fillChart);
   }
   // Every 30 seconds while a map is written: the time left and the bar, with nothing drawn again.
-  if (message?.type === 'time' && Home.data?.mapRun?.time) { Home.data.mapRun.time = message.time; showTime(message.time); barTo(message.time.share); }
+  if (message?.type === 'time' && Home.data?.mapRun?.time) { Home.data.mapRun.time = message.time; showTime(message.time); barTo(message.time.share); if (!document.querySelector('body > .win')) fillChart(); }
   if (message?.type === 'trail') Trail.set(message.steps);
   if (message?.type === 'go') Home.goTo(message.go.diagram || null, message.go.lit ?? []);
   if (message?.type === 'remark') (Home.drawing ?? Promise.resolve()).then(() => Remarks.openFromVsCode()); // the comment key
