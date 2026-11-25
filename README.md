@@ -37,7 +37,7 @@ old-admin/
 
 ## Use it from another computer
 
-Apostil also works when the repo is on another computer, such as a Mac mini that you reach from a laptop. Connect VS Code to it with **Remote - SSH**, open the repo, and install Apostil in that window. Apostil then runs on the computer with the repo: the map, the notes and the agent runs that your comments start all stay there, as with Claude Code's Remote Control. GitHub Codespaces works the same way.
+Apostil also works when the repo is on another computer, such as a Mac mini that you reach from a laptop. Connect VS Code to it with **Remote - SSH**, open the repo, and install Apostil in that window. Apostil then runs on the computer with the repo: the map, the notes and the agent runs that your comments start all stay there. GitHub Codespaces works the same way.
 
 ## Licence
 
