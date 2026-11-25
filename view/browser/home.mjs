@@ -487,7 +487,7 @@ try {
     ownRun?.text === `Writing the map · Claude Code session "Map of library-app" · ${SAVED} · Open the session` && ownRun.lines === 1 && ownRun.nodes === 8 && ownRun.moves === 0 && ownRun.presses.length === 0
       && ownRun.tip === 'Session 1a2b3c4d-0000-4000-8000-00000000cafe\nAreas: Lending, Desk, Catalogue' && ownRun.opens === 'Opens the session in its app' && !!opened
       && terminalRun?.text === `Writing the map · Claude Code session 1a2b3c4d · ${SAVED} · Open the session` && terminalRun.opens === 'Opens a terminal of VS Code that continues the session'
-      && homeRun?.text === `Writing the map · Claude Code session 1a2b3c4d (a session with no window) · ${SAVED}` && homeRun.chartLink === 0 && ran.text === 'Map run' && ran.shown && ran.sent && /one time axis/.test(ran.tip) && homeRun.underHead && homeRun.presses.length === 0 && homeRun.moves === 0 && !homeRun.opens
+      && homeRun?.text === `Writing the map · Claude Code session 1a2b3c4d (a session with no window) · ${SAVED}` && homeRun.chartLink === 0 && ran.text === 'Map run' && ran.shown && ran.right < 150 && ran.sent && /one time axis/.test(ran.tip) && homeRun.underHead && homeRun.presses.length === 0 && homeRun.moves === 0 && !homeRun.opens
       && homeRow.state === 'writing the map' && homeRow.text === 'Homelibrary-appwriting the map',
     JSON.stringify({ ownRun, opened, terminalRun, homeRun, ran, homeRow }));
 

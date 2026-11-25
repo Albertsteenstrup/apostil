@@ -660,6 +660,7 @@ div.nomap .runpick{margin:0 0 8px}
 .home .bar .runtime[hidden]{display:none}
 .home .bar .lastrun{margin-left:auto;flex:none;font-size:var(--small);color:var(--tealink);cursor:pointer}
 .home .bar .lastrun[hidden]{display:none}
+.home .bar .lastrun:not([hidden]) ~ .cmc{margin-left:14px}
 .home .bar .runtime:not([hidden]) ~ .cmc{margin-left:0}
 .rt{display:inline-block}
 .rt-in{animation:rt-in 1.4s ease both}
