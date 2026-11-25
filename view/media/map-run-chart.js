@@ -5,7 +5,7 @@ const RunChart = (() => {
   const KINDS = { diagram: 'Diagrams', notes: 'Notes', process: 'Processes', service: 'Services and marks', other: 'Other writers' };
   const TOP = 28; // room for the word "now" over the lead
   const LEAD = 14;
-  const ROW = 7;
+  const ROW = 9;
   const WRITERS = TOP + LEAD + 28;
   const MINUTE = 60_000;
 
@@ -43,7 +43,14 @@ const RunChart = (() => {
     const total = Math.max(MINUTE, chart.now + (live ? (chart.minutesLeft ?? 0) * MINUTE : 0));
     const x = (ms) => `${((ms / total) * 100).toFixed(3)}%`;
     const width = (span) => `${(((span.to - span.from) / total) * 100).toFixed(3)}%`;
-    const bottom = WRITERS + chart.writers.length * ROW;
+    const ends = [];
+    const rows = chart.writers.map((writer) => {
+      let row = ends.findIndex((end) => end + total * 0.004 <= writer.from);
+      if (row < 0) row = ends.length;
+      ends[row] = writer.running ? Infinity : writer.to;
+      return row;
+    });
+    const bottom = WRITERS + ends.length * ROW;
     const height = bottom + 26;
     const tall = bottom + 4 - (TOP - 6);
     const svg = [`<defs><pattern id="mr-ahead" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6"/></pattern></defs>`];
@@ -56,7 +63,7 @@ const RunChart = (() => {
     for (const span of chart.lead.thinks) svg.push(`<rect class="mr-think" x="${x(span.from)}" y="${TOP}" width="${width(span)}" height="${LEAD}"/>`);
     for (const span of chart.lead.commands) svg.push(`<rect class="mr-command" x="${x(span.from)}" y="${TOP}" width="${width(span)}" height="${LEAD}"/>`);
     chart.writers.forEach((writer, at) => {
-      const y = WRITERS + at * ROW;
+      const y = WRITERS + rows[at] * ROW;
       const dot = writer.running ? `<circle class="k-${writer.kind}" cx="${x(writer.to)}" cy="${y + ROW / 2}" r="2.6"/>` : '';
       svg.push(`<g class="mr-writer" data-writer="${at}"><rect class="mr-hit" x="${x(writer.from)}" y="${y}" width="${width(writer)}" height="${ROW}"/>`
         + `<rect class="mr-bar k-${writer.kind}" x="${x(writer.from)}" y="${y + 1}" width="${width(writer)}" height="${ROW - 2}" rx="1.5"/>${dot}</g>`);

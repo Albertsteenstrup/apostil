@@ -541,6 +541,20 @@ try {
   await takePicture(home, '94-the-chart-of-a-map-run-that-is-done.png');
   check('the tab "Map run" after the run ended says "Done in 12 min", counts its writers, and has no now line and no striped minutes left',
     /Done in 12 min$/.test(doneChart.head) && doneChart.numbers.startsWith('4 writers') && doneChart.now === 0 && doneChart.ahead === 0 && doneChart.dots === 0 && doneChart.writers.length === 4, JSON.stringify(doneChart));
+  const sharedRows = await home.evaluate(() => new Promise((done) => {
+    const chart = structuredClone(window.APOSTIL_EXAMPLE.charts.done);
+    const service = chart.writers.find((writer) => writer.kind === 'service');
+    chart.writers.push({ ...service, id: 'later', from: service.to + 60_000, to: service.to + 120_000 });
+    addEventListener('message', () => Home.drawing.then(() => done([...document.querySelectorAll('.mr-writer .mr-bar')].map((bar) => {
+      const box = bar.getBoundingClientRect();
+      return { y: Math.round(box.top), left: box.left, right: box.right };
+    }))), { once: true });
+    postMessage({ type: 'data', data: chart }, '*');
+  }));
+  const rowsOf = [...new Set(sharedRows.map((bar) => bar.y))];
+  check('in the tab "Map run" a writer that starts after another writer ended shares its row, so a big run fits on one screen; no two bars in a row overlap',
+    sharedRows.length === 5 && rowsOf.length === 4 && sharedRows[4].y === sharedRows[3].y
+      && rowsOf.every((y) => sharedRows.filter((bar) => bar.y === y).every((bar, at, row) => at === 0 || bar.left > row[at - 1].right)), JSON.stringify(sharedRows));
 
   // Home while a run of the whole map writes, from the made-up runs with a plan of the work in example-data.ts (the time left comes from the plan).
   const runState = () => home.evaluate(() => {
