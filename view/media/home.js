@@ -303,6 +303,29 @@ function noMapHtml() {
   return `<div class="nomap">${mark}${mapRun ? '' : '<p>This repo has no map and no notes yet.</p>'}${mapPressHtml(apps, mapRun, mapApp, team, scope)}<div class="next">${nextStepsHtml(needsSetup)}</div></div>`;
 }
 
+/** How far a tag may reach past the right edge of its node, when its counts alone are wider than the node. */
+const TAG_MARGIN = 24;
+
+/**
+ * A tag no wider than its node (and the margin). When it is too wide each name shows only its last part after "…/"; then the names after the first go into the "+N";
+ * then the longest name is cut with "…" until it fits (or is 4 letters long). The counts stay; the paths of the whole tag are its tooltip.
+ */
+function fitTag(text, room) {
+  const wide = () => text.getComputedTextLength() > room;
+  if (!wide()) return;
+  addTooltip(text, [...text.children].map((span) => span.paths?.join(', ') ?? span.textContent).join(''));
+  const names = [...text.children].filter((span) => span.paths && !span.textContent.startsWith('+'));
+  for (const span of names) if (/\/./.test(span.textContent)) span.textContent = `…/${span.paths[0].replace(/\/$/, '').split('/').pop()}${span.paths[0].endsWith('/') ? '/' : ''}`;
+  if (wide() && names.length > 1) {
+    const tspan = (words) => Object.assign(document.createElementNS(SVG_NS, 'tspan'), { textContent: words });
+    const rest = [...text.children].find((span) => /^\+\d+$/.test(span.textContent)) ?? (names[0].after(tspan(' '), tspan('')), names[0].nextElementSibling.nextElementSibling);
+    const moved = names.slice(1).flatMap((span) => span.paths).concat(rest.paths ?? []);
+    for (const span of names.slice(1)) span.previousElementSibling.remove(), span.remove();
+    Object.assign(rest, { paths: moved, textContent: `+${moved.length}` }).setAttribute('class', 'pl');
+  }
+  while (wide() && names[0].textContent.length > 4) names[0].textContent = `${names[0].textContent.replace(/…$/, '').slice(0, -1)}…`;
+}
+
 /**
  * The folders and files of each node of a written diagram, as a quiet tag under its lower-left corner. The tags stand in a layer of their own, so that
  * the box of a node, where its comment and its marks stand, stays the box of its shape. True when it drew one.
@@ -328,14 +351,14 @@ function tagNodes(svg, nodesOf) {
       text.append(span);
     }
     layer.append(text);
+    fitTag(text, new DOMPoint(box.x + box.width, box.y).matrixTransform(toLayer.multiply(toNode)).x - at.x + TAG_MARGIN);
   }
   // A name in a tag shows its folder or file in the tree "Files"; a file opens beside Home too. "+2" shows the rest. The focus stays as it is.
   layer.addEventListener('click', (event) => {
     const paths = event.target.closest?.('.pl')?.paths;
     if (!paths) return;
     event.stopPropagation();
-    tell({ type: 'showInTree', paths, open: true });
-    if (paths.length === 1 && !paths[0].endsWith('/')) tell({ type: 'openFile', path: paths[0], beside: true, preserveFocus: true });
+    showPaths(paths);
   });
   if (!layer.hasChildNodes()) layer.remove();
   return layer.isConnected;

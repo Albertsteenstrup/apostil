@@ -197,6 +197,18 @@ try {
       card.left === 2 && card.right === 0 && card.icon?.size === 16 && Math.abs(card.icon.off) <= 1
         && stepWindow?.corners === 0 && stepWindow.icon?.size === 16 && Math.abs(stepWindow.icon.off) <= 1 && Math.abs(stepWindow.icon.left - stepWindow.textLeft) <= 1 && card.bar && card.line.startsWith('PostgreSQL · keeps data in it · 7 places') && card.links.join() === 'book_request,librarian,purchase_order,member'
         && JSON.stringify(shown) === '[["src/library/lending/requests.py",[51,51]]]', JSON.stringify({ card, shown, stepWindow }));
+    // In a hover window the marks of a note corner stand inside the card, clear of its edge and of its words.
+    await drawnAt(homeFile, `?look=1&diagram=${encodeURIComponent('process:answer-request/2')}`);
+    await one.hover('#view g.node >> nth=0');
+    await one.waitForSelector('.win .mk-at .mk-chip', { timeout: 3000 }).catch(() => {});
+    await takePicture(one, '593-note-corner-in-a-window.png');
+    const cornered = await one.evaluate(() => {
+      const win = document.querySelector('.win')?.getBoundingClientRect();
+      const text = document.querySelector('.win .stepnote')?.getBoundingClientRect();
+      const chips = [...document.querySelectorAll('.win .mk-at .mk-chip')].map((chip) => chip.getBoundingClientRect());
+      return { chips: chips.length, outside: chips.filter((box) => box.left < win.left || box.right > win.right || box.top < win.top || box.bottom > win.bottom).length, overText: chips.filter((box) => box.right > text.left + 12 && box.left < text.right).length };
+    });
+    check('in a hover window the marks of a corner of a note stand fully inside the window, and not over the words of the note', cornered.chips > 0 && cornered.outside === 0 && cornered.overText === 0, JSON.stringify(cornered));
     await one.close();
   }
 

@@ -99,6 +99,8 @@ a.inst:hover{text-decoration:underline;text-underline-offset:3px}
 .stage .ptag{font:11px var(--mono);fill:var(--muted)} /* the folders and files of a node, under its lower-left corner */
 .stage .ptag .pl{pointer-events:auto;cursor:pointer}
 .stage .ptag .pl:hover{fill:var(--ink);text-decoration:underline} /* a name of a tag shows its folder or file */
+.stage .cluster-label.pl{cursor:pointer}
+.stage .cluster-label.pl:hover{text-decoration:underline} /* a title of a group that is a folder or a file shows it */
 .stage .err{color:var(--del);font:var(--small) var(--mono);white-space:pre-wrap}
 /* Mermaid draws in the colours of the look (lookColors in diagram-stage.js), but for a few light greys of its own: in another theme of VS Code they are the look's */
 body:where(.vscode-light:not([data-vscode-theme-id="Apostil Light"]),.vscode-dark,.vscode-high-contrast) :is(.stage,.mmd) :is(.node circle.state-end,.composit,.alt-composit){stroke:var(--d-region)!important}
@@ -1363,6 +1365,9 @@ a.srow:hover{background:var(--seg)}
 .mk-at.upper-left{left:-7px;top:-10px}.mk-at.upper-right{right:-7px;top:-10px}.mk-at.lower-left{left:-7px;bottom:-10px}.mk-at.lower-right{right:-7px;bottom:-10px}
 .mk-note{position:relative}
 .win .mk-note{padding:2px 0}
+.win .mk-at.upper-left{left:6px;top:6px}.win .mk-at.upper-right{right:6px;top:6px}.win .mk-at.lower-left{left:6px;bottom:6px}.win .mk-at.lower-right{right:6px;bottom:6px} /* inside the card of a window, clear of its edge */
+.win .mk-note:has(> .mk-at:is(.upper-left,.lower-left)){padding-left:22px}
+.win .mk-note:has(> .mk-at:is(.upper-right,.lower-right)){padding-right:22px}
 .mk-lines{margin-top:6px;display:flex;flex-direction:column;gap:4px}
 /* The icon of a service line stands at its left, its middle at the middle of the first text line: the chip sits at the top of the line box,
    pushed down by half of what the line is taller than the chip. A hanging indent of 21 px (the chip and its gap) keeps a wrapped line after the icon. */

@@ -110,6 +110,7 @@ async function drawMermaid(into, text, plain, schema, key, again = false) {
     lookColors(svg);
     svg.classList.toggle('litnames', /^\s*classDef lit\b/m.test(text)); // a drawing of shared/change-diagram.ts: its lit nodes have their names in teal (look.css)
     cutLifelines(svg);
+    oneLineGroupTitles(svg);
     fitToContent(svg);
     // Words wider than their box: the measure of Mermaid was off (the font changed while it drew). Drawn once more, they fit.
     if (!again && wordsOverflow(svg)) return drawMermaid(into, text, plain, schema, key, true);
@@ -128,6 +129,37 @@ function wordsOverflow(svg) {
     if (range.getBoundingClientRect().width > room + 1) return true;
   }
   return false;
+}
+
+/**
+ * Mermaid wraps the title of a group at 200 px but leaves room for one line, so a long title runs over the nodes of the group. It stands on one line
+ * as wide as its box instead, cut with "…" when it is longer; the whole title is its tooltip.
+ */
+function oneLineGroupTitles(svg) {
+  for (const group of svg.querySelectorAll('g.cluster')) {
+    const [box, label] = [group.querySelector(':scope > rect'), group.querySelector('.cluster-label')];
+    const [holder, line] = [label?.querySelector('foreignObject'), label?.querySelector('p') ?? label?.querySelector('span')];
+    if (!box || !holder || !line) continue;
+    const [width, title] = [box.width.baseVal.value - 16, line.textContent];
+    label.setAttribute('transform', `translate(${box.x.baseVal.value + 8}, ${box.y.baseVal.value})`);
+    holder.setAttribute('width', width);
+    holder.setAttribute('height', 24);
+    Object.assign(holder.firstElementChild.style, { width: `${width}px`, maxWidth: `${width}px`, display: 'block' });
+    Object.assign(line.style, { display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' });
+    if (line.scrollWidth > width && /^[^\s/]+(\/[^\s/]+)+\/?$/.test(title)) line.textContent = `…/${title.replace(/\/$/, '').split('/').pop()}${title.endsWith('/') ? '/' : ''}`;
+    if (line.scrollWidth > width + 1 || line.textContent !== title) addTooltip(label, title);
+    if (/^[^\s/]+\/\S*$/.test(title)) { // a title that is a folder or a file shows it, as a name in a tag does
+      label.classList.add('pl');
+      label.addEventListener('click', (event) => { event.stopPropagation(); showPaths([title]); });
+    }
+  }
+}
+
+/** The text of a tooltip on an SVG element. */
+function addTooltip(element, text) {
+  const tooltip = document.createElementNS(SVG_NS, 'title');
+  tooltip.textContent = text;
+  element.append(tooltip);
 }
 
 /**

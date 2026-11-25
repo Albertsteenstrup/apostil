@@ -94,6 +94,12 @@ function tell(message) {
   vscodeApi?.postMessage(message);
 }
 
+/** A click on a folder or a file by its name: it shows in the tree "Files"; a file opens beside the page too, and the focus stays as it is. */
+function showPaths(paths) {
+  tell({ type: 'showInTree', paths, open: true });
+  if (paths.length === 1 && !paths[0].endsWith('/')) tell({ type: 'openFile', path: paths[0], beside: true, preserveFocus: true });
+}
+
 // A click on a link of a session or a pull request: VS Code opens it in its app.
 document.addEventListener('click', (event) => {
   const link = event.target.closest?.('[data-link]');

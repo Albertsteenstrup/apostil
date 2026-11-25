@@ -96,6 +96,53 @@ try {
     Object.keys(top.tags).length === 8 && top.under === 8 && top.tags.web === 'web/' && top.tags.routes === 'library/web/' && top.tags.jobs === 'jobs/ +2 files' && top.tags.data === 'db/ · scripts/',
     JSON.stringify({ tags: top.tags, under: top.under }));
 
+  // A long path under a node is cut to its node, and a long title of a group stands on one line inside its box, clear of the nodes.
+  const wideTags = () => home.evaluate(() => [...document.querySelectorAll('#view .ptag')].filter((tag) => {
+    const node = document.querySelector(`#view g.node[id*="flowchart-${tag.dataset.node}-"] > :first-child`).getBoundingClientRect();
+    const own = tag.getBoundingClientRect();
+    const group = tag.closest('svg').querySelector('g.cluster:has(rect)') && [...tag.closest('svg').querySelectorAll('g.cluster > rect')].map((rect) => rect.getBoundingClientRect())
+      .find((rect) => rect.left <= node.left && rect.right >= node.right && rect.top <= node.top && rect.bottom >= node.bottom);
+    return own.right > node.right + 30 || (group && own.right > group.right);
+  }).map((tag) => tag.dataset.node));
+  const longPaths = ['tests/', 'long-experiment-folder-with-a-very-long-name-for-runs/results/', 'long-experiment-folder-with-a-very-long-name-for-runs/iterations/', 'other-experiments/results/'];
+  await home.evaluate(async (paths) => {
+    const node = diagramOf(Home.at || Home.data.map.top).nodes.checks;
+    node.tag = [{ text: 'tests/', paths: [paths[0]] }, { text: ' · ' }, { text: paths[1], paths: [paths[1]] }, { text: ' ' }, { text: '+2', paths: paths.slice(2) }];
+    await Home.render();
+  }, longPaths);
+  const topWide = await wideTags();
+  const topLong = await home.evaluate(() => ({ text: [...document.querySelectorAll('#view .ptag[data-node="checks"] > tspan')].map((span) => span.textContent).join(''), tip: document.querySelector('#view .ptag[data-node="checks"] title')?.textContent }));
+  await homeAt('?diagram=lib-lending');
+  const groups = await home.evaluate(async () => {
+    const probe = Object.assign(document.body.appendChild(document.createElement('div')), { id: 'probe', style: 'position:fixed;left:0;top:0;width:900px;background:#fff;z-index:9' });
+    await drawMermaid(probe, 'flowchart TB\n  subgraph a["long-project-folder/common/some_long_module_name_for_the_hold_harness_tests.py"]\n    one["First node"] --> two["Second node"]\n  end\n  subgraph c["some-folder/with-a-sub-folder/"]\n    four["Fourth node"]\n  end\n  subgraph b["Used from other areas: the holds, their models and the services that mail the members about them"]\n    three["Third node"]\n  end\n  two ~~~ three');
+    return [...probe.querySelectorAll('g.cluster')].map((group) => {
+      const [box, label] = [group.querySelector(':scope > rect').getBoundingClientRect(), group.querySelector('.cluster-label p').getBoundingClientRect()];
+      const nodes = [...probe.querySelectorAll('g.node > :first-child')].map((el) => el.getBoundingClientRect());
+      return {
+        pointer: getComputedStyle(group.querySelector('.cluster-label')).cursor, text: group.querySelector('.cluster-label p').textContent, cut: group.querySelector('.cluster-label p').scrollWidth > group.querySelector('.cluster-label p').clientWidth, tip: group.querySelector('.cluster-label title')?.textContent, inside: label.left >= box.left && label.right <= box.right,
+        covered: nodes.filter((node) => node.left < label.right && node.right > label.left && node.top < label.bottom && node.bottom > label.top).length,
+      };
+    });
+  });
+  await takePicture(home.locator('#probe'), '31-group-title.png');
+  const titleClick = async (index) => {
+    const from = await sentCount();
+    await home.locator('#probe g.cluster-label').nth(index).click();
+    return home.evaluate((from) => window.apostilSent.slice(from).filter((one) => /^(showInTree|openFile)$/.test(one.type)).map((one) => `${one.type}:${one.paths ?? one.path}`).join(' | '), from);
+  };
+  const titleLed = [await titleClick(1), await titleClick(2)];
+  check('a click on the title of a group that is a file shows the file in the tree "Files" and opens it beside Home, with a pointer cursor; on a folder it shows the folder in the tree; a title that is a sentence leads nowhere',
+    titleLed[0] === 'showInTree:long-project-folder/common/some_long_module_name_for_the_hold_harness_tests.py | openFile:long-project-folder/common/some_long_module_name_for_the_hold_harness_tests.py'
+      && titleLed[1] === 'showInTree:some-folder/with-a-sub-folder/' && groups[0].pointer === 'auto' && groups[1].pointer === 'pointer', JSON.stringify({ titleLed, groups }));
+  await home.evaluate(() => document.getElementById('probe').remove());
+  const lowWide = await wideTags();
+  check('a long path under a node is never wider than its node, nor than its group: each name shows its last part after "…/", the whole line is a tooltip, and the counts stay',
+    topWide.length === 0 && lowWide.length === 0 && /^(tes|tests\/)[^ ]* \+\d+$/.test(topLong.text) && /tests\/.*long-experiment-folder.*other-experiments\/results\//.test(topLong.tip ?? ''), JSON.stringify({ topWide, lowWide, topLong }));
+  check('the title of a group stands on one line in its box and no node covers it: a long path shows its file name after "…/", a long sentence is cut with "…"; the whole title is the tooltip',
+    groups.length === 3 && groups.every((group) => group.inside && group.covered === 0 && group.tip) && groups.some((group) => group.text.startsWith('…/some_long_module') && groups.some((one) => one.cut)), JSON.stringify(groups));
+  await homeAt('');
+
   // The key of a drawn process: a quiet row for each kind of box it shows, top left in its frame; a written diagram has none.
   const keyOf = async (query) => { await homeAt(query); return home.evaluate(() => [...document.querySelectorAll('#view > .pd-key > span')].map((row) => row.textContent)); };
   const keys = { step: await keyOf('?diagram=process:answer-request/2'), process: await keyOf('?diagram=process:answer-request'), map: await keyOf('?diagram=lib-lending') };
