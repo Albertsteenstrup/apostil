@@ -598,6 +598,16 @@ try {
       && live.key === 'Lead thinks and writes, Lead runs a command, Diagrams, Notes, Processes, Services and marks, Lead alone'
       && writerWindow === 'Process: lending-0a1b2c Haiku 5.5 · Medium · running 8.4 min 200 tokens written so far' && keptOpen.open && keptOpen.drawn === 1 && drawnAfter === 2,
     JSON.stringify({ live, writerWindow, keptOpen, drawnAfter }));
+  const placed = await home.evaluate(() => {
+    const plot = document.querySelector('.mr-plot svg');
+    const frame = plot.getBoundingClientRect();
+    const at = (selector, edge = 'left') => (plot.querySelector(selector).getBoundingClientRect()[edge] - frame.left) / frame.width;
+    return { now: at('.mr-now'), word: at('.mr-nowword') < at('.mr-now') && at('.mr-nowword', 'right') > at('.mr-now'), ahead: at('.mr-ahead'), track: at('.mr-track', 'right'), bar: at('.mr-writer.runs .mr-bar', 'right'),
+      dot: (at('.mr-writer.runs circle') + at('.mr-writer.runs circle', 'right')) / 2, share: Home.data.now / (Home.data.now + Home.data.minutesLeft * 60_000) };
+  });
+  const near = (share) => Math.abs(share - placed.now) < 0.002;
+  check('in the tab "Map run" a chart that is drawn again has the now line with its word where the clock is, not at the start of the axis, and the striped minutes, the lead track, the running bar and its dot end or start there',
+    placed.now >= placed.share - 0.002 && placed.now < placed.share + 0.03 && placed.word && near(placed.ahead) && near(placed.track) && near(placed.bar) && near(placed.dot), JSON.stringify(placed));
   await homeAt('?chart=done');
   const doneChart = await chartNow();
   await takePicture(home, '94-the-chart-of-a-map-run-that-is-done.png');

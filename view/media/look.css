@@ -1553,6 +1553,8 @@ body:where(.vscode-dark,.vscode-high-contrast:not(.vscode-high-contrast-light)){
 .mr-grid{stroke:var(--line)}
 .mr-tick{font-size:calc(var(--small) - 1px);fill:var(--faint);text-anchor:middle}
 .mr-now{stroke:var(--teal);stroke-width:1.5}
+@keyframes mr-shift{to{transform:translateX(var(--by))}}
+@keyframes mr-width{from{width:var(--from)}to{width:var(--to)}}
 .mr-nowword{font-size:calc(var(--small) - 1px);font-weight:600;fill:var(--tealink);text-anchor:middle}
 .mr-hit{fill:transparent;pointer-events:all}
 .mr-bar{stroke-width:.6}
