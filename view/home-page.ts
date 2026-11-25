@@ -8,7 +8,7 @@ import type { Target } from '../shared/look';
 import { shownTime, type ShownTime, type TimeLeft } from '../shared/map-estimate';
 import { homeRun, QUIET_MS, runTimeLeft, withEnd, withSession } from '../shared/map-run';
 import { homePlan, mapWorkLeft } from '../store/map-run';
-import { mapRunChart, mapRunFiles } from '../shared/map-run-chart';
+import { mapRunChart, mapRunFiles, type MapRunChart } from '../shared/map-run-chart';
 import { agentHome, teamFrom, type Team } from '../shared/models';
 import type { Store } from '../shared/store';
 import { MAP_DRAFT, mapRunCommand, startMapRun, type RunFacts } from './agent-run';
@@ -85,13 +85,15 @@ interface Tab {
   waiting: unknown[];
   follow?: vscode.Disposable[]; // a page of the look: the watchers of the files that its blocks read
   chart?: true; // the tab "Map run"
+  sends?: ChartSends; // the tab "Map run", and Home while it shows the chart: the next chart goes after the page drew the last one
 }
 
 export class HomePages {
   private home?: Tab;
   private graphs = new Map<string, Tab>();
   private pages = new Map<string, Tab>(); // a page of the look, by its id
-  private chart?: { tab: Tab; sends: ChartSends; follows: Map<string, vscode.Disposable[]> }; // the tab "Map run", and the files of the run that it follows
+  private chart?: Tab; // the tab "Map run"
+  private runFiles = new Map<string, vscode.Disposable[]>(); // the files of the map run that the tab "Map run" and Home follow
   private writing?: string; // the app that writes the map now
   private mapTerminal?: vscode.Terminal; // the terminal where Claude Code writes the map, while it is open
   private quiet?: NodeJS.Timeout; // while the line of a map run says "writing": draws Home again when the run saved nothing for 30 minutes
@@ -130,8 +132,10 @@ export class HomePages {
   openHome(go?: { diagram: string; lit?: string[] }, quiet = false, beside = false): void {
     if (!this.home) {
       const show = { viewColumn: beside ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active, preserveFocus: quiet };
-      this.home = this.addTab(vscode.window.createWebviewPanel('apostil.home', 'Home', show, { retainContextWhenHidden: true }));
-      this.home.panel.onDidDispose(() => { this.home = undefined; });
+      const home = this.addTab(vscode.window.createWebviewPanel('apostil.home', 'Home', show, { retainContextWhenHidden: true }));
+      home.sends = new ChartSends(() => this.post(home, { type: 'chart', chart: this.runChart() }), () => home.panel.visible);
+      home.panel.onDidDispose(() => { this.home = undefined; this.unfollowRun(); });
+      this.home = home;
     }
     this.home.panel.reveal(undefined, quiet);
     this.post(this.home, this.homeMessage());
@@ -177,26 +181,42 @@ export class HomePages {
     if (!this.chart) {
       const tab = this.addTab(vscode.window.createWebviewPanel('apostil.run', 'Map run', vscode.ViewColumn.Active, { retainContextWhenHidden: true }));
       tab.chart = true;
-      const chart = { tab, sends: new ChartSends(() => this.post(tab, this.chartMessage()), () => tab.panel.visible), follows: new Map<string, vscode.Disposable[]>() };
-      tab.panel.onDidChangeViewState(() => { if (tab.panel.visible) chart.sends.changed(); });
-      tab.panel.onDidDispose(() => { chart.follows.forEach((follow) => follow.forEach((one) => one.dispose())); this.chart = undefined; });
-      this.chart = chart;
+      tab.sends = new ChartSends(() => this.post(tab, this.chartMessage()), () => tab.panel.visible);
+      tab.panel.onDidChangeViewState(() => { if (tab.panel.visible) tab.sends?.changed(); });
+      tab.panel.onDidDispose(() => { this.chart = undefined; this.unfollowRun(); });
+      this.chart = tab;
     }
-    this.chart.tab.panel.reveal();
-    this.chart.sends.changed();
+    this.chart.panel.reveal();
+    this.chart.sends?.changed();
   }
 
-  /** The chart of the map run, read now; the tab follows the transcript of its session and the folder of its writers once they are there. */
   private chartMessage(): unknown {
+    return { type: 'data', data: this.runChart() ?? { kind: 'run', state: 'waiting', session: '' } };
+  }
+
+  /** The chart of the map run, read now; the tab "Map run" and Home follow the transcript of its session and the folder of its writers once they are there. */
+  private runChart(): MapRunChart | undefined {
     const repo = repoIdOrNone(this.openFolder());
     const run = repo ? this.store.mapRun(repo) : undefined;
     const minutesLeft = run && this.shown?.run === run.startedAt ? this.shown.time.minutes : undefined;
-    const data = run && mapRunChart(run, agentHome(), Date.now(), { minutesLeft, alive: !!this.writing });
     const files = run?.agent?.session ? mapRunFiles(run.agent.session, agentHome()) : {};
     for (const file of [files.transcript, files.writers]) {
-      if (file && this.chart && !this.chart.follows.has(file) && existsSync(file)) this.chart.follows.set(file, followFile(dirname(file), basename(file), () => this.chart?.sends.changed()));
+      if (file && !this.runFiles.has(file) && existsSync(file)) this.runFiles.set(file, followFile(dirname(file), basename(file), () => this.runChanged()));
     }
-    return { type: 'data', data: data ?? { kind: 'run', state: 'waiting', session: '' } };
+    return run && mapRunChart(run, agentHome(), Date.now(), { minutesLeft, alive: !!this.writing });
+  }
+
+  /** A file of the map run changed, or its time moved on: the tab "Map run", and Home while it shows the chart, read it again. */
+  private runChanged(): void {
+    this.chart?.sends?.changed();
+    if (this.homeShown?.chart) this.home?.sends?.changed();
+  }
+
+  /** Neither the tab "Map run" nor Home shows the chart: its files are not followed any more. */
+  private unfollowRun(): void {
+    if (this.chart || (this.home && this.homeShown?.chart)) return;
+    this.runFiles.forEach((follow) => follow.forEach((one) => one.dispose()));
+    this.runFiles.clear();
   }
 
   /** The title of a page of the look of the open repo; undefined when the look has no such page. */
@@ -225,7 +245,7 @@ export class HomePages {
     if (this.home) this.post(this.home, this.homeMessage());
     for (const [path, tab] of this.graphs) this.post(tab, this.graphsMessage(path));
     for (const [id, tab] of this.pages) this.post(tab, this.pageMessage(id, tab));
-    this.chart?.sends.changed();
+    this.chart?.sends?.changed();
     if (seen) this.seenNew.fire();
   }
 
@@ -345,8 +365,6 @@ export class HomePages {
     // A picture or a film of the look is loaded from Apostil's store by its webview address.
     const webview = this.home?.panel.webview;
     const data = homeData(this.store, this.openFolder(), this.apps, (file) => (webview ? webview.asWebviewUri(vscode.Uri.file(file)).toString() : file), this.writing, connectedApps(this.apps, this.openFolder()));
-    // The picker of a comment on the map offers a new session of each app, with the model and the effort of its run.
-    this.homeShown = { ...data, writing: this.writing, needsSetup: !data.map && agentsNeedSetup(this.openFolder()), sendTo: { sessions: [], models: menusOf(this.apps, runModels(), this.openFolder()) } };
     // A run that stops saves nothing, so the store does not change and nothing loads Home again: one timer does, after the quiet time, and the line then says that the run stopped.
     clearTimeout(this.quiet);
     if (data.mapRun?.state === 'writing') this.quiet = setTimeout(() => this.reload(), QUIET_MS + 1000);
@@ -355,6 +373,11 @@ export class HomePages {
     if (data.mapRun?.time && startedAt) data.mapRun.time = this.held(startedAt, data.mapRun.time);
     clearInterval(this.ticker);
     if (data.mapRun?.time) this.ticker = setInterval(() => this.tick(), 30_000);
+    // While a run of Home writes the map, Home's frame holds its chart.
+    const chart = data.mapRun?.state === 'writing' && data.mapRun.chart ? this.runChart() : undefined;
+    // The picker of a comment on the map offers a new session of each app, with the model and the effort of its run.
+    this.homeShown = { ...data, ...(chart ? { chart } : {}), writing: this.writing, needsSetup: !data.map && agentsNeedSetup(this.openFolder()), sendTo: { sessions: [], models: menusOf(this.apps, runModels(), this.openFolder()) } };
+    this.unfollowRun();
     return { type: 'data', data: this.homeShown, trail: this.trail.steps, full: this.layout.full(), icons: this.homeIcons() };
   }
 
@@ -395,7 +418,7 @@ export class HomePages {
 
   /** Every 30 seconds while a run writes: the time left, computed again, to Home; when the run has none any more, the timer stops. */
   private tick(): void {
-    this.chart?.sends.changed();
+    this.runChanged();
     const repo = repoIdOrNone(this.openFolder());
     const run = repo ? this.store.mapRun(repo) : undefined;
     const time = run && runTimeLeft(run);
@@ -449,6 +472,7 @@ export class HomePages {
       if (!panel.visible && this.pointerOn === tab) this.setPointer(undefined);
       if (!panel.visible) return; // a hidden tab gets no message: see `postTrail`
       this.post(tab, { type: 'away' }); // a hover window from before the tab was hidden is closed
+      if (tab === this.home) tab.sends?.shown();
       this.post(tab, { type: 'trail', steps: this.trail.steps });
       if (tab === this.home) this.post(tab, { type: 'layout', full: this.layout.full() });
     });
@@ -534,8 +558,8 @@ export class HomePages {
         this.openChart();
         break;
       case 'rendered':
-        this.rendered[tab.path ?? (tab.page ? `page:${tab.page}` : tab.chart ? 'run' : 'home')] = message;
-        if (tab.chart) this.chart?.sends.drew();
+        if (message.kind === 'run') tab.sends?.drew(); // a chart, in the tab "Map run" or on Home
+        else this.rendered[tab.path ?? (tab.page ? `page:${tab.page}` : 'home')] = message;
         break;
       case 'ask':
         void tab.panel.webview.postMessage({ type: 'answer', id: message.id, value: this.answer(message.question, tab) });

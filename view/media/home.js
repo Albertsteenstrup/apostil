@@ -8,6 +8,7 @@ const Home = {
   at: null, // the id of the map diagram that Home shows
   lit: [], // the nodes to light on it
   filter: null, // after a click on a mark: the quiet line "<value> · n places in <node>", and the nodes that hold the value are lit
+  mapChosen: false, // while the frame holds the chart of a run: he clicked the card of the top map, so the frame shows the map
 
   // Draws one at a time; a hidden tab has no size and Mermaid would draw empty boxes, so the drawing waits until it shows.
   render() {
@@ -22,7 +23,7 @@ const Home = {
   /** One level down or up on Home: a diagram of the map, with nodes lit, and the line of a mark that lit them. */
   goTo(diagram, lit = [], filter = null) {
     Hover.hide();
-    Object.assign(this, { at: diagram, lit, filter });
+    Object.assign(this, { at: diagram, lit, filter, mapChosen: !!diagram && diagram === this.data.map?.top });
     this.render();
   },
 };
@@ -71,12 +72,14 @@ const mapStep = (id, lit = [], filter = null) => {
   const step = id === Home.data.map?.top ? { ...Trail.HOME, lit } : { tab: 'home', diagram: id, lit, name: diagramOf(id).title };
   return filter ? { ...step, filter, name: `${step.name} · ${filter.value}` } : step;
 };
+/** The top map as a step of its own, while Home's frame holds the chart of a run: the click of its card. */
+const topMapStep = () => ({ tab: 'home', diagram: Home.data.map.top, name: diagramOf(Home.data.map.top).title });
 const graphsStep = (path) => ({ tab: 'graphs', path, name: path });
 const pageStep = (data) => ({ tab: 'page', page: data.id, name: data.title });
 
 /** The view that this tab shows now, as a step of the path. */
 const ownStep = () => (Home.data.kind === 'graphs' ? graphsStep(Home.data.path) : Home.data.kind === 'page' ? pageStep(Home.data)
-  : Home.data.map ? mapStep(Home.at, Home.lit, Home.filter) : Trail.HOME);
+  : Home.data.map ? (Home.mapChosen && liveChart() ? topMapStep() : mapStep(Home.at, Home.lit, Home.filter)) : Trail.HOME);
 
 /** He goes from here to another view: one level down on Home, or the graphs of a path, a change or a diagram in another tab. */
 function walkTo(step) {
@@ -256,15 +259,34 @@ const leadsSomewhere = (node) => !!node && !node.quiet && (!!diagramOf(node.down
  * While a map is written, `run` is the state of its area: a card with work left shows that state in place of its content, and takes the size
  * of its diagram, or of its folders and files, so that it keeps its size when its area is done.
  */
-function homeCard(g, node, open, graph, run) {
-  const title = plainName(graph, nodeKey(g));
+function homeCard(key, node, open, graph, run) {
   const below = diagramOf(node.down);
   // The changes that touch the node stand at the bottom of its card, and its rows have their counts; not while its area is written.
-  const own = { title, node: nodeKey(g), ...(run ? { run, areaFiles: node.paths } : { changes: node.changes }) };
-  if (below) return { ...own, open, draw: (box) => drawPanel(box, { ...below, lit: [] }, true), shape: { ...drawingShape(below.graph, below.mermaid, below.schema), key: below.id } };
+  const own = { title: plainName(graph, key), node: key, ...(run ? { run, areaFiles: node.paths } : { changes: node.changes }) };
+  if (below) return { ...own, open, ...smallDiagram(below) };
   const diff = diffOf(node);
   const files = node.paths.map(({ path, files }) => ({ path, count: files, line: node.line, diff: diff(path) }));
   return run ? own : { ...own, files };
+}
+
+/** A diagram drawn small in a card, as a panel of the graphs page with nothing lit. */
+const smallDiagram = (diagram) => ({ draw: (box) => drawPanel(box, { ...diagram, lit: [] }, true), shape: { ...drawingShape(diagram.graph, diagram.mermaid, diagram.schema), key: diagram.id } });
+
+/**
+ * A click on a node that leads somewhere: an area with a diagram of its own goes into it, and the tree "Files" of the side bar follows when it shows.
+ * An area with none stays on the map and leads to its code: one file opens, and folders open in the tree. A click never opens the graphs of a folder.
+ * In a drawn process a step that holds steps goes one level down, and a step with none opens its file at its first line. None for a node with no paths.
+ */
+function openOf(node) {
+  const paths = node.paths.map(({ path }) => path);
+  return paths.length ? (event) => {
+    const beside = !!(event && (event.metaKey || event.ctrlKey));
+    const span = node.at?.[0];
+    if (node.down) { if (!node.note) tell({ type: 'showInTree', paths }); walkTo(mapStep(node.down)); }
+    else if (node.line) tell({ type: 'openFile', path: paths[0], line: node.line, ...(span ? { lines: [span.from, span.to] } : {}), ...(beside ? { beside: true } : {}) });
+    else if (paths.length === 1 && !paths[0].endsWith('/')) tell({ type: 'openFile', path: paths[0], ...(beside ? { beside: true } : {}) });
+    else tell({ type: 'showInTree', paths, open: true });
+  } : null;
 }
 
 /**
@@ -351,7 +373,9 @@ async function drawHome() {
   showTime(time);
   const areas = run?.areas && diagram && diagram.id === map.top ? run.areas : null; // the areas of the top map with work left, by node id
   let nodes = 0;
-  if (!diagram && run?.state === 'writing') runFrame(view, summary, run, time);
+  const chart = liveChart() && (!diagram || (diagram.id === map.top && !Home.mapChosen));
+  if (chart) chartFrame(view, summary, run, time, diagram, areas);
+  else if (!diagram && run?.state === 'writing') runFrame(view, summary, run, time);
   else if (!diagram) view.innerHTML = noMapHtml();
   else {
     // The look: the slots of each node and arrow, what shows, and the shapes, words and contents that go into the text before Mermaid draws.
@@ -400,21 +424,10 @@ async function drawHome() {
       // While the map is written: a node with work left is quiet, and the node of an area that writers work on now has a quiet accent edge.
       const work = areas?.[nodeKey(g)];
       if (work) g.classList.add(`rn-${work.state}`);
-      const paths = node.paths.map(({ path }) => path);
-      // A click on an area with a diagram of its own goes into it, and the tree "Files" of the side bar follows when it shows. An area with none
-      // stays on the map and leads to its code: one file opens, and folders open in the tree. A click never opens the graphs of a folder.
-      // In a drawn process a step that holds steps goes one level down, and a step with none opens its file at its first line.
       // A call out of the repo leads nowhere: it is a quiet box with its window only. A click of the look goes to its target instead.
       // Two clicks do this (focusClicks): one click focuses the node, and the card of the overview does it at once. Where the cards show, only the
       // card and "Open" in the window do it.
-      const open = paths.length ? (event) => {
-        const beside = !!(event && (event.metaKey || event.ctrlKey));
-        const span = node.at?.[0];
-        if (node.down) { if (!node.note) tell({ type: 'showInTree', paths }); walkTo(mapStep(node.down)); }
-        else if (node.line) tell({ type: 'openFile', path: paths[0], line: node.line, ...(span ? { lines: [span.from, span.to] } : {}), ...(beside ? { beside: true } : {}) });
-        else if (paths.length === 1 && !paths[0].endsWith('/')) tell({ type: 'openFile', path: paths[0], ...(beside ? { beside: true } : {}) });
-        else tell({ type: 'showInTree', paths, open: true });
-      } : null;
+      const open = openOf(node);
       // The window of the node, with "Open" for a node with a way in: it goes where the card goes. Where its card shows, the node has it only
       // with the rule "window" of the look or marks in no corner; else, as a note card, only the lines of what a click of the look does.
       const content = node.note ? noteWindow(node, thing) : nodeWindow(g, node, thing);
@@ -425,7 +438,7 @@ async function drawHome() {
       if (Marks.bind(g, thing?.slots ?? {}, open, Marks.nameOf(g))) g.classList.add('go');
       opens.set(g, open);
     }
-    Overview.cards(cards, overview ? leading.map((g) => homeCard(g, nodesOf[nodeKey(g)], opens.get(g), drawn.graph, areas?.[nodeKey(g)])) : []);
+    Overview.cards(cards, overview ? leading.map((g) => homeCard(nodeKey(g), nodesOf[nodeKey(g)], opens.get(g), drawn.graph, areas?.[nodeKey(g)])) : []);
     lightNodes(view, Home.lit);
     const first = view.querySelector('g.node.lit');
     if (first && !view.surface?.kept) view.surface?.show(first); // not when the same diagram drew again: the view stays where he left it
@@ -437,7 +450,7 @@ async function drawHome() {
     else treeFocus(null);
     Remarks.paint(view);
   }
-  if (!diagram) { focus = null; endFocusLine(); treeFocus(null); }
+  if (!diagram || chart) { focus = null; endFocusLine(); treeFocus(null); }
   Remarks.draw();
   tell({ type: 'rendered', kind: 'home', diagram: diagram?.id, nodes, panels: 0, drawn: 0 });
   window.apostilRendered = (window.apostilRendered ?? 0) + 1;
@@ -455,6 +468,26 @@ function runFrame(view, summary, run, time) {
   view.innerHTML = sketchHtml();
   runBar(view, time);
   keepFilled(view);
+}
+
+/** While a run of Home writes the map: its chart (map-run-chart.js), which Home's frame holds in place of the top map. */
+const liveChart = () => (Home.data.mapRun?.state === 'writing' && Home.data.chart) || null;
+
+/**
+ * While a run of Home writes the map, the frame holds its chart, with the bar of the run on its top edge, and the top map is the first card, before the
+ * cards of its areas: drawn small, or a sketch before it is written. A click on that card shows the map in the frame, as a step of its own.
+ */
+function chartFrame(view, summary, run, time, diagram, areas) {
+  if (!diagram) summary.innerHTML = mapRunHtml(run);
+  frameDouble = null;
+  view.className = 'view runframe mr';
+  view.innerHTML = '<div class="runchart"></div>';
+  RunChart.fill(view.firstChild, liveChart(), false);
+  runBar(view, time);
+  if (diagram) Overview.icon(view, Overview.isFull(), () => Home.render());
+  const top = diagram ? { title: diagram.title, open: () => walkTo(topMapStep()), ...smallDiagram(diagram) } : { title: 'Overview', run: { state: 'working', share: time?.share ?? 0 } };
+  const areaCards = diagram ? Object.keys(diagram.graph.nodes).filter((key) => leadsSomewhere(diagram.nodes[key])).map((key) => homeCard(key, diagram.nodes[key], openOf(diagram.nodes[key]), diagram.graph, areas?.[key])) : [];
+  Overview.cards(document.getElementById('cards'), Overview.isFull() ? [] : [top, ...areaCards]);
 }
 
 /** The bar of the whole run on the top edge of the frame: it fills by the expected work done, out of all, and glides from where it stood before. */
@@ -655,6 +688,10 @@ window.addEventListener('message', (event) => {
   }
   if (message?.type === 'icons') { FileIcons.set(message.icons); Overview.relayout(); } // he changed the icon theme or the colour theme
   if (message?.type === 'layout' && Overview.heard(message.full)) Home.render(); // he chose on another page
+  if (message?.type === 'chart' && Home.data?.kind === 'home') {
+    Home.data.chart = message.chart;
+    RunChart.update(() => { const box = document.querySelector('#view > .runchart'); if (box && liveChart()) RunChart.fill(box, liveChart(), false); });
+  }
   // Every 30 seconds while a map is written: the time left and the bar, with nothing drawn again.
   if (message?.type === 'time' && Home.data?.mapRun?.time) { Home.data.mapRun.time = message.time; showTime(message.time); barTo(message.time.share); }
   if (message?.type === 'trail') Trail.set(message.steps);
@@ -686,7 +723,7 @@ if (vscodeApi) {
     Home.data = page || (path ? graphs[path] ?? example.graphs[path] ?? { kind: 'graphs', repo: example.home.repo, folder: '', path, panels: [] } : query.get('nomap') ? example.homeNoMap : query.get('look') ? example.homeLooks[query.get('look')] : example.home);
     if (query.get('chart')) Home.data = example.charts[query.get('chart')]; // "?chart=live" or "?chart=done": the tab "Map run" of a made-up map session
     const run = example.mapRuns?.[query.get('run')]; // "?run=<name>": Home while a made-up map run writes, or after one stopped; with "?nomap=1" too
-    if (run && Home.data.kind === 'home') Home.data = { ...Home.data, mapRun: run };
+    if (run && Home.data.kind === 'home') Home.data = { ...Home.data, mapRun: run, ...(run.chart ? { chart: example.charts.live } : {}) }; // a run of Home has its chart
     Home.at = query.get('diagram') || null;
     Home.lit = (query.get('lit') ?? '').split(',').filter(Boolean);
     if (query.get('icons') !== 'none') FileIcons.set(example.icons?.home); // the made-up icon theme; "?icons=none": no theme

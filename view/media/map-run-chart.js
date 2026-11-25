@@ -1,4 +1,5 @@
-// The tab "Map run": the chart of a map run (a MapRunChart of shared/map-run-chart.ts) on one time axis. The page only scales and draws it.
+// The chart of a map run (a MapRunChart of shared/map-run-chart.ts) on one time axis, in the tab "Map run" and in Home's frame while a run of Home
+// writes the map. The page only scales and draws it.
 'use strict';
 
 const RunChart = (() => {
@@ -12,7 +13,7 @@ const RunChart = (() => {
   const minutes = (ms) => Math.max(1, Math.round(ms / MINUTE));
   const tokens = (count) => (count >= 1e6 ? `${(count / 1e6).toFixed(1)} M` : count >= 1000 ? `${Math.round(count / 1000)}k` : `${count}`);
   const runWords = (run) => States.runWords('claude-code', run);
-  let held = false; // a chart came while a hover window was open: it is drawn when the window closes
+  let held = null; // a chart came while a hover window was open: its drawing, done when the window closes
 
   function stateHtml(chart) {
     if (chart.state === 'writing') {
@@ -86,26 +87,39 @@ const RunChart = (() => {
     body: `<div class="mr-win"><p>${esc(runWords(writer.run))} · ${writer.running ? 'running ' : ''}${((writer.to - writer.from) / MINUTE).toFixed(1)} min</p><p>${tokens(writer.tokens)} tokens written${writer.running ? ' so far' : ''}</p></div>`,
   });
 
-  /** Draws the chart of Home.data; while a hover window is open the drawing stays, and the newest chart is drawn when it closes. */
-  function draw() {
-    if (document.querySelector('body > .win')) { held = true; return; }
-    const chart = Home.data;
+  /** Draws a chart into `box`: with `head` its head, then its numbers, the plot with a hover window on each writer, and the key. */
+  function fill(box, chart, head = true) {
+    const top = head ? headHtml(chart) : '';
+    box.innerHTML = chart.state === 'waiting'
+      ? `${top}<p class="quiet">The session has not started to write yet.</p>`
+      : `${top}${numbersHtml(chart)}${plotHtml(chart)}${keyHtml(chart)}`;
+    for (const row of box.querySelectorAll('.mr-writer')) Hover.attach(row, writerWindow(chart.writers[Number(row.dataset.writer)]));
+  }
+
+  /**
+   * Draws a new chart with `drawing`, and tells VS Code, which sends the next one then (ChartSends); while a hover window is open the drawing stays,
+   * and the newest chart is drawn when it closes.
+   */
+  function update(drawing) {
+    if (document.querySelector('body > .win')) { held = drawing; return; }
+    drawing();
+    tell({ type: 'rendered', kind: 'run', nodes: 0, panels: 0, drawn: 0 });
+    window.apostilRendered = (window.apostilRendered ?? 0) + 1;
+  }
+
+  new MutationObserver(() => {
+    if (held && !document.querySelector('body > .win')) { const drawing = held; held = null; update(drawing); }
+  }).observe(document.body, { childList: true });
+
+  /** The tab "Map run": the chart of Home.data. */
+  const draw = () => update(() => {
     const view = document.getElementById('view');
     document.getElementById('crumb').textContent = '';
     document.getElementById('summary').textContent = '';
     Overview.cards(document.getElementById('cards'), []);
     view.className = 'view mr';
-    view.innerHTML = chart.state === 'waiting'
-      ? `${headHtml(chart)}<p class="quiet">The session has not started to write yet.</p>`
-      : `${headHtml(chart)}${numbersHtml(chart)}${plotHtml(chart)}${keyHtml(chart)}`;
-    for (const row of view.querySelectorAll('.mr-writer')) Hover.attach(row, writerWindow(chart.writers[Number(row.dataset.writer)]));
-    tell({ type: 'rendered', kind: 'run', nodes: chart.writers?.length ?? 0, panels: 0, drawn: 0 });
-    window.apostilRendered = (window.apostilRendered ?? 0) + 1;
-  }
+    fill(view, Home.data);
+  });
 
-  new MutationObserver(() => {
-    if (held && !document.querySelector('body > .win')) { held = false; Home.render(); }
-  }).observe(document.body, { childList: true });
-
-  return { draw };
+  return { draw, fill, update };
 })();

@@ -652,6 +652,7 @@ div.nomap .runpick{margin:0 0 8px}
 @keyframes sk-pass{to{transform:translateX(400%)}}
 .ovc .sketch{padding:4px 0}
 .view.runframe{border:1px solid var(--line);border-radius:8px;background:var(--paper);overflow:hidden;padding:24px;box-sizing:border-box}
+.runchart > .mr-nums:first-child{margin-top:0} /* Home's frame while a run of Home writes the map: the chart with no head */
 /* the bar of the whole run on the top edge of the frame, and the time left at the right end of the head */
 .runbar{position:absolute;left:0;right:0;top:0;z-index:3;height:2px;pointer-events:none;border-radius:7px 7px 0 0;overflow:hidden}
 .runbar i{border-radius:0 2px 2px 0}

@@ -565,7 +565,8 @@ try {
     const cards = document.getElementById('cards').hidden ? [] : [...document.querySelectorAll('#cards .ovc')];
     return {
       time: time.hidden ? '' : time.querySelector('.rt')?.textContent ?? '', timeRight: Math.round(innerWidth - time.getBoundingClientRect().right),
-      line: document.querySelector('#summary .maprun')?.textContent ?? '', wordmark: !!document.querySelector('.wordmark'),
+      line: document.querySelector('#summary .maprun')?.textContent ?? '', wordmark: !!document.querySelector('.wordmark'), crumb: document.getElementById('crumb').textContent,
+      chart: { thinks: view.querySelectorAll('.mr-plot .mr-think').length, writers: view.querySelectorAll('.mr-plot .mr-writer').length, head: !!view.querySelector('.mr-head') }, mapNodes: view.querySelectorAll('g.node.go').length,
       sketch: !!view.querySelector(':scope > svg.sketch'), shimmer: getComputedStyle(view.querySelector('.sketch .sks') ?? view).animationName,
       bar: fill && { width: fill.style.width, top: Math.round(fill.getBoundingClientRect().top - frame.top), height: Math.round(fill.getBoundingClientRect().height) },
       nodes: Object.fromEntries([...view.querySelectorAll('g.node')].filter((g) => /\brn-/.test(g.getAttribute('class'))).map((g) => [nodeKey(g), g.classList.contains('rn-working') ? 'working' : 'other'])),
@@ -579,13 +580,13 @@ try {
   });
   const cardsDrawn = () => home.waitForFunction(() => [...document.querySelectorAll('#cards .ovc')].every((card) => card.hasAttribute('data-drawn')), null, { timeout: 10000 }).catch(() => {});
 
-  // Before the overview is saved: the sketch in the frame, the bar on its top edge, the line under the head and the time at the right end of the head.
+  // Before the overview is saved: the chart of the run in the frame, the sketch of the map in the first card, the line under the head.
   await homeAt('?nomap=1&run=reading');
   const reading = await runState();
   await takePicture(home, '84-1-before-the-overview.png');
-  check('before the overview of a run is saved, the frame holds a soft sketch of a map that shimmers slowly in place of the wordmark; the line of the run stands under the head; no time and no bar show before the run has measured its pace; the page does not scroll',
-    reading.sketch && reading.shimmer === 'sk-pass' && !reading.wordmark && reading.time === '' && reading.line.startsWith('Writing the map · Claude Code')
-      && !reading.bar && reading.fills && !reading.scrolls, JSON.stringify(reading));
+  check('before the overview of a run of Home is saved, the frame holds the live chart of the run (the lead row and the writers, no head of its own) in place of the wordmark, and the one card is the overview as a soft sketch that shimmers slowly; the line of the run stands under the head; no time and no bar show before the run has measured its pace',
+    reading.chart.thinks > 0 && reading.chart.writers === 4 && !reading.chart.head && !reading.sketch && !reading.wordmark && reading.time === '' && reading.line.startsWith('Writing the map · Claude Code')
+      && !reading.bar && reading.cards.length === 1 && reading.cards[0].title === 'Overview' && reading.cards[0].sketch && reading.cards[0].state === 'working', JSON.stringify(reading));
 
   // While the areas load: the states of the nodes of the top map and of their cards, the bar and the time.
   await homeAt('?run=areas');
@@ -595,11 +596,32 @@ try {
   const cardOf = (title) => loading.cards.find((card) => card.title === title) ?? {};
   const working = ['Web routes', 'Lending'].map(cardOf);
   const done = loading.cards.filter((card) => card.state === 'done');
-  check('while the areas load, the node of an area that writers work on now has an accent edge; its card shows a sketch, a turning mark and its own bar, and a card whose area is done shows its diagram or files; the bar of the run and the time stay',
-    JSON.stringify(loading.nodes) === JSON.stringify({ routes: 'working', lending: 'working' })
+  const TOP_MAP = await home.evaluate(() => diagramOf(Home.data.map.top).title);
+  check('while the areas load, the frame holds the live chart of the run, and the first card is the top map drawn small, before the cards of the areas; the card of an area that writers work on shows a sketch, a turning mark and its own bar, and a card whose area is done shows its diagram or files; the bar of the run and the time stay',
+    loading.chart.thinks > 0 && loading.chart.writers === 4 && loading.mapNodes === 0 && loading.cards[0]?.title === TOP_MAP && loading.cards[0].content
       && working.every((card) => card.state === 'working' && card.sketch && card.spin === 'ov-turn' && !card.content) && working.map((card) => card.bar).join() === '45%,20%'
-      && done.length === 6 && done.every((card) => card.content && card.edge === 'solid')
-      && parseFloat(loading.bar?.width) > 15 && loading.bar.top <= 1 && /^About \d+ min left$/.test(loading.time) && !loading.scrolls, JSON.stringify(loading));
+      && done.length === 7 && done.every((card) => card.content && card.edge === 'solid')
+      && parseFloat(loading.bar?.width) > 15 && loading.bar.top <= 1 && /^About \d+ min left$/.test(loading.time), JSON.stringify(loading));
+
+  // A click on the card of the top map shows the map in the frame as a step of its own, with the states of the areas on its nodes; "Home" in the line goes back to the chart.
+  await home.click('#cards .ovc[data-card="0"]');
+  await homeSettled();
+  const mapChosen = await runState();
+  await home.click('#crumb a', { timeout: 3000 }).catch(() => {});
+  await homeSettled();
+  const chartAgain = await runState();
+  check('during a run a click on the card of the top map shows the map in the frame, as the step after "Home", with the accent edge on the areas that writers work on and the cards of the areas; "Home" goes back to the chart',
+    mapChosen.mapNodes === 8 && mapChosen.chart.writers === 0 && mapChosen.crumb === `Home›${TOP_MAP}` && JSON.stringify(mapChosen.nodes) === JSON.stringify({ routes: 'working', lending: 'working' })
+      && mapChosen.cards.length === 8 && chartAgain.chart.writers === 4 && chartAgain.cards[0]?.title === TOP_MAP && chartAgain.crumb === 'Home', JSON.stringify({ mapChosen, chartAgain }));
+  const newChart = await home.evaluate(() => {
+    const card = document.querySelector('#cards .ovc');
+    const chart = structuredClone(window.APOSTIL_EXAMPLE.charts.done);
+    window.postMessage({ type: 'chart', chart: { ...chart, state: 'writing' } }, '*');
+    return new Promise((done) => setTimeout(() => done({ writers: document.querySelectorAll('#view > .runchart .mr-writer').length, dots: document.querySelectorAll('#view .mr-writer circle').length,
+      sameCard: document.querySelector('#cards .ovc') === card, bar: !!document.querySelector('#view > .runbar'), told: window.apostilSent.filter((one) => one.type === 'rendered' && one.kind === 'run').length }), 300));
+  });
+  check('a new chart that VS Code sends while a run of Home writes draws only the chart in the frame again: the cards and the bar of the run stay, and Home tells VS Code that it drew it',
+    newChart.writers === 4 && newChart.dots === 0 && newChart.sameCard && newChart.bar && newChart.told === 1, JSON.stringify(newChart));
 
   // After a save the time changes once and calmly; the time that VS Code sends every 30 seconds changes the words and the bar, and draws nothing again.
   await home.evaluate(() => window.postMessage({ type: 'data', data: { ...Home.data, mapRun: window.APOSTIL_EXAMPLE.mapRuns.later } }, '*'));
@@ -618,7 +640,7 @@ try {
       && parseFloat(saved.bar?.width) > parseFloat(loading.bar.width) && ticked.time === 'Less than a minute left' && ticked.bar?.width === '97%' && ticked.rendered === saved.rendered,
     JSON.stringify({ rolling, saved, ticked }));
 
-  // In full screen during a run: the top map with the bar and the time, and no cards. When the run ends, the bar and the time go and the page is the normal overview.
+  // In full screen during a run: the chart fills the page with the bar and the time, and no cards. When the run ends, the bar and the time go and the page is the normal overview.
   await home.evaluate(() => Overview.choose(true, () => Home.render()));
   await homeSettled();
   const fullRun = await runState();
@@ -630,9 +652,11 @@ try {
   await homeSettled();
   await cardsDrawn();
   const ended = await runState();
-  check('in full screen during a run the top map shows with the bar of the run and the time left, and no cards; when the run ends the bar, the time and the states go, and the page is the normal overview with every card filled',
-    fullRun.cards.length === 0 && fullRun.fills && parseFloat(fullRun.bar?.width) > 0 && fullRun.time !== '' && Object.keys(fullRun.nodes).length === 2
-      && !ended.bar && ended.time === '' && ended.line === '' && Object.keys(ended.nodes).length === 0 && ended.cards.length === 8 && ended.cards.every((card) => card.state === 'done' && card.content),
+  await takePicture(home, '84-4-after-the-run-ended.png');
+  check('in full screen during a run the chart shows alone with the bar of the run and the time left, and no cards; when the run ends the bar, the time, the states and the chart go, the frame holds the top map again and no card is the top map, every card filled',
+    fullRun.cards.length === 0 && fullRun.chart.writers === 4 && fullRun.mapNodes === 0 && parseFloat(fullRun.bar?.width) > 0 && fullRun.time !== ''
+      && !ended.bar && ended.time === '' && ended.line === '' && ended.chart.writers === 0 && ended.mapNodes === 8 && Object.keys(ended.nodes).length === 0
+      && ended.cards.length === 8 && !ended.cards.some((card) => card.title === TOP_MAP) && ended.cards.every((card) => card.state === 'done' && card.content),
     JSON.stringify({ fullRun, ended }));
 
   // Comments on the map of Home: a node and an arrow hold one, as on the change page; "@" offers only new sessions; a row of the list after a level down lights its node.

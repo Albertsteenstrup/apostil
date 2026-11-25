@@ -14,6 +14,7 @@ import { appToStart } from './map-app';
 import { scopeCounts } from './note-groups';
 import { keptImportWords, looseBoxes, withBoxes } from './node-uses';
 import { areaWork, mapRunLine, type MapRunLine } from './map-run';
+import type { MapRunChart } from './map-run-chart';
 import { teamOf, type Team } from './models';
 import { diagramsOf, downOf, mainDiagramOf, touches, type DiagramOfPath } from './repo-map';
 import { allProcessDrawings, placeDiagramId, placeDrawing, processDiagramId, processesStartingIn, type LineOf, type ProcessDiagram, type ProcessNode, type Span } from './process-diagrams';
@@ -88,6 +89,7 @@ export interface HomeData {
   sendTo?: SendTo; // what the picker of a comment on the map offers: a new session of each app, with its models
   writing?: string; // the app that writes the map now
   mapRun?: MapRunLine; // while a map run writes, or after one stopped: which session, and what is saved so far
+  chart?: MapRunChart; // while a run of Home writes the map: its live chart, which Home's frame holds (home-page.ts adds it)
   needsSetup?: boolean; // with no map: no agent app has the skills, so Home shows "Set up for agents"
   scope?: { leftOut: number; added: number }; // with no map and a .apostilignore: the files that it leaves out and adds (scopeCounts), a quiet line under the press
   noCommit?: true; // the folder is no Git repo or has no commit yet: it has no id, so no map can be saved
