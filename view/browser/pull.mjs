@@ -697,7 +697,7 @@ try {
   await conv.mouse.click(said.x, said.y);
   await conv.waitForSelector('.cbox.card [data-field="new"]:focus', { timeout: 3000 }).catch(() => {});
   keyed.head = await conv.textContent('.cbox.card .ch .where').catch(() => '');
-  await conv.click('.cbox.card .pick');
+  await conv.click('.cbox.card [data-pick="app"]');
   keyed.choices = await conv.$$eval('.cbox.card .pmenu .pi', (rows) => rows.map((row) => row.querySelector('span').firstChild.textContent));
   await convShot('71-the-picker-on-a-message');
   await conv.click('.cbox.card .pi[data-choice="github"]', { timeout: 3000 }).catch(() => {}); // a missing choice fails the check below, not the run
