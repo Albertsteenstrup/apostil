@@ -7,15 +7,16 @@ export const WRITERS_AT_ONCE = 16;
 /**
  * The minutes of the work of one writer of each kind, and of the lead between two stages. They come from real runs of November 2026 (Claude Code, the
  * lead on Sonnet, the writers on Haiku at max): notes writers read a median of 50 to 88 lines a minute, so a notes writer starts at 60 lines a minute; a
- * process writer took about 15 minutes, a second round 8, the fit round 8, a service writer 10. The main session sets them again after the next real run.
+ * process writer took about 15 minutes, a second round 8, the fit round 8, a service writer 10. No run has measured a fold writer yet: 10 is a guess.
+ * The main session sets them again after the next real run.
  */
-export const WAVE_MINUTES = { overview: 4, overviewPerThousandLines: 0.1, areas: 4, notesLinesPerMinute: 60, processes: 15, again: 8, fit: 8, services: 10, lead: 2 };
+export const WAVE_MINUTES = { overview: 4, overviewPerThousandLines: 0.1, areas: 4, notesLinesPerMinute: 60, processes: 15, again: 8, fold: 10, fit: 8, services: 10, lead: 2 };
 
 /** What a plan with no lines of its groups (a record of an older version) counts for each notes group. */
 const OLD_GROUP_LINES = 400;
 
-/** The kinds of save that the record keeps the time of: the overview, an area, notes, the processes of a group, the marks of a group. */
-export type SaveKind = 'o' | 'a' | 'n' | 'p' | 'm';
+/** The kinds of save that the record keeps the time of: the overview, an area, notes, the processes of a group, a fold, the marks of a group. */
+export type SaveKind = 'o' | 'a' | 'n' | 'p' | 'f' | 'm';
 
 /** One save of a writer in the record: its kind, the minutes from the start of the run, and for notes the files that it saved. */
 export type SaveTime = [kind: SaveKind, minute: number, files?: number];
@@ -34,6 +35,7 @@ export interface MapPlan {
   processes: number; // the groups of the process writers that are expected
   services: number; // the groups of the service and mark writers that are expected
   again: number; // 1 while the second process rounds are still to come
+  fold?: number; // the fold writers that are expected; missing in a record of an older version
   fit: number; // 1 while the fit round of the top diagram is still to come
 }
 
@@ -69,7 +71,8 @@ const shareOf = (stage: Stage): number => {
  * 2. the writers: the area writers and the notes writers, the process writers of an area as soon as its notes are saved, the second round of a process
  *    group as soon as its writer ended, and the service and mark writers of an area as soon as its notes are saved. Its longest chain is the largest
  *    notes group, then a process writer, then its second round (or a service writer, when no process is left);
- * 3. the fit round of the top diagram, after the last process writer.
+ * 3. the fold writers, after the second rounds;
+ * 4. the fit round of the top diagram, after the last fold writer.
  */
 function stagesOf(plan: MapPlan, saves: SaveTime[]): Stage[] {
   const since = saves.filter(([, at]) => at > plan.at);
@@ -95,6 +98,7 @@ function stagesOf(plan: MapPlan, saves: SaveTime[]): Stage[] {
       ],
       chain: Math.max(plan.areas ? WAVE_MINUTES.areas : 0, longest + Math.max(processes + again, services)),
     },
+    { works: [{ minutes: (plan.fold ?? 0) * WAVE_MINUTES.fold, share: share(count('f'), plan.fold ?? 0), kinds: ['f'] }], chain: plan.fold ? WAVE_MINUTES.fold : 0 },
     { works: [{ minutes: plan.fit ? WAVE_MINUTES.fit : 0, share: count('o') > plan.overview ? 1 : 0, kinds: ['o', 'a'] }], chain: plan.fit ? WAVE_MINUTES.fit : 0 },
   ];
 }

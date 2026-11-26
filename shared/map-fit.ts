@@ -1,4 +1,4 @@
-// `apostil map --fit`: where the notes and the processes do not fit the diagrams, and the used code with no note. Four short lists of facts (skill apostil-map-repo, Step 6).
+// `apostil map --fit`: where the notes and the processes do not fit the diagrams, and the used code with no note. Four short lists of facts (skill apostil-map-repo, Step 7).
 
 import { gapsIn } from './definitions';
 import { diagramGraph } from './diagram-graph';

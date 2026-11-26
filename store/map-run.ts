@@ -10,37 +10,41 @@ import { withEnd, withSave, type MapRun, type MapSave } from '../shared/map-run'
 import { lineFor, readScope } from '../shared/map-scope';
 import { markGroups, setsOf } from '../shared/marks';
 import { areasWaitingForNotes, codeFiles, noteGroups, processGroups } from '../shared/note-groups';
-import { parseKey } from '../shared/processes';
+import { parseKey, processFolds } from '../shared/processes';
 import type { RepoMap } from '../shared/repo-map';
 import type { Store, StoredMap } from '../shared/store';
 import { notesWithCode, withFileNotes } from './note-code';
 
 /** What a save command of a writer saved, for the record: save-map, add-diagram, add-notes, add-processes or add-marks. */
 export function mapSaveOf(command: string, draft: unknown, result: { files?: number }): MapSave {
-  const given = draft as Diagram & { group: string; set: string }; // a save that worked had the right shape
+  const given = draft as Diagram & { group: string; set: string; fold?: string[]; processes: { id: string }[] }; // a save that worked had the right shape
   if (command === 'save-map') return { overview: true };
   if (command === 'add-diagram') return { area: given.title };
   if (command === 'add-notes') return { noteFiles: result.files ?? 0 };
-  if (command === 'add-processes') return { processGroup: given.group };
+  if (command === 'add-processes') return given.fold ? { foldedInto: given.processes.map((process) => process.id) } : { processGroup: given.group };
   return { marks: given.set };
 }
 
 /** True when the run saved the processes of some group twice: the second process round (Step 5 of the skill) has started. */
 const secondRound = (run: MapRun): boolean => (run.saves ?? []).filter(([kind]) => kind === 'p').length > (run.parts.processGroups?.length ?? 0);
 
-/** True when the run saved an overview after its first processes: the fit round of the top diagram (Step 6 of the skill) happened. */
+/** True when the run saved an overview after its first processes: the fit round of the top diagram (Step 7 of the skill) happened. */
 function fitDone(run: MapRun): boolean {
   const saves = run.saves ?? [];
   const first = saves.find(([kind]) => kind === 'p')?.[1];
   return first !== undefined && saves.some(([kind, at]) => kind === 'o' && at >= first);
 }
 
+/** The processes that `fold` names as `into` and that no fold writer of this run wrote again yet: one fold writer for each. */
+const foldWritersLeft = (run: MapRun, map: RepoMap): number =>
+  new Set(processFolds(map.processes ?? []).map((one) => one.into).filter((into) => !run.parts.foldedInto?.includes(into))).size;
+
 /** True when `apostil map --fit` lists something for the fit round to correct. */
 const fitHasWork = (stored: StoredMap): boolean => Object.values(mapFit(stored.map)).some((list) => list.count > 0);
 
 /**
  * True while the writers of this run have work in the map. A run that writes the whole map (its steps run side by side): a group of the process
- * writers has no process yet, the second process round or the fit round is still to come after processes of this run, a set of marks has a group, or a
+ * writers has no process yet, the second process round, the fold round or the fit round is still to come after processes of this run, a set of marks has a group, or a
  * code file needs notes. A run that writes a part asks only for the kinds that it saved: notes, or marks. The costly questions (they read the code files) come last.
  */
 export function mapWorkLeft(store: Store, folder: string, run: MapRun): boolean {
@@ -53,6 +57,7 @@ export function mapWorkLeft(store: Store, folder: string, run: MapRun): boolean 
     if (groups.some((group) => group.why?.includes('no process yet'))) return true;
     const processed = (run.parts.processGroups?.length ?? 0) > 0;
     if (processed && groups.length > 0 && !secondRound(run)) return true;
+    if ((processed || run.parts.foldedInto) && foldWritersLeft(run, map) > 0) return true;
     if (processed && !fitDone(run) && fitHasWork(stored)) return true;
   }
   if ((run.whole || run.parts.marks?.length) && setsOf(store, repo).some((set) => markGroups(folder, map, set.id).groups.length > 0)) return true;
@@ -81,6 +86,7 @@ export function workPlan(store: Store, folder: string, run: MapRun, overviewNow 
   const processes = map ? ready + (map.diagrams.some((diagram) => !diagram.parent) ? waiting.size : topAreasOfSize(lines)) : topAreasOfSize(lines);
   const services = map ? setsOf(store, repo).reduce((sum, set) => sum + markGroups(folder, map, set.id).groups.length, 0) : topAreasOfSize(lines);
   const again = !secondRound(run) && (processes > 0 || groups.length > 0) ? 1 : 0;
+  const fold = Math.max(processes, map ? foldWritersLeft(run, map) : 0); // while process writers are to come, one fold writer for each of their groups
   const fit = !fitDone(run) && (overview || processes > 0 || again) ? 1 : 0;
   // The work before this plan: what the old plan counted as done, or for a run whose first save is the overview, that overview.
   const firstOverview = WAVE_MINUTES.overview + WAVE_MINUTES.overviewPerThousandLines * lines / 1000 + WAVE_MINUTES.lead;
@@ -88,7 +94,7 @@ export function workPlan(store: Store, folder: string, run: MapRun, overviewNow 
   return {
     at, done: Math.round(done * 10) / 10, lines, overview, areas: overview || overviewNow ? areasOfSize(lines) : areasLeft,
     notes: notes.length, noteFiles: notes.reduce((sum, group) => sum + group.files.length, 0),
-    noteLines: notes.reduce((sum, group) => sum + group.lines, 0), longest: Math.max(0, ...notes.map((group) => group.lines)), processes, services, again, fit,
+    noteLines: notes.reduce((sum, group) => sum + group.lines, 0), longest: Math.max(0, ...notes.map((group) => group.lines)), processes, services, again, fold, fit,
   };
 }
 
