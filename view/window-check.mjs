@@ -336,9 +336,9 @@ try {
   const terminalShown = await until(() => page.evaluate(() => /Apostil map/.test(document.querySelector('.part.panel')?.textContent ?? '')), 5000);
   await shot('1c2-home-while-the-map-is-written');
   // After the run, "Map run" in Home's head opens the tab "Map run", which reads a small made-up transcript of the session in the window's agent home and shows the lead row.
-  const chartFrom = Date.now();
+  const runStart = Date.parse(store.mapRun(repoId(repo))?.startedAt ?? new Date().toISOString());
   const chartFolder = path.join(agentHome, '.claude', 'projects', 'made-up-map-check');
-  const second = (at) => new Date(chartFrom + at * 1000).toISOString();
+  const second = (at) => new Date(runStart + 200 + at * 300).toISOString();
   mkdirSync(chartFolder, { recursive: true });
   writeFileSync(path.join(chartFolder, `${store.mapRun(repoId(repo))?.agent?.session}.jsonl`), [
     { type: 'user', timestamp: second(0), message: { content: 'Write the map.' } }, { type: 'api-request', timestamp: second(0) },
