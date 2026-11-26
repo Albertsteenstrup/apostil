@@ -204,6 +204,17 @@ test('the line of a run of the whole map with a plan has the share of its bar fr
   assert.equal(mapRunLine({ ...run, plan: undefined }, { now: later(6) })?.time, undefined);
 });
 
+test('after a stop the line of a run of the whole map with a plan keeps the share of its work up to its last save, with no time; a run with no plan has none', () => {
+  const plan: MapPlan = { at: 0, done: 0, lines: 5000, overview: 1, areas: 2, notes: 20, noteFiles: 60, processes: 6, services: 6, again: 1, fit: 1 };
+  const run: MapRun = { ...homeRun('claude-code', AT), plan, saves: [['o', 5], ['n', 9, 6]], savedAt: new Date(later(9)).toISOString() };
+  const stopped = mapRunLine(withEnd(run, new Date(later(40)).toISOString(), true), { now: later(41) });
+  assert.equal(stopped?.state, 'stopped');
+  assert.equal(stopped?.time, undefined);
+  assert.equal(stopped?.share, timeLeft(plan, run.saves!, Date.parse(AT), later(9)).share);
+  assert.ok(stopped.share! > 0 && stopped.share! < 1);
+  assert.equal(mapRunLine(withEnd({ ...run, plan: undefined }, new Date(later(40)).toISOString(), true))?.share, undefined);
+});
+
 test('the first save of a run removes what the map holds of a deleted file and of a file that .apostilignore now leaves out: a process with some steps there is stale, one with all its steps there goes; no read removes them', () => {
   const store = new Store(tempFolder('apostil-home-'));
   const repo = makeTestRepo();

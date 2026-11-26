@@ -570,6 +570,19 @@ try {
       && stoppedOnMap?.text === 'Map stopped · Continue' && stoppedOnMap.summary === 'Map stopped · Continue' && stoppedOnMap.presses.length === 0 && stoppedOnMap.nodes === 8 && stoppedOnMap.lines === 1 && goneOn,
     JSON.stringify({ stoppedNoMap, stoppedOnMap, goneOn }));
 
+  // After a stop of a run with a plan: the line and the cards keep the share that is done, on a quiet bar with no turning mark, and nothing moves.
+  await homeAt('?run=halted');
+  const halted = await home.evaluate(() => ({
+    line: document.querySelector('.maprun')?.textContent,
+    bars: [...document.querySelectorAll('.ovw')].map((work) => ({ stopped: work.classList.contains('stopped'), spin: !!work.querySelector('.spin'), width: work.querySelector('.ovbar i').style.width, number: work.querySelector('.ovp')?.textContent })),
+    moving: document.querySelectorAll('.moving, .hatch.moving').length,
+    time: document.getElementById('runtime')?.hidden,
+  }));
+  await takePicture(home, '36-1-home-after-a-planned-map-run-stopped.png');
+  check('after a planned map run stopped, the line reads "Map stopped", a quiet bar and its percent, then "Continue"; the cards of the areas with work left keep their percent on a quiet bar; no turning mark, no sliding stripes, no time left',
+    /^Map stopped\d+% · Continue$/.test(halted.line ?? '') && halted.bars.length === 3 && halted.bars.every((bar) => bar.stopped && !bar.spin && bar.width === bar.number) && halted.moving === 0 && halted.time === true,
+    JSON.stringify(halted));
+
   // The tab "Map run", from the made-up map session of example-data.ts as the real reader reads it: 10 minutes in, and after the run ended.
   const chartNow = () => home.evaluate(() => {
     const plot = document.querySelector('.mr-plot svg');

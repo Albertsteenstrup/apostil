@@ -690,6 +690,7 @@ div.nomap .runpick{margin:0 0 8px}
 .hatched.moving{animation:hatched-slide 3s linear infinite}
 @keyframes hatched-slide{to{background-position:12px 0}}
 /* the share of a bar, in whole percent */
+.ovw.stopped .ovbar i{background:var(--faint)}
 .ovp{font-size:var(--small);font-weight:400;color:var(--muted);font-variant-numeric:tabular-nums}
 /* the nodes of the top map while it is written: an area that writers work on now has a quiet accent edge */
 .stage g.node.rn-working > :is(rect,polygon,path,circle){stroke:var(--teal)!important;stroke-width:1.5px!important}

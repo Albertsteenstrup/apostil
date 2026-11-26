@@ -99,6 +99,10 @@ export function runTimeLeft(run: MapRun, now = Date.now()): RunTime | undefined 
   return run.saves?.some(([kind]) => kind === 'n' || !run.plan?.notes) ? time : { share: time.share };
 }
 
+/** The share of the work of a stopped run of the whole map with a plan, up to its last save; undefined for any other. */
+export const stoppedShare = (run: MapRun): number | undefined =>
+  (run.plan && run.whole ? timeLeft(run.plan, run.saves ?? [], Date.parse(run.startedAt), Date.parse(run.savedAt ?? run.startedAt)).share : undefined);
+
 /** The record of a run of Home with the session that the run reports on its output. Any other record stays as it is. */
 export const withSession = (run: MapRun | undefined, session: string): MapRun | undefined =>
   (run?.home && run.agent && !run.endedAt ? { ...run, agent: { ...run.agent, session } } : undefined);
@@ -116,12 +120,13 @@ export interface MapRunLine {
   tip?: string; // the whole id of the session and the titles of the saved areas
   opens?: 'app' | 'terminal' | 'shown'; // "Open the session" opens it in its app, in a terminal of VS Code that continues it (sessionOpens), or shows the terminal where it writes
   time?: RunTime; // while a run of the whole map writes and has a plan: the share of the bar, and the minutes left once they are measured
+  share?: number; // after a stop of a run of the whole map with a plan: the share of its work that is done (stoppedShare)
   areas?: Record<string, AreaWork>; // the areas of the top diagram with work left, by node id; an area that is not named is done (homeData adds it)
   chart?: true; // hasChart: after a run that stopped the line has "Run chart"; while it writes, Home's frame holds the chart
 }
 
 /** An area of the top diagram with work left, which writers work on now; `share`: the part of its work that is done. */
-export interface AreaWork { state: 'working'; share: number }
+export interface AreaWork { state: 'working' | 'stopped'; share: number }
 
 const count = (number: number, word: string): string => `${number} ${word}${number === 1 ? '' : 's'}`;
 const NAME_LENGTH = 40; // a longer name of a session is cut; the tip holds the id
@@ -181,8 +186,9 @@ export function mapRunLine(run: MapRun | undefined, has: { name?: string; alive?
   const shown = run.terminal && has.alive && state === 'writing';
   const opens = state !== 'writing' ? undefined : shown ? 'shown' : run.agent && !run.home && (!id || /^[\w-]+$/.test(id)) ? sessionOpens(run.agent) : undefined;
   const time = state === 'writing' ? runTimeLeft(run, has.now) : undefined;
+  const share = state === 'stopped' ? stoppedShare(run) : undefined;
   const chart = hasChart(run);
-  return { state, words, ...(tip ? { tip } : {}), ...(opens ? { opens } : {}), ...(time ? { time } : {}), ...(chart ? { chart: true as const } : {}) };
+  return { state, words, ...(tip ? { tip } : {}), ...(opens ? { opens } : {}), ...(time ? { time } : {}), ...(share === undefined ? {} : { share }), ...(chart ? { chart: true as const } : {}) };
 }
 
 // ----- the work of each area, for the cards of Home while a run writes -----

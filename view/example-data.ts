@@ -188,10 +188,13 @@ const areaStates = { [leading[1]]: { state: 'working', share: 0.45 }, [leading[3
 // As VS Code sends it (home-page.ts): whole minutes, and the share of the bar to a thousandth.
 const whole = (line: MapRunLine | undefined): MapRunLine | undefined => (line?.time ? { ...line, time: { ...(line.time.minutes === undefined ? {} : { minutes: Math.round(line.time.minutes) }), share: Math.round(line.time.share * 1000) / 1000 } } : line);
 const withAreas = (line: MapRunLine | undefined): MapRunLine | undefined => (line ? { ...line, ...whole(line), areas: areaStates } : line);
+const stoppedAreas = Object.fromEntries(Object.entries(areaStates).map(([node, work]) => [node, { ...work, state: 'stopped' }])) as MapRunLine['areas'];
+const halted = lineOf(withEnd(planned(19, loading, { overview: true, areas: ['Lending', 'Desk'], ofAreas: 3, noteFiles: 18 }), minutesAgo(0), true)!);
 const mapRuns = {
   home: lineOf(savedSoFar(homeRun('claude-code', minutesAgo(5)), { app: 'claude-code', session: mapSession })),
   terminal: lineOf(savedSoFar(undefined, { app: 'claude-code', session: mapSession })),
   stopped: lineOf(withEnd(desktopRun, minutesAgo(0), true)!),
+  halted: halted && { ...halted, ...(halted.share === undefined ? {} : { share: Math.round(halted.share * 1000) / 1000 }), areas: stoppedAreas }, // the run of "areas" after a stop
   reading: whole(lineOf(planned(3, [], {}))),
   areas: withAreas(lineOf(planned(19, loading, { overview: true, areas: ['Lending', 'Desk'], ofAreas: 3, noteFiles: 18 }))),
   later: withAreas(lineOf(planned(19, [...loading, ['n', 18.5, 12]], { overview: true, areas: ['Lending', 'Desk'], ofAreas: 3, noteFiles: 30 }))),

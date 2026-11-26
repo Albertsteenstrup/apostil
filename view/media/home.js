@@ -262,11 +262,12 @@ const leadsSomewhere = (node) => !!node && !node.quiet && (!!diagramOf(node.down
 function homeCard(key, node, open, graph, run) {
   const below = diagramOf(node.down);
   // The changes that touch the node stand at the bottom of its card, and its rows have their counts; not while its area is written.
-  const own = { title: plainName(graph, key), node: key, ...(node.unmapped ? { unmapped: true } : {}), ...(run ? { run, areaFiles: node.paths } : { changes: node.changes }) };
+  const working = run?.state === 'working';
+  const own = { title: plainName(graph, key), node: key, ...(node.unmapped ? { unmapped: true } : {}), ...(run ? { run } : {}), ...(working ? { areaFiles: node.paths } : { changes: node.changes }) };
   if (below) return { ...own, open, ...smallDiagram(below) };
   const diff = diffOf(node);
   const files = node.paths.map(({ path, files }) => ({ path, count: files, line: node.line, diff: diff(path) }));
-  return run ? own : { ...own, files };
+  return working ? own : { ...own, files };
 }
 
 /** A diagram drawn small in a card, as a panel of the graphs page with nothing lit. */
@@ -337,7 +338,7 @@ function hatchNodes(svg, nodes, working) {
   for (const g of svg.querySelectorAll('g.node')) {
     const key = nodeKey(g);
     if (!nodes[key]?.unmapped) continue;
-    const moving = !!working?.[key];
+    const moving = working?.[key]?.state === 'working';
     patterns[moving] ??= hatchPattern(svg, moving);
     g.classList.add('unmapped');
     for (const shape of g.querySelectorAll(':scope > :is(rect,polygon,path)')) shape.style.setProperty('fill', `url(#${patterns[moving]})`, 'important');
@@ -468,7 +469,7 @@ async function drawHome() {
     const overview = leading.length > 0 && !Overview.isFull();
     // A wide map opens where its words read; drawn again with new data, it stays where he left it. The drawing in columns is another drawing.
     makeSurface(view, true, false, laid === diagram ? diagram.id : `${diagram.id}:columns`, overview);
-    if (unmapped) view.classList.add('hatched', ...(unmapped.diagram === map.top && run?.areas?.[unmapped.node] ? ['moving'] : []));
+    if (unmapped) view.classList.add('hatched', ...(unmapped.diagram === map.top && run?.areas?.[unmapped.node]?.state === 'working' ? ['moving'] : []));
     if (leading.length) Overview.icon(view, !overview, () => Home.render());
     ProcessDrawing.key(view, plain ? diagram : laid); // what the dashed boxes and the numbers of a drawn process are
     runBar(view, time);

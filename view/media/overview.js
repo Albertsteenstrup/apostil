@@ -294,8 +294,8 @@ function sketchHtml(small = false) {
     + `<g clip-path="url(#${id})"><rect class="sks" x="${-w / 3}" y="0" width="${w / 3}" height="${h}" fill="url(#${id}g)"/></g></svg>`;
 }
 
-/** The small turning mark and the small bar of a card whose area a writer works on now, and its share in whole percent; with no share, an empty bar and no number. */
-const workHtml = (share) => `<span class="ovw"><i class="spin" aria-hidden="true"></i><span class="ovbar"><i style="width:${percentOf(share ?? 0)}"></i></span>${share === undefined ? '' : `<span class="ovp">${percentOf(share)}</span>`}</span>`;
+/** The small turning mark and the small bar of a card whose area a writer works on now, and its share in whole percent; with no share, an empty bar and no number. Stopped: a quiet bar with no turning mark. */
+const workHtml = (share, stopped = false) => `<span class="ovw${stopped ? ' stopped' : ''}">${stopped ? '' : '<i class="spin" aria-hidden="true"></i>'}<span class="ovbar"><i style="width:${percentOf(share ?? 0)}"></i></span>${share === undefined ? '' : `<span class="ovp">${percentOf(share)}</span>`}</span>`;
 const percentOf = (share) => `${Math.round(share * 100)}%`;
 
 const Overview = {
@@ -357,7 +357,7 @@ const Overview = {
   cards(holder, items) {
     holder.innerHTML = items.map((item, at) => {
       const state = item.run?.state;
-      const head = `<div class="ovh"><span class="ovn" title="${esc(item.title)}">${esc(item.title)}</span>${state === 'working' ? workHtml(item.run.share) : ''}</div>`;
+      const head = `<div class="ovh"><span class="ovn" title="${esc(item.title)}">${esc(item.title)}</span>${state ? workHtml(item.run.share, state === 'stopped') : ''}</div>`;
       const changes = item.changes?.length ? `<div class="ovx">${changeRowsHtml(item.changes)}</div>` : ''; // under the content, the changes that touch the node
       const hatched = item.unmapped ? ` hatched${state === 'working' ? ' moving' : ''}` : '';
       return `<div class="ovc${item.open ? ' go' : ''}${state ? ` run-${state}` : ''}${hatched}" data-card="${at}"${item.node ? ` data-node="${esc(item.node)}"` : ''}>${head}<div class="ovb"></div>${changes}</div>`;

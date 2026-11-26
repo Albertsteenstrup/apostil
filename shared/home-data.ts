@@ -194,9 +194,12 @@ export function homeData(store: Store, folder: string, apps: string[] = [], addr
     const scope = id && scopeCounts(folder); // counted by path only, so Home stays fast on a large repo
     return scope ? { ...base, scope } : base;
   }
-  // While a run of the whole map writes: the areas of the top diagram with work left, for the states of its nodes and cards.
+  // While a run of the whole map writes, or after it stopped: the areas of the top diagram with work left, for the states of its nodes and cards.
   const run = store.mapRun(id);
-  if (mapRun?.state === 'writing' && run?.whole && run.plan) mapRun.areas = areaWork(store, folder, stored, run);
+  if (mapRun && run?.whole && run.plan) {
+    const areas = areaWork(store, folder, stored, run);
+    mapRun.areas = mapRun.state === 'writing' ? areas : Object.fromEntries(Object.entries(areas).map(([node, work]) => [node, { ...work, state: 'stopped' as const }]));
+  }
   if (!mapRun && run && hasChart(run)) base.runChart = true;
   const files = repoFiles(folder) ?? [];
   const changes = store.listChanges(id).map((change) => ({ id: change.id, branch: change.branch, title: change.file.title, files: filesOfChange(change, folder) }));
