@@ -295,64 +295,65 @@ const Remarks = (() => {
   const appIcon = (app) => (app === 'github' ? '<i class="ico git-pull-request"></i>' : agentIcon({ app }));
 
   /** The control of the model and the effort of the run of a choice (RunPick in tools.js): it starts again in a new card and for another choice. */
-  const runControl = (choice) => (choice.run ? RunPick.html('card', { app: choice.app, list: choice.list, run: choice.run, reset: `${card.serial}:${choice.key}`, onOpen: () => { if (card.menu) { card.menu = false; redrawPicker(); } }, onChange: () => redrawPicker() }) : '');
+  const runControl = (choice) => (choice.run ? RunPick.html('card', { app: choice.app, list: choice.list, run: choice.run, reset: `${card.serial}:${choice.key}`, onOpen: () => { if (card.menu) { card.menu = false; redrawPicker(); } } }) : '');
 
   /**
    * The closed picker: "Send to <icon> Claude Code · this session", or "Keep it as a note", and on its own line after the place the model and the effort
-   * of the run ("Haiku 5.5 · High"), whose click opens their small menu.
+   * of the run ("Haiku 5.5 · High"), whose click opens their small menu. The app and the session are each a part of their own with a small menu.
    */
   function pickerHtml() {
     const choice = card.picked;
     if (!choice) return '';
     const words = States.choiceWords(choice);
     const [app, rest] = [words.split(' · ')[0], words.split(' · ').slice(1).join(' · ')];
-    const shown = choice.to ? `${esc(W.sendTo)} ${appIcon(choice.app)}<b>${esc(app)}</b>${rest ? `<span class="pw"> · ${esc(rest)}</span>` : ''}` : esc(words);
+    const part = (menu, html) => `<a class="pk${card.menu === menu ? ' on' : ''}" data-pick="${menu}" tabindex="0">${html}${DOWN}</a>`;
+    const session = choice.to?.kind ? part('session', `<span class="pw">${esc(rest)}</span>`) : rest ? `<span class="pw">${esc(rest)}</span>` : '';
+    const shown = choice.to ? `${esc(W.sendTo)} ${part('app', `${appIcon(choice.app)}<b>${esc(app)}</b>`)}${rest ? ` · ${session}` : ''}` : part('app', esc(words));
     const run = runControl(choice);
-    return `<a class="pick${card.menu ? ' on' : ''}" data-pick tabindex="0">${shown}${DOWN}</a>${run ? `<div class="prun">${run}</div>` : ''}${card.menu ? menuHtml() : ''}`;
+    const menu = card.menu === 'app' ? appMenuHtml() : card.menu === 'session' ? sessionMenuHtml() : '';
+    return `<div class="pick">${shown}</div>${run ? `<div class="prun">${run}</div>` : ''}${menu}`;
   }
 
   const SHOWN_SESSIONS = 5;
 
-  /**
-   * The menu of the picker: the connected apps side by side, the one of the choice lit; the models of that app and the efforts of its model; its sessions
-   * (this session, a new session, the newest 5 known ones and the rest after "Show more"); then GitHub and no agent.
-   */
-  function menuHtml() {
-    const agents = card.choices.filter((choice) => choice.to?.kind);
-    const apps = [...new Set(agents.map((choice) => choice.app))];
-    const app = card.picked?.to?.kind ? card.picked.app : null;
-    const tabs = apps.length ? `<div class="ptabs">${apps.map((one) => `<a class="ptab${one === app ? ' on' : ''}" data-menu-app="${esc(one)}">${appIcon(one)}${esc(appName({ app: one }))}</a>`).join('')}</div>` : '';
-    const row = (choice) => {
-      const sub = [choice.sub, choice.to?.kind ? '' : States.runWords(choice.app, choice.run, choice.list)].filter(Boolean).join(' · ');
-      const lead = choice.app === 'github' ? appIcon('github') : '';
-      return `<a class="pi${choice.to?.kind ? '' : ' flat'}${choice === card.picked ? ' on' : ''}" data-choice="${esc(choice.key)}">${lead}<span>${esc(choice.words)}${sub ? `<i>${esc(sub)}</i>` : ''}</span>${choice === card.picked ? CHECK : ''}</a>`;
-    };
-    const ofApp = agents.filter((choice) => choice.app === app);
+  /** A row of a menu of the picker: its words, faint words under them, and a tick on the one in use. */
+  const choiceRowHtml = (attr, id, words, sub, on, lead = '') =>
+    `<a class="pi${lead ? ' flat' : ''}${on ? ' on' : ''}" ${attr}="${esc(id)}">${lead}<span>${esc(words)}${sub ? `<i>${esc(sub)}</i>` : ''}</span>${on ? CHECK : ''}</a>`;
+
+  /** The menu of the app: each connected app, then GitHub when the pull request takes the comment, and no agent. */
+  function appMenuHtml() {
+    const apps = [...new Set(card.choices.filter((choice) => choice.to?.kind).map((choice) => choice.app))];
+    const rest = card.choices.filter((choice) => !choice.to?.kind);
+    const none = apps.length || App.page.pullOnly ? '' : `<p class="pnone">${esc(W.noAppConnected)} <a data-setup>${esc(W.setUpAgents)}</a></p>`;
+    return `<div class="pmenu">${apps.map((app) => choiceRowHtml('data-menu-app', app, appName({ app }), '', card.picked.app === app, appIcon(app))).join('')}`
+      + `${rest.length && apps.length ? '<div class="psep"></div>' : ''}${rest.map((choice) => choiceRowHtml('data-choice', choice.key, choice.words, '', choice === card.picked, (choice.app ? appIcon(choice.app) : '<i class="ico"></i>'))).join('')}${none}</div>`;
+  }
+
+  /** The menu of the session of the chosen app: this session, a new session, its newest 5 known sessions and the rest after "Show more". */
+  function sessionMenuHtml() {
+    const ofApp = card.choices.filter((choice) => choice.app === card.picked.app && choice.to?.kind);
     const known = ofApp.filter((choice) => choice.to.kind === 'session');
     const shown = card.allSessions ? known : known.slice(0, SHOWN_SESSIONS);
     const more = known.length > shown.length ? `<a class="pmore" data-more-sessions>${esc(W.showMore(known.length - shown.length))}</a>` : '';
-    const sessions = app ? `<div class="ph">${esc(W.sessionHead)}</div>${[...ofApp.filter((choice) => choice.to.kind !== 'session'), ...shown].map(row).join('')}${more}` : '';
-    const rest = card.choices.filter((choice) => !choice.to?.kind);
-    const none = (App.page.apps ?? []).length || App.page.pullOnly ? '' : `<p class="pnone">${esc(W.noAppConnected)} <a data-setup>${esc(W.setUpAgents)}</a></p>`;
-    return `<div class="pmenu">${tabs}${app ? RunPick.inline('card') : ''}${sessions}${rest.length && apps.length ? '<div class="psep"></div>' : ''}${rest.map(row).join('')}${none}</div>`;
+    return `<div class="pmenu">${[...ofApp.filter((choice) => choice.to.kind !== 'session'), ...shown].map((choice) => choiceRowHtml('data-choice', choice.key, choice.words, choice.sub, choice === card.picked)).join('')}${more}</div>`;
   }
 
-  /** Picks a choice: the picker shows it, and the next comment of this page starts there. With `open` the menu stays open (a click on an app). */
-  function pick(key, open = false) {
+  /** Picks a choice: the picker shows it, and the next comment of this page starts there. */
+  function pick(key) {
     const choice = card?.choices.find((one) => one.key === key);
     if (!choice) return;
     card.picked = choice;
-    card.menu = open;
+    card.menu = false;
     lastPick = choice.to ?? null;
     redrawPicker();
   }
 
-  /** A click on an app in the menu: its choice that the picker would start at, this session, else a new session; the menu stays open for its model. */
+  /** A click on an app in its menu: the choice of that app that a card would start at, this session, else a new session. */
   function pickApp(app) {
-    if (card.picked?.app === app) return;
     card.allSessions = false;
+    if (card.picked?.app === app) { card.menu = false; return redrawPicker(); }
     const ofApp = card.choices.filter((choice) => choice.app === app);
-    pick((ofApp.find((choice) => choice.to?.kind === 'current') ?? ofApp.find((choice) => choice.to?.kind === 'new') ?? ofApp[0]).key, true);
+    pick((ofApp.find((choice) => choice.to?.kind === 'current') ?? ofApp.find((choice) => choice.to?.kind === 'new') ?? ofApp[0]).key);
   }
 
   /** The hover window of a known session: its whole name, its folder and when it was last active. */
@@ -1034,7 +1035,8 @@ const Remarks = (() => {
     if (!card?.el?.contains(target)) return;
     if (target.closest('[data-close]')) return closeCard();
     if (target.closest('[data-resolve]')) return act(card.reply, 'resolve');
-    if (target.closest('[data-pick]')) { card.menu = !card.menu; RunPick.close('card'); return redrawPicker(); }
+    const part = target.closest('[data-pick]');
+    if (part) { card.menu = card.menu === part.dataset.pick ? false : part.dataset.pick; RunPick.close('card'); return redrawPicker(); }
     const app = target.closest('[data-menu-app]');
     if (app) return pickApp(app.dataset.menuApp);
     if (target.closest('[data-more-sessions]')) { card.allSessions = true; return redrawPicker(); }
@@ -1209,7 +1211,8 @@ const Remarks = (() => {
         stopPicking();
         openNew(thing, pointerAt ?? { x: innerWidth / 2 - 160, y: 80 });
       }
-      if ((event.key === 'Enter' || event.key === ' ') && event.target.closest?.('[data-pick]')) { event.preventDefault(); card.menu = !card.menu; redrawPicker(); }
+      const part = (event.key === 'Enter' || event.key === ' ') && event.target.closest?.('[data-pick]');
+      if (part) { event.preventDefault(); card.menu = card.menu === part.dataset.pick ? false : part.dataset.pick; redrawPicker(); }
       return;
     }
     event.stopPropagation();
