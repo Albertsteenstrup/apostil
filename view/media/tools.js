@@ -178,17 +178,6 @@ const RunPick = (() => {
     return `<div class="pmenu rmenu"><div><div class="ph">${esc(States.WORDS.model)}</div>${list.map(row).join('')}</div>${effortRow}</div>`;
   }
 
-  /** The models and the efforts of a key as two rows of chips, for a menu that holds them (the picker of a card); a click there calls `onChange` of its spec. */
-  function inline(key) {
-    const pick = picks[key];
-    const list = pick?.spec.list ?? [];
-    if (!list.length) return '';
-    const chip = (attr, id, words, on) => `<a class="chip${on ? ' on' : ''}" ${attr}="${esc(id)}">${esc(words)}</a>`;
-    const efforts = effortsOf(list, pick.value.model);
-    return `<div data-rpick-in="${esc(key)}"><div class="ph">${esc(States.WORDS.model)}</div><div class="chips">${list.map((model) => chip('data-rp-model', model.id, model.name, model.id === pick.value.model)).join('')}</div>`
-      + (efforts.length ? `<div class="ph">${esc(States.WORDS.effort)}</div><div class="chips">${efforts.map((effort) => chip('data-rp-effort', effort, States.effortWord(pick.spec.app, effort), effort === pick.value.effort)).join('')}</div>` : '') + '</div>';
-  }
-
   /** Draws the control of a key again in place, and places its menu under it, or above it when it does not fit below, inside the page. */
   function redraw(key) {
     const el = document.querySelector(`[data-rpick="${CSS.escape(key)}"]`);
@@ -216,8 +205,8 @@ const RunPick = (() => {
   const openKeys = () => Object.keys(picks).filter((key) => picks[key].open);
 
   document.addEventListener('click', (event) => {
-    const el = event.target.closest?.('[data-rpick], [data-rpick-in]');
-    const key = el?.dataset.rpick ?? el?.dataset.rpickIn;
+    const el = event.target.closest?.('[data-rpick]');
+    const key = el?.dataset.rpick;
     const pick = key && picks[key];
     if (!pick) return;
     const { list = [] } = pick.spec;
@@ -233,8 +222,7 @@ const RunPick = (() => {
     } else if (take('data-rp-effort')) value.effort = take('data-rp-effort');
     else return;
     event.preventDefault();
-    if (el.dataset.rpickIn !== undefined) pick.spec.onChange?.();
-    else redraw(key);
+    redraw(key);
   });
   // A click outside the control closes its menu (a click on the box of a card too); Escape closes it first, and nothing else.
   document.addEventListener('mousedown', (event) => {
@@ -256,7 +244,7 @@ const RunPick = (() => {
     if (!pick) return undefined;
     return { app: pick.spec.app, model: pick.value.model, effort: pick.value.effort, changed: pick.value.model !== pick.first.model };
   }
-  return { html, inline, value, placeIn, close };
+  return { html, value, placeIn, close };
 })();
 
 /**

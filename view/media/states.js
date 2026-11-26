@@ -48,7 +48,6 @@ const States = (() => {
     defaultModel: 'default model',
     ownModel: "OpenCode's own model",
     model: 'Model',
-    sessionHead: 'Session',
     showMore: (count) => `Show ${count} more`,
     lastActive: (iso) => `Last active ${new Date(iso).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}`,
     effort: 'Effort',
