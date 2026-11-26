@@ -353,27 +353,27 @@ test('the drawings: a process by its top steps in a box for each file, a step op
   assert.equal(home.map!.diagrams.find((one) => one.id === 'processes:top/code')?.title, 'Processes of Code');
   // diagramsOf gives the processes with steps in a file as a level after the map, and the graphs page shows them as panels that open Home.
   const found = diagramsOf(store, repo.folder, 'src/store.py');
-  assert.deepEqual(found.map((one) => [one.level, one.diagram?.id, one.lit.join()]), [['map', 'top', 'code'], ['process', 'process:run-rows', 's8']]);
+  assert.deepEqual(found.map((one) => [one.level, one.diagram?.id, one.lit.join()]), [['map', 'top', 'code'], ['process', 'process:run-rows', 's7']]);
   const panel = graphsData(store, repo.folder, 'src/store.py').panels[1];
   assert.deepEqual({ level: panel.level, from: panel.from, where: panel.where, open: panel.open }, {
-    level: 'process', from: 'process', where: 'in: Write one row', open: { tab: 'home', diagram: 'process:run-rows', lit: ['s8'], name: 'Run the rows of a file' },
+    level: 'process', from: 'process', where: 'in: Print and write', open: { tab: 'home', diagram: 'process:run-rows', lit: ['s7'], name: 'Run the rows of a file' },
   });
 
   const [top, ...opened] = processDrawings(map(), map().processes!.find((one) => one.id === 'run-rows')!);
   assert.equal(top.id, 'process:run-rows');
   assert.equal(top.title, 'Run the rows of a file');
-  // The top steps are main, load, save and write_row, in one box for each file, with the arrows of the writer and the call out of the repo as a quiet round box.
-  assert.deepEqual(Object.keys(top.nodes).sort(), ['o0', 's0', 's6', 's7', 's8']);
+  // The top steps are main, load and save, which holds write_row of another file that it calls, with the arrows of the writer and the call out of the repo as a quiet round box.
+  assert.deepEqual(Object.keys(top.nodes).sort(), ['o0', 's0', 's6', 's7']);
   assert.match(top.mermaid, /subgraph f0\["src\/run\.py"\]/);
   assert.match(top.mermaid, /s0\["Run the rows<br><i class='ns'>5 steps<\/i>"\]/);
   assert.match(top.mermaid, /s0 -->\|"<span class='eo'>1<\/span> read the file"\| s6/); // s0 calls twice: its arrows are numbered by their lines
-  assert.match(top.mermaid, /s8 -->\|"encode"\| o0/);
+  assert.match(top.mermaid, /s7 -->\|"encode"\| o0/);
   assert.match(top.mermaid, /class o0 elsewhere/);
   assert.deepEqual(top.nodes.s0, { kind: 'step', files: ['src/run.py'], at: [{ file: 'src/run.py', from: 1, to: 7 }], note: { title: 'Run the rows', text: 'Does the work of this step.', where: 'run.py · lines 1-7' }, down: 'process:run-rows/0', steps: 5 });
   assert.equal(top.nodes.s6.line, 10); // a step with no inner steps opens its file at its first line
   // The lines where the call out of the repo and the arrows start, so that a mark at such a line stands on its box and its arrow.
   assert.deepEqual([top.nodes.o0.kind, top.nodes.o0.calls], ['call', [{ file: 'src/store.py', line: 5 }]]);
-  assert.deepEqual(top.edgeLines?.['s8>o0'], [{ file: 'src/store.py', line: 5 }]);
+  assert.deepEqual(top.edgeLines?.['s7>o0'], [{ file: 'src/store.py', line: 5 }]);
   assert.deepEqual(top.edgeLines?.['s0>s6'], [{ file: 'src/run.py', line: 2 }]);
   // main opened: its inner steps in the order of the list; the call to load goes to a quiet box of the step elsewhere.
   const main = opened.find((one) => one.id === 'process:run-rows/0')!;

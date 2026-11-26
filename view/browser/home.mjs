@@ -217,14 +217,14 @@ try {
   const oneProcess = await drawing();
   const processSent = (await ledSince(sentBefore)).filter((type) => type !== 'walk');
   await takePicture(home, '37-one-process.png');
-  check('a click on an area that holds the first step of several processes opens them: one node for each with "N steps", joined by its handoff, a process of another place quiet, and the tree follows; the pointer on a process shows its summary; a click on it opens its top steps in one box for each of its 3 files, with the arrows of the writer and its call out of the repo quiet',
+  check('a click on an area that holds the first step of several processes opens them: one node for each with "N steps", joined by its handoff, a process of another place quiet, and the tree follows; the pointer on a process shows its summary; a click on it opens its top steps in one box for each of its 2 files, the step that calls into requests.py holding the steps there, with the arrows of the writer and its call out of the repo quiet',
     placeDrawn.crumb === 'Home›Processes of Web routes' && placeDrawn.names.join('|') === 'Answer a book request14 steps|Ask the library for a book7 steps|List the requests of a member4 steps'
       && placeDrawn.quiet.join() === 'Ask the library for a book7 steps' && placeDrawn.arrows.join() === 'the request row' && placeSent.filter((type) => type !== 'walk').join() === 'showInTree'
       && processWin.title === 'Answer a book request' && processWin.sub === '14 steps' && processWin.text === 'Stores the answer of a librarian and tells each member who asked for the book.'
-      && oneProcess.crumb === 'Home›Processes of Web routes›Answer a book request' && oneProcess.boxes === 3 && oneProcess.names.length === 6 && oneProcess.names.includes('Answer the request9 steps')
-      && oneProcess.quiet.join() === 'json' && oneProcess.arrows.join() === '1 make the service,1 write the details,2 pass the answer,2 send the mail,3 shape the request' && processSent.join() === '',
+      && oneProcess.crumb === 'Home›Processes of Web routes›Answer a book request' && oneProcess.boxes === 2 && oneProcess.names.length === 4 && oneProcess.names.includes('Answer one book request11 steps')
+      && oneProcess.quiet.join() === 'json' && oneProcess.arrows.join() === '1 make the service,2 write the details,3 shape the request' && processSent.join() === '',
     JSON.stringify({ placeDrawn, placeSent, processWin, oneProcess, processSent }));
-  await into('s2');
+  await into('s0');
   await homeSettled();
   const stepOpened = await drawing();
   const stepWin = await windowOf('s7');
@@ -257,13 +257,13 @@ try {
   await into('requests');
   await homeSettled();
   const single = await drawing();
-  check('a click on a step that holds steps opens its 9 inner steps, two branches dotted with their labels and the steps of other places quiet; the pointer on a step shows its note with its file and lines; a step with no inner steps opens its file at its line; the line leads back up each level; a node that holds the first step of one process opens it at once',
-    stepOpened.crumb === 'Home›Processes of Web routes›Answer a book request›requests.py: Answer the request' && stepOpened.names.length === 12
-      && stepOpened.quiet.join('|') === 'json|notices.py: Send the answer to a member|requests.py: Shape one request row' && stepOpened.dotted === 2 && stepOpened.arrows.includes('when the key repeats') && stepOpened.arrows.includes('if it is declined')
+  check('a click on a step that holds one step with 9 inner steps opens those 9 at once, two branches dotted with their labels and the steps of other places quiet; the pointer on a step shows its note with its file and lines; a step with no inner steps opens its file at its line; the line leads back up each level; a node that holds the first step of one process opens it at once, with the steps of its one top step',
+    stepOpened.crumb === 'Home›Processes of Web routes›Answer a book request›requests.py: Answer the request' && stepOpened.names.length === 11
+      && stepOpened.quiet.join('|') === 'json|requests.py: Shape one request row' && stepOpened.dotted === 2 && stepOpened.arrows.includes('when the key repeats') && stepOpened.arrows.includes('if it is declined')
       && stepWin.title === 'Write the answer into the rows' && stepWin.sub === 'requests.py · lines 62-67' && stepWin.text === 'Writes the answer, the librarian and the key into each open request for the book.'
       && leafSent?.type === 'openFile' && leafSent.path === tasksPath && leafSent.line === 62 && leafAt === 'process:answer-request/2'
       && backProcess === 'Home›Processes of Web routes›Answer a book request' && backPlace === 'Home›Processes of Web routes' && backHome === 'Home'
-      && single.crumb === 'Home›Lending: holds, requests and mails›Ask the library for a book' && single.names.join('|') === 'Ask for a book6 steps|PostgreSQL|json',
+      && single.crumb === 'Home›Lending: holds, requests and mails›Ask the library for a book' && single.names.join('|') === 'Clean the title and the ISBN|Give back the new request|Insert the request row|Limit the open requests|PostgreSQL|Refuse a book of the library|Refuse the same request twice|json',
     JSON.stringify({ stepOpened, stepWin, leafSent, leafAt, back: [backProcess, backPlace, backHome], single }));
 
   // The graphs of a file show the processes that have steps in it, with those steps lit; a click on a panel opens that process on Home.
@@ -276,7 +276,7 @@ try {
   const fromPanel = await home.evaluate(() => ({ crumb: document.getElementById('crumb').textContent, lit: [...document.querySelectorAll('#view g.node.lit')].map((g) => nodeKey(g)).sort() }));
   check('the graphs of requests.py show its 3 processes after the map, each with its steps of that file lit and a line that says where they are; a click on the panel of a process opens it on Home with the same steps lit, one step after the graphs',
     processPanels.length === 5 && processPanels.slice(2).every((panel) => panel.from === 'process' && panel.lit > 0) && processPanels.slice(2).map((panel) => panel.line).join('|') === 'Answer a book request|List the requests of a member|Ask the library for a book'
-      && processPanels[2].where === 'in 2 steps' && processPanels[4].where === 'in: Ask for a book' && fromPanel.crumb === `Home›${tasksPath}›Answer a book request` && fromPanel.lit.join() === 's12,s2',
+      && processPanels[2].where === 'in 2 steps' && processPanels[4].where === 'in 6 steps' && fromPanel.crumb === `Home›${tasksPath}›Answer a book request` && fromPanel.lit.join() === 's0,s12',
     JSON.stringify({ processPanels, fromPanel }));
 
   // The graphs of one file: one panel for each diagram, the widest first, each with a lit part and a line that says where the path is; two panels in a row

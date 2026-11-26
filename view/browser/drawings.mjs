@@ -9,12 +9,12 @@ const { processDrawings } = own('../out/shared/process-diagrams.js');
 const { processHomeDiagram } = own('../out/shared/home-data.js');
 const { stepKey } = own('../out/shared/processes.js');
 
-/** A made-up process of one long function of 30 steps; its steps 3, 6 … 24 (eight) all call one helper in another file. Its drawing of the opened function, as Home gets it. */
+/** A made-up process of one long function of 30 steps; its steps 3, 6 … 24 (eight) all call one helper after it in the same file. Its drawing of the opened function, as Home gets it. */
 function longFunction() {
   const note = (file, lines, title) => ({ file, lines, title, text: `Does ${title.toLowerCase()}.` });
   const outer = note('src/loans/sweep.py', [1, 40], 'Sweep the loans of one branch');
   const steps = Array.from({ length: 30 }, (_, at) => note('src/loans/sweep.py', [at + 2, at + 2], `Step ${at + 1} of the sweep`));
-  const helper = note('src/loans/rows.py', [1, 6], 'Filter the current rows');
+  const helper = note('src/loans/sweep.py', [44, 49], 'Filter the current rows');
   const callers = steps.filter((_, at) => at % 3 === 2 && at < 24);
   const process = {
     id: 'sweep', title: 'Sweep the loans', summary: 'Walks every loan of a branch.', group: 'g', steps: [outer, ...steps, helper].map(stepKey),
@@ -106,7 +106,7 @@ try {
   // The number is no part of the name of an arrow: a comment stays on its arrow when the order of the calls changes.
   const names = await home.$$eval('#view .edgeLabel:has(.eo)', (labels) => [...new Set(labels.map((el) => JSON.parse(el.closest('[data-remark]')?.dataset.remark ?? '{}').name ?? 'no mark'))]);
   check('a box of the example with two calls shows "1" and "2" before the words of its arrows, in the order of their lines, and a comment names each arrow by its words alone',
-    numbers.join() === '1 make the service,2 fetch the rows' && names.join() === 'make the service,fetch the rows', `${numbers.join()} / ${names.join()}`);
+    numbers.join() === '1 make the service,2 turn rows into views' && names.join() === 'make the service,turn rows into views', `${numbers.join()} / ${names.join()}`);
   await takePicture(home, 'two-numbered-arrows.png');
 
   // A group whose node has many labelled arrows to nodes above it: Mermaid puts some labels on the title of the group (set here by hand, the way the owner saw them);

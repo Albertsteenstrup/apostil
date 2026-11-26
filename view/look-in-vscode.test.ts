@@ -10,7 +10,7 @@ import { apostilCommands, LOOK_PARTS, lookProblems, type LookContext, type LookR
 import { lookSlots } from '../shared/look-slots';
 import type { Mark } from '../shared/marks';
 import type { NoteHere } from '../shared/notes-beside-code';
-import type { Process } from '../shared/processes';
+import { parseKey, type Process } from '../shared/processes';
 import type { RepoMap } from '../shared/repo-map';
 import { EXAMPLE_LOOK, makeCheckExample } from './check-example';
 import {
@@ -57,12 +57,13 @@ const note = (title: string, file: string, lines: [number, number], fromMap = tr
   change: fromMap ? { id: 0, title: '', branch: '', map: true } : { id: 3, title: 'A change', branch: 'b' },
 });
 const process: Process = { id: 'answer', title: 'Answer a book request', summary: 's', group: 'g', steps: ['src/r.py:10-30', 'src/r.py:12-14', 'src/r.py:20-22'] };
+const answerMap = { processes: [process], fileNotes: process.steps.map((key) => { const { file, from, to } = parseKey(key)!; return { file, lines: [from, to] as [number, number], title: key, text: '' }; }) };
 
 test('the search with #: a note, a step and a process by their titles, with where they are; none with no rule; at most 200', () => {
   const notes = [{ path: 'src/r.py', notes: [note('Answer the request', 'src/r.py', [10, 30]), note('Lock the rows', 'src/r.py', [14, 16]), note('Shape a row', 'src/r.py', [40, 42], false)] }];
   // The note of 12-14 moved two lines down: it stands at 14-16, and its process opens at the first line of its first step now.
   notes[0].notes[1].note.lines = [12, 14];
-  const all = searchAnswers([on('symbol-search')], notes, [process]);
+  const all = searchAnswers([on('symbol-search')], notes, answerMap);
   assert.deepEqual(all, [
     { of: 'step', title: 'Answer the request', file: 'src/r.py', line: 10, where: 'step 1 of 3' },
     { of: 'step', title: 'Lock the rows', file: 'src/r.py', line: 14, where: 'step 2 of 3' },
@@ -70,9 +71,9 @@ test('the search with #: a note, a step and a process by their titles, with wher
     { of: 'process', title: 'Answer a book request', file: 'src/r.py', line: 10, where: 'process of 3 steps' },
   ]);
   // Notes and processes only: a step answers as a note.
-  assert.deepEqual(searchAnswers([on('symbol-search', { where: { of: ['note', 'process'] } })], notes, [process]).map((one) => `${one.of} ${one.title}`),
+  assert.deepEqual(searchAnswers([on('symbol-search', { where: { of: ['note', 'process'] } })], notes, answerMap).map((one) => `${one.of} ${one.title}`),
     ['note Answer the request', 'note Lock the rows', 'note Shape a row', 'process Answer a book request']);
-  assert.deepEqual(searchAnswers([], notes, [process]), []);
+  assert.deepEqual(searchAnswers([], notes, answerMap), []);
   // The words of a title, their letters in order; at most 200 answers.
   assert.deepEqual(answersFor(all, 'lock rows').map((one) => one.title), ['Lock the rows']);
   assert.equal(answersFor(Array.from({ length: 300 }, () => all[0]), 'answer').length, 200);
@@ -101,15 +102,15 @@ test('the entries and keys that a look turns on are the context keys that the ex
   for (const key of new Set(named)) assert.ok(key in keys, key);
   // The line: the narrowest note, the narrowest step of each process, the marks at it.
   const notes = [note('Answer the request', 'src/r.py', [10, 30]), note('Lock the rows', 'src/r.py', [12, 14])];
-  const facts = lineFacts(13, notes, stepsByKey([process]), [{ set: 'services', value: 'postgresql', file: 'src/r.py', at: 13 }]);
-  assert.deepEqual([facts.note?.note.title, facts.steps.map((step) => `${step.drawing} ${step.node} top ${step.top}`), facts.marks.length], ['Lock the rows', ['process:answer/0 s1 top s0'], 1]);
+  const facts = lineFacts(13, notes, stepsByKey(answerMap), [{ set: 'services', value: 'postgresql', file: 'src/r.py', at: 13 }]);
+  assert.deepEqual([facts.note?.note.title, facts.steps.map((step) => `${step.drawing} ${step.node} top ${step.top}`), facts.marks.length], ['Lock the rows', ['process:answer s1 top s1'], 1]);
   // An entry stands by what the file has anywhere: a note, a step, a mark; a file with none of them has no entry.
   const marked = [{ set: 'services', value: 'postgresql', file: 'src/r.py', at: 13 }];
-  assert.deepEqual(fileKeys(notes, stepsByKey([process]), marked), { 'apostil.fileHas.note': true, 'apostil.fileHas.process': true, 'apostil.fileHas.mark': true });
-  assert.deepEqual(fileKeys([notes[0]], stepsByKey([]), []), { 'apostil.fileHas.note': true, 'apostil.fileHas.process': false, 'apostil.fileHas.mark': false });
-  assert.deepEqual(fileKeys(undefined, stepsByKey([process]), undefined), { 'apostil.fileHas.note': false, 'apostil.fileHas.process': false, 'apostil.fileHas.mark': false });
+  assert.deepEqual(fileKeys(notes, stepsByKey(answerMap), marked), { 'apostil.fileHas.note': true, 'apostil.fileHas.process': true, 'apostil.fileHas.mark': true });
+  assert.deepEqual(fileKeys([notes[0]], stepsByKey(undefined), []), { 'apostil.fileHas.note': true, 'apostil.fileHas.process': false, 'apostil.fileHas.mark': false });
+  assert.deepEqual(fileKeys(undefined, stepsByKey(answerMap), undefined), { 'apostil.fileHas.note': false, 'apostil.fileHas.process': false, 'apostil.fileHas.mark': false });
   // Where the entries go: the step in its own drawing, its process at its top step, a note of a change at the node of the map that holds its file.
-  assert.deepEqual([noteOnHome(facts.note!, stepsByKey([process]), map), processOfStep(facts.steps[0])], [{ place: { diagram: 'process:answer/0', node: 's1' } }, { place: { diagram: 'process:answer', node: 's0' } }]);
+  assert.deepEqual([noteOnHome(facts.note!, stepsByKey(answerMap), map), processOfStep(facts.steps[0])], [{ place: { diagram: 'process:answer', node: 's1' } }, { place: { diagram: 'process:answer', node: 's1' } }]);
   assert.deepEqual(noteOnHome(note('Plan the holds', 'src/library/lending/hold_service.py', [1, 2], false), new Map(), map), { place: { diagram: 'lib-lending', node: 'service' } });
   // The rows of "Actions of the Look…": the key of each of the first nine that the look turns on, where one is bound (a Mac), and what the action does.
   const rows = (mac: boolean) => actionRows(vscodeLook.actions, keys, mac).map(({ label, description, detail }) => [label, description, detail]);

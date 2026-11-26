@@ -48,21 +48,21 @@ test('a folded area box is one node with its title; the arrows of its nodes go t
 
 test('a file box takes the words of a rule with the name of its file, and folded it is one node with its arrows, as an area box', () => {
   const named = drawn('process:answer-request', [{ pick: { kind: 'file-box', paths: ['src/library/lending/'] }, content: { words: '{name} ({steps})' } }]).shown.text;
-  assert.deepEqual(named.match(/subgraph f\d\[[^\]]*\]/g), ['subgraph f0["src/library/web/requests_router.py"]', 'subgraph f1["requests.py (2)"]', 'subgraph f2["notices.py (1)"]']);
-  const { shown, edges } = drawn('process:answer-request', [{ pick: { kind: 'file-box', paths: ['src/library/lending/requests.py'] }, show: { folded: true } }]);
-  assert.match(shown.text, /^ {2}f1\["src\/library\/lending\/requests\.py"\]$/m);
-  assert.equal(pairs(edges), 's0>s1 s0>s2 s2>o0 s2>s13 s2>s12');
-  assert.equal(pairs(shown.graph.edges), 's0>s1 s0>f1 f1>o0 f1>s13'); // the arrow to the step of requests.py inside it goes
+  assert.deepEqual(named.match(/subgraph f\d\[[^\]]*\]/g), ['subgraph f0["src/library/web/requests_router.py"]', 'subgraph f1["requests.py (1)"]']);
+  const { shown, edges } = drawn('process:answer-request', [{ pick: { kind: 'file-box', paths: ['src/library/web/requests_router.py'] }, show: { folded: true } }]);
+  assert.match(shown.text, /^ {2}f0\["src\/library\/web\/requests_router\.py"\]$/m);
+  assert.equal(pairs(edges), 's0>s1 s0>o0 s0>s12');
+  assert.equal(pairs(shown.graph.edges), 'f0>o0 f0>s12'); // the arrow between the two steps of the router inside it goes
 });
 
 test('a step whose rule says "folded": false holds its inner steps in its box, in place and one level deep, without the quiet boxes of the inner drawing', () => {
-  const { diagram, shown } = drawn('process:answer-request', [{ pick: { kind: 'step', where: { title: 'Answer the request' } }, show: { folded: false } }]);
-  assert.match(diagram.mermaid, /^ {4}subgraph s2\["Answer the request"\]\n {6}s2_s3\["Lock the requests for the book"\]/m);
-  const inner = Object.keys(diagram.nodes).filter((id) => id.startsWith('s2_'));
-  assert.deepEqual(inner, ['s2_s3', 's2_s4', 's2_s5', 's2_s6', 's2_s7', 's2_s8', 's2_s9', 's2_s10', 's2_s11']);
+  const { diagram, shown } = drawn('process:answer-request', [{ pick: { kind: 'step', where: { title: 'Answer one book request' } }, show: { folded: false } }]);
+  assert.match(diagram.mermaid, /^ {4}subgraph s0\["Answer one book request"\]\n {6}s0_s3\["Lock the requests for the book"\]/m);
+  const inner = Object.keys(diagram.nodes).filter((id) => id.startsWith('s0_'));
+  assert.deepEqual(inner, ['s0_s3', 's0_s4', 's0_s5', 's0_s6', 's0_s7', 's0_s8', 's0_s9', 's0_s10', 's0_s11']);
   // The arrows of the process keep their numbers; the inner arrows follow, the branches dotted with their words.
-  assert.equal(pairs(diagram.graph.edges.slice(0, 5)), 's0>s1 s0>s2 s2>o0 s2>s13 s2>s12');
-  assert.match(diagram.mermaid, /s2_s5 -\.->\|"when the key repeats"\| s2_s11$/m);
+  assert.equal(pairs(diagram.graph.edges.slice(0, 3)), 's0>s1 s0>o0 s0>s12');
+  assert.match(diagram.mermaid, /s0_s5 -\.->\|"when the key repeats"\| s0_s11$/m);
   assert.equal(shown.text, diagram.mermaid); // nothing else in the look changes it
   assert.equal(drawn('process:answer-request', []).diagram, diagramOf('process:answer-request'));
 });
@@ -89,8 +89,8 @@ test('"is" of an arrow and "quiet" of a step pick the right things: a rule hides
   const place = diagrams.find((one) => one.id.startsWith('processes:'))!.id;
   assert.deepEqual([is('lib-top'), is('process:answer-request'), is('process:answer-request/2'), is(place)], ['diagram', 'writer', 'writer,branch', 'handoff']);
   const left = (rules: unknown[]) => Object.keys(drawn('process:answer-request/2', rules).shown.graph.nodes).filter((id) => !/^s\d+$/.test(id)).join();
-  assert.equal(left([]), 'x12,x13,o0');
-  assert.equal(left([{ pick: { kind: 'call' }, show: { shown: false } }]), 'x12,x13');
+  assert.equal(left([]), 'x12,o0');
+  assert.equal(left([{ pick: { kind: 'call' }, show: { shown: false } }]), 'x12');
   assert.equal(left([{ pick: { kind: 'step', where: { quiet: true } }, show: { shown: false } }]), 'o0');
 });
 

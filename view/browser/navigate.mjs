@@ -117,7 +117,7 @@ try {
   await home.click(nodeOf('jobs'), { modifiers: ['Alt'] });
   const lookWins = { on: (await focusNow()).on, sent: await home.evaluate((from) => window.apostilSent.slice(from).map((one) => one.type).filter((type) => type !== 'pointer').join(), lookBefore) };
   // A step of a drawn process that holds steps: the click goes no level down, and the line names the step without the count of its steps.
-  await homeAt('?diagram=process:ask-request');
+  await homeAt('?diagram=process:answer-request');
   const step = home.locator('#view g.node', { hasText: /\d+ steps?$/ }).first();
   const stepWords = (await step.textContent().catch(() => '')).trim();
   await step.click({ modifiers: ['Alt'] }).catch(() => {});
@@ -140,7 +140,7 @@ try {
       && (focused.line === `Focus: ${wanted.name} · ×` || focused.line === `Focus: ${wanted.name} · Open code beside · ×`) && led.join() === '' && stayed === 'lib-lending'
       && !afterEscape.on && afterEscape.faint === 0 && afterEscape.line === '' && byLink.focused === wanted.key && byLink.near === wanted.near
       && !afterCross.on && !afterAgain.on && afterAgain.faint === 0 && !lookWins.on && lookWins.sent === 'target'
-      && onStep.on && onStep.at === 'process:ask-request' && /\d+ steps?$/.test(stepWords) && /^Focus: \S/.test(onStep.line) && !/\d+ steps?/.test(onStep.line)
+      && onStep.on && onStep.at === 'process:answer-request' && /\d+ steps?$/.test(stepWords) && /^Focus: \S/.test(onStep.line) && !/\d+ steps?/.test(onStep.line)
       && onPanel.graphs && onPanel.focused === 'service' && onPanel.panels === 1 && /Focus: \S/.test(onPanel.line) && panelAfter.graphs && panelAfter.panels === 0 && panelAfter.line === '',
     JSON.stringify({ wanted, focused, led, stayed, afterEscape, byLink, afterCross, afterAgain, lookWins, stepWords, onStep, onPanel, panelAfter }));
 

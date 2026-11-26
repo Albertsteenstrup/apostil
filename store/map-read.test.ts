@@ -6,8 +6,8 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import type { Note } from '../shared/change-file';
 import { repoId } from '../shared/git';
-import { findInMap, mapOverview } from '../shared/map-read';
-import type { Process } from '../shared/processes';
+import { findInMap, mapOverview, processText } from '../shared/map-read';
+import { stepKey, type Process } from '../shared/processes';
 import type { RepoMap } from '../shared/repo-map';
 import { Store } from '../shared/store';
 import { makeTestRepo, runApostil, tempFolder } from '../shared/test-repo';
@@ -195,4 +195,11 @@ test('the skill apostil-read-diagrams starts at the overview, then find and --te
   // Its description holds ": ", so it stands in quotes: else a strict YAML reader refuses the head of the skill, and the app does not load it.
   const description = /^description: (.*)$/m.exec(skill)?.[1] ?? '';
   assert.ok(!description.includes(': ') || /^"[^"\\]*"$/.test(description), description);
+});
+
+test('process --text puts each step after the step that it lies under, also when that step comes later in the list', () => {
+  const fileNotes = [note('src/a.py', [1, 10], 'Run it', 'Runs.'), note('src/b.py', [1, 5], 'Help', 'Helps.'), note('src/a.py', [3, 4], 'Ask for help', 'Asks.')];
+  const process: Process = { id: 'run', title: 'Run it', summary: 'Runs.', group: 'g', steps: fileNotes.map(stepKey), arrows: [{ from: 'src/a.py:3-4', to: 'src/b.py:1-5', fromLine: 3, toLine: 1, name: 'help' }] };
+  const stored = { map: { format: 1 as const, diagrams: shopMap().diagrams.slice(0, 1), fileNotes, processes: [process] }, savedAt: '', commit: '' };
+  assert.deepEqual(processText(tempFolder('apostil-text-'), stored, 'run')!.split('\n').slice(3), ['src/a.py:1-10  Run it', '  src/a.py:3-4  Ask for help', '    src/b.py:1-5  Help']);
 });

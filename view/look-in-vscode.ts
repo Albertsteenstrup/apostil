@@ -85,7 +85,7 @@ export class LookInVsCode implements vscode.TreeDataProvider<LookRow> {
       const data = repo ? lookData(this.store, repo, this.openFolder(), (file) => file, false) : undefined;
       this.values = data?.values ?? {};
       this.sets = data?.sets.map(({ id, name }) => ({ id, name })) ?? [];
-      this.steps = stepsByKey(this.look.map?.processes ?? []);
+      this.steps = stepsByKey(this.look.map);
       for (const type of this.icons.values()) type.dispose();
       this.icons.clear();
       this.placed.clear();
@@ -274,7 +274,7 @@ export class LookInVsCode implements vscode.TreeDataProvider<LookRow> {
     if (!this.answers) {
       const repo = repoIdOrNone(root);
       const notes = repo ? notedFiles(this.store, repo).map((path) => ({ path, notes: this.notesOf(vscode.Uri.file(join(root, path))) ?? [] })) : [];
-      this.answers = searchAnswers(this.look.rules, notes, this.look.map?.processes ?? []);
+      this.answers = searchAnswers(this.look.rules, notes, this.look.map);
     }
     return answersFor(this.answers, query).map((answer) => new vscode.SymbolInformation(answer.title, KINDS[answer.of], answer.where,
       new vscode.Location(vscode.Uri.file(join(root, answer.file)), new vscode.Position(answer.line - 1, 0))));
