@@ -10,7 +10,7 @@ import { headCommit, repoId } from '../shared/git';
 import { Store } from '../shared/store';
 import { makeTestRepo, tempFolder, testChangeFile } from '../shared/test-repo';
 import { WHOLE_LIMIT, broadDifference, broadMermaid, changeMermaid, drillUpStyle, flowGraph, gridLinks, partMermaid } from '../shared/change-diagram';
-import { allowRule, deniedRules, DESCRIBE_AFTER_MAP, MAP_DRAFT, mapPrompt, problemFromErrors, runEnvironment, problemFromOutput, sessionFromOutput, startMapRun } from './agent-run';
+import { allowRule, deniedRules, DESCRIBE_AFTER_MAP, MAP_DRAFT, mapPrompt, mapRunCommand, problemFromErrors, runEnvironment, problemFromOutput, sessionFromOutput, startMapRun } from './agent-run';
 import { installCommand, isOwnLink, launcherScript, needsRefresh } from '../shared/install-command';
 import { listRows, reopenStaleRuns, sessionGroups, type ListRow } from './list-rows';
 import { number } from '../shared/diagram-change';
@@ -619,3 +619,13 @@ test('the copies of the page are the same as their sources: a count with a comma
 
 
 
+
+test('"Continue" after a map run stopped goes on in the same session: the map command resumes it with the map prompt and keeps its id, for Claude Code in a terminal and for Codex', () => {
+  const folder = '/made-up/repo';
+  const claude = mapRunCommand('claude-code', folder, {}, false, undefined, true, 'made-up-session')!;
+  assert.deepEqual([claude.session, claude.command.slice(0, 3)], ['made-up-session', ['claude', '--resume', 'made-up-session']]);
+  assert.match(claude.command[3], /map/i);
+  const codex = mapRunCommand('codex', folder, {}, false, undefined, false, 'made-up-thread')!;
+  assert.deepEqual([codex.session, codex.command.slice(0, 4)], ['made-up-thread', ['codex', 'exec', 'resume', 'made-up-thread']]);
+  assert.notEqual(mapRunCommand('claude-code', folder)!.session, undefined); // a new session gets a new id
+});
