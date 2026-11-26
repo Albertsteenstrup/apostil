@@ -335,7 +335,7 @@ try {
   const [writingLine, writingTip] = writingFrame ? await writingFrame.evaluate(() => [document.querySelector('.maprun').textContent, document.querySelector('.maprun [title]')?.title ?? '']) : ['', ''];
   const terminalShown = await until(() => page.evaluate(() => /Apostil map/.test(document.querySelector('.part.panel')?.textContent ?? '')), 5000);
   await shot('1c2-home-while-the-map-is-written');
-  // After the run, "Run chart" opens the tab "Map run", which reads a small made-up transcript of the session in the window's agent home and shows the lead row.
+  // After the run, "Map run" in Home's head opens the tab "Map run", which reads a small made-up transcript of the session in the window's agent home and shows the lead row.
   const chartFrom = Date.now();
   const chartFolder = path.join(agentHome, '.claude', 'projects', 'made-up-map-check');
   const second = (at) => new Date(chartFrom + at * 1000).toISOString();
@@ -350,15 +350,15 @@ try {
   const lineStopped = !!mapped && await until(() => mapped.evaluate(() => !!document.querySelector('.maprun[data-run="stopped"]')).catch(() => false), 6000);
   const ranMap = store.mapRun(repoId(repo));
   const chartAt = Date.now();
-  await mapped?.click('.maprun [data-run-chart]', { timeout: 2000 }).catch(() => {});
+  await mapped?.click('#lastrun', { timeout: 2000 }).catch(() => {});
   const chartTab = await until(async () => (await tabs()).includes('Map run'), 3000);
   const leadRow = !!await frameWhere(() => document.querySelectorAll('.mr-plot .mr-think').length > 0, undefined, 3000);
   const chartSeconds = (Date.now() - chartAt) / 1000;
   if (chartTab) await closeTab('Map run');
   rmSync(chartFolder, { recursive: true, force: true });
-  check('"Run chart" on the line of the map run that stopped opens the tab "Map run", which shows the lead row of the transcript of the session', chartTab && leadRow, `tab ${chartTab}; lead row ${leadRow}; ${chartSeconds.toFixed(1)} s`);
+  check('"Map run" in Home\'s head after the map run stopped opens the tab "Map run", which shows the lead row of the transcript of the session', chartTab && leadRow, `tab ${chartTab}; lead row ${leadRow}; ${chartSeconds.toFixed(1)} s`);
   check('while the stand-in writes the map in the terminal "Apostil map", Home shows "Mapping…" and "Open the session", with the session id that Apostil gave it in the tooltip; when the run ends with work left in the map, the map shows and the line says that the run stopped',
-    writingLine === 'Mapping… · Open the session' && writingTip.includes(`Claude Code session ${ranMap?.agent?.session?.slice(0, 8)}`) && terminalShown && lineStopped && !!ranMap?.endedAt && !!ranMap?.stopped && runsNow().length === 1,
+    /^Mapping…(\d+%)? · Open the session$/.test(writingLine) && writingTip.includes(`Claude Code session ${ranMap?.agent?.session?.slice(0, 8)}`) && terminalShown && lineStopped && !!ranMap?.endedAt && !!ranMap?.stopped && runsNow().length === 1,
     `"${writingLine}"; terminal ${terminalShown}; stopped ${lineStopped}; ${runsNow().length} runs; ${JSON.stringify(ranMap ?? null)}`);
   await shot('1d-home-with-the-map');
 
@@ -947,8 +947,8 @@ try {
   // "No agent" in the picker keeps it as a note. The key once more with the box open: VS Code passes each press on to the extension a moment later, and that
   // copy must not take the keyboard out of the field.
   if (newCard) {
-    await stage.locator('.cbox.card .pick').click();
-    await stage.locator('.cbox.card .pi[data-choice="none"]').click();
+    await stage.locator('.cbox.card [data-pick="app"]').click();
+    await stage.locator('.cbox.card [data-choice="none"]').click();
     await page.keyboard.press('Meta+Shift+Period');
     await page.keyboard.type('Why is the pickup day set before the mail is sent?', { delay: 8 });
     await page.keyboard.press('Enter');
