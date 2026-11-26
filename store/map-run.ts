@@ -28,7 +28,7 @@ export function mapSaveOf(command: string, draft: unknown, result: { files?: num
 /** True when the run saved the processes of some group twice: the second process round (Step 5 of the skill) has started. */
 const secondRound = (run: MapRun): boolean => (run.saves ?? []).filter(([kind]) => kind === 'p').length > (run.parts.processGroups?.length ?? 0);
 
-/** True when the run saved an overview after its first processes: the fit round of the top diagram (Step 6 of the skill) happened. */
+/** True when the run saved an overview after its first processes: the fit round of the top diagram (Step 7 of the skill) happened. */
 function fitDone(run: MapRun): boolean {
   const saves = run.saves ?? [];
   const first = saves.find(([kind]) => kind === 'p')?.[1];

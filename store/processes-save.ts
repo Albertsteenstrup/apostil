@@ -6,7 +6,7 @@ import { fileText, headCommit, repoFiles, repoId } from '../shared/git';
 import { processGroups } from '../shared/note-groups';
 import { cellsOfText, findCell, type CellAt } from '../shared/notebook';
 import {
-  coveredKeys, holdsLine, notesNeedingProcess, parentsOf, parseKey, stepKey,
+  coveredKeys, holdsLine, notesNeedingProcess, parentsOf, parseKey, processFolds, stepKey,
   type Arrow, type Handoff, type LineAt, type MapProcesses, type OutsideArrow, type Process, type SetAside,
 } from '../shared/processes';
 import { fewWords, fileNotesProblems, fileNotesStyle, mapNoteProblems, textWording, titleWording, type RepoMap } from '../shared/repo-map';
@@ -31,6 +31,7 @@ interface ProcessesDraft {
   noteFixes?: NoteFix[];
   newNotes?: Note[];
   add?: boolean; // true: keep the other processes, handoffs and set-aside notes of the group, and replace only the processes with the same ids (the round for the notes that are left)
+  fold?: string[]; // processes of any group that a process of this save takes in: the save takes them out of the map
 }
 
 export interface AddProcessesResult {
@@ -39,6 +40,7 @@ export interface AddProcessesResult {
   processes?: number; // the processes of the group now
   steps?: number; // the notes that are steps of them
   notes?: { fixed: string[]; added: string[]; removed: { note: string; by?: string }[] }; // what the save changed in the notes of the map
+  folded?: string[]; // the processes that the save took out of the map
   left?: { count: number; notes: string[] }; // the notes of the files of the group that are in no process yet: work for the writer, not a fault
   style?: string[]; // words of new or corrected notes that may break the rules
 }
@@ -54,8 +56,8 @@ const isLineAt = (value: any): boolean => isText(value?.file) && isLine(value?.l
 
 /** The problems of the form of the JSON, before anything is read: each names the field and what it must be. */
 function draftProblems(draft: unknown): string[] {
-  if (!draft || typeof draft !== 'object' || Array.isArray(draft)) return ['The JSON must be an object: { "group": "<your group>", "processes": [ ... ], "handoffs"?, "notInProcess"?, "noteFixes"?, "newNotes"? }.'];
-  const { group, processes, handoffs, notInProcess, noteFixes, newNotes } = draft as Record<string, any>;
+  if (!draft || typeof draft !== 'object' || Array.isArray(draft)) return ['The JSON must be an object: { "group": "<your group>", "processes": [ ... ], "handoffs"?, "notInProcess"?, "noteFixes"?, "newNotes"?, "fold"? }.'];
+  const { group, processes, handoffs, notInProcess, noteFixes, newNotes, fold } = draft as Record<string, any>;
   const problems: string[] = [];
   if (!isText(group) || !ID.test(group)) problems.push('"group" must be the name of your group, as apostil process-groups printed it.');
   if (!isList(processes)) problems.push('"processes" must be a list of processes. Write an empty list when the group has none.');
@@ -82,6 +84,7 @@ function draftProblems(draft: unknown): string[] {
   }
   if (newNotes !== undefined && !isList(newNotes)) problems.push('"newNotes" must be a list of notes: { "file", "lines": [first, last], "title", "text" }.');
   if ((draft as Record<string, unknown>).add !== undefined && typeof (draft as Record<string, unknown>).add !== 'boolean') problems.push('"add" must be true or false.');
+  if (fold !== undefined && (!isList(fold) || !fold.every(isText))) problems.push('"fold" must be a list of ids of processes, as "fold" of apostil processes names them.');
   return problems;
 }
 
@@ -259,6 +262,7 @@ function successor(fix: NoteFix, added: Note[]): string | undefined {
 /**
  * Saves the processes of one group. It replaces the processes, the handoffs and the set-aside notes that this group saved before, and keeps those of the other groups.
  * In the same step it corrects, adds and removes notes as the JSON says, and puts the key of a new note in place of a removed one in every process.
+ * With "fold" it takes out the processes of any group that `processFolds` folds into a process of this save, and their handoffs move to that process.
  * The store reads, changes and writes the map in one step, so writers at the same time keep each other's work. Nothing is stored when anything has a problem.
  */
 export function addProcessesToMap(store: Store, folder: string, draft: unknown): AddProcessesResult {
@@ -268,10 +272,16 @@ export function addProcessesToMap(store: Store, folder: string, draft: unknown):
     if (!stored) return fail(['This repo has no saved map. Save one with apostil save-map.']);
     const shape = draftProblems(draft);
     if (shape.length) return fail(shape);
-    const { group, processes: written, handoffs = [], notInProcess = [], noteFixes = [], newNotes = [], add = false } = draft as ProcessesDraft;
-    // What this save replaces: everything that the group saved before, or with "add" only its processes with the same ids.
+    const { group, processes: written, handoffs = [], notInProcess = [], noteFixes = [], newNotes = [], add = false, fold = [] } = draft as ProcessesDraft;
+    // What this save replaces: everything that the group saved before, or with "add" only its processes with the same ids; and the processes that it folds in.
     const writtenIds = new Set(written.map((process) => process.id));
     const replaces = (one: { group?: string; id?: string }): boolean => one.group === group && (!add || (one.id !== undefined && writtenIds.has(one.id)));
+    const listed = new Map(processFolds(stored.processes ?? []).map((one) => [one.process, one.into]));
+    const foldProblems = fold.filter((id) => !writtenIds.has(listed.get(id) ?? '')).map((id) => (listed.has(id)
+      ? `The fold of "${id}": it folds into "${listed.get(id)}", which is no process of this save. Leave "${id}" out of "fold", or write "${listed.get(id)}" in this save.`
+      : `The fold of "${id}": apostil processes lists no fold of this process. Take the ids from "fold" of apostil processes.`));
+    if (foldProblems.length) return fail(foldProblems);
+    const folds = new Map(fold.map((id) => [id, listed.get(id)!])); // a folded process, and the process of this save that takes it in
 
     // The notes: the new ones are checked as add-notes checks a note, and the corrected words as the words of a new note.
     const newProblems = fileNotesProblems(newNotes, 'The new notes');
@@ -301,7 +311,7 @@ export function addProcessesToMap(store: Store, folder: string, draft: unknown):
     const keys = new Set(all.map(stepKey));
     const renamed = new Map<string, string>();
     const processes: Process[] = written.map((process) => ({ ...process, group }));
-    const others = (stored.processes ?? []).filter((process) => !replaces(process));
+    const others = (stored.processes ?? []).filter((process) => !replaces(process) && !folds.has(process.id));
     const renameProblems: string[] = [];
     for (const fix of noteFixes.filter((one) => one.remove)) {
       const by = successor(fix, newNotes);
@@ -318,23 +328,41 @@ export function addProcessesToMap(store: Store, folder: string, draft: unknown):
     const problems = processProblems(folder, { processes: mine, handoffs: ownHandoffs, notInProcess: aside }, all, theirs);
     if (problems.length) return fail(problems);
 
+    // A handoff of a folded process now starts or ends at the process that takes it in; one that would go from a process to itself goes.
+    const moved = (handoff: Handoff): Handoff[] => {
+      if (!folds.has(handoff.from) && !folds.has(handoff.to)) return [handoff];
+      const [from, to] = [folds.get(handoff.from) ?? handoff.from, folds.get(handoff.to) ?? handoff.to];
+      return from === to ? [] : [{ ...handoff, from, to }];
+    };
     const map: RepoMap = {
       ...withFileNotes(stored, notes),
       processes: [...theirs, ...mine],
-      handoffs: [...(stored.handoffs ?? []).filter((handoff) => handoff.group !== group || add), ...ownHandoffs],
+      handoffs: [...(stored.handoffs ?? []).filter((handoff) => handoff.group !== group || add).flatMap(moved), ...ownHandoffs],
       notInProcess: [...(stored.notInProcess ?? []).map((one) => ({ ...one, note: renamed.get(one.note) ?? one.note }))
         .filter((one) => keys.has(one.note) && (one.group !== group || (add && !mine.some((process) => process.steps.includes(one.note))))), ...aside],
     };
+    const lost = lostNotes(map, (stored.processes ?? []).filter((process) => folds.has(process.id)).map((process) => renamedSteps(process, renamed)), keys);
+    if (lost.length) return fail(lost);
     const style = fileNotesStyle([...newNotes, ...all.filter((note) => fixes.has(stepKey(note)))]);
     result = {
       saved: true, problems: [], processes: mine.length, steps: new Set(mine.flatMap((process) => process.steps)).size,
       notes: { fixed: [...fixes.keys()], added: newNotes.map(stepKey), removed: [...removed].map((note) => ({ note, ...(renamed.has(note) ? { by: renamed.get(note) } : {}) })) },
+      ...(fold.length ? { folded: fold } : {}),
       ...leftOf(map, group, mine),
       ...(style.length ? { style } : {}),
     };
     return map;
   });
   return result;
+}
+
+/** The problems of a fold: for each folded process, the notes of its steps that are in no process and not set aside after the save. */
+function lostNotes(map: RepoMap, folded: Process[], keys: Set<string>): string[] {
+  const { steps, aside } = coveredKeys(map);
+  return folded.flatMap((process) => {
+    const lost = process.steps.filter((key) => keys.has(key) && !steps.has(key) && !aside.has(key));
+    return lost.length ? [`The fold of "${process.id}": its steps ${lost.join(', ')} are in no process now. Make each a step where the code calls it, or set it aside in "notInProcess" with a reason.`] : [];
+  });
 }
 
 /** The notes of the files of a group that are in no process and not set aside, after its save: its files from process-groups, else the files of its steps. */

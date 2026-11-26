@@ -11,7 +11,7 @@ Do this when the owner asks for a map of the repo, when he asks for notes and no
 
 ## Notes for a map
 
-Notes do not need a change. `apostil map` says how many notes the map holds (`notes`) and in how many files (`notedFiles`), and gives a `hint` when code files need notes. When the owner asks for notes, or `apostil map` gives that `hint`, keep the top diagram and the diagrams of the areas and do only Step 3. A second run is small: `apostil note-groups` lists only the files with no notes, and the files whose code changed since their notes. Never ask the owner for a commit for this. When the map holds processes, do Steps 4 and 5 after Step 3: notes that are written again can leave a process stale.
+Notes do not need a change. `apostil map` says how many notes the map holds (`notes`) and in how many files (`notedFiles`), and gives a `hint` when code files need notes. When the owner asks for notes, or `apostil map` gives that `hint`, keep the top diagram and the diagrams of the areas and do only Step 3. A second run is small: `apostil note-groups` lists only the files with no notes, and the files whose code changed since their notes. Never ask the owner for a commit for this. When the map holds processes, do Steps 4 to 6 after Step 3: notes that are written again can leave a process stale.
 
 ## Choose which files get notes
 
@@ -19,17 +19,17 @@ When the owner asks to leave files or folders out of the map, or to give notes t
 
 ## Processes for a map
 
-A process is made of notes, so the notes come first. `apostil map` says how many processes the map holds (`processes`), and gives a `hint` when notes are in no process or a process is stale. When the owner asks for processes, or `apostil map` gives that `hint` and no code file needs notes, keep the diagrams and the notes and do only Steps 4 to 8. A second run is small: `apostil process-groups` lists only the groups with work left.
+A process is made of notes, so the notes come first. `apostil map` says how many processes the map holds (`processes`), and gives a `hint` when notes are in no process, a process is stale or processes can fold into another. When the owner asks for processes, or `apostil map` gives that `hint` and no code file needs notes, keep the diagrams and the notes and do only Steps 4 to 9. A second run is small: `apostil process-groups` lists only the groups with work left.
 
 ## The look and the marks
 
-Apostil draws every repo in the default look, with the icons of the services at the upper right of each node and step whose code reaches a service, and at the left of each service line of a note. Keep the default unless the owner asks for another look. When he asks, in his own words, to change how the diagrams, nodes, arrows or notes of this repo look, write the look yourself with `apostil set-look`, as `look-writer-prompt.md` says. A look is kept for the repo, and every later map run keeps it: never write a look that the owner did not ask for, and never drop one that he asked for. `apostil look` prints the look of the repo, or says that the default applies. When the owner asks only for a look, keep the map and do only that, then Step 7 when the look adds a set of marks.
+Apostil draws every repo in the default look, with the icons of the services at the upper right of each node and step whose code reaches a service, and at the left of each service line of a note. Keep the default unless the owner asks for another look. When he asks, in his own words, to change how the diagrams, nodes, arrows or notes of this repo look, write the look yourself with `apostil set-look`, as `look-writer-prompt.md` says. A look is kept for the repo, and every later map run keeps it: never write a look that the owner did not ask for, and never drop one that he asked for. `apostil look` prints the look of the repo, or says that the default applies. When the owner asks only for a look, keep the map and do only that, then Step 8 when the look adds a set of marks.
 
-Marks are written at lines of code by writers, as notes are. The services are marked on every map run (Step 7). A set that the look adds is marked too. A second run is small: `apostil mark-groups` lists only the files that no writer of the set has read, and the files whose lines changed since. `apostil marks` prints the counts.
+Marks are written at lines of code by writers, as notes are. The services are marked on every map run (Step 8). A set that the look adds is marked too. A second run is small: `apostil mark-groups` lists only the files that no writer of the set has read, and the files whose lines changed since. `apostil marks` prints the counts.
 
 ## A big repo, and a run that stops
 
-The top diagram is drawn first, from folders and a few files, so the owner sees it soon. Step 6 corrects it when the notes and the processes show that it is wrong. A run that stops can go on: `apostil note-groups`, `apostil process-groups` and `apostil mark-groups` list only what is left, so a new session starts at Step 3 and does the groups that they list. Apostil keeps the plan of the work of a run and shows the owner on Home how much is done and about how long the rest takes.
+The top diagram is drawn first, from folders and a few files, so the owner sees it soon. Step 7 corrects it when the notes and the processes show that it is wrong. A run that stops can go on: `apostil note-groups`, `apostil process-groups` and `apostil mark-groups` list only what is left, so a new session starts at Step 3 and does the groups that they list. Apostil keeps the plan of the work of a run and shows the owner on Home how much is done and about how long the rest takes.
 
 ## Why several kinds of writer, and which model
 
@@ -37,7 +37,7 @@ You are the lead. You start the writers, check what they save, and correct them 
 
 A brief to a writer is short: the line "First run `apostil prompt <kind>` and follow what it prints." with the kind of that writer, the path of the repo folder, and its group or the other things that its step names. The writer prints its prompt, the text rules and its example itself, so never copy a prompt or another file of this skill into a brief.
 
-When Apostil starts the run, its prompt names the model and the effort of every writer: use the model that Apostil names for each writer below, also for the overview writer and the process writers. You check their work with `apostil map --fit` (Step 6) and with the commands of each step.
+When Apostil starts the run, its prompt names the model and the effort of every writer: use the model that Apostil names for each writer below, also for the overview writer and the process writers. You check their work with `apostil map --fit` (Step 7) and with the commands of each step.
 
 When no model is named (a person started this skill by hand), choose by the work. The overview needs judgment about the whole repo: what belongs together, and what flows between the areas. A medium or large model does that better. The diagram of one area, and the notes of one group of files, are local work: read the files, write what they hold. A small model does that well, and many writers can run at the same time. A process follows calls across files and must judge what a job is, so a medium model writes it. Use the newest model of each size that the app offers.
 
@@ -101,7 +101,7 @@ Each writer saves its notes with `apostil add-notes`. The command keeps the note
 
 ## Step 4: Start the process writers of an area as soon as its notes are saved
 
-After each notes writer ends, run `apostil process-groups`: that is the one command for an ended notes writer. It prints `{ "groups": [ ... ], "waiting": <n> }`: each group has a `name`, its `area` and its `files` with their count of notes, largest first. It lists only the groups of areas whose notes are all saved, and only the groups with work left; `waiting` says how many areas still wait for notes. Start one process writer for each group that it lists and that you have not started yet, in the places that the notes writers leave free. When `waiting` went down, the notes of an area are all saved, and its service and mark writers may start too (Step 7). Use `apostil process-groups --all` only when the owner wants all processes written again.
+After each notes writer ends, run `apostil process-groups`: that is the one command for an ended notes writer. It prints `{ "groups": [ ... ], "waiting": <n> }`: each group has a `name`, its `area` and its `files` with their count of notes, largest first. It lists only the groups of areas whose notes are all saved, and only the groups with work left; `waiting` says how many areas still wait for notes. Start one process writer for each group that it lists and that you have not started yet, in the places that the notes writers leave free. When `waiting` went down, the notes of an area are all saved, and its service and mark writers may start too (Step 8). Use `apostil process-groups --all` only when the owner wants all processes written again.
 
 When all notes writers have ended, run `apostil note-groups`: when it lists a group, a notes writer failed, so start that one again. Then run `apostil process-groups` once more for the groups that are left.
 
@@ -115,7 +115,7 @@ Each writer saves its processes with `apostil add-processes`. The command keeps 
 
 ## Step 5: The second round of each group, as soon as its writer ends
 
-When a process writer ends, run `apostil processes --group <name of its group>`: that is the one command for an ended process writer. It prints `{ "group", "processes", "notInProcess", "stale", "again" }`: in `notInProcess.files` the files of that group whose notes are in no process yet, with up to five keys for each file, and in `stale` the processes of that group whose steps name notes that are gone. When `again` is true, start one process writer again for that group at once, with the same three things as in Step 4 and this part at the end, with the keys of `notInProcess`:
+When a process writer ends, run `apostil processes --group <name of its group>`: that is the one command for an ended process writer. It prints `{ "group", "processes", "notInProcess", "stale", "fold", "again" }`: in `notInProcess.files` the files of that group whose notes are in no process yet, with up to five keys for each file, and in `stale` the processes of that group whose steps name notes that are gone. When `again` is true, start one process writer again for that group at once, with the same three things as in Step 4 and this part at the end, with the keys of `notInProcess`:
 
     These notes of your files are in no process yet: <the keys>.
     Put each of these notes into a process, with its arrows, or set it aside in "notInProcess" with a reason.
@@ -127,17 +127,29 @@ When `stale` lists processes, add this line with their ids:
 
     These processes of your group name notes that are gone: <the ids>. Write them again with the notes as they are now.
 
-Do this round once for each group: when the writer of the second round ends, start no third. The other groups do not wait for it. When every process writer has ended, run `apostil processes` once for the counts of the report.
+Do this round once for each group: when the writer of the second round ends, start no third. The other groups do not wait for it.
 
-## Step 6: Correct the top diagram
+## Step 6: Fold the processes that are parts of another process
+
+Do this step once, when every process writer has ended, also of the second round. Run `apostil processes`. Its `fold` lists the processes that are a part of another process, each as `{ "process", "into", "why" }`: a process that starts at a function that another process calls, a process whose steps are mostly steps of a bigger one, or one job that the writers of two groups wrote. When `fold` is empty, skip this step.
+
+Start one fold writer for each `into` of `fold`, on the model of the process writers, in the places of the 16 at once, and the next when one ends. Give each writer:
+
+- the line "First run `apostil prompt process` and follow what it prints.",
+- the path of the repo folder,
+- the process `into`, and the entries of `fold` with that `into`, as the command printed them.
+
+Each writer writes `into` again with the steps of the processes that fold into it, and saves with `apostil add-processes` and `"fold"`, which takes those processes out of the map. Run no command when a fold writer ends. Do this round once: a fold that is left after it waits for the next map run. When every fold writer has ended, run `apostil processes` once for the counts of the report, and count the processes that the fold writers folded.
+
+## Step 7: Correct the top diagram
 
 The top diagram was drawn before the notes and the processes existed. Run `apostil map --fit`. It prints four short lists: `filesInNoNode` (files with notes that stand in no node of a diagram), `nodesWithNoFile` (nodes whose paths hold no file with a note or a process), `callsWithNoArrow` (calls of the processes between two nodes of the top diagram that have no arrow between them, with an example line for each), and `usedWithNoNote` (functions, methods and classes that other code files use and that have no note, the most used first). Each list has at most 20 entries and the count of the rest.
 
-Do this step once, when the last process writer has ended, also of a second round; the service and mark writers of Step 7 may still run beside it. When the first three lists are empty, skip this step. Else start the overview writer once more, on the model of Step 1, with the same things as in Step 1, the four lists as `apostil map --fit` printed them, and this sentence: "Correct only what these facts show, and keep the ids of the nodes that stay." Start the area writer of Step 2 again only for an area whose node the top diagram changed (new paths, or a new node). Do this round once.
+Do this step once, after Step 6, when its last fold writer has ended; the service and mark writers of Step 8 may still run beside it. When the first three lists are empty, skip this step. Else start the overview writer once more, on the model of Step 1, with the same things as in Step 1, the four lists as `apostil map --fit` printed them, and this sentence: "Correct only what these facts show, and keep the ids of the nodes that stay." Start the area writer of Step 2 again only for an area whose node the top diagram changed (new paths, or a new node). Do this round once.
 
-## Step 7: Start the service writers and the mark writers of an area as soon as its notes are saved
+## Step 8: Start the service writers and the mark writers of an area as soon as its notes are saved
 
-The groups of an area are ready as soon as the notes of that area are saved, as in Step 4: a service writer marks lines of code and needs no process. So this step runs at the same time as the notes writers of other areas, the process writers and Steps 5 and 6. Its writers share the 16 places with the others; notes come first.
+The groups of an area are ready as soon as the notes of that area are saved, as in Step 4: a service writer marks lines of code and needs no process. So this step runs at the same time as the notes writers of other areas, the process writers and Steps 5 to 7. Its writers share the 16 places with the others; notes come first.
 
 Run `apostil mark-groups --set services` when `apostil process-groups` shows that the notes of another area are all saved (`waiting` went down), in the same message as the process writers that you start then, and once more when all notes writers have ended. It prints `{ "set", "values", "groups": [ ... ], "waiting": <n> }`: each group has a `name`, its `area` and its `files`, largest first. It lists only the groups of areas whose notes are all saved, and only the files that need work; `waiting` says how many areas still wait for notes. Use `--all` only when the owner wants all services written again.
 
@@ -153,13 +165,13 @@ Each writer saves its marks with `apostil add-marks`. The command keeps the mark
 
 When all writers have ended, run `apostil marks`. When its `noIcon` is not empty, each of those services has marks and no icon. Try `apostil icon <id> https://<its site>` once for each, then `/favicon.ico` and `/apple-touch-icon.png` of its site. Run `apostil marks` again. For each service that is left, the own website gave no icon. Ask the owner in one message, for all of them, whether you may take each icon from another site, and from which. Fetch nothing from another site without his yes. With his yes, run `apostil icon <id> <address> --other-site`. Report to the owner in one line the services that are left with no icon: letters stand in their place until he gives one.
 
-## Step 8: Wait for the reports
+## Step 9: Wait for the reports
 
 Wait until every writer that you started has ended. Run `apostil map` to see the stored map. If a writer failed or left a problem, start that writer again once. Run `apostil note-groups` again: a group that is still listed had a failed writer. Do not draw a diagram, write a note, write a process or write a mark yourself.
 
-## Step 9: Report to the owner
+## Step 10: Report to the owner
 
-Tell the owner in 2 or 3 lines: the map is saved, the areas it shows and which areas have their own diagram, how many notes the map holds and in how many files (`notes` and `notedFiles` of `apostil map`), the counts of `apostil processes` (`processes`, `steps`, `setAside`, `notInProcess.count` and the stale processes), the count of notes that the process writers corrected or added, the services of `apostil marks` and their counts, and the problems that the writers reported. Do not repeat the map file.
+Tell the owner in 2 or 3 lines: the map is saved, the areas it shows and which areas have their own diagram, how many notes the map holds and in how many files (`notes` and `notedFiles` of `apostil map`), the counts of `apostil processes` (`processes`, `steps`, `setAside`, `notInProcess.count` and the stale processes), the count of processes that the fold writers folded, the count of notes that the process writers corrected or added, the services of `apostil marks` and their counts, and the problems that the writers reported. Do not repeat the map file.
 
 ## When the app has no subagents
 
