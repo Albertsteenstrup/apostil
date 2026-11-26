@@ -644,7 +644,7 @@ try {
   const processHome = await homeFrame();
   // On the way down, the words of every box fit in it, measured with the fonts of VS Code (wordsOverflow in diagram-stage.js); a box has its card under the map.
   const fits = [];
-  for (const key of ['routes', 'q0', 's2', 's7']) {
+  for (const key of ['routes', 'q0', 's0', 's7']) { // s0 holds one step with steps, so its card opens those steps at once
     await processHome?.locator(`#cards .ovc[data-node="${key}"]`).waitFor({ timeout: 8000 }).catch(() => {});
     fits.push(await processHome?.evaluate(() => {
       const svg = [...document.querySelectorAll('#view svg')].find((one) => one.querySelector('g.node'));
