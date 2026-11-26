@@ -249,7 +249,7 @@ export function markFacts(folder: string, map: RepoMap | undefined, sets: MarkSe
       };
     }),
     iconRefused: (map?.iconRefused ?? []).filter((one) => !only || one.set === only),
-    // The services with marks and no icon: apostil icon tries each from its site (skill apostil-map-repo, Step 7).
+    // The services with marks and no icon: apostil icon tries each from its site (skill apostil-map-repo, Step 8).
     noIcon: (!only || only === SERVICES.id ? [...new Set(now.filter((one) => one.mark.set === SERVICES.id && one.at !== undefined).map((one) => one.mark.value))] : [])
       .flatMap((id) => { const value = valuesOf(SERVICES.id).find((one) => one.id === id); return value?.icon ? [] : [{ id, name: value?.name ?? id, ...(value?.site ? { site: value.site } : {}) }]; }),
   };

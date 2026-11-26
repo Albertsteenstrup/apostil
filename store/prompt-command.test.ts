@@ -33,3 +33,12 @@ test('each skill gives a writer the one line that runs apostil prompt with its k
   }
   assert.ok(!lead.map.includes('the full text of') && !lead.describe.includes('the full text of'));
 });
+
+test('a process writer starts a process only where no code of the repo calls it, a fold writer follows the part of the process prompt, and the lead folds after the second round and before apostil map --fit', () => {
+  const prompt = skill(WRITER_FILES.process[0]);
+  assert.ok(prompt.includes('A function that other code of this repo calls is never the start of a process.'));
+  assert.ok(prompt.includes('\n## Fold processes into one\n'));
+  const lead = skill('apostil-map-repo/SKILL.md');
+  const at = (heading: string): number => lead.indexOf(`\n## ${heading}`);
+  assert.ok(at('Step 5: The second round') > 0 && at('Step 5: The second round') < at('Step 6: Fold the processes') && at('Step 6: Fold the processes') < at('Step 7: Correct the top diagram'));
+});

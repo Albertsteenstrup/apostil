@@ -344,7 +344,7 @@ export function processGroups(map: RepoMap, all = false): { groups: ProcessGroup
 /**
  * The check of one group of the process writers: what `apostil processes --group <name>` prints. Its writer runs it before it reports,
  * and the lead starts the second round of that group from it at once: the notes of its files in no process yet, with up to five keys for each file, and
- * the processes of the group whose steps name notes that are gone. `again`: whether the group needs a second round. Undefined for an unknown group.
+ * the processes of the group whose steps name notes that are gone, and the folds of `apostil processes` that name a process of the group. `again`: whether the group needs a second round. Undefined for an unknown group.
  */
 export function groupProcessFacts(map: RepoMap, name: string) {
   const group = processGroups(map, true).groups.find((one) => one.name === name);
@@ -353,9 +353,11 @@ export function groupProcessFacts(map: RepoMap, name: string) {
   const files = new Set(group.files.map((file) => file.path));
   const left = facts.notInProcess.files.filter((file) => files.has(file.file));
   const keys = noteKeys(map);
-  const stale = (map.processes ?? []).filter((process) => process.group === name).map((process) => ({ id: process.id, gone: goneSteps(process, keys).length })).filter((one) => one.gone);
-  const processes = (map.processes ?? []).filter((process) => process.group === name).length;
-  return { group: name, processes, notInProcess: { count: left.reduce((sum, file) => sum + file.count, 0), files: left }, stale, again: left.length > 0 || stale.length > 0 };
+  const own = (map.processes ?? []).filter((process) => process.group === name);
+  const stale = own.map((process) => ({ id: process.id, gone: goneSteps(process, keys).length })).filter((one) => one.gone);
+  const ids = new Set(own.map((process) => process.id));
+  const fold = facts.fold.filter((one) => ids.has(one.process) || ids.has(one.into));
+  return { group: name, processes: own.length, notInProcess: { count: left.reduce((sum, file) => sum + file.count, 0), files: left }, stale, fold, again: left.length > 0 || stale.length > 0 };
 }
 
 /** The areas of the top diagram whose code files still wait for notes (a file in no area counts as the area ''), from the groups of the notes writers. */

@@ -2,7 +2,7 @@
 
 You write the processes that start in some files of one repo. A process is one job of the code, from its start to its result: for example "split the responses of one results file". Its steps are the notes that the map holds for the code. The owner opens a process in Apostil Home and follows it step by step, also into other files. Be faithful to the code. Draw only what you saw in the code. A tool checks each arrow against the code, and you repair what it lists.
 
-You get the path of the repo folder and your group: its `name`, and its `files`, each with its count of notes. You also have the text rules (`text-rules.md`). Run every command below in the top folder of the repo. Change no file of the repo and run none of its code. Write only your JSON file.
+You get the path of the repo folder and your group: its `name`, and its `files`, each with its count of notes. A fold writer gets a process `into` and the processes that fold into it in place of a group, and follows "Fold processes into one" at the end. You also have the text rules (`text-rules.md`). Run every command below in the top folder of the repo. Change no file of the repo and run none of its code. Write only your JSON file.
 
 ## Step 1: Read your files and their notes
 
@@ -13,7 +13,8 @@ For each file of your group:
 
 ## Step 2: Find the processes
 
-- A process starts in one of your files: the main block of a script, a command, a route, a job, or a function that code outside the repo calls. Write one process for each job. There is no limit on the count of processes or of steps.
+- A process starts in one of your files, only where nothing in this repo calls the code: the main block of a script, a command, a route, a job, a handler, or a function that only code outside the repo calls. Write one process for each job. There is no limit on the count of processes or of steps.
+- A function that other code of this repo calls is never the start of a process. It is a step of the process that calls it: follow the call and list its notes there, also when the function lies in a file of another group.
 - Follow each call into the other files of the repo, also outside your group. Read the code that is called, run `apostil notes <path>` for its file, and take the key of the note of that code. A note of any file of the repo may be a step. A helper is a step of each process that calls it.
 - A helper that only code of other groups calls starts no process of yours: the writers of those groups make it a step. Do not set it aside for that reason.
 - Leave out tests: a test file needs no process.
@@ -78,8 +79,25 @@ When it is saved, the command removes the file.
 
 ## Check your part
 
-Run `apostil processes --group <name of your group>`. It prints `{ "group", "processes", "notInProcess", "stale", "again" }` for your group only. `notInProcess` lists the notes of your files that are in no process and not set aside, and `stale` the processes of your group that name notes that are gone. Put each listed note into a process or into `notInProcess` of your JSON, write each stale process again, and save again. Leave a note only when the code that calls it starts in another group.
+Run `apostil processes --group <name of your group>`. It prints `{ "group", "processes", "notInProcess", "stale", "fold", "again" }` for your group only. `notInProcess` lists the notes of your files that are in no process and not set aside, and `stale` the processes of your group that name notes that are gone. Put each listed note into a process or into `notInProcess` of your JSON, write each stale process again, and save again. Leave a note only when the code that calls it starts in another group. `fold` lists the processes of your group that can fold into another process, or that another process can fold into. The fold writers join them later: leave them as they are.
 
 ## Your report
 
 Reply with one line: `saved <count> processes with <count> steps, <count> notes corrected or added`, and the keys of the notes that are left for another group, or the problem that remains. Nothing else.
+
+## Fold processes into one
+
+A fold writer gets a process `into` and the processes that fold into it, each as `{ "process", "into", "why" }`. `why` says why it folds: "starts inside" (its first step is a later step of a process), "mostly inside" (most of its steps are steps of a bigger process) or "same job" (two writers wrote one job). You write `into` again, with the steps of the folded processes in it. The rules of Steps 3 and 4 and of the notes hold.
+
+1. Run `apostil process <into>`, and `apostil process <id>` for each process that folds in. Each prints its `group`, `steps`, `arrows`, `outside` and `handoffs`. Read the code of their steps.
+2. Write `into` again, with its id and all of its steps, arrows and calls out of the repo. Put the steps of each folded process at the step of `into` whose code calls them, in the order the code runs them, and add the arrow of that call, with its lines and its name. Keep the arrows, the branches and the calls out of the repo of the folded process. List each note once: a step that both processes have stays at its place in `into`.
+3. For "same job", the two processes are one job: keep the steps of both, each once, in the order the code runs them.
+4. Each step of a folded process is a step of `into`, or it goes into `notInProcess` with a reason. Never draw an arrow that the code does not have: when no code of `into` calls a folded process, leave that process out of `fold`.
+5. The save moves the handoffs of each folded process to `into`. Change a title or a summary of `into` when it no longer says what the whole job does.
+6. Write the JSON to `apostil-processes-fold-<into>.json` in the top folder of the repo, with the `group` of `into` as `apostil process <into>` printed it, `"add": true`, and the ids of the processes that you folded in as `"fold"`. Send `"fold"` also when you leave out all of them, as an empty list: Apostil then knows that your fold is done.
+
+        { "group": "<the group of into>", "add": true, "fold": ["<id>", "<id>"], "processes": [ { "id": "<into>", "title": "...", "summary": "...", "steps": [ ... ], "arrows": [ ... ] } ] }
+
+   Run `apostil add-processes apostil-processes-fold-<into>.json`. The save takes the folded processes out of the map, and it prints them in `folded`. It refuses an id that does not fold into a process of your JSON, and a step of a folded process that would be in no process and not set aside. Each problem says what to change. Correct it and save again, at most three rounds.
+
+Reply with one line: `folded <count> processes into <into>, with <count> steps`, and each id that you left out, with the reason. Nothing else.

@@ -1,10 +1,10 @@
 // Tests for the time left of a map run: a plan with nothing done, half done and with a slow pace, the time that the stage of now has run,
-// the bar, the schedule of the writers (the longer of the longest chain and all work over 16 places, steps at the same time counted once), and a
-// rise that one computation alone shows, which is held back.
+// the bar, the schedule of the writers (the longer of the longest chain and all work over 16 places, steps at the same time counted once), the fold
+// writers, and a rise that one computation alone shows, which is held back.
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { expectedOf, shownTime, timeLeft, type MapPlan, type SaveTime } from './map-estimate';
+import { doneOf, expectedOf, shownTime, timeLeft, type MapPlan, type SaveTime } from './map-estimate';
 
 const START = Date.parse('2026-11-18T10:00:00.000Z');
 const at = (minute: number): number => START + minute * 60_000;
@@ -64,6 +64,13 @@ test('the time left of a plan half done at the expected pace is the expected tim
   // Early in a run the pace stays near 1: the overview alone took twice its time.
   const early = timeLeft(plan, [['o', 13]], START, at(13));
   assert.ok(early.minutes < (ALL - OVERVIEW) * 1.15, String(early.minutes)); // the overview is 13% of the work: the pace grows by that share of its slowness
+});
+
+test('the fold writers are a stage of their own before the fit round, and each fold save does its share of it', () => {
+  // 6 fold writers of 10 minutes: their 60 minutes over 16 places are less than one writer, so the stage is 10 minutes and the lead.
+  const folding: MapPlan = { ...plan, fold: 6 };
+  assert.equal(round(expectedOf(folding)), round(ALL + 12));
+  assert.equal(round(doneOf(folding, [['f', 1], ['f', 2], ['f', 3]])), 6);
 });
 
 test('the work before a plan counts in the bar; a plan made after the overview starts where the old one ended', () => {
