@@ -18,7 +18,7 @@ test('a comment on a step of a drawn process gets its note, its code and the who
   const step = aboutMapTarget(map, { kind: 'node', diagram: process, node: 's0' });
   assert.ok(step.includes('Its note: Returns the requests of one member as plain dicts for the purchase team.'), step.join('\n'));
   assert.ok(step.includes('Its code: src/library/web/requests_router.py, lines 23–27'));
-  assert.ok(step.includes('- Send the requests of a member → Read the requests of a member: fetch the rows (src/library/web/requests_router.py:26)'));
+  assert.ok(step.includes('- Send the requests of a member → Build the request service: make the service (src/library/web/requests_router.py:25)'));
   const arrow = aboutMapTarget(map, { kind: 'edge', diagram: process, edge: ['s0', 's1'], name: 'make the service' });
   assert.ok(arrow.includes('Its code: src/library/web/requests_router.py, line 25'), arrow.join('\n'));
   // A node of a written diagram of the map gets the drawing as text too, with the folders that its boxes stand for.

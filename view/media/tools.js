@@ -124,18 +124,19 @@ const RUN_CHART_TIP = 'Opens a tab with what the lead session and each writer di
 const OPENS_TIP = { app: 'Opens the session in its app', terminal: 'Opens a terminal of VS Code that continues the session', shown: 'Shows the terminal where the session writes the map' };
 
 /**
- * The quiet line of a map run (`run`, a MapRunLine of shared/map-run.ts): "Writing the map" with the turning mark and the bar of the run, or the words of a run that stopped; the session and what is saved so far stand in the tooltip.
- * After the words, "Open the session", which VS Code opens in its app or in a terminal that continues it, and after a run of Home that stopped "Run chart" (the tab "Map run").
- * `again`: after a run that stopped, on the map, the press "Start again" (it starts `again.app`, the pointer says which) and "Another app". The bar moves with the run (barTo in home.js).
+ * The quiet line of a map run (`run`, a MapRunLine of shared/map-run.ts): "Mapping…" with the turning mark and the bar of the run and "Open the session"
+ * when VS Code can open it, or after a stop "Map stopped · Continue"; the session and what is saved so far stand in the tooltip. The bar moves with the
+ * run (barTo in home.js).
  */
-function mapRunHtml(run, again = null) {
+function mapRunHtml(run) {
   const words = `<span${run.tip ? ` title="${esc(run.tip)}"` : ''}>${esc(run.words)}</span>`;
   const work = run.state === 'writing' ? workHtml(run.time?.share) : '';
   const reach = run.opens ? `<a data-open-run title="${OPENS_TIP[run.opens]}">Open the session</a>` : '';
-  const chart = run.chart && run.state !== 'writing' ? `<a data-run-chart title="${RUN_CHART_TIP}">Run chart</a>` : '';
-  const press = again?.app ? `<a data-write="${esc(again.app)}" title="Starts a new ${esc(AGENT_NAMES[again.app] ?? again.app)} session">Start again</a>` : '';
-  return `<span class="state maprun" data-run="${esc(run.state)}">${[words + work, reach, chart, press, again?.app ? anotherAppHtml(again.apps) : ''].filter(Boolean).join(' · ')}</span>`;
+  const go = run.state === 'stopped' ? `<a data-continue-run title="${CONTINUE_TIP}">Continue</a>` : '';
+  return `<span class="state maprun" data-run="${esc(run.state)}">${[words + work, reach, go].filter(Boolean).join(' · ')}</span>`;
 }
+
+const CONTINUE_TIP = 'Goes on with the map in the same session, else in a new session, else with another app';
 
 /** The words of the time left of a map run: "About 14 min left", or "Less than a minute left". */
 const timeWords = (minutes) => (minutes < 1 ? 'Less than a minute left' : `About ${Math.round(minutes)} min left`);
@@ -278,6 +279,7 @@ function askHtml(ask, intro) {
 // A click on "Open the session" of a map run, or on the press of words and the link of their run: VS Code does it.
 document.addEventListener('click', (event) => {
   if (event.target.closest?.('[data-open-run]')) tell({ type: 'openMapSession' });
+  if (event.target.closest?.('[data-continue-run]')) tell({ type: 'continueMap' });
   if (event.target.closest?.('[data-run-chart]')) tell({ type: 'openMapChart' });
   const ask = event.target.closest?.('[data-ask]');
   const team = teamChoice('ask');
@@ -597,11 +599,47 @@ function virtualRows(scroller, box, count, row, size = () => 1) {
  * Gives an element the height that is left in the tab, now and after each resize of the tab, until it leaves the page or another drawing in it sets its
  * height (`sized`, as keepOverview in overview.js).
  */
-function keepFilled(el, least = 240) {
-  fillHeight(el, least);
-  const refill = () => (el.isConnected && el.sized === refill ? fillHeight(el, least) : removeEventListener('resize', refill));
+function keepFilled(el, least = 240, key = undefined) {
+  // With `key`, he can drag its bottom edge, and the height that he dragged it to holds instead (frameEdge).
+  const set = () => { const held = key && heldHeight(key); if (held) el.style.height = `${held}px`; else fillHeight(el, least); };
+  set();
+  if (key) frameEdge(el, key, set, least);
+  const refill = () => (el.isConnected && el.sized === refill ? set() : removeEventListener('resize', refill));
   el.sized = refill;
   addEventListener('resize', refill);
+}
+
+/** The height that he dragged the bottom edge of the frame `key` to (frameEdge), or undefined. */
+const heldHeight = (key) => kept.frameHeights?.[key];
+
+/**
+ * The bottom edge of a frame, the same on every page: a drag there makes the frame taller or shorter, not less than `least`, and does not move what it
+ * shows; that height holds for `key` while VS Code keeps the page (heldHeight). A double click lets it go, and the frame takes its own height again.
+ * `set` gives the frame its height: the held one, else its own.
+ */
+function frameEdge(frame, key, set, least) {
+  frame.querySelector(':scope > .ove')?.remove();
+  const edge = html('<div class="ove" title="Drag to change the height. Double-click to fit it again."></div>');
+  const hold = (height) => {
+    const heights = { ...kept.frameHeights, [key]: height };
+    if (!height) delete heights[key];
+    keep({ frameHeights: heights });
+    set();
+  };
+  let drag = null;
+  edge.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0) return;
+    event.stopPropagation();
+    event.preventDefault();
+    drag = { from: event.clientY, start: frame.offsetHeight };
+    edge.setPointerCapture(event.pointerId);
+    edge.classList.add('held');
+  });
+  edge.addEventListener('pointermove', (event) => { if (drag) hold(Math.max(least, Math.round(drag.start + event.clientY - drag.from))); });
+  edge.addEventListener('lostpointercapture', () => { drag = null; edge.classList.remove('held'); });
+  edge.addEventListener('click', (event) => event.stopPropagation());
+  edge.addEventListener('dblclick', (event) => { event.stopPropagation(); hold(null); });
+  frame.append(edge);
 }
 
 /** Glides an element that scrolls (or window) to a place in a short animation; `to` can be a function, for a place that moves meanwhile. Returns how to stop it. */

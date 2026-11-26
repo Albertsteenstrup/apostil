@@ -396,6 +396,8 @@ async function drawHome() {
   view.className = 'view';
   view.style.height = ''; // the frame of a run before its overview took the height of the tab
   view.sized = null; // and no earlier drawing sets its height again (keepFilled, keepOverview)
+  delete view.dataset.height; // nor gives it back when the cards are placed (Overview.trim)
+  delete view.dataset.least;
   const cards = document.getElementById('cards');
   Overview.cards(cards, []);
   const diagram = map && (diagramOf(Home.at) ?? diagramOf(map.top));
@@ -406,11 +408,11 @@ async function drawHome() {
   const look = Home.data.look;
   Trail.show(document.getElementById('crumb'), ownStep(), { look });
   const summary = document.getElementById('summary');
-  summary.textContent = map?.written ?? '';
+  summary.textContent = Home.data.mapRun ? '' : map?.written ?? ''; // while a map run writes or after it stopped, its line stands alone
   // The header line of the look: words with the fields of the repo, a picture in its place, or nothing.
   const headFields = diagram && { repo: Home.data.repo, areas: Object.keys(diagramOf(map.top).graph.nodes).length, files: map.files ?? 0, age: map.written ?? 'written at this commit' };
   const head = diagram && look ? Marks.resolve(look.rules, { kind: 'header', diagram: diagram.id, fields: headFields }, look.one) : {};
-  if (Object.keys(head).length) summary.innerHTML = Marks.wordsHtml(map.written ?? '', head, headFields, look) ?? '';
+  if (Object.keys(head).length && !Home.data.mapRun) summary.innerHTML = Marks.wordsHtml(map.written ?? '', head, headFields, look) ?? '';
   // The processes of a node with no diagram of its own: the line says so, but not while the line of a map run stands there.
   const unmapped = diagram?.unmapped;
   if (unmapped && !Home.data.mapRun) {
@@ -418,10 +420,10 @@ async function drawHome() {
     summary.prepend(`${unmapped.title} has no diagram yet · ${processes} in its files${summary.hasChildNodes() ? ' · ' : ''}`);
   }
   // After a click on a mark: the quiet line of the value, which the × clears.
-  if (Home.filter && diagram) summary.insertAdjacentHTML('beforeend', `${map.written ? ' · ' : ''}<span class="mk-filter">${esc(Home.filter.text)} <a data-clear-filter title="Clear">×</a></span>`);
+  if (Home.filter && diagram) summary.insertAdjacentHTML('beforeend', `${summary.hasChildNodes() ? ' · ' : ''}<span class="mk-filter">${esc(Home.filter.text)} <a data-clear-filter title="Clear">×</a></span>`);
   // While a map run writes, the map shows what is saved, and this line says which session writes and what is done; after a stop, the press that starts again.
   const run = Home.data.mapRun;
-  if (run && diagram) summary.insertAdjacentHTML('beforeend', `${summary.hasChildNodes() ? ' · ' : ''}${mapRunHtml(run, run.state === 'stopped' ? { app: Home.data.mapApp, apps: Home.data.apps } : null)}`);
+  if (run && diagram) summary.insertAdjacentHTML('beforeend', `${summary.hasChildNodes() ? ' · ' : ''}${mapRunHtml(run)}`);
   // While a run of the whole map writes: the time left at the right end of the head, and the bar of the run on the top edge of the frame.
   const time = run?.state === 'writing' ? run.time : undefined;
   showTime(time);
@@ -524,7 +526,7 @@ function runFrame(view, summary, run, time) {
   view.className = 'view runframe';
   view.innerHTML = sketchHtml();
   runBar(view, time);
-  keepFilled(view);
+  keepFilled(view, 240, 'run-sketch');
 }
 
 /** While a run of Home writes the map: its chart (map-run-chart.js), which Home's frame holds in place of the top map. */
@@ -532,7 +534,7 @@ const liveChart = () => {
   const run = Home.data.mapRun;
   return run?.state === 'writing' && Home.data.chart ? { ...Home.data.chart, minutesLeft: run.time?.minutes } : null;
 };
-const fillChart = () => { const box = document.querySelector('#view > .runchart'); if (box && liveChart()) RunChart.fill(box, liveChart(), false); };
+const fillChart = () => { const box = document.querySelector('#view > .runchart'); if (box && liveChart()) { RunChart.fill(box, liveChart(), false); box.parentElement.sized?.(); } };
 
 /**
  * While a run of Home writes the map, the frame holds its chart, its striped minutes as long as the time left on Home, and the top map is the first card, before the
@@ -544,10 +546,38 @@ function chartFrame(view, summary, run, time, diagram, areas) {
   view.className = 'view runframe mr';
   view.innerHTML = '<div class="runchart"></div>';
   fillChart();
+  if (Overview.isFull()) keepFilled(view);
+  else keepChartHeight(view);
   if (diagram) Overview.icon(view, Overview.isFull(), () => Home.render());
   const top = diagram ? { title: diagram.title, open: () => walkTo(topMapStep()), ...smallDiagram(diagram) } : { title: 'Overview', run: { state: 'working', share: time?.share } };
   const areaCards = diagram ? Object.keys(diagram.graph.nodes).filter((key) => leadsSomewhere(diagram.nodes[key])).map((key) => homeCard(key, diagram.nodes[key], openOf(diagram.nodes[key]), diagram.graph, areas?.[key])) : [];
   Overview.cards(document.getElementById('cards'), Overview.isFull() ? [] : [top, ...areaCards]);
+}
+
+const CHART_ROWS = { least: 12, most: 16 }; // the rows of writers that Home's frame has room for; the most: as many as run at once (WRITERS_AT_ONCE in shared/map-estimate.ts)
+
+/**
+ * The height of Home's frame while it holds the chart: the height of the chart with room for 12 rows of writers, and taller with each row after the 12th,
+ * up to 16. A taller chart scrolls up and down inside the frame. A drag on its bottom edge holds another height. Each new chart sets the height again (fillChart).
+ */
+function keepChartHeight(view) {
+  const set = () => {
+    const box = view.querySelector('.runchart');
+    if (!box) return;
+    const held = heldHeight('run-chart');
+    const scrolled = box.scrollTop;
+    view.style.height = '';
+    const rows = Number(box.querySelector('svg[data-rows]')?.dataset.rows ?? 0);
+    const room = Math.min(CHART_ROWS.most, Math.max(CHART_ROWS.least, rows)) - rows; // negative: the rows that scroll
+    const borders = view.offsetHeight - view.clientHeight;
+    view.style.height = `${held ?? box.scrollHeight + borders + room * RunChart.ROW}px`;
+    box.scrollTop = scrolled;
+  };
+  set();
+  frameEdge(view, 'run-chart', set, OVERVIEW_LEAST);
+  const again = () => (view.isConnected && view.sized === again ? set() : removeEventListener('resize', again));
+  view.sized = again;
+  addEventListener('resize', again);
 }
 
 /** The bar of the whole run on the top edge of the frame: it fills by the expected work done, out of all, and glides from where it stood before. */
@@ -617,9 +647,9 @@ function drawPanel(box, panel, card = false) {
       const pick = (thing, one) => (one.marks.length === 1 ? (openAt(one.marks[0].file, one.marks[0].at), true) : false);
       if (Marks.decorate(svg, things, shaped.edges, look, shaped.filled, { nodeKey, open: openAt, pick }, shaped.boxes)) fitToContent(svg);
     }
-    // A drawing that a rule left with few nodes is drawn at most half again its size, not blown up to the panel.
-    const natural = Object.values(things).some((thing) => thing.slots['show.shown'] === false) && [Number(svg.getAttribute('width')), Number(svg.getAttribute('height'))];
-    if (natural?.[0]) Object.assign(svg.style, { maxWidth: `${natural[0] * 1.5}px`, maxHeight: `${natural[1] * 1.5}px`, margin: '0 auto' });
+    // A small drawing, such as a process of one step, is never drawn larger than its own size, as on Home (GROW); it only shrinks to fit the panel.
+    const own = svg.viewBox.baseVal;
+    if (own?.width) Object.assign(svg.style, { maxWidth: `${own.width * GROW}px`, maxHeight: `${own.height * GROW}px`, margin: '0 auto' });
     svg.removeAttribute('width');
     svg.removeAttribute('height');
     box.classList.toggle('rest', panel.lit.length > 0); // only the lit part stands out

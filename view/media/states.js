@@ -48,6 +48,8 @@ const States = (() => {
     defaultModel: 'default model',
     ownModel: "OpenCode's own model",
     model: 'Model',
+    showMore: (count) => `Show ${count} more`,
+    lastActive: (iso) => `Last active ${new Date(iso).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}`,
     effort: 'Effort',
     noAppConnected: 'No agent app is connected.',
     setUpAgents: 'Set up for agents',
@@ -156,7 +158,7 @@ const States = (() => {
     return { ...(base.model ? { model: base.model } : {}), ...(base.name ? { name: base.name } : {}), ...(app === 'opencode' && !base.model ? {} : { effort }) };
   }
 
-  const PICKED_MAX = 3; // the known sessions of one app that the picker offers
+  const PICKED_MAX = 15; // the known sessions of one app that the picker offers: the newest 5, the rest after "Show more"
 
   /**
    * Where a remark went, as a known session once the run of its new session has reported its id: { app, kind: 'session', session, name }, with the name
@@ -168,7 +170,7 @@ const States = (() => {
   /**
    * Where a comment can go, for the picker under the box of a card. For each connected app, in the order of `apps`: this session (the session that
    * made the change, when it is of that app), the session of the thread that a reply answers (`lead`, its lead remark: sessionTo), the other sessions
-   * that Apostil knows in this repo and that a run can continue in this folder (newest first, at most 3 with that of the thread), and a new session.
+   * in this folder that a run can continue (newest first, at most 15 with that of the thread), and a new session.
    * Then the pull request on GitHub, when `github` says that it takes this comment. Last, no agent.
    * A page with no stored change offers only GitHub. Each choice: { key, app, to, words, sub, model }; `to` is what the remark is sent to
    * ({ app, kind: 'current' | 'new' | 'session', session }), { app: 'github' }, or null for a note.
@@ -188,7 +190,7 @@ const States = (() => {
         ...(ofChange ? [{ key: `${app}:current`, app, to: { app, kind: 'current' }, words: WORDS.choiceThis, sub: WORDS.choiceThisSub, run: choiceRun(app, menu, own), list }] : []),
         ...known.map((one) => ({
           key: `${app}:session:${one.session}`, app, to: { app, kind: 'session', session: one.session, ...(one.name ? { name: one.name } : {}) },
-          words: one.name || one.session.slice(0, 8), sub: WORDS.usedAgo(agoWords(one.at, now)), run: choiceRun(app, menu, one.run), list,
+          words: one.name || one.session.slice(0, 8), sub: WORDS.usedAgo(agoWords(one.at, now)), run: choiceRun(app, menu, one.run), list, seen: { name: one.name, folder: one.folder, at: one.at },
         })),
         { key: `${app}:new`, app, to: { app, kind: 'new' }, words: WORDS.choiceNew, sub: '', run: choiceRun(app, menu), list },
       ];

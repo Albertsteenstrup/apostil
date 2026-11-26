@@ -129,7 +129,7 @@ g.node foreignObject{overflow:visible}
 .nodeLabel .m{color:var(--del)}
 .nodeLabel .ln{display:block;font:400 var(--small) var(--mono);color:var(--muted);margin-top:2px}
 /* The mark of the comments of a thing: a chat bubble with the icon of the agent app that has them; nothing in it moves.
-   waiting: the icon faint; working: a small teal dot at its corner; answered and not read yet: tinted with a teal edge; a note to no agent: empty. */
+   waiting: the icon faint; working: a small teal dot at its corner that blinks; answered and not read yet: tinted with a teal edge and the dot still; a note to no agent: empty. */
 .cb{position:relative;display:inline-grid;place-items:center;width:24px;height:22px;margin:-5px 0 -5px 6px;vertical-align:-6px;font-style:normal;cursor:pointer;flex:none} /* its margins keep the line as high as it is without the mark */
 .cb .cbs{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
 /* the bubble sets its own colours: inside a node of a diagram the rules of Mermaid on its paths would win otherwise */
@@ -138,11 +138,12 @@ g.node foreignObject{overflow:visible}
 .cb img{position:relative;top:-1.5px;width:11px;height:11px;object-fit:contain}
 .cb.waiting img{opacity:.45}
 .cb.working,.cb.answered,.cb.on{--cb-edge:var(--teal)}
-.cb.working::after{content:'';position:absolute;right:-1px;top:0;width:7px;height:7px;border-radius:50%;background:var(--teal);box-shadow:0 0 0 1.5px var(--card)}
+.cb:is(.working,.answered)::after{content:'';position:absolute;right:-1px;top:0;width:7px;height:7px;border-radius:50%;background:var(--teal);box-shadow:0 0 0 1.5px var(--card)}
 .cb.answered{--cb-fill:var(--tealsoft)}
 .cb.on{--cb-width:2}
 .cb .n{position:absolute;right:-6px;top:-5px;min-width:13px;height:13px;padding:0 3px;box-sizing:border-box;border-radius:7px;background:var(--card);box-shadow:0 0 0 1px var(--line2);color:var(--soft);font:600 9px/13px var(--sans);text-align:center}
-.cb.working .n{right:auto;left:-6px}
+.cb.working::after,.cb.svg.working .wd,.cmc.working .cmd{animation:pulse 2.4s ease-in-out infinite}
+.cb:is(.working,.answered) .n{right:auto;left:-6px}
 .cb.svg{cursor:pointer}
 .cb.svg.waiting image{opacity:.45}
 .cb.svg .wd{fill:var(--teal)!important;stroke:var(--card)!important;stroke-width:1.5!important}
@@ -151,7 +152,7 @@ g.node foreignObject{overflow:visible}
 .cn .code .x .cb{width:0;height:1em;margin:0;vertical-align:top}
 .cn .code .x .cb .cbs{inset:auto;left:10px;top:-2px;width:24px;height:22px}
 .cn .code .x .cb img{position:absolute;left:16.5px;top:2.5px}
-.cn .code .x .cb.working::after{left:29px;right:auto;top:-3px}
+.cn .code .x .cb:is(.working,.answered)::after{left:29px;right:auto;top:-3px}
 .cn .code .x .cb .n{left:27px;right:auto;top:-6px}
 /* the name line of a message of a pull request: the mark at its end */
 .conv .top > .cb{align-self:center;margin-left:2px}
@@ -172,7 +173,7 @@ g.node foreignObject{overflow:visible}
 .cb.leaving{animation:cb-leave .42s ease-in forwards;transform-box:fill-box;transform-origin:center;pointer-events:none}
 @keyframes cb-leave{30%{opacity:1;transform:scale(1.04)}to{opacity:0;transform:scale(.85)}}
 @media (prefers-reduced-motion:reduce){.cbox.leaving,.cb.leaving{animation:none}}
-@media (prefers-reduced-motion:reduce){.dot.pulse{animation:none;opacity:.6}}
+@media (prefers-reduced-motion:reduce){.dot.pulse{animation:none;opacity:.6}.cb.working::after,.cb.svg.working .wd,.cmc.working .cmd{animation:none}}
 
 /* one window frame: hover windows, the file picker, the card of a comment, the list of comments */
 .win,.cml,.cbox{background:var(--card);border:1px solid var(--line2);border-radius:8px;box-shadow:var(--shadow)}
@@ -407,12 +408,14 @@ p.fact{margin:0;padding:8px 12px;color:var(--muted)} /* what a file is, in one l
 .cbox .cbx:focus-within{border-color:var(--teal)}
 .cbox .cbx .field{margin:0;padding:6px 0 2px;border:0;background:none;min-height:22px}
 .cbox .pickbox{position:relative}
-.cbox .pick{display:inline-flex;align-items:center;gap:5px;max-width:100%;margin:4px 0 0 -6px;padding:2px 6px;border-radius:7px;font-size:var(--small);color:var(--muted);white-space:nowrap;overflow:hidden}
+.cbox .pick{display:flex;align-items:center;gap:2px;max-width:100%;margin:4px 0 0 -6px;font-size:var(--small);color:var(--muted);white-space:nowrap;overflow:hidden}
+.cbox .pick .pk{display:inline-flex;align-items:center;gap:5px;min-width:0;padding:2px 6px;border-radius:7px;cursor:pointer}
+.cbox .pick > .pw{padding:2px 6px}
 .cbox .pick b{font-weight:600;color:var(--soft)}
 .cbox .pick .pw{overflow:hidden;text-overflow:ellipsis}
 .cbox .pick .icon,.cbox .pick .ico{width:13px;height:13px;margin:0}
 .cbox .pick .chev{width:14px;height:14px;flex:none}
-.cbox .pick:hover,.cbox .pick.on{background:var(--seg)}
+.cbox .pick .pk:hover,.cbox .pick .pk.on{background:var(--seg)}
 .cbox .pmenu{position:absolute;left:-12px;right:-12px;top:calc(100% + 8px);z-index:2}
 :is(.cbox,.rpick) .pmenu{overflow:auto;padding:5px;border:1px solid var(--line);border-radius:11px;background:var(--card);box-shadow:var(--shadow);font-size:var(--small);text-align:left;white-space:normal}
 .cbox .pmenu.up{top:auto;bottom:calc(100% + 8px)}
@@ -435,6 +438,8 @@ p.fact{margin:0;padding:8px 12px;color:var(--muted)} /* what a file is, in one l
 .rpick .rmenu{position:absolute;left:0;top:calc(100% + 6px);z-index:30;width:max-content;min-width:200px;max-width:calc(100vw - 16px)}
 .rpick .rmenu.up{top:auto;bottom:calc(100% + 6px)}
 .rpick .rmenu .pi{padding-left:20px}
+.cbox .pmenu .pi span,.cbox .pmenu .pi i{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.cbox .pmore{display:block;padding:5px 8px 5px 28px;color:var(--teal);cursor:pointer}
 .rpick .rmenu .chips{display:flex;flex-wrap:wrap;gap:5px;padding:4px 8px 6px}
 .rpick .rmenu .chip{padding:2px 10px;border:1px solid var(--line);border-radius:999px;color:var(--ink);cursor:pointer}
 .rpick .rmenu .chip:hover{background:var(--seg)}
@@ -468,6 +473,8 @@ p.fact{margin:0;padding:8px 12px;color:var(--muted)} /* what a file is, in one l
 .cmc .cmi path{fill:none;stroke:currentColor;stroke-width:2.2}
 .cmc:hover{color:var(--ink)}
 .home .bar .cmc{margin-left:auto} /* Home has no switch of views: the count stands at the right end of the bar */
+.cmc .cmd{display:none;width:6px;height:6px;border-radius:3px;background:var(--teal)}
+.cmc:is(.working,.answered) .cmd{display:block}
 .cmc.on{background:color-mix(in srgb,var(--teal) 12%,var(--card));color:var(--tealink)}
 .cml{position:fixed;z-index:24;width:min(380px,calc(100vw - 16px));box-sizing:border-box;max-height:calc(100vh - 80px);overflow:auto;padding:6px;border-color:var(--line);border-radius:12px;color:var(--ink);line-height:1.4}
 .cml .cmr{display:grid;grid-template-columns:28px minmax(0,1fr) auto;column-gap:10px;padding:8px 8px 9px;border-radius:9px;color:var(--ink);cursor:pointer}
@@ -657,6 +664,8 @@ div.nomap .runpick{margin:0 0 8px}
 .ovc .sketch{padding:4px 0}
 .view.runframe{border:1px solid var(--line);border-radius:8px;background:var(--paper);overflow:hidden;padding:24px;box-sizing:border-box}
 .runchart > .mr-nums:first-child{margin-top:0} /* Home's frame while a run of Home writes the map: the chart with no head */
+.view.runframe.mr{padding:0}
+.view.runframe.mr > .runchart{height:100%;box-sizing:border-box;padding:24px;overflow:hidden auto} /* a chart taller than the frame scrolls up and down inside it */
 /* the bar of the whole run on the top edge of the frame, and the time left at the right end of the head */
 .runbar{position:absolute;left:0;right:0;top:0;z-index:3;height:2px;pointer-events:none;border-radius:7px 7px 0 0;overflow:hidden}
 .runbar i{border-radius:0 2px 2px 0}
@@ -1134,7 +1143,7 @@ div.nomap .runpick{margin:0 0 8px}
 .pcbar{display:flex;gap:2px;height:4px;margin-top:2px;border-radius:2px;overflow:hidden;background:var(--line)}
 .pcbar i{display:block;min-width:3px}
 .pcbar i.ok{background:var(--pr-green)}.pcbar i.bad{background:var(--pr-red)}.pcbar i.wait{background:var(--pr-amber)}.pcbar i.quiet{background:var(--line2)}.pcbar i.none{background:transparent}
-.pcbar.none{background:repeating-linear-gradient(135deg,var(--line2) 0 3px,transparent 3px 6px)} /* nobody approved yet */
+.pcbar.none{background:repeating-linear-gradient(45deg,var(--line2) 0 3px,transparent 3px 6px)} /* nobody approved yet */
 .pcl{display:flex;flex-wrap:wrap;gap:4px 18px;margin-top:10px}
 .pcnote{margin:8px 0 0;color:var(--muted)}
 .pcstep{margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
@@ -1563,6 +1572,8 @@ body:where(.vscode-dark,.vscode-high-contrast:not(.vscode-high-contrast-light)){
 .mr-grid{stroke:var(--line)}
 .mr-tick{font-size:calc(var(--small) - 1px);fill:var(--faint);text-anchor:middle}
 .mr-now{stroke:var(--teal);stroke-width:1.5}
+@keyframes mr-shift{to{transform:translateX(var(--by))}}
+@keyframes mr-width{from{width:var(--from)}to{width:var(--to)}}
 .mr-nowword{font-size:calc(var(--small) - 1px);font-weight:600;fill:var(--tealink);text-anchor:middle}
 .mr-hit{fill:transparent;pointer-events:all}
 .mr-bar{stroke-width:.6}

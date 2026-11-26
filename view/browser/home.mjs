@@ -217,14 +217,14 @@ try {
   const oneProcess = await drawing();
   const processSent = (await ledSince(sentBefore)).filter((type) => type !== 'walk');
   await takePicture(home, '37-one-process.png');
-  check('a click on an area that holds the first step of several processes opens them: one node for each with "N steps", joined by its handoff, a process of another place quiet, and the tree follows; the pointer on a process shows its summary; a click on it opens its top steps in one box for each of its 3 files, with the arrows of the writer and its call out of the repo quiet',
+  check('a click on an area that holds the first step of several processes opens them: one node for each with "N steps", joined by its handoff, a process of another place quiet, and the tree follows; the pointer on a process shows its summary; a click on it opens its top steps in one box for each of its 2 files, the step that calls into requests.py holding the steps there, with the arrows of the writer and its call out of the repo quiet',
     placeDrawn.crumb === 'Home›Processes of Web routes' && placeDrawn.names.join('|') === 'Answer a book request14 steps|Ask the library for a book7 steps|List the requests of a member4 steps'
       && placeDrawn.quiet.join() === 'Ask the library for a book7 steps' && placeDrawn.arrows.join() === 'the request row' && placeSent.filter((type) => type !== 'walk').join() === 'showInTree'
       && processWin.title === 'Answer a book request' && processWin.sub === '14 steps' && processWin.text === 'Stores the answer of a librarian and tells each member who asked for the book.'
-      && oneProcess.crumb === 'Home›Processes of Web routes›Answer a book request' && oneProcess.boxes === 3 && oneProcess.names.length === 6 && oneProcess.names.includes('Answer the request9 steps')
-      && oneProcess.quiet.join() === 'json' && oneProcess.arrows.join() === '1 make the service,1 write the details,2 pass the answer,2 send the mail,3 shape the request' && processSent.join() === '',
+      && oneProcess.crumb === 'Home›Processes of Web routes›Answer a book request' && oneProcess.boxes === 2 && oneProcess.names.length === 4 && oneProcess.names.includes('Answer one book request11 steps')
+      && oneProcess.quiet.join() === 'json' && oneProcess.arrows.join() === '1 make the service,2 write the details,3 shape the request' && processSent.join() === '',
     JSON.stringify({ placeDrawn, placeSent, processWin, oneProcess, processSent }));
-  await into('s2');
+  await into('s0');
   await homeSettled();
   const stepOpened = await drawing();
   const stepWin = await windowOf('s7');
@@ -257,13 +257,13 @@ try {
   await into('requests');
   await homeSettled();
   const single = await drawing();
-  check('a click on a step that holds steps opens its 9 inner steps, two branches dotted with their labels and the steps of other places quiet; the pointer on a step shows its note with its file and lines; a step with no inner steps opens its file at its line; the line leads back up each level; a node that holds the first step of one process opens it at once',
-    stepOpened.crumb === 'Home›Processes of Web routes›Answer a book request›requests.py: Answer the request' && stepOpened.names.length === 12
-      && stepOpened.quiet.join('|') === 'json|notices.py: Send the answer to a member|requests.py: Shape one request row' && stepOpened.dotted === 2 && stepOpened.arrows.includes('when the key repeats') && stepOpened.arrows.includes('if it is declined')
+  check('a click on a step that holds one step with 9 inner steps opens those 9 at once, two branches dotted with their labels and the steps of other places quiet; the pointer on a step shows its note with its file and lines; a step with no inner steps opens its file at its line; the line leads back up each level; a node that holds the first step of one process opens it at once, with the steps of its one top step',
+    stepOpened.crumb === 'Home›Processes of Web routes›Answer a book request›requests.py: Answer the request' && stepOpened.names.length === 11
+      && stepOpened.quiet.join('|') === 'json|requests.py: Shape one request row' && stepOpened.dotted === 2 && stepOpened.arrows.includes('when the key repeats') && stepOpened.arrows.includes('if it is declined')
       && stepWin.title === 'Write the answer into the rows' && stepWin.sub === 'requests.py · lines 62-67' && stepWin.text === 'Writes the answer, the librarian and the key into each open request for the book.'
       && leafSent?.type === 'openFile' && leafSent.path === tasksPath && leafSent.line === 62 && leafAt === 'process:answer-request/2'
       && backProcess === 'Home›Processes of Web routes›Answer a book request' && backPlace === 'Home›Processes of Web routes' && backHome === 'Home'
-      && single.crumb === 'Home›Lending: holds, requests and mails›Ask the library for a book' && single.names.join('|') === 'Ask for a book6 steps|PostgreSQL|json',
+      && single.crumb === 'Home›Lending: holds, requests and mails›Ask the library for a book' && single.names.join('|') === 'Clean the title and the ISBN|Give back the new request|Insert the request row|Limit the open requests|PostgreSQL|Refuse a book of the library|Refuse the same request twice|json',
     JSON.stringify({ stepOpened, stepWin, leafSent, leafAt, back: [backProcess, backPlace, backHome], single }));
 
   // The graphs of a file show the processes that have steps in it, with those steps lit; a click on a panel opens that process on Home.
@@ -276,7 +276,7 @@ try {
   const fromPanel = await home.evaluate(() => ({ crumb: document.getElementById('crumb').textContent, lit: [...document.querySelectorAll('#view g.node.lit')].map((g) => nodeKey(g)).sort() }));
   check('the graphs of requests.py show its 3 processes after the map, each with its steps of that file lit and a line that says where they are; a click on the panel of a process opens it on Home with the same steps lit, one step after the graphs',
     processPanels.length === 5 && processPanels.slice(2).every((panel) => panel.from === 'process' && panel.lit > 0) && processPanels.slice(2).map((panel) => panel.line).join('|') === 'Answer a book request|List the requests of a member|Ask the library for a book'
-      && processPanels[2].where === 'in 2 steps' && processPanels[4].where === 'in: Ask for a book' && fromPanel.crumb === `Home›${tasksPath}›Answer a book request` && fromPanel.lit.join() === 's12,s2',
+      && processPanels[2].where === 'in 2 steps' && processPanels[4].where === 'in 6 steps' && fromPanel.crumb === `Home›${tasksPath}›Answer a book request` && fromPanel.lit.join() === 's0,s12',
     JSON.stringify({ processPanels, fromPanel }));
 
   // The graphs of one file: one panel for each diagram, the widest first, each with a lit part and a line that says where the path is; two panels in a row
@@ -307,6 +307,10 @@ try {
   await home.waitForURL(/diagram=/, { timeout: 5000 }).catch(() => {});
   await homeDrawn();
   const large = await home.evaluate(() => ({ crumb: document.getElementById('crumb').textContent, lit: [...document.querySelectorAll('#view g.node.lit')].map((g) => nodeKey(g)) }));
+  await homeAt(`?path=${encodeURIComponent('db/')}`);
+  await home.waitForFunction(() => document.querySelectorAll('.pnl .pd[data-lit]').length >= 4, null, { timeout: 15000 });
+  const scales = await home.$$eval('.pnl .pd[data-lit] svg', (all) => all.map((svg) => { const own = svg.viewBox.baseVal; const box = svg.getBoundingClientRect(); return +Math.min(box.width / own.width, box.height / own.height).toFixed(2); }));
+  check('no panel of the graphs page draws its diagram larger than its own size: a small diagram stays small, a large one shrinks to fit', scales.length > 2 && scales.every((scale) => scale <= 1.01) && scales.some((scale) => scale < 0.9), JSON.stringify(scales));
   const [sequence] = graphs.sequence;
   check('the graphs of hold_service.py show one panel for each of its 5 diagrams, the map first, each with a lit part and a line under it that says where the path is ("in: Hold service"); two panels stand in a row at 1400 px and at 1060 px, large; the panel of a sequence chart is filled by the chart; opened from outside the line is "Home › the file"; a click on a panel of the map shows that diagram on Home with the same node lit',
     graphs.lines.length === 5 && graphs.lit.every((lit) => lit > 0) && /the map$/.test(graphs.lines[0]) && /the map$/.test(graphs.lines[1]) && /^Adds holds for books that are out change · branch/.test(graphs.lines[2])
@@ -521,7 +525,7 @@ try {
       presses: [...document.querySelectorAll('[data-write]')].map((a) => a.textContent),
       moves: [line, ...line.querySelectorAll('*:not(.spin)'), ...document.querySelectorAll('.nomap .dot')].filter((el) => getComputedStyle(el).animationName !== 'none').length,
       firstLine: document.querySelector('.nomap p')?.textContent, nodes: document.querySelectorAll('#view g.node.go').length, lines: document.querySelectorAll('.maprun').length,
-      underHead: !!document.querySelector('#summary .maprun'), bar: line.querySelector('.ovbar i')?.style.width ?? '',
+      underHead: !!document.querySelector('#summary .maprun'), bar: line.querySelector('.ovbar i')?.style.width ?? '', chart: !!document.querySelector('#view > .runchart'),
     };
   });
   await homeAt('?run=desktop');
@@ -542,28 +546,29 @@ try {
   await home.goto(`file://${listFile}?run=1`);
   await home.waitForFunction(() => window.apostilListDone, null, { timeout: 5000 });
   const homeRow = await home.$eval('.cl .home', (row) => ({ text: row.textContent, state: row.querySelector('.state')?.textContent }));
-  check('while a map run writes, Home says in one quiet line "Writing the map" with the turning mark and the bar of the run (the session and what is saved so far stand in the tooltip), and nothing else in it moves: on the map, for a session of the desktop app with "Open the session", which opens it in its app (a click asks VS Code to open it); for a session in a terminal with "Open the session", which opens a terminal that continues it; in a repo with no map, for the run of Home, under the head in place of the press, with no link to its chart, which the frame holds; after the run of Home ended, "Map run" at the right of the head opens the tab "Map run"; and the row "Home" of the list says "writing the map"',
-    ownRun?.text === 'Writing the map · Open the session' && ownRun.lines === 1 && ownRun.nodes === 8 && ownRun.moves === 0 && /^\d+%$/.test(ownRun.bar) && ownRun.presses.length === 0
+  check('while a map run writes, Home says in one quiet line "Mapping…" with the turning mark and the bar of the run (the session and what is saved so far stand in the tooltip), and nothing else in it moves: on the map, for a session of the desktop app with "Open the session", which opens it in its app (a click asks VS Code to open it), and its chart in the frame; for a session in a terminal with "Open the session", which opens a terminal that continues it; in a repo with no map, for the run of Home, under the head in place of the press, with no link to its chart, which the frame holds; after the run of Home ended, "Map run" at the right of the head opens the tab "Map run"; and the row "Home" of the list says "writing the map"',
+    ownRun?.text === 'Mapping… · Open the session' && ownRun.lines === 1 && ownRun.chart && ownRun.nodes === 0 && ownRun.moves === 0 && /^\d+%$/.test(ownRun.bar) && ownRun.presses.length === 0
       && ownRun.tip === `Claude Code session "Map of library-app" · ${SAVED}\nSession 1a2b3c4d-0000-4000-8000-00000000cafe\nAreas: Lending, Desk, Catalogue` && ownRun.opens === 'Opens the session in its app' && !!opened
-      && terminalRun?.text === 'Writing the map · Open the session' && terminalRun.opens === 'Opens a terminal of VS Code that continues the session'
-      && homeRun?.text === 'Writing the map' && homeRun.chartLink === 0 && ran.text === 'Map run' && ran.shown && ran.right < 150 && ran.sent && /one time axis/.test(ran.tip) && homeRun.underHead && homeRun.presses.length === 0 && homeRun.moves === 0 && !homeRun.opens
+      && terminalRun?.text === 'Mapping… · Open the session' && terminalRun.opens === 'Opens a terminal of VS Code that continues the session'
+      && homeRun?.text === 'Mapping…' && homeRun.chartLink === 0 && ran.text === 'Map run' && ran.shown && ran.right < 150 && ran.sent && /one time axis/.test(ran.tip) && homeRun.underHead && homeRun.presses.length === 0 && homeRun.moves === 0 && !homeRun.opens
       && homeRow.state === 'writing the map' && homeRow.text === 'Homelibrary-appwriting the map',
     JSON.stringify({ ownRun, opened, terminalRun, homeRun, ran, homeRow }));
 
-  // After a run that stopped: one line says so, with the press that starts again.
-  const STOPPED = `The map run of Claude Code session "Map of library-app" stopped after ${SAVED}`;
+  // After a run that stopped: one short line, "Map stopped · Continue", and the rest in its tooltip.
   await homeAt('?nomap=1&run=stopped');
   const stoppedNoMap = await runLine();
   await takePicture(home, '36-home-after-a-map-run-stopped.png');
   await homeAt('?run=stopped');
   const stoppedOnMap = await runLine();
-  await home.click('.maprun [data-write]', { timeout: 3000 }).catch(() => {});
-  const again = await home.evaluate(() => window.apostilSent.find((message) => message.type === 'writeMap'));
-  check('after a map run that stopped, Home says so in one line with the session and what was saved: in a repo with no map in place of its first line, above the press that maps the repo; on the map with one "Start again" for the app of the press (a click asks VS Code to start it)',
-    stoppedNoMap?.text === `${STOPPED} · Open the session` && stoppedNoMap.state === 'stopped' && stoppedNoMap.firstLine === stoppedNoMap.text && stoppedNoMap.lines === 1
+  stoppedOnMap.summary = await home.textContent('#summary');
+  await takePicture(home, '36-home-after-a-map-run-stopped-on-the-map.png');
+  await home.click('.maprun [data-continue-run]', { timeout: 3000 }).catch(() => {});
+  const goneOn = await home.evaluate(() => window.apostilSent.some((message) => message.type === 'continueMap'));
+  check('after a map run that stopped, Home says only "Map stopped · Continue", the session and what was saved in its tooltip: in a repo with no map in place of its first line, above the press that maps the repo; on the map alone in the line under the head, with no age of the map; a click on "Continue" asks VS Code to go on with it',
+    stoppedNoMap?.text === 'Map stopped · Continue' && stoppedNoMap.state === 'stopped' && stoppedNoMap.firstLine === stoppedNoMap.text && stoppedNoMap.lines === 1 && /^The map run of Claude Code session "Map of library-app" stopped after /.test(stoppedNoMap.tip)
       && stoppedNoMap.presses.join() === 'Map this repo'
-      && stoppedOnMap?.text === `${STOPPED} · Open the session · Start again · Another app` && stoppedOnMap.nodes === 8 && stoppedOnMap.lines === 1 && again?.app === 'claude-code',
-    JSON.stringify({ stoppedNoMap, stoppedOnMap, again }));
+      && stoppedOnMap?.text === 'Map stopped · Continue' && stoppedOnMap.summary === 'Map stopped · Continue' && stoppedOnMap.presses.length === 0 && stoppedOnMap.nodes === 8 && stoppedOnMap.lines === 1 && goneOn,
+    JSON.stringify({ stoppedNoMap, stoppedOnMap, goneOn }));
 
   // The tab "Map run", from the made-up map session of example-data.ts as the real reader reads it: 10 minutes in, and after the run ended.
   const chartNow = () => home.evaluate(() => {
@@ -598,6 +603,16 @@ try {
       && live.key === 'Lead thinks and writes, Lead runs a command, Diagrams, Notes, Processes, Services and marks, Lead alone'
       && writerWindow === 'Process: lending-0a1b2c Haiku 5.5 · Medium · running 8.4 min 200 tokens written so far' && keptOpen.open && keptOpen.drawn === 1 && drawnAfter === 2,
     JSON.stringify({ live, writerWindow, keptOpen, drawnAfter }));
+  const placed = await home.evaluate(() => {
+    const plot = document.querySelector('.mr-plot svg');
+    const frame = plot.getBoundingClientRect();
+    const at = (selector, edge = 'left') => (plot.querySelector(selector).getBoundingClientRect()[edge] - frame.left) / frame.width;
+    return { now: at('.mr-now'), word: at('.mr-nowword') < at('.mr-now') && at('.mr-nowword', 'right') > at('.mr-now'), ahead: at('.mr-ahead'), track: at('.mr-track', 'right'), bar: at('.mr-writer.runs .mr-bar', 'right'),
+      dot: (at('.mr-writer.runs circle') + at('.mr-writer.runs circle', 'right')) / 2, share: Home.data.now / (Home.data.now + Home.data.minutesLeft * 60_000) };
+  });
+  const near = (share) => Math.abs(share - placed.now) < 0.002;
+  check('in the tab "Map run" a chart that is drawn again has the now line with its word where the clock is, not at the start of the axis, and the striped minutes, the lead track, the running bar and its dot end or start there',
+    placed.now >= placed.share - 0.002 && placed.now < placed.share + 0.03 && placed.word && near(placed.ahead) && near(placed.track) && near(placed.bar) && near(placed.dot), JSON.stringify(placed));
   await homeAt('?chart=done');
   const doneChart = await chartNow();
   await takePicture(home, '94-the-chart-of-a-map-run-that-is-done.png');
@@ -652,7 +667,7 @@ try {
   const reading = await runState();
   await takePicture(home, '84-1-before-the-overview.png');
   check('before the overview of a run of Home is saved, the frame holds the live chart of the run (the lead row and the writers, no head of its own) in place of the wordmark, and the one card is the overview as a soft sketch that shimmers slowly; the line of the run stands under the head; no time and no bar show before the run has measured its pace',
-    reading.chart.thinks > 0 && reading.chart.writers === 4 && !reading.chart.head && !reading.sketch && !reading.wordmark && reading.time === '' && reading.line.startsWith('Writing the map')
+    reading.chart.thinks > 0 && reading.chart.writers === 4 && !reading.chart.head && !reading.sketch && !reading.wordmark && reading.time === '' && reading.line.startsWith('Mapping…')
       && !reading.bar && reading.cards.length === 1 && reading.cards[0].title === 'Overview' && reading.cards[0].sketch && reading.cards[0].state === 'working', JSON.stringify(reading));
 
   // While the areas load: the states of the nodes of the top map and of their cards, the bar and the time.
@@ -760,13 +775,52 @@ try {
   const hatchTop = await hatchState('#view');
   await homeAt('?diagram=processes:lib-top/routes');
   const hatchPage = await hatchState('#view');
-  await takePicture(home, '84-5-the-processes-of-a-node-with-no-diagram.png');
+  await takePicture(home, '84-6-the-processes-of-a-node-with-no-diagram.png');
   check('a node with no diagram of its own is striped with quiet words, and so is its card; a node with a diagram is not; the stripes move while writers work on it; its page of processes has a striped frame and says that it has no diagram yet; each bar shows its share in whole percent',
     hatchTop.routes === 'hatch' && hatchTop.lending === '' && hatchTop.quiet === 'rgb(107, 107, 107)' && /\bhatched\b/.test(hatchTop.routesCard) && !/moving/.test(hatchTop.routesCard) && !/hatched/.test(hatchTop.lendingCard + hatchTop.frame)
       && hatchRun.routes === 'hatch moving' && hatchRun.lending === '' && /\bhatched moving\b/.test(hatchRun.routesCard) && !/hatched/.test(hatchRun.lendingCard)
       && hatchRun.bars.length === 3 && hatchRun.bars.every(([width, number]) => width === number) && hatchRun.bars.map(([, number]) => number).sort().join() === '20%,35%,45%' && hatchTop.bars.length === 0
       && hatchPage.summary === 'Web routes has no diagram yet · the 2 processes that start in its files' && /\bhatched\b/.test(hatchPage.frame) && !/moving/.test(hatchPage.frame),
     JSON.stringify({ hatchTop, hatchRun, hatchPage }));
+
+  // Home's frame while it holds the chart, after the map stood in it: as high as a chart with 12 rows of writers, taller with each row up to 16, and a
+  // chart with more rows scrolls up and down inside it; a new chart from VS Code sets its height again; its bottom edge acts as on every frame.
+  await homeAt('');
+  await home.evaluate(() => { const example = window.APOSTIL_EXAMPLE; window.postMessage({ type: 'data', data: { ...Home.data, mapRun: example.mapRuns.areas, chart: example.charts.live } }, '*'); });
+  await home.waitForSelector('#view > .runchart .mr-writer', { timeout: 5000 }).catch(() => {});
+  await homeSettled();
+  const chartFrameNow = () => home.evaluate(() => {
+    const frame = document.getElementById('view');
+    const box = frame.querySelector('.runchart');
+    const edge = frame.querySelector(':scope > .ove')?.getBoundingClientRect();
+    return { frame: Math.round(frame.getBoundingClientRect().height), rows: Number(box?.querySelector('svg[data-rows]')?.dataset.rows), underKey: Math.round(frame.getBoundingClientRect().bottom - box?.querySelector('.mr-key').getBoundingClientRect().bottom),
+      upDown: box?.scrollHeight > box?.clientHeight, across: box?.scrollWidth > box?.clientWidth, edge: edge && { x: edge.left + edge.width / 2, y: edge.top + edge.height / 2 } };
+  });
+  const moreWriters = (count) => home.evaluate((added) => {
+    const chart = window.APOSTIL_EXAMPLE.charts.live;
+    const one = chart.writers[0];
+    window.postMessage({ type: 'chart', chart: { ...chart, writers: [...chart.writers, ...Array.from({ length: added }, (_, at) => ({ ...one, from: one.from + at * 1000, running: true }))] } }, '*');
+    return new Promise((done) => setTimeout(done, 300));
+  }, count);
+  const fitted = await chartFrameNow();
+  await moreWriters(10);
+  const grown = await chartFrameNow();
+  await moreWriters(20);
+  const crowded = await chartFrameNow();
+  await takePicture(home, '84-5-a-full-chart-scrolls-in-its-frame.png');
+  await home.mouse.move(crowded.edge.x, crowded.edge.y);
+  await home.mouse.down();
+  await home.mouse.move(crowded.edge.x, crowded.edge.y + 100, { steps: 5 });
+  await home.mouse.up();
+  await home.evaluate(() => Home.render());
+  await homeSettled();
+  const heldTaller = await chartFrameNow();
+  await home.mouse.dblclick(heldTaller.edge.x, heldTaller.edge.y);
+  const fitAgain = await chartFrameNow();
+  check('while Home\'s frame holds the chart, also after the map stood in it, it is as high as a chart with 12 rows of writers, with the room of the rows that are not there yet under the key; a new chart with 14 rows makes it two rows taller; one with more than 16 rows makes it as high as 16 rows and scrolls up and down inside it, never across; a drag on its bottom edge holds another height when Home draws again, and a double click gives that height back',
+    fitted.rows === 4 && Math.abs(fitted.underKey - (24 + 8 * 9)) <= 4 && !fitted.upDown && grown.rows === 14 && grown.frame === fitted.frame + 2 * 9 && !grown.upDown
+      && crowded.rows > 16 && crowded.frame === fitted.frame + 4 * 9 && crowded.upDown && !crowded.across && heldTaller.frame === crowded.frame + 100 && fitAgain.frame === crowded.frame,
+    JSON.stringify({ fitted, grown, crowded, heldTaller, fitAgain }));
 
   // Comments on the map of Home: a node and an arrow hold one, as on the change page; "@" offers only new sessions; a row of the list after a level down lights its node.
   await homeAt('');

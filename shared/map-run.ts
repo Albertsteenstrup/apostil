@@ -18,6 +18,7 @@ export interface MapRunParts {
   ofAreas?: number; // how many areas the top diagram has
   noteFiles?: number; // the files whose notes it saved
   processGroups?: string[]; // the groups whose processes it saved, as apostil process-groups names them
+  foldedInto?: string[]; // the processes that fold writers wrote again, with the processes that fold into them
   marks?: string[]; // the sets whose marks it saved: "services", and the sets of the look
 }
 
@@ -39,10 +40,10 @@ export interface MapRun {
 const MOST_SAVES = 600;
 
 /** The kind of a save in the list of times. */
-const kindOf = (save: MapSave): SaveKind => ('overview' in save ? 'o' : 'area' in save ? 'a' : 'noteFiles' in save ? 'n' : 'processGroup' in save ? 'p' : 'm');
+const kindOf = (save: MapSave): SaveKind => ('overview' in save ? 'o' : 'area' in save ? 'a' : 'noteFiles' in save ? 'n' : 'processGroup' in save ? 'p' : 'foldedInto' in save ? 'f' : 'm');
 
-/** One save of a writer, as the record keeps it: the overview, an area by its title, the notes of so many files, the processes of a group, or the marks of a set. */
-export type MapSave = { overview: true } | { area: string } | { noteFiles: number } | { processGroup: string } | { marks: string };
+/** One save of a writer, as the record keeps it: the overview, an area by its title, the notes of so many files, the processes of a group, a fold, or the marks of a set. */
+export type MapSave = { overview: true } | { area: string } | { noteFiles: number } | { processGroup: string } | { foldedInto: string[] } | { marks: string };
 
 /**
  * Where a run stands. "writing": it is open and saved something in the last 30 minutes. "stopped": it ended with work left, or it writes the whole
@@ -71,6 +72,7 @@ export function withSave(run: MapRun | undefined, save: MapSave, agent: AgentSes
   if ('area' in save) parts.areas = [...(parts.areas ?? []).filter((title) => title !== save.area), save.area];
   if ('noteFiles' in save) parts.noteFiles = (parts.noteFiles ?? 0) + save.noteFiles;
   if ('processGroup' in save) parts.processGroups = [...new Set([...(parts.processGroups ?? []), save.processGroup])];
+  if ('foldedInto' in save) parts.foldedInto = [...new Set([...(parts.foldedInto ?? []), ...save.foldedInto])];
   if ('marks' in save) parts.marks = [...new Set([...(parts.marks ?? []), save.marks])];
   const session = agent?.session ?? open?.agent?.session;
   const by = open?.home ? { app: open.agent?.app ?? agent?.app ?? '', ...(session ? { session } : {}) } : agent?.session ? agent : open?.agent ?? agent;
@@ -89,12 +91,12 @@ export type RunTime = Pick<TimeLeft, 'share'> & Partial<Pick<TimeLeft, 'minutes'
 /**
  * The time left of a run that writes the whole map and has a plan, at `now` (shared/map-estimate.ts); undefined for any other. The share comes from the
  * expected times from the start; the minutes only once its first notes are saved: before that the pace of the run is not measured, and a time from the
- * size of the repo alone is a guess.
+ * size of the repo alone is a guess. A plan with no notes to write counts the real groups of the map, so its minutes start at the first save of any writer.
  */
 export function runTimeLeft(run: MapRun, now = Date.now()): RunTime | undefined {
   if (!run.plan || !run.whole || run.endedAt) return undefined;
   const time = timeLeft(run.plan, run.saves ?? [], Date.parse(run.startedAt), now);
-  return run.saves?.some(([kind]) => kind === 'n') ? time : { share: time.share };
+  return run.saves?.some(([kind]) => kind === 'n' || !run.plan?.notes) ? time : { share: time.share };
 }
 
 /** The record of a run of Home with the session that the run reports on its output. Any other record stays as it is. */
@@ -156,26 +158,28 @@ function sessionWords(run: MapRun, name?: string): string {
   return called ? `${app} session ${called}` : `a ${app} session`;
 }
 
+/** A run by Claude Code with a known session, of Home or of his own session, whose transcripts the chart reads (shared/map-run-chart.ts). */
+export const hasChart = (run: MapRun): boolean => run.agent?.app === 'claude-code' && !!run.agent.session;
+
 /**
  * The line of Home for a record, or undefined when the run is done or there is none. `name` is the name of the session in its app; `alive` says that
  * this window started the run and its program still runs, so a long quiet time is no stop.
- * A session of the Claude desktop app or of Codex opens in its app. Any other session that is known opens in a terminal that continues it; a run of Home
- * only when it stopped, because it still works while it writes. A run of Home in a terminal that this window started shows that terminal while it writes.
+ * The words stay short, "Mapping…" or "Map stopped", and the tooltip says the rest; after a stop the line has only "Continue" (continueMap in
+ * view/home-page.ts). While it writes, a session of the Claude desktop app or of Codex opens in its app, any other known session in a terminal that
+ * continues it, and a run of Home in a terminal that this window started shows that terminal.
  */
-/** A run of Home by Claude Code with a known session, whose transcripts the chart reads (shared/map-run-chart.ts). */
-export const hasChart = (run: MapRun): boolean => !!run.home && run.agent?.app === 'claude-code' && !!run.agent.session;
-
 export function mapRunLine(run: MapRun | undefined, has: { name?: string; alive?: boolean; now?: number } = {}): MapRunLine | undefined {
   if (!run) return undefined;
   const state = mapRunState(run, has.now, has.alive);
   if (state === 'done') return undefined;
   const session = sessionWords(run, has.name);
   const saved = partsWords(run.parts);
-  const words = state === 'writing' ? 'Writing the map' : `The map run of ${session} stopped ${saved ? `after ${saved}` : 'with nothing saved'}`;
+  const words = state === 'writing' ? 'Mapping…' : 'Map stopped';
   const id = run.agent?.session;
-  const tip = [state === 'writing' ? `${session} · ${saved || 'nothing saved yet'}` : '', id ? `Session ${id}` : '', run.parts.areas?.length ? `Areas: ${run.parts.areas.join(', ')}` : ''].filter(Boolean).join('\n');
+  const said = state === 'writing' ? `${session} · ${saved || 'nothing saved yet'}` : `The map run of ${session} stopped ${saved ? `after ${saved}` : 'with nothing saved'}`;
+  const tip = [said, id ? `Session ${id}` : '', run.parts.areas?.length ? `Areas: ${run.parts.areas.join(', ')}` : ''].filter(Boolean).join('\n');
   const shown = run.terminal && has.alive && state === 'writing';
-  const opens = shown ? 'shown' : run.agent && (!run.home || state === 'stopped') && (!id || /^[\w-]+$/.test(id)) ? sessionOpens(run.agent) : undefined;
+  const opens = state !== 'writing' ? undefined : shown ? 'shown' : run.agent && !run.home && (!id || /^[\w-]+$/.test(id)) ? sessionOpens(run.agent) : undefined;
   const time = state === 'writing' ? runTimeLeft(run, has.now) : undefined;
   const chart = hasChart(run);
   return { state, words, ...(tip ? { tip } : {}), ...(opens ? { opens } : {}), ...(time ? { time } : {}), ...(chart ? { chart: true as const } : {}) };

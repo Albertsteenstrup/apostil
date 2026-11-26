@@ -8,7 +8,8 @@ import { thingsOf } from './diagram-code';
 import { diagramGraph } from './diagram-graph';
 import { fileText } from './git';
 import { linesNow, noteKey } from './notes-beside-code';
-import { isTestPath, parentsOf, parseKey, stepKey, type Process } from './processes';
+import { parentsWithCalls } from './process-diagrams';
+import { isTestPath, parseKey, stepKey, type Process } from './processes';
 import { FILE_NOTES_PART, noteCount, notedFileCount } from './repo-map';
 import type { StoredMap } from './store';
 
@@ -100,20 +101,21 @@ export function notesText(folder: string, stored: StoredMap, paths: string[]): s
 // ----- a process and a diagram -----
 
 /**
- * What `apostil process <id> --text` prints: its title and what it does, a line for each step at its lines now ("<path>:<from>-<to>  <title>"; a step
- * inside another step stands two spaces further in), then its handoffs. Undefined when the map has no such process.
+ * What `apostil process <id> --text` prints: its title and what it does, a line for each step at its lines now ("<path>:<from>-<to>  <title>"), each
+ * step after the step that it lies under as the drawings nest it, two spaces further in, then its handoffs. Undefined when the map has no such process.
  */
 export function processText(folder: string, stored: StoredMap, id: string): string | undefined {
   const process = (stored.map.processes ?? []).find((one) => one.id === id);
   if (!process) return undefined;
   const notes = notesAt(folder, stored, process.steps.map((key) => parseKey(key)?.file ?? ''));
-  const parents = parentsOf(process.steps);
-  const depth = (key: string): number => { const outer = parents.get(key); return outer ? 1 + depth(outer) : 0; };
-  const steps = process.steps.map((key) => {
+  const parents = parentsWithCalls(process, process.steps);
+  const lineOf = (key: string): string => {
     const here = notes.get(key);
-    const line = here ? [`${placeOf(here, true)}  ${here.note.title}`, here.changed ? CHANGED : ''].filter(Boolean).join('  ') : `${key}  (its note is gone from the map)`;
-    return `${'  '.repeat(depth(key))}${line}`;
-  });
+    return here ? [`${placeOf(here, true)}  ${here.note.title}`, here.changed ? CHANGED : ''].filter(Boolean).join('  ') : `${key}  (its note is gone from the map)`;
+  };
+  const under = (outer: string | undefined, depth: number): string[] => [...new Set(process.steps)].filter((key) => parents.get(key) === outer)
+    .flatMap((key) => [`${'  '.repeat(depth)}${lineOf(key)}`, ...under(key, depth + 1)]);
+  const steps = under(undefined, 0);
   const handoffs = (stored.map.handoffs ?? []).filter((one) => one.from === id || one.to === id)
     .map((one) => `${one.from} -> ${one.to}: ${one.label ?? one.name}  (${one.name}, ${one.fromLine.file}:${one.fromLine.line} -> ${one.toLine.file}:${one.toLine.line})`);
   return [`process ${process.id}  ${process.title}`, process.summary, `${count(steps.length, 'step')}:`, ...steps, ...(handoffs.length ? ['Handoffs:', ...handoffs] : [])].join('\n');

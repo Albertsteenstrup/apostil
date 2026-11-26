@@ -89,29 +89,35 @@ try {
     };
     const view = document.getElementById('view').getBoundingClientRect();
     const working = markOf(partOf(3));
+    const answered = markOf(partOf(4));
+    const count = document.querySelector('.cmc');
     return {
       viewRight: Math.round(view.right), width: innerWidth,
       circles: document.querySelectorAll('.rk').length,
       // 1 a note to no agent, 2 sent and waiting, 3 working, 4 answered, 5 resolved
-      states: [1, 2, 3, 4, 5].map(stateOf), still: working && getComputedStyle(working, '::after').animationName,
+      states: [1, 2, 3, 4, 5].map(stateOf), blink: working && getComputedStyle(working, '::after').animationName,
+      answeredDot: getComputedStyle(answered, '::after').content !== 'none' && getComputedStyle(answered, '::after').animationName,
+      count: count && { working: count.classList.contains('working'), blink: getComputedStyle(count.querySelector('.cmd')).animationName },
       answeredFill: getComputedStyle(markOf(partOf(4)).querySelector('path')).fill, tealsoft: getComputedStyle(document.body).getPropertyValue('--tealsoft').trim(),
     };
   }, changeSection);
-  // Two open threads on one thing share one bubble with a count.
+  // Two open threads on one thing share one bubble with a count; a newer note beside a thread whose run works leaves the bubble working.
   await drawn(() => page.evaluate(() => {
-    App.page.remarks.push({ id: 90, changeId: 0, target: App.page.remarks.find((remark) => remark.id === 2).target, text: 'A second thread here.', createdAt: new Date().toISOString(), state: 'open' });
+    const at = (id) => App.page.remarks.find((remark) => remark.id === id).target;
+    App.page.remarks.push({ id: 90, changeId: 0, target: at(2), text: 'A second thread here.', createdAt: new Date().toISOString(), state: 'open' });
+    App.page.remarks.push({ id: 91, changeId: 0, target: at(3), text: 'A note beside the run.', createdAt: new Date().toISOString(), state: 'open' });
     App.render();
   }));
   const shared = await page.evaluate((section) => {
-    const target = App.page.remarks.find((remark) => remark.id === 2).target.part;
-    const all = document.querySelectorAll(`${section} b[data-part="${target}"] .cb`);
-    return { bubbles: all.length, count: all[0]?.querySelector('.n')?.textContent, threads: all[0]?.dataset.threads };
+    const bubblesOf = (id) => document.querySelectorAll(`${section} b[data-part="${App.page.remarks.find((remark) => remark.id === id).target.part}"] .cb`);
+    const all = bubblesOf(2);
+    return { bubbles: all.length, count: all[0]?.querySelector('.n')?.textContent, threads: all[0]?.dataset.threads, besideRun: bubblesOf(3)[0]?.classList.contains('working') };
   }, changeSection);
-  await drawn(() => page.evaluate(() => { App.page.remarks = App.page.remarks.filter((remark) => remark.id !== 90); App.render(); }));
-  check('the page takes the full width; each part with an open thread has a chat bubble with the icon of its agent in place of the circle: empty for a note, the icon faint while it waits, a still teal dot while it works, tinted when answered; a resolved thread has no mark, and two threads on one thing share one bubble with a count',
+  await drawn(() => page.evaluate(() => { App.page.remarks = App.page.remarks.filter((remark) => ![90, 91].includes(remark.id)); App.render(); }));
+  check('the page takes the full width; each part with an open thread has a chat bubble with the icon of its agent in place of the circle: empty for a note, the icon faint while it waits, a teal dot that blinks while it works, tinted with a still dot when answered; the count in the top bar blinks too; a resolved thread has no mark, and two threads on one thing share one bubble with a count, working while one of them works',
     marks.viewRight > marks.width - 40 && marks.circles === 0
       && JSON.stringify(marks.states) === JSON.stringify(['note', 'waiting agents/claude-code.svg', 'working agents/claude-code.svg', 'answered agents/claude-code.svg', 'none'])
-      && marks.still === 'none' && marks.answeredFill !== 'rgb(255, 255, 255)' && !!marks.tealsoft && shared.bubbles === 1 && shared.count === '2' && shared.threads === '2 90',
+      && marks.blink === 'pulse' && marks.answeredDot === 'none' && marks.count?.working && marks.count.blink === 'pulse' && shared.besideRun && marks.answeredFill !== 'rgb(255, 255, 255)' && !!marks.tealsoft && shared.bubbles === 1 && shared.count === '2' && shared.threads === '2 90',
     JSON.stringify({ marks, shared }));
 
   // The marks in the dark theme, for a person to look at.
@@ -181,13 +187,17 @@ try {
   await keyOn(service);
   const fresh = { where: await cardWhere(), threads: await page.$$eval(`${theCard} .cth`, (all) => all.length), cursor: await page.evaluate(() => getComputedStyle(document.querySelector('#view')).cursor) };
   fresh.beside = apart(await box(theCard), await page.$eval(service, (el) => el.closest('g.node, g.cluster').getBoundingClientRect().toJSON()));
-  await page.click(`${theCard} .pick`);
-  const menu = await page.$$eval(`${theCard} .pmenu > *`, (rows) => rows.map((row) => row.innerText.replace(/\s+/g, ' ').replace(/used \d+ min ago/, 'used n min ago').trim()).filter(Boolean)); // the example data is written a few minutes before
-  await shot('11-picker-of-a-new-comment');
+  const menuRows = () => page.$$eval(`${theCard} .pmenu > *`, (rows) => rows.map((row) => row.innerText.replace(/\s+/g, ' ').replace(/used \d+ min ago/, 'used n min ago').trim()).filter(Boolean)); // the example data is written a few minutes before
+  await page.click(`${theCard} [data-pick="app"]`);
+  const menu = { apps: await menuRows() };
+  await shot('11-picker-of-a-new-comment-the-app');
+  await page.click(`${theCard} [data-pick="session"]`);
+  menu.sessions = await menuRows();
+  await shot('11-picker-of-a-new-comment-the-session');
   // A click elsewhere closes the menu and does nothing else: the card stays; the menu opens again for the choice below.
   await page.mouse.click(5, 300);
   const menuGone = { menus: await page.$$eval(`${theCard} .pmenu`, (all) => all.length), cards: await page.$$eval(theCard, (all) => all.length) };
-  await page.click(`${theCard} .pick`);
+  await page.click(`${theCard} [data-pick="session"]`);
   await page.click(`${theCard} .pi[data-choice="claude-code:session:made-up-session-0002"]`, { timeout: 3000 }).catch(() => {}); // a missing choice fails the check below, not the run
   const pickedWords = await page.textContent(`${theCard} .pick`);
   await page.keyboard.type('Why is the pickup day set before the mail is sent?');
@@ -198,9 +208,10 @@ try {
   await closeCard();
   check('a click outside the open menu of the picker closes it and does nothing else: the card stays open',
     menuGone.menus === 0 && menuGone.cards === 1, JSON.stringify(menuGone));
-  check('a new comment opens the same card, empty, beside its thing, with the cursor in its box; the picker lists each connected app with this session, a known session of the repo and a new session, each with the model and effort of its run, then "No agent"; the choice sends it there with the effort and no model, and the card stays open on its thread with no flight while the mark and the count show',
+  check('a new comment opens the same card, empty, beside its thing, with the cursor in its box; the app of the picker lists the connected apps, then "No agent"; its session lists this session, a new session, the newest 5 known sessions of the folder and "Show 2 more"; the choice sends it there with the effort and no model, and the card stays open on its thread with no flight while the mark and the count show',
     fresh.where === 'Part "Hold service"' && fresh.threads === 0 && !/url/.test(fresh.cursor) && fresh.beside
-      && JSON.stringify(menu) === JSON.stringify(['Claude Code', 'This session made this change · Opus 5.5 · Extra', 'Tests for holds used n min ago · Sonnet 5.5 · Medium', 'New session Sonnet 5.5 · Medium', 'Codex', 'New session Luna 6 · High', 'OpenCode', "New session OpenCode's own model", 'No agent: keep it as a note'])
+      && JSON.stringify(menu) === JSON.stringify({ apps: ['Claude Code', 'Codex', 'OpenCode', 'No agent: keep it as a note'], sessions: ['This session made this change', 'New session', 'Tests for holds used n min ago',
+        'Move the pickup day after the mail is sent and check the notices of the ready shelf used n min ago', 'Review the member page used 2 hours ago', 'Split the hold service used 4 hours ago', 'Night jobs at the right hour used 5 hours ago', 'Show 2 more'] })
       && pickedWords.trim() === 'Send to Claude Code · "Tests for holds"' && JSON.stringify(toSession?.to) === JSON.stringify({ app: 'claude-code', kind: 'session', session: 'made-up-session-0002', name: 'Tests for holds', effort: 'medium' })
       && toSession.target.part === 'hold-service' && JSON.stringify(afterSend.messages) === JSON.stringify(['mine:right:::tip']) && afterSend.state === 'waiting for Claude Code · "Tests for holds" · Start a run · Sonnet 5.5 · Medium' && afterSend.animations === 0
       && /\bwaiting\b/.test(afterSend.mark) && afterSend.count === '1' && noCountEmpty,
@@ -208,12 +219,39 @@ try {
   await page.evaluate(() => { App.page.remarks = []; App.render(); });
   await settle();
 
-  // ----- the model and the effort of a run: one quiet line under the picker, and its small menu -----
+  // ----- the picker: the app and the session, each with its small menu -----
   const runLine = () => page.textContent(`${theCard} .prun .rp`).then((text) => text.trim()).catch(() => '');
   const runMenu = () => page.$$eval(`${theCard} .rmenu :is(.ph, .pi, .chip)`, (rows) => rows.map((row) => `${row.textContent.trim()}${row.classList.contains('on') ? ' ✓' : ''}`).filter(Boolean)).catch(() => []);
   const choose = async (selector) => { await page.click(`${theCard} ${selector}`, { timeout: 3000 }).catch(() => {}); };
   await keyOn(service);
-  await choose('.pick');
+  await choose('[data-pick="session"]');
+  const parts = {};
+  const longRow = `${theCard} .pi[data-choice="claude-code:session:made-up-session-0100"]`;
+  parts.cut = await page.$eval(`${longRow} span`, (el) => el.scrollWidth > el.clientWidth).catch(() => false);
+  await page.hover(longRow).catch(() => {});
+  await page.waitForSelector('body > .win', { timeout: 3000 }).catch(() => {});
+  parts.hover = await page.$eval('body > .win', (win) => win.innerText.replace(/\s+/g, ' ').trim()).catch(() => '');
+  await page.mouse.move(5, 5);
+  await choose('[data-more-sessions]');
+  parts.all = await page.$$eval(`${theCard} .pmenu .pi[data-choice*=":session:"]`, (all) => all.length);
+  await choose('[data-pick="app"]');
+  parts.appMenu = await page.$$eval(`${theCard} .pmenu .pi`, (rows) => rows.map((row) => `${row.textContent.trim()}${row.classList.contains('on') ? ' ✓' : ''}`));
+  await choose('[data-menu-app="codex"]');
+  parts.codex = { menus: await page.$$eval(`${theCard} .pmenu:not(.rmenu)`, (all) => all.length), picker: (await page.textContent(`${theCard} .pick`)).trim(), run: await runLine() };
+  await choose('[data-pick="session"]');
+  parts.codex.sessions = await page.$$eval(`${theCard} .pmenu .pi`, (rows) => rows.map((row) => row.textContent.trim()));
+  await choose('[data-pick="app"]');
+  await choose('[data-menu-app="claude-code"]'); // the next card starts at Claude Code again
+  await closeCard();
+  check('the picker has two parts: a click on the app lists the connected apps, and one picks that app alone (a new session when it has no session of the change) and closes the menu; a click on the session lists its sessions: a long name is cut, the pointer on it shows the whole name, its folder and when it was last active, and "Show 2 more" shows all its sessions',
+    parts.cut && /^Move the pickup day after the mail is sent and check the notices of the ready shelf .+ Last active \d/.test(parts.hover) && parts.all === 7
+      && JSON.stringify(parts.appMenu) === JSON.stringify(['Claude Code ✓', 'Codex', 'OpenCode', 'No agent: keep it as a note'])
+      && parts.codex.menus === 0 && parts.codex.picker === 'Send to Codex · new session' && parts.codex.run === 'Luna 6 · High' && JSON.stringify(parts.codex.sessions) === JSON.stringify(['New session ✓'.replace(' ✓', '')]),
+    JSON.stringify(parts));
+
+  // ----- the model and the effort of a run: one quiet line under the picker, and its small menu -----
+  await keyOn(service);
+  await choose('[data-pick="session"]');
   await choose('.pi[data-choice="claude-code:new"]');
   const model = { fresh: await runLine() };
   await choose('.prun [data-rp-open]');
@@ -233,8 +271,8 @@ try {
   await closeCard();
   // Codex: Luna takes no Ultra, Sol takes it; a model with no Ultra takes the nearest lower effort.
   await keyOn(service);
-  await choose('.pick');
-  await choose('.pi[data-choice="codex:new"]');
+  await choose('[data-pick="app"]');
+  await choose('[data-menu-app="codex"]');
   await choose('.prun [data-rp-open]');
   model.luna = (await runMenu()).filter((row) => /^(Low|Medium|High|Extra high|Max|Ultra)/.test(row));
   await shot('81-the-menu-of-the-model-of-codex');
@@ -572,7 +610,7 @@ try {
   };
   // Sends the comment as a note, so that nothing waits on an agent, and closes its card.
   const saveBox = async (text) => {
-    await page.click(`${theCard} .pick`);
+    await page.click(`${theCard} [data-pick="app"]`);
     await page.click(`${theCard} .pi[data-choice="none"]`);
     await page.keyboard.type(text);
     await page.keyboard.press('Enter');

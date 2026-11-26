@@ -2,7 +2,7 @@
 // VS Code and the example script both use these functions, so the page sees the same data in both.
 
 import { basename, dirname } from 'node:path';
-import { opencodeSmallModel, resumeCommand, sessionLink, sessionName, type AgentSession, type RunModels } from './agents';
+import { claudeSessionsIn, opencodeSmallModel, resumeCommand, sessionLink, sessionName, type AgentSession, type RunModels } from './agents';
 import { menuOf, sessionPick, type ModelMenu, type RunPick } from './models';
 import type { ChangeFile, Diagram, Link, Note } from './change-file';
 import { cellsIn, checkChangeFile, fileChange } from './checks';
@@ -131,8 +131,8 @@ export interface PageData {
 
 /** What the picker of where a comment goes offers, besides the connected apps. */
 export interface SendTo {
-  // the other sessions that Apostil knows in the repo and that a run can continue in its folder, newest first, each with the model and effort it last used
-  sessions: { app: string; session: string; name?: string; at: string; run?: RunPick }[];
+  // the other sessions in the folder that a run can continue (known to Apostil, or of Claude Code from its transcripts), newest first, each with the model and effort it last used
+  sessions: { app: string; session: string; name?: string; at: string; folder: string; run?: RunPick }[];
   models: Record<string, ModelMenu>; // by app: its newest models (shared/models.ts) and the choice of a new session (freshPick; the small model of OpenCode)
   own?: RunPick; // the model and effort that the session of the change last used
   last?: RemarkTo | null; // where the newest comment of the repo went (null: to no agent); missing when the repo has none
@@ -147,24 +147,29 @@ export const menusOf = (apps: string[], models: RunModels, folder: string): Reco
   return Object.fromEntries(apps.filter((app) => app in settings).map((app) => [app, menuOf(app, settings[app])]));
 };
 
+const SESSIONS_MOST = 15; // the sessions of one app that the picker can show: the newest 5, the rest after "Show more"
+
 /**
  * The sessions, models and last choice of the picker of a change: only connected apps, and sessions other than the session of the change. Each session
  * has what it last used, from its own record; a new session the setting, else the lead of a map run (freshPick).
  */
 export function sendToOf(store: Store, repo: string, folder: string, apps: string[], models: RunModels, own?: AgentSession): SendTo {
-  const newest = new Map<string, SendTo['sessions'][number]>();
-  for (const one of store.knownSessions(repo, folder)) {
+  // The sessions that Apostil knows, and the newest of Claude Code in the folder from its own transcripts; one of each, with the newest time of the two.
+  const ofClaude = apps.includes('claude-code') ? claudeSessionsIn(folder, SESSIONS_MOST).map(({ session, at }) => ({ agent: { app: 'claude-code', session }, at, folder })) : [];
+  const seen = new Map<string, { agent: AgentSession; at: string }>();
+  for (const one of [...store.knownSessions(repo, folder), ...ofClaude]) {
     const { app, session } = one.agent;
     if (!session || session === own?.session || !apps.includes(app) || (one.folder ?? folder) !== folder || !resumeCommand(one.agent, '')) continue;
-    const key = `${app}:${session}`;
-    if ((newest.get(key)?.at ?? '') >= one.at) continue;
-    const name = sessionName(one.agent) ?? one.agent.name;
-    newest.set(key, { app, session, ...(name ? { name } : {}), at: one.at });
+    const old = seen.get(`${app}:${session}`);
+    seen.set(`${app}:${session}`, { agent: { ...one.agent, ...old?.agent }, at: old && old.at > one.at ? old.at : one.at });
   }
   const settings = settingsOf(models, folder);
-  const newestFirst = [...newest.values()].sort((a, b) => b.at.localeCompare(a.at));
-  const sessions = newestFirst.filter((one) => newestFirst.filter((other) => other.app === one.app).indexOf(one) < 3) // a picker shows at most 3 of each app
-    .map((one) => ({ ...one, run: sessionPick(one.app, one.session, settings[one.app]) }));
+  const newestFirst = [...seen.values()].sort((a, b) => b.at.localeCompare(a.at));
+  const sessions = newestFirst.filter((one) => newestFirst.filter((other) => other.agent.app === one.agent.app).indexOf(one) < SESSIONS_MOST)
+    .map(({ agent, at }) => {
+      const name = sessionName(agent) ?? agent.name;
+      return { app: agent.app, session: agent.session!, ...(name ? { name } : {}), at, folder, run: sessionPick(agent.app, agent.session!, settings[agent.app]) };
+    });
   const last = store.lastRemarkTo(repo);
   return {
     sessions,

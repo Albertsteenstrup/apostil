@@ -1,4 +1,4 @@
-// Tests for the processes of a map: add-processes and its check, the notes that a writer corrects, processes, process-groups, and the drawings on Home and the graphs page.
+// Tests for the processes of a map: add-processes and its check, the notes that a writer corrects, the folds, processes, process-groups, and the drawings on Home and the graphs page.
 
 import assert from 'node:assert/strict';
 import { existsSync, writeFileSync } from 'node:fs';
@@ -6,9 +6,9 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import type { Note } from '../shared/change-file';
 import { repoId } from '../shared/git';
-import { noteGroups, processGroups, readyProcessGroups } from '../shared/note-groups';
+import { groupProcessFacts, noteGroups, processGroups, readyProcessGroups } from '../shared/note-groups';
 import { placeDrawing, processDrawings } from '../shared/process-diagrams';
-import { isTestPath, parseKey, processFacts, stepKey } from '../shared/processes';
+import { isTestPath, parseKey, processFacts, processFolds, stepKey, type Process } from '../shared/processes';
 import { diagramsOf, type RepoMap } from '../shared/repo-map';
 import { Store } from '../shared/store';
 import { makeTestRepo, runApostil, tempFolder } from '../shared/test-repo';
@@ -207,7 +207,7 @@ test('apostil processes counts the notes in no process, leaves out test files, a
   const facts = processFacts(map());
   assert.deepEqual({ ...facts, hint: undefined }, {
     processes: 1, steps: 9, setAside: 0, notes: 10, hint: undefined,
-    notInProcess: { count: 1, files: [{ file: 'src/report.py', count: 1, notes: ['src/report.py:1-3'] }] }, stale: [],
+    notInProcess: { count: 1, files: [{ file: 'src/report.py', count: 1, notes: ['src/report.py:1-3'] }] }, stale: [], fold: [],
   });
   assert.match(facts.hint ?? '', /^1 note is in no process\. Run apostil process-groups/);
   // The notes writer writes store.py again with other lines: the process names a note that is gone.
@@ -216,6 +216,61 @@ test('apostil processes counts the notes in no process, leaves out test files, a
   assert.deepEqual(stale.stale, [{ id: 'run-rows', group: 'rows', gone: 1 }]);
   assert.equal(stale.notInProcess.count, 2);
   assert.match(stale.hint ?? '', /2 notes are in no process, and 1 process is stale/);
+  done();
+});
+
+test('a process folds into another when it starts at a later step of it, lies 80% inside a bigger one, or is the same job of another group; into is the end of a chain, and a loop ends at its largest', () => {
+  const process = (id: string, group: string, steps: string): Process => ({ id, group, title: 'Do it', summary: 'Does it.', steps: steps.split(' ').map((at) => `a.py:${at}-${at}`) });
+  const folds = (...processes: Process[]) => processFolds(processes).map((one) => `${one.process}>${one.into} ${one.why}`);
+  // The helper starts at the third step of the job, the largest that holds that step later.
+  assert.deepEqual(folds(process('job', 'g', '1 2 3 4'), process('short', 'g', '9 3'), process('helper', 'h', '3 5')), ['helper>job starts inside']);
+  // 4 of 5 steps lie in a bigger process; 3 of 5 do not.
+  assert.deepEqual(folds(process('big', 'g', '1 2 3 4 5 6'), process('most', 'g', '9 2 3 4 5')), ['most>big mostly inside']);
+  assert.deepEqual(folds(process('big', 'g', '1 2 3 4 5 6'), process('some', 'g', '9 8 3 4 5')), []);
+  // 3 shared of the 5 steps of the two: the same job when another group wrote it, and on the same size the first folds the second.
+  assert.deepEqual(folds(process('first', 'g', '1 2 3 4'), process('second', 'h', '1 2 3 5')), ['second>first same job']);
+  assert.deepEqual(folds(process('first', 'g', '1 2 3 4'), process('second', 'g', '1 2 3 5')), []);
+  // A chain ends at a process that folds nowhere, and the end of a loop is its largest process.
+  assert.deepEqual(folds(process('top', 'g', '1 2'), process('middle', 'g', '2 3'), process('low', 'g', '3 4')), ['middle>top starts inside', 'low>top starts inside']);
+  assert.deepEqual(folds(process('small', 'g', '1 2'), process('large', 'g', '2 3 1')), ['small>large starts inside']);
+});
+
+test('a fold writer saves a process with the steps of a process that folds into it, which leaves the map with its handoffs moved; a wrong id or a note left in no process saves nothing', () => {
+  const { repo, store, map, done } = setup();
+  const code = processGroups(map(), true).groups[0].name; // the one group of process-groups: the files of src/
+  const run = runRows();
+  const toSave = (arrow: { name?: string }) => arrow.name !== 'write_row';
+  // The writer of "rows" stops at save(); the writer of "store" starts a process at save(), which run-rows calls.
+  const short = { ...run, steps: run.steps.filter((key) => !key.startsWith('src/store.py')), arrows: run.arrows.filter(toSave), outside: [] };
+  const saveRow = { id: 'save-row', title: 'Save one row', summary: 'Prints a row and writes it.', steps: [k('run.py', 15, 17), k('store.py', 4, 6)], arrows: run.arrows.filter((arrow) => !toSave(arrow)), outside: run.outside };
+  const callSave = { from: 'run-rows', to: 'save-row', label: 'save a row', name: 'save', fromLine: { file: 'src/run.py', line: 6 }, toLine: { file: 'src/run.py', line: 15 } };
+  const rowsToReport = { from: 'save-row', to: 'report-file', label: 'the rows', name: 'row', fromLine: { file: 'src/store.py', line: 5 }, toLine: { file: 'src/report.py', line: 2 } };
+  for (const draft of [{ group: 'rows', processes: [short] }, { group: code, processes: [saveRow], handoffs: [callSave] }, { group: 'report', processes: [reportFile()], handoffs: [rowsToReport] }]) {
+    assert.equal(addProcessesToMap(store, repo.folder, draft).saved, true);
+  }
+  const fold = [{ process: 'save-row', into: 'run-rows', why: 'starts inside' }];
+  const facts = processFacts(map());
+  assert.deepEqual(facts.fold, fold);
+  assert.match(facts.hint ?? '', /1 process can fold into another process\. Start one fold writer for each "into" of "fold"/);
+  assert.deepEqual(groupProcessFacts(map(), code)?.fold, fold);
+
+  const refused = (draft: object): string => {
+    const result = addProcessesToMap(store, repo.folder, draft);
+    assert.equal(result.saved, false);
+    assert.deepEqual(map().processes?.map((one) => one.id), ['run-rows', 'save-row', 'report-file']);
+    return result.problems.join(' | ');
+  };
+  assert.match(refused({ group: 'rows', add: true, processes: [run], fold: ['report-file'] }), /The fold of "report-file": apostil processes lists no fold of this process/);
+  assert.match(refused({ group: 'report', add: true, processes: [reportFile()], fold: ['save-row'] }), /The fold of "save-row": it folds into "run-rows", which is no process of this save/);
+  assert.match(refused({ group: 'rows', add: true, processes: [short], fold: ['save-row'] }), /The fold of "save-row": its steps src\/store\.py:4-6 are in no process now/);
+
+  const folded = addProcessesToMap(store, repo.folder, { group: 'rows', add: true, processes: [run], fold: ['save-row'] });
+  assert.equal(folded.saved, true, folded.problems.join(' | '));
+  assert.deepEqual(folded.folded, ['save-row']);
+  assert.deepEqual(map().processes?.map((one) => one.id), ['report-file', 'run-rows']);
+  // The handoff out of save-row now starts at run-rows; the one from run-rows into save-row would go from run-rows to itself, and goes.
+  assert.deepEqual(map().handoffs?.map((one) => `${one.from}>${one.to}`), ['run-rows>report-file']);
+  assert.deepEqual(processFacts(map()).fold, []);
   done();
 });
 
@@ -298,27 +353,27 @@ test('the drawings: a process by its top steps in a box for each file, a step op
   assert.equal(home.map!.diagrams.find((one) => one.id === 'processes:top/code')?.title, 'Processes of Code');
   // diagramsOf gives the processes with steps in a file as a level after the map, and the graphs page shows them as panels that open Home.
   const found = diagramsOf(store, repo.folder, 'src/store.py');
-  assert.deepEqual(found.map((one) => [one.level, one.diagram?.id, one.lit.join()]), [['map', 'top', 'code'], ['process', 'process:run-rows', 's8']]);
+  assert.deepEqual(found.map((one) => [one.level, one.diagram?.id, one.lit.join()]), [['map', 'top', 'code'], ['process', 'process:run-rows', 's7']]);
   const panel = graphsData(store, repo.folder, 'src/store.py').panels[1];
   assert.deepEqual({ level: panel.level, from: panel.from, where: panel.where, open: panel.open }, {
-    level: 'process', from: 'process', where: 'in: Write one row', open: { tab: 'home', diagram: 'process:run-rows', lit: ['s8'], name: 'Run the rows of a file' },
+    level: 'process', from: 'process', where: 'in: Print and write', open: { tab: 'home', diagram: 'process:run-rows', lit: ['s7'], name: 'Run the rows of a file' },
   });
 
   const [top, ...opened] = processDrawings(map(), map().processes!.find((one) => one.id === 'run-rows')!);
   assert.equal(top.id, 'process:run-rows');
   assert.equal(top.title, 'Run the rows of a file');
-  // The top steps are main, load, save and write_row, in one box for each file, with the arrows of the writer and the call out of the repo as a quiet round box.
-  assert.deepEqual(Object.keys(top.nodes).sort(), ['o0', 's0', 's6', 's7', 's8']);
+  // The top steps are main, load and save, which holds write_row of another file that it calls, with the arrows of the writer and the call out of the repo as a quiet round box.
+  assert.deepEqual(Object.keys(top.nodes).sort(), ['o0', 's0', 's6', 's7']);
   assert.match(top.mermaid, /subgraph f0\["src\/run\.py"\]/);
   assert.match(top.mermaid, /s0\["Run the rows<br><i class='ns'>5 steps<\/i>"\]/);
   assert.match(top.mermaid, /s0 -->\|"<span class='eo'>1<\/span> read the file"\| s6/); // s0 calls twice: its arrows are numbered by their lines
-  assert.match(top.mermaid, /s8 -->\|"encode"\| o0/);
+  assert.match(top.mermaid, /s7 -->\|"encode"\| o0/);
   assert.match(top.mermaid, /class o0 elsewhere/);
   assert.deepEqual(top.nodes.s0, { kind: 'step', files: ['src/run.py'], at: [{ file: 'src/run.py', from: 1, to: 7 }], note: { title: 'Run the rows', text: 'Does the work of this step.', where: 'run.py · lines 1-7' }, down: 'process:run-rows/0', steps: 5 });
   assert.equal(top.nodes.s6.line, 10); // a step with no inner steps opens its file at its first line
   // The lines where the call out of the repo and the arrows start, so that a mark at such a line stands on its box and its arrow.
   assert.deepEqual([top.nodes.o0.kind, top.nodes.o0.calls], ['call', [{ file: 'src/store.py', line: 5 }]]);
-  assert.deepEqual(top.edgeLines?.['s8>o0'], [{ file: 'src/store.py', line: 5 }]);
+  assert.deepEqual(top.edgeLines?.['s7>o0'], [{ file: 'src/store.py', line: 5 }]);
   assert.deepEqual(top.edgeLines?.['s0>s6'], [{ file: 'src/run.py', line: 2 }]);
   // main opened: its inner steps in the order of the list; the call to load goes to a quiet box of the step elsewhere.
   const main = opened.find((one) => one.id === 'process:run-rows/0')!;

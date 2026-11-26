@@ -6,10 +6,10 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { headCommit, repoId } from '../shared/git';
 import { findInMap, notesNow } from '../shared/map-read';
-import { areaWork, homeRun, mapRunLine, mapRunState, QUIET_MS, withEnd, withSave, type MapRun } from '../shared/map-run';
+import { areaWork, homeRun, mapRunLine, mapRunState, QUIET_MS, runTimeLeft, withEnd, withSave, type MapRun } from '../shared/map-run';
 import { timeLeft, type MapPlan } from '../shared/map-estimate';
 import { markGroups } from '../shared/marks';
-import { noteGroups } from '../shared/note-groups';
+import { noteGroups, processGroups } from '../shared/note-groups';
 import { processFacts } from '../shared/processes';
 import { Store } from '../shared/store';
 import { makeTestRepo, tempFolder } from '../shared/test-repo';
@@ -69,6 +69,43 @@ test('the first save of a writer opens the record with the session from the envi
   repo.remove();
 });
 
+test('a run that saved processes ends only after its fold writers saved, a fold save adds to the same record, and the plan counts a fold writer for each process group', () => {
+  const store = new Store(tempFolder('apostil-home-'));
+  const repo = makeTestRepo();
+  repo.write('src/app.py', 'def start():\n    return stop()\n\n\ndef stop():\n    return 0\n');
+  repo.commit('start calls stop');
+  const id = repoId(repo.folder);
+  const drafts = tempFolder('apostil-draft-');
+  const save = (command: string, draft: unknown): void => {
+    writeFileSync(join(drafts, 'draft.json'), JSON.stringify(draft));
+    const done = runMapCommand(store, command, join(drafts, 'draft.json'), repo.folder, {}, { CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: SESSION });
+    assert.ok(done.ok, JSON.stringify(done.output));
+  };
+  save('save-map', { format: 1, diagrams: [{ id: 'top', kind: 'flow', title: 'The test repo', mermaid: 'flowchart LR\n  code["Code"]', nodePaths: { code: ['src/'] } }] });
+  const files = ['src/app.py', 'src/new_tool.py'];
+  const note = (file: string, lines: [number, number], title: string) => ({ file, lines, title, text: 'Returns a number.' });
+  save('add-notes', { notes: [note('src/app.py', [1, 2], 'Start the app'), note('src/app.py', [5, 6], 'Stop the app'), note('src/new_tool.py', [1, 2], 'Name the tool')], files });
+  assert.equal(store.mapRun(id)!.plan?.fold, 1); // made when the last notes were saved: one process group is to come
+  save('add-marks', { group: 'code', set: 'services', files, values: [], marks: [] });
+
+  // The process writer starts a process at stop(), which start() calls: the fold round is still to come, so the record stays open.
+  const start = { id: 'start-app', title: 'Start the app', summary: 'Starts the app and stops it.', steps: ['src/app.py:1-2', 'src/app.py:5-6'],
+    arrows: [{ from: 'src/app.py:1-2', to: 'src/app.py:5-6', label: 'stop it', fromLine: 2, toLine: 5, name: 'stop' }] };
+  const stop = { id: 'stop-app', title: 'Stop the app', summary: 'Returns zero.', steps: ['src/app.py:5-6'] };
+  const tool = { id: 'name-tool', title: 'Name the tool', summary: 'Returns the name of the tool.', steps: ['src/new_tool.py:1-2'] };
+  const group = processGroups(store.getMap(id)!.map).groups[0].name;
+  save('add-processes', { group, processes: [start, stop, tool] });
+  const before = store.mapRun(id)!;
+  assert.equal(before.endedAt, undefined);
+
+  save('add-processes', { group, add: true, processes: [start], fold: ['stop-app'] });
+  const after = store.mapRun(id)!;
+  assert.deepEqual([after.startedAt, after.saves?.at(-1)?.[0], after.parts.foldedInto], [before.startedAt, 'f', ['start-app']]);
+  assert.ok(after.endedAt);
+  store.close();
+  repo.remove();
+});
+
 test('the cards of Home count a long file that is cut into parts as one file that needs notes', () => {
   const store = new Store(tempFolder('apostil-home-'));
   const repo = makeTestRepo();
@@ -104,7 +141,18 @@ test('an open record with no save for 30 minutes counts as stopped; a run that w
   assert.deepEqual([after.startedAt, after.whole, after.parts, after.agent?.session], [new Date(later(40)).toISOString(), true, { ofAreas: 8, noteFiles: 3 }, 'another-session']);
 });
 
-test('the words of the line of Home: the run of Home, his own session that opens in its app or in a terminal that continues it, and a run that stopped', () => {
+test('the minutes left start at the first saved notes, or at the first save of any writer when the plan has no notes to write', () => {
+  const plan = { at: 0, done: 0, lines: 20_000, overview: 0, areas: 0, notes: 0, noteFiles: 0, noteLines: 0, longest: 0, processes: 3, services: 10, again: 1, fit: 1 };
+  const run: MapRun = { ...homeRun('claude-code', AT, SESSION), plan, saves: [] };
+  assert.equal(runTimeLeft(run, later(2))?.minutes, undefined); // nothing saved: the pace is not measured
+  assert.ok((runTimeLeft({ ...run, saves: [['p', 2.3]] }, later(3))?.minutes ?? 0) > 20);
+  // A plan with notes to write waits for the first notes, also after a process is saved.
+  const withNotes: MapRun = { ...run, plan: { ...plan, notes: 2, noteFiles: 10, noteLines: 900, longest: 500 } };
+  assert.equal(runTimeLeft({ ...withNotes, saves: [['p', 2.3]] }, later(3))?.minutes, undefined);
+  assert.ok(runTimeLeft({ ...withNotes, saves: [['p', 2.3], ['n', 4, 5]] }, later(5))?.minutes !== undefined);
+});
+
+test('the words of the line of Home: "Mapping…" for the run of Home and his own session, which opens in its app or in a terminal that continues it, and "Map stopped" after a stop', () => {
   const saved = (run: MapRun | undefined, agent = run?.agent): MapRun => {
     let next = withSave(run, { overview: true }, agent, 8, AT);
     for (const area of ['Lending', 'Desk', 'Catalogue']) next = withSave(next, { area }, agent, 8, AT);
@@ -113,34 +161,35 @@ test('the words of the line of Home: the run of Home, his own session that opens
   const now = later(1);
 
   // The run of Home: a session with no window, first with no id, then with the id that the run reports; nothing opens it while it writes.
-  assert.deepEqual(mapRunLine(homeRun('claude-code', AT), { now }), { state: 'writing', words: 'Writing the map', tip: 'a Claude Code session with no window · nothing saved yet' });
+  assert.deepEqual(mapRunLine(homeRun('claude-code', AT), { now }), { state: 'writing', words: 'Mapping…', tip: 'a Claude Code session with no window · nothing saved yet' });
   const home = saved(homeRun('claude-code', AT), { app: 'claude-code', session: SESSION, hostSession: 'the-host-of-the-window' });
   assert.deepEqual(home.agent, { app: 'claude-code', session: SESSION }); // only the id of the session is taken
   assert.deepEqual(mapRunLine(home, { now }), {
-    state: 'writing', words: 'Writing the map',
+    state: 'writing', words: 'Mapping…',
     tip: `Claude Code session 1a2b3c4d (a session with no window) · overview, 3 of 8 areas, notes of 40 files\nSession ${SESSION}\nAreas: Lending, Desk, Catalogue`, chart: true,
   });
   // The run of Home in a terminal: named from the start; while this window has its terminal, "Open the session" shows it.
-  assert.deepEqual(mapRunLine(homeRun('claude-code', AT, SESSION), { now, alive: true }), { state: 'writing', words: 'Writing the map', tip: `Claude Code session 1a2b3c4d · nothing saved yet\nSession ${SESSION}`, opens: 'shown', chart: true });
+  assert.deepEqual(mapRunLine(homeRun('claude-code', AT, SESSION), { now, alive: true }), { state: 'writing', words: 'Mapping…', tip: `Claude Code session 1a2b3c4d · nothing saved yet\nSession ${SESSION}`, opens: 'shown', chart: true });
 
   // His own session in the Claude desktop app opens there. A name of the session stands in place of the id.
   const desktop = saved(undefined, { app: 'claude-code', session: SESSION, hostSession: 'made-up-host-0002', account: 'reader@example.com' });
   const desktopLine = mapRunLine(desktop, { now, name: 'Map of library-app' })!;
-  assert.deepEqual([desktopLine.words, desktopLine.tip?.split('\n')[0]], ['Writing the map', 'Claude Code session "Map of library-app" · overview, 3 of 8 areas, notes of 40 files']);
+  assert.deepEqual([desktopLine.words, desktopLine.tip?.split('\n')[0]], ['Mapping…', 'Claude Code session "Map of library-app" · overview, 3 of 8 areas, notes of 40 files']);
   assert.equal(desktopLine.opens, 'app');
-  assert.ok(!desktopLine.chart && !mapRunLine(homeRun('codex', AT, SESSION), { now })?.chart); // the chart reads only the files of a run of Home by Claude Code
+  assert.ok(desktopLine.chart && !mapRunLine(homeRun('codex', AT, SESSION), { now })?.chart); // the chart reads the files of any session of Claude Code
   assert.ok(!JSON.stringify(desktopLine).includes('reader@example.com'));
 
   // His own session in a terminal has no link: it opens in a terminal that continues it. A session that did not name itself is an agent session.
   const terminal = mapRunLine(saved(undefined, { app: 'claude-code', session: SESSION }), { now })!;
-  assert.deepEqual([terminal.words, terminal.tip?.split('\n')[0], terminal.opens], ['Writing the map', 'Claude Code session 1a2b3c4d · overview, 3 of 8 areas, notes of 40 files', 'terminal']);
+  assert.deepEqual([terminal.words, terminal.tip?.split('\n')[0], terminal.opens], ['Mapping…', 'Claude Code session 1a2b3c4d · overview, 3 of 8 areas, notes of 40 files', 'terminal']);
   assert.equal(mapRunLine(withSave(undefined, { processGroup: 'lending-0a1b2c' }, undefined, undefined, AT), { now })?.tip?.split('\n')[0], 'an agent session · processes of 1 area');
 
   // A run that stopped: after 30 quiet minutes, or the run of Home that ended with a problem; a run of Home that this window still runs is not stopped by a quiet time.
   const stopped = mapRunLine(desktop, { now: later(31) })!;
-  assert.deepEqual([stopped.state, stopped.words, stopped.opens], ['stopped', 'The map run of Claude Code session 1a2b3c4d stopped after overview, 3 of 8 areas, notes of 40 files', 'app']);
-  assert.deepEqual(mapRunLine(withEnd(homeRun('claude-code', AT), AT, true), { now }), { state: 'stopped', words: 'The map run of a Claude Code session with no window stopped with nothing saved' });
-  assert.equal(mapRunLine(withEnd(home, AT, true), { now })?.opens, 'terminal');
+  // After a stop: two short words, the rest in the tooltip, and no way to open the session ("Continue" goes on with it).
+  assert.deepEqual([stopped.state, stopped.words, stopped.tip?.split('\n')[0], stopped.opens], ['stopped', 'Map stopped', 'The map run of Claude Code session 1a2b3c4d stopped after overview, 3 of 8 areas, notes of 40 files', undefined]);
+  assert.deepEqual(mapRunLine(withEnd(homeRun('claude-code', AT), AT, true), { now }), { state: 'stopped', words: 'Map stopped', tip: 'The map run of a Claude Code session with no window stopped with nothing saved' });
+  assert.equal(mapRunLine(withEnd(home, AT, true), { now })?.opens, undefined);
   assert.equal(mapRunLine(homeRun('claude-code', AT), { now: later(31), alive: true })?.state, 'writing');
 });
 

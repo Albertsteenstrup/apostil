@@ -82,7 +82,12 @@ const apps = ['claude-code', 'codex', 'opencode']; // made up: the connected app
 // Made up: one more Claude Code session that Apostil knows in this repo, with what each session last used, and the models that a new session would take:
 // Claude Code with no setting, Codex with the setting gpt-6-luna.
 const sendTo: SendTo = {
-  sessions: [{ app: 'claude-code', session: 'made-up-session-0002', name: 'Tests for holds', at: minutesAgo(4), run: sessionPick('claude-code', 'made-up-session-0002', undefined) }],
+  sessions: [
+    { app: 'claude-code', session: 'made-up-session-0002', name: 'Tests for holds', at: minutesAgo(4), folder, run: sessionPick('claude-code', 'made-up-session-0002', undefined) },
+    // More sessions of the folder: the picker shows the newest 5 and the rest after "Show more"; a long name is cut where it no longer fits.
+    ...['Move the pickup day after the mail is sent and check the notices of the ready shelf', 'Review the member page', 'Split the hold service', 'Night jobs at the right hour', 'Answer shapes of the requests', 'Faster tests of the desk']
+      .map((name, at) => ({ app: 'claude-code', session: `made-up-session-01${at}0`, name, at: minutesAgo(30 + at * 90), folder })),
+  ],
   models: { 'claude-code': menuOf('claude-code', undefined), codex: menuOf('codex', 'gpt-6-luna'), opencode: menuOf('opencode', undefined) },
   own: sessionPick('claude-code', agent.session, undefined),
 };

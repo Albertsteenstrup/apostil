@@ -174,7 +174,7 @@ try {
     return { dotted: document.querySelectorAll('#view path[class*="dotted"]:not(.hit)').length, order: !!document.querySelector('#view path[id^="L_s8_s9_"]'), across: at('s3').right < at('s11').left, calls: document.querySelectorAll('#view g.node[id*="flowchart-o0-"]').length };
   });
   check('a drawn process in a look: the file boxes of the folder of the rule show the name of their file, the calls out of the repo are hidden, the step of the trail takes its colour; an opened step runs from left to right with no branch arrow, its steps in their order',
-    drawnProcess.boxes.join('|') === 'notices.py|requests.py|src/library/web/requests_router.py' && drawnProcess.calls === 0 && processCrumb === `Answer a book request:${rgb(blue.light)}`
+    drawnProcess.boxes.join('|') === 'requests.py|src/library/web/requests_router.py' && drawnProcess.calls === 0 && processCrumb === `Answer a book request:${rgb(blue.light)}`
       && step.dotted === 0 && step.order && step.across && step.calls === 0, JSON.stringify({ drawnProcess, processCrumb, step }));
 
   // The graphs page: the panels of the change left out, the tables first, then by level; only the lit nodes; the titles from the words of the rule;

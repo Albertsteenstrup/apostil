@@ -2,9 +2,9 @@
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, chmodSync, mkdirSync, utimesSync, readFileSync, writeFileSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
-import { agentFromEnv, BILLING, claudeDefaultMode, claudeRunMode, codexDefaultSandbox, INSTALL, installedApps, isOptionProblem, isSignInProblem, mergeAgent, modelWords, opencodeSmallModel, runFix, runProblem, UPDATE, newestLine, newRunCommand, openSessionCommand, resumeCommand, sessionLink, sessionName, sessionOpens, SIGN_IN } from './agents';
+import { agentFromEnv, BILLING, claudeSessionsIn, claudeDefaultMode, claudeRunMode, codexDefaultSandbox, INSTALL, installedApps, isOptionProblem, isSignInProblem, mergeAgent, modelWords, opencodeSmallModel, runFix, runProblem, UPDATE, newestLine, newRunCommand, openSessionCommand, resumeCommand, sessionLink, sessionName, sessionOpens, SIGN_IN } from './agents';
 import { tempFolder } from './test-repo';
 import { pullRequestsFromJson, stateOf, type RawPullRequest } from './pull-requests';
 
@@ -188,7 +188,7 @@ test('stateOf gives one state for each fixture; only the newest run of a check c
   assert.deepEqual(pull.checks, { passed: 2, failed: 2, pending: 1 });
 });
 
-test('sessionName reads the newest title near the end of a large Claude Code transcript and the name of a Codex thread; newestLine reads the lines of a file from its end in pieces', () => {
+test('sessionName reads the newest title near the end of a large Claude Code transcript (his own title, else the name in the desktop app, else the title of Claude Code) and the name of a Codex thread; newestLine reads the lines of a file from its end in pieces', () => {
   const home = tempFolder('apostil-home-');
   const folder = join(home, '.claude', 'projects', '-made-up-project');
   mkdirSync(folder, { recursive: true });
@@ -200,6 +200,12 @@ test('sessionName reads the newest title near the end of a large Claude Code tra
   assert.equal(sessionName({ app: 'claude-code', session: 'made-up-1' }, home), 'VS Code repo understanding tool');
   writeFileSync(join(folder, 'made-up-2.jsonl'), filler);
   assert.equal(sessionName({ app: 'claude-code', session: 'made-up-2' }, home), undefined);
+  // With no title that he gave it: the name that the desktop app gave it, else the newest title that Claude Code gave it.
+  writeFileSync(join(folder, 'made-up-3.jsonl'), line({ type: 'ai-title', aiTitle: 'Old title', sessionId: 'made-up-3' }) + filler + line({ type: 'ai-title', aiTitle: 'Review the context', sessionId: 'made-up-3' }));
+  assert.equal(sessionName({ app: 'claude-code', session: 'made-up-3' }, home), 'Review the context');
+  assert.equal(sessionName({ app: 'claude-code', session: 'made-up-3', name: 'Named in the app' }, home), 'Named in the app');
+  appendFileSync(join(folder, 'made-up-3.jsonl'), line({ type: 'custom-title', customTitle: 'His own name', sessionId: 'made-up-3' }) + line({ type: 'ai-title', aiTitle: 'Newer title', sessionId: 'made-up-3' }));
+  assert.equal(sessionName({ app: 'claude-code', session: 'made-up-3', name: 'Named in the app' }, home), 'His own name');
   assert.equal(sessionName({ app: 'claude-code', session: 'missing' }, home), undefined);
   assert.equal(sessionName({ app: 'claude-code', session: '../x' }, home), undefined);
 
@@ -340,3 +346,17 @@ test('a run keeps the default permission mode of Claude Code when a run can work
 });
 
 
+
+test('claudeSessionsIn lists the newest Claude Code sessions of a folder from its transcripts, newest first, and no subagent of a session', () => {
+  const home = tempFolder('apostil-home-');
+  const folder = '/made-up/work/library.app';
+  const projects = join(home, '.claude', 'projects', '-made-up-work-library-app');
+  mkdirSync(join(projects, 'made-up-1', 'subagents'), { recursive: true });
+  for (const [session, minute] of [['made-up-1', 1], ['made-up-2', 3], ['made-up-3', 2]] as const) {
+    writeFileSync(join(projects, `${session}.jsonl`), '{}\n');
+    utimesSync(join(projects, `${session}.jsonl`), new Date(Date.UTC(2026, 10, 25, 9, minute)), new Date(Date.UTC(2026, 10, 25, 9, minute)));
+  }
+  writeFileSync(join(projects, 'made-up-1', 'subagents', 'agent-a.jsonl'), '{}\n');
+  assert.deepEqual(claudeSessionsIn(folder, 2, home), [{ session: 'made-up-2', at: '2026-11-25T09:03:00.000Z' }, { session: 'made-up-3', at: '2026-11-25T09:02:00.000Z' }]);
+  assert.deepEqual(claudeSessionsIn('/made-up/other', 5, home), []);
+});
