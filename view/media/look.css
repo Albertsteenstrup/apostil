@@ -6,7 +6,7 @@
 /* They are set on the body, where VS Code puts the class of its theme, so that a colour made of other colours follows them in each theme.
    Apostil: the theme Apostil Light, and a page that is a file in a browser. diagram-stage.js gives the --d- colours to Mermaid. */
 body{--paper:#fffefc;--card:#fff;--cardhead:#faf8f4;--ink:#1a2b24;--soft:#31423b;--muted:#6b6b6b;--faint:#9a978f;--line:#ddd6cc;--line2:#beb6ab;
-  --teal:#0f766e;--tealink:#0b5f58;--tealsoft:#e3f1ee;--tealline:#cfe3df;--teallit:#d3ebe6;--region:#f8f5f0;--seg:#f5f1eb;--add:#047857;--del:#b42318;
+  --teal:#0f766e;--tealink:#0b5f58;--tealsoft:#e3f1ee;--tealline:#cfe3df;--teallit:#d3ebe6;--region:#f8f5f0;--seg:#f5f1eb;--hatch:#fbfaf7;--hatchline:#e7e2d8;--hatchsoft:#f1ede5;--add:#047857;--del:#b42318;
   --field:var(--card);--fieldline:var(--line);--button:#0f766e;--buttonink:#fff;--focus:var(--teal);
   --shadow:0 10px 28px rgba(26,43,36,.14),0 1px 3px rgba(26,43,36,.10);
   /* code: keywords, strings; comments are --faint */
@@ -31,6 +31,7 @@ body:where(.vscode-light:not([data-vscode-theme-id="Apostil Light"]),.vscode-dar
   --field:var(--vscode-input-background,var(--paper));--fieldline:var(--vscode-input-border,var(--line));
   --cardhead:color-mix(in srgb,var(--ink) 4%,var(--card));--soft:color-mix(in srgb,var(--ink) 85%,var(--paper));--faint:var(--muted); /* the quiet text of VS Code: one step quieter would not read on a dark card */
   --line2:color-mix(in srgb,var(--ink) 24%,var(--paper));--region:color-mix(in srgb,var(--ink) 4%,var(--paper));
+  --hatch:color-mix(in srgb,var(--ink) 2%,var(--paper));--hatchline:color-mix(in srgb,var(--ink) 12%,var(--paper));--hatchsoft:color-mix(in srgb,var(--ink) 7%,var(--paper));
   --tealsoft:color-mix(in srgb,var(--teal) 14%,var(--paper));--tealline:color-mix(in srgb,var(--teal) 40%,var(--paper));--teallit:color-mix(in srgb,var(--teal) 12%,var(--paper));
   --str:#7a4a1c; /* a little darker than in Apostil, so that it reads on a removed line of VS Code */
   --d-node:color-mix(in srgb,var(--ink) 5%,var(--paper));--d-edge:color-mix(in srgb,var(--ink) 45%,var(--paper));--d-lifeline:color-mix(in srgb,var(--ink) 18%,var(--paper));
@@ -679,9 +680,20 @@ div.nomap .runpick{margin:0 0 8px}
 .rt-old{position:absolute;right:0;top:0;animation:rt-out 1.4s ease both}
 @keyframes rt-in{from{opacity:0;transform:translateY(60%)}}
 @keyframes rt-out{to{opacity:0;transform:translateY(-90%)}}
+/* a part of the map with no diagram of its own: striped, its words quiet; the stripes slide while writers work on it (home.js: hatchNodes, hatchPattern) */
+.hatch rect{fill:var(--hatch)}
+.hatch path{stroke:var(--hatchline);stroke-width:3}
+.hatch.moving path{animation:hatch-slide 3s linear infinite}
+@keyframes hatch-slide{to{transform:translateX(7px)}}
+.stage g.node.unmapped :is(.nodeLabel,text){color:var(--muted)!important;fill:var(--muted)!important}
+.ovc.hatched,.view.hatched{background:linear-gradient(45deg,var(--hatchsoft) 17%,var(--hatch) 0 50%,var(--hatchsoft) 0 67%,var(--hatch) 0) 0 0/12px 12px}
+.hatched.moving{animation:hatched-slide 3s linear infinite}
+@keyframes hatched-slide{to{background-position:12px 0}}
+/* the share of a bar, in whole percent */
+.ovp{font-size:var(--small);font-weight:400;color:var(--muted);font-variant-numeric:tabular-nums}
 /* the nodes of the top map while it is written: an area that writers work on now has a quiet accent edge */
 .stage g.node.rn-working > :is(rect,polygon,path,circle){stroke:var(--teal)!important;stroke-width:1.5px!important}
-@media (prefers-reduced-motion:reduce){.spin,.sketch .sks,.rt-in,.rt-old{animation:none}.sketch .sks,.rt-old{display:none}.ovbar i,.runbar i{transition:none}}
+@media (prefers-reduced-motion:reduce){.spin,.sketch .sks,.rt-in,.rt-old,.hatch.moving path,.hatched.moving{animation:none}.sketch .sks,.rt-old{display:none}.ovbar i,.runbar i{transition:none}}
 .ovb{flex:1;min-height:0;padding:6px 12px 10px}
 .ovb.stage{display:block;overflow:hidden;pointer-events:none} /* drawn small and read only: a click is the click of the card */
 .ovb.stage svg{width:100%;height:100%;margin:0}
@@ -1131,7 +1143,7 @@ div.nomap .runpick{margin:0 0 8px}
 .pcbar{display:flex;gap:2px;height:4px;margin-top:2px;border-radius:2px;overflow:hidden;background:var(--line)}
 .pcbar i{display:block;min-width:3px}
 .pcbar i.ok{background:var(--pr-green)}.pcbar i.bad{background:var(--pr-red)}.pcbar i.wait{background:var(--pr-amber)}.pcbar i.quiet{background:var(--line2)}.pcbar i.none{background:transparent}
-.pcbar.none{background:repeating-linear-gradient(135deg,var(--line2) 0 3px,transparent 3px 6px)} /* nobody approved yet */
+.pcbar.none{background:repeating-linear-gradient(45deg,var(--line2) 0 3px,transparent 3px 6px)} /* nobody approved yet */
 .pcl{display:flex;flex-wrap:wrap;gap:4px 18px;margin-top:10px}
 .pcnote{margin:8px 0 0;color:var(--muted)}
 .pcstep{margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}

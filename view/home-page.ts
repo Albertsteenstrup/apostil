@@ -5,8 +5,8 @@ import { basename, dirname, join, relative } from 'node:path';
 import * as vscode from 'vscode';
 import { keptOnMap, withKept } from '../shared/comment-lines';
 import type { Target } from '../shared/look';
-import { shownTime, type ShownTime, type TimeLeft } from '../shared/map-estimate';
-import { homeRun, QUIET_MS, runTimeLeft, withEnd, withSession } from '../shared/map-run';
+import { shownTime, type ShownTime } from '../shared/map-estimate';
+import { homeRun, QUIET_MS, runTimeLeft, withEnd, withSession, type RunTime } from '../shared/map-run';
 import { homePlan, mapWorkLeft } from '../store/map-run';
 import { mapRunChart, mapRunFiles, type MapRunChart } from '../shared/map-run-chart';
 import { agentHome, teamFrom, type Team } from '../shared/models';
@@ -426,10 +426,12 @@ export class HomePages {
   }
 
   /** The time to show: a fall at once, a rise only when two computations in a row agree on it (shownTime). */
-  private held(run: string, time: TimeLeft): TimeLeft {
+  private held(run: string, time: RunTime): RunTime {
+    const share = Math.round(time.share * 1000) / 1000;
+    if (time.minutes === undefined) return { share };
     const next = shownTime(this.shown?.run === run ? this.shown.time : undefined, time.minutes);
     this.shown = { run, time: next };
-    return { minutes: next.minutes, share: Math.round(time.share * 1000) / 1000 };
+    return { minutes: next.minutes, share };
   }
 
   /** Every 30 seconds while a run writes: the time left, computed again, to Home; when the run has none any more, the timer stops. */

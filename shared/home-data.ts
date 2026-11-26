@@ -54,6 +54,7 @@ export interface HomeNode {
   names?: string[]; // a call out of the repo: the names that the code calls it by
   callers?: ProcessNode['callers']; // a box that three or more boxes call: who calls it, and where
   tag?: TagPart[]; // a node of a written diagram: its folders and files in a few words, which stand under its lower-left corner
+  unmapped?: true; // a node of a written diagram with no diagram of its own: it goes down to the processes that start in its paths
 }
 
 /** A piece of the tag of a node: a name, or "+2" for the rest, with the paths that a click on it shows; a piece with no paths is a separator. */
@@ -75,6 +76,7 @@ export interface HomeDiagram {
   order?: ProcessDiagram['order']; // a drawn process: the number of an arrow that leaves a box with two or more
   dots?: ProcessDiagram['dots']; // a drawn process: the boxes that a box calls with a dot in place of an arrow
   columns?: { mermaid: string; graph: DiagramGraph; columns: string[][]; dots: Record<string, string[]> }; // a drawn process with a long chain: its drawing in columns
+  unmapped?: { diagram: string; node: string; title: string; processes: number }; // the processes of a node with no diagram of its own, in its place: that node and how many start in its paths
 }
 
 export interface HomeData {
@@ -219,16 +221,20 @@ export function homeData(store: Store, folder: string, apps: string[] = [], addr
   });
   // A node with no diagram under it goes down to the processes that start in its paths: one process opens that process, several open the processes of that node.
   const drawn: ProcessDiagram[] = allProcessDrawings(stored.map);
+  const unmapped = new Map<string, HomeDiagram['unmapped']>(); // the processes of a node, by their id
   for (const diagram of homeDiagrams) {
     for (const [node, home] of Object.entries(diagram.nodes)) {
       const starting = home.down ? [] : processesStartingIn(stored.map, home.paths.map((entry) => entry.path));
+      if (starting.length) home.unmapped = true;
       if (starting.length === 1) home.down = processDiagramId(starting[0].id);
       if (starting.length < 2) continue;
+      const title = diagram.graph.nodes[node] ?? node;
       home.down = placeDiagramId(diagram.id, node);
-      drawn.push(placeDrawing(stored.map, home.down, `Processes of ${diagram.graph.nodes[node] ?? node}`, starting));
+      drawn.push(placeDrawing(stored.map, home.down, `Processes of ${title}`, starting));
+      unmapped.set(home.down, { diagram: diagram.id, node, title, processes: starting.length });
     }
   }
-  homeDiagrams.push(...drawn.map(processHomeDiagram));
+  homeDiagrams.push(...drawn.map((one) => ({ ...processHomeDiagram(one), ...(unmapped.has(one.id) ? { unmapped: unmapped.get(one.id) } : {}) })));
   const top = diagrams.find((diagram) => !diagram.parent) ?? diagrams[0];
   return { ...base, map: { top: top.id, diagrams: homeDiagrams, written: writtenLine(folder, stored.commit), files: files.length }, look: lookData(store, id, folder, address) };
 }

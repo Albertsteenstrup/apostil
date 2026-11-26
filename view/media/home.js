@@ -262,7 +262,7 @@ const leadsSomewhere = (node) => !!node && !node.quiet && (!!diagramOf(node.down
 function homeCard(key, node, open, graph, run) {
   const below = diagramOf(node.down);
   // The changes that touch the node stand at the bottom of its card, and its rows have their counts; not while its area is written.
-  const own = { title: plainName(graph, key), node: key, ...(run ? { run, areaFiles: node.paths } : { changes: node.changes }) };
+  const own = { title: plainName(graph, key), node: key, ...(node.unmapped ? { unmapped: true } : {}), ...(run ? { run, areaFiles: node.paths } : { changes: node.changes }) };
   if (below) return { ...own, open, ...smallDiagram(below) };
   const diff = diffOf(node);
   const files = node.paths.map(({ path, files }) => ({ path, count: files, line: node.line, diff: diff(path) }));
@@ -324,6 +324,31 @@ function fitTag(text, room) {
     Object.assign(rest, { paths: moved, textContent: `+${moved.length}` }).setAttribute('class', 'pl');
   }
   while (wide() && names[0].textContent.length > 4) names[0].textContent = `${names[0].textContent.replace(/…$/, '').slice(0, -1)}…`;
+}
+
+let hatches = 0;
+
+/**
+ * Stripes on each node of a drawing that has no diagram of its own (`unmapped`), with quiet words (look.css: .hatch); they move while writers work on
+ * the node (`working`: the areas of a map run, by node id).
+ */
+function hatchNodes(svg, nodes, working) {
+  const patterns = {};
+  for (const g of svg.querySelectorAll('g.node')) {
+    const key = nodeKey(g);
+    if (!nodes[key]?.unmapped) continue;
+    const moving = !!working?.[key];
+    patterns[moving] ??= hatchPattern(svg, moving);
+    g.classList.add('unmapped');
+    for (const shape of g.querySelectorAll(':scope > :is(rect,polygon,path)')) shape.style.setProperty('fill', `url(#${patterns[moving]})`, 'important');
+  }
+}
+
+/** The pattern of the stripes in a drawing, one stripe to a tile: a moving one slides by a tile. Returns its id. */
+function hatchPattern(svg, moving) {
+  const id = `hatch${++hatches}`;
+  svg.insertAdjacentHTML('afterbegin', `<pattern id="${id}" class="hatch${moving ? ' moving' : ''}" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)"><rect width="7" height="7"/><path d="M-7 0V7M0 0V7M7 0V7"/></pattern>`);
+  return id;
 }
 
 /**
@@ -388,6 +413,12 @@ async function drawHome() {
   const headFields = diagram && { repo: Home.data.repo, areas: Object.keys(diagramOf(map.top).graph.nodes).length, files: map.files ?? 0, age: map.written ?? 'written at this commit' };
   const head = diagram && look ? Marks.resolve(look.rules, { kind: 'header', diagram: diagram.id, fields: headFields }, look.one) : {};
   if (Object.keys(head).length && !Home.data.mapRun) summary.innerHTML = Marks.wordsHtml(map.written ?? '', head, headFields, look) ?? '';
+  // The processes of a node with no diagram of its own: the line says so, but not while the line of a map run stands there.
+  const unmapped = diagram?.unmapped;
+  if (unmapped && !Home.data.mapRun) {
+    const processes = unmapped.processes === 1 ? 'the process that starts' : `the ${unmapped.processes} processes that start`;
+    summary.prepend(`${unmapped.title} has no diagram yet · ${processes} in its files${summary.hasChildNodes() ? ' · ' : ''}`);
+  }
   // After a click on a mark: the quiet line of the value, which the × clears.
   if (Home.filter && diagram) summary.insertAdjacentHTML('beforeend', `${summary.hasChildNodes() ? ' · ' : ''}<span class="mk-filter">${esc(Home.filter.text)} <a data-clear-filter title="Clear">×</a></span>`);
   // While a map run writes, the map shows what is saved, and this line says which session writes and what is done; after a stop, the press that starts again.
@@ -429,6 +460,7 @@ async function drawHome() {
       }
     }
     if (svg) ProcessDrawing.decorate(svg, laid, diagram);
+    if (svg) hatchNodes(svg, nodesOf, areas);
     if (svg && tagNodes(svg, nodesOf)) fitToContent(svg);
     // The overview: a card under the diagram for each node that leads somewhere, in the reading order of the drawing, unless he chose the
     // diagram alone. With no such node the diagram stands alone and has no icon.
@@ -436,6 +468,7 @@ async function drawHome() {
     const overview = leading.length > 0 && !Overview.isFull();
     // A wide map opens where its words read; drawn again with new data, it stays where he left it. The drawing in columns is another drawing.
     makeSurface(view, true, false, laid === diagram ? diagram.id : `${diagram.id}:columns`, overview);
+    if (unmapped) view.classList.add('hatched', ...(unmapped.diagram === map.top && run?.areas?.[unmapped.node] ? ['moving'] : []));
     if (leading.length) Overview.icon(view, !overview, () => Home.render());
     ProcessDrawing.key(view, plain ? diagram : laid); // what the dashed boxes and the numbers of a drawn process are
     runBar(view, time);
@@ -516,7 +549,7 @@ function chartFrame(view, summary, run, time, diagram, areas) {
   if (Overview.isFull()) keepFilled(view);
   else keepChartHeight(view);
   if (diagram) Overview.icon(view, Overview.isFull(), () => Home.render());
-  const top = diagram ? { title: diagram.title, open: () => walkTo(topMapStep()), ...smallDiagram(diagram) } : { title: 'Overview', run: { state: 'working', share: time?.share ?? 0 } };
+  const top = diagram ? { title: diagram.title, open: () => walkTo(topMapStep()), ...smallDiagram(diagram) } : { title: 'Overview', run: { state: 'working', share: time?.share } };
   const areaCards = diagram ? Object.keys(diagram.graph.nodes).filter((key) => leadsSomewhere(diagram.nodes[key])).map((key) => homeCard(key, diagram.nodes[key], openOf(diagram.nodes[key]), diagram.graph, areas?.[key])) : [];
   Overview.cards(document.getElementById('cards'), Overview.isFull() ? [] : [top, ...areaCards]);
 }
@@ -554,10 +587,12 @@ function runBar(frame, time) {
   barTo(time.share);
 }
 
-/** The bar glides to a new share. */
+/** The bars glide to a new share, and the number of the line follows. */
 function barTo(share) {
   const line = document.querySelector('#summary .ovbar i');
-  if (line) line.style.width = `${Math.round(share * 100)}%`;
+  if (line) line.style.width = percentOf(share);
+  const number = document.querySelector('#summary .ovp');
+  if (number) number.textContent = percentOf(share);
   const fill = document.querySelector('#view > .runbar > i');
   if (!fill) return;
   void fill.offsetWidth; // the width it stands at now, so that it glides from there
@@ -567,13 +602,13 @@ function barTo(share) {
 
 /**
  * The time left at the right end of the head: "About 14 min left", in whole minutes. When it changes, it changes once and calmly: the old words move up
- * and fade out above the new ones (look.css), and with reduced motion they just change. No time: nothing shows.
+ * and fade out above the new ones (look.css), and with reduced motion they just change. No minutes (the pace is not measured yet): nothing shows.
  */
 function showTime(time) {
   const el = document.getElementById('runtime');
-  const words = time ? timeWords(time.minutes) : '';
+  const words = time?.minutes === undefined ? '' : timeWords(time.minutes);
   const before = el.dataset.words ?? '';
-  el.hidden = !time;
+  el.hidden = !words;
   el.dataset.words = words;
   if (words === before) return;
   const roll = !!before && !!words && !matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -605,6 +640,7 @@ function drawPanel(box, panel, card = false) {
     const shaped = diagram ? await Marks.lookText(diagram, things, edges, look) : { text: panel.mermaid, filled: {}, edges };
     const svg = await drawMermaid(box, shaped.text, shaped.text === panel.mermaid ? undefined : panel.mermaid, panel.schema);
     if (!svg) return;
+    if (panel.nodes) hatchNodes(svg, panel.nodes, panel.id === Home.data.map?.top ? Home.data.mapRun?.areas : null);
     if (diagram && !svg.hasAttribute('data-plain')) {
       // A click on a mark of a panel opens its one place, or lists its places; it never goes down a level, as a click on the panel opens the diagram on Home.
       edgeElements(svg, shaped.graph.edges).forEach(({ path, label }, at) => Object.assign(shaped.edges[at], { path, label }));

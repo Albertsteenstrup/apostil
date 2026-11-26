@@ -85,13 +85,19 @@ export function withSave(run: MapRun | undefined, save: MapSave, agent: AgentSes
   };
 }
 
+/** What Home shows of a run: the share of its bar, and the minutes left once the pace of the run is measured. */
+export type RunTime = Pick<TimeLeft, 'share'> & Partial<Pick<TimeLeft, 'minutes'>>;
+
 /**
- * The time left of a run that writes the whole map and has a plan, at `now` (shared/map-estimate.ts). Undefined for any other, and until its first notes
- * are saved: before that the pace of the run is not measured, and a time from the size of the repo alone is a guess. A plan with no notes to write counts
- * the real groups of the map, so its time starts at the first save of any writer.
+ * The time left of a run that writes the whole map and has a plan, at `now` (shared/map-estimate.ts); undefined for any other. The share comes from the
+ * expected times from the start; the minutes only once its first notes are saved: before that the pace of the run is not measured, and a time from the
+ * size of the repo alone is a guess. A plan with no notes to write counts the real groups of the map, so its minutes start at the first save of any writer.
  */
-export const runTimeLeft = (run: MapRun, now = Date.now()): TimeLeft | undefined =>
-  (run.plan && run.whole && !run.endedAt && run.saves?.some(([kind]) => kind === 'n' || !run.plan?.notes) ? timeLeft(run.plan, run.saves, Date.parse(run.startedAt), now) : undefined);
+export function runTimeLeft(run: MapRun, now = Date.now()): RunTime | undefined {
+  if (!run.plan || !run.whole || run.endedAt) return undefined;
+  const time = timeLeft(run.plan, run.saves ?? [], Date.parse(run.startedAt), now);
+  return run.saves?.some(([kind]) => kind === 'n' || !run.plan?.notes) ? time : { share: time.share };
+}
 
 /** The record of a run of Home with the session that the run reports on its output. Any other record stays as it is. */
 export const withSession = (run: MapRun | undefined, session: string): MapRun | undefined =>
@@ -109,7 +115,7 @@ export interface MapRunLine {
   words: string;
   tip?: string; // the whole id of the session and the titles of the saved areas
   opens?: 'app' | 'terminal' | 'shown'; // "Open the session" opens it in its app, in a terminal of VS Code that continues it (sessionOpens), or shows the terminal where it writes
-  time?: TimeLeft; // while a run of the whole map writes and has a plan: the minutes left and the share of the bar
+  time?: RunTime; // while a run of the whole map writes and has a plan: the share of the bar, and the minutes left once they are measured
   areas?: Record<string, AreaWork>; // the areas of the top diagram with work left, by node id; an area that is not named is done (homeData adds it)
   chart?: true; // hasChart: after a run that stopped the line has "Run chart"; while it writes, Home's frame holds the chart
 }
