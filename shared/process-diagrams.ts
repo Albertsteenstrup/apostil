@@ -3,7 +3,7 @@
 
 import type { Note } from './change-file';
 import { escapeLabel } from './diagram-graph';
-import { parentsOf, parseKey, stepKey, type MapProcesses, type Process } from './processes';
+import { holdsLine, parentsOf, parseKey, stepKey, type MapProcesses, type Process } from './processes';
 
 /** Lines of one file: what a step stands for, so that the marks at those lines roll up to it. */
 export interface Span {
@@ -78,6 +78,33 @@ function stepWords(note: Note): ProcessNode['note'] {
 
 /** The steps of a process that the map still has a note for, once each, in the order of the list. */
 const liveSteps = (process: Process, notes: Map<string, Note>): string[] => [...new Set(process.steps)].filter((key) => notes.has(key));
+
+/**
+ * The outer step of each step as the drawings and the text show it: the step that holds its lines, else the step that calls it from another file.
+ * A step with no outer step by lines, that an arrow (not a branch) reaches from a line inside an earlier step of another file, goes under the smallest
+ * step that holds that line; with several such arrows, under the first of those steps in the list; never under a step inside itself.
+ */
+export function parentsWithCalls(process: Process, steps: string[]): Map<string, string | undefined> {
+  const parent = parentsOf(steps);
+  const place = (key: string): number => steps.indexOf(key);
+  const size = (key: string): number => { const lines = parseKey(key)!; return lines.to - lines.from; };
+  const inside = (key: string, outer: string): boolean => {
+    for (let at: string | undefined = key; at !== undefined; at = parent.get(at)) if (at === outer) return true;
+    return false;
+  };
+  for (const key of steps.filter((one) => parent.get(one) === undefined)) {
+    const callers = (process.arrows ?? []).filter((arrow) => arrow.to === key && arrow.kind !== 'branch').flatMap((arrow) => {
+      const from = parseKey(arrow.from);
+      if (!from || from.file === parseKey(key)?.file) return [];
+      const holders = steps.filter((other) => holdsLine(other, { file: from.file, cell: from.cell, line: arrow.fromLine }));
+      if (!holders.some((other) => place(other) < place(key))) return [];
+      const smallest = holders.reduce((one, other) => (size(other) < size(one) ? other : one));
+      return inside(smallest, key) ? [] : [smallest];
+    });
+    parent.set(key, callers.sort((one, other) => place(one) - place(other))[0]);
+  }
+  return parent;
+}
 
 /** The files of the steps of a process, in the order of the list. */
 const filesOf = (process: Process): string[] => [...new Set(process.steps.map((key) => parseKey(key)?.file).filter((file): file is string => !!file))];
@@ -211,12 +238,14 @@ const startOf = (key: string, line: number): LineOf | undefined => {
 
 /**
  * The drawings of one process: the process itself (its top steps, in one box for each file, with the arrows of the writer and its calls out of the repo),
- * and one for each step that holds steps (its inner steps in the order of the list, with the branch arrows). A step whose note is gone is left out.
+ * and one for each step that holds steps (its inner steps and the steps that it calls in other files, in the order of the list, with the branch arrows).
+ * A step whose note is gone is left out.
  */
 export function processDrawings(map: MapProcesses, process: Process): ProcessDiagram[] {
   const notes = notesByKey(map);
   const list = liveSteps(process, notes);
-  const parent = parentsOf(list);
+  const byLines = parentsOf(list);
+  const parent = parentsWithCalls(process, list);
   const kids = (top: string | undefined): string[] => list.filter((key) => parent.get(key) === top);
   const inner = (key: string): number => kids(key).reduce((sum, kid) => sum + 1 + inner(kid), 0);
   // The step of a drawing that a step lies in: itself, or its outer step just under the step of the drawing; undefined when it lies outside it.
@@ -224,6 +253,15 @@ export function processDrawings(map: MapProcesses, process: Process): ProcessDia
     let at: string | undefined = key;
     while (at !== undefined && parent.get(at) !== top) at = parent.get(at);
     return at;
+  };
+  const calledUnder = (key: string, box: string): boolean => {
+    for (let at = key; at !== box; at = parent.get(at)!) if (byLines.get(at) === undefined) return true;
+    return false;
+  };
+  const spansOf = (key: string): Span[] => {
+    const own = spanOf(notes.get(key)!);
+    const elsewhere = (span: Span): boolean => !own.some((one) => one.file === span.file && one.from <= span.from && span.to <= one.to);
+    return [...own, ...kids(key).flatMap(spansOf).filter(elsewhere)];
   };
   const number = new Map(process.steps.map((key, index): [string, number] => [key, index]).reverse()); // the first place of a key in the list
   const own = processDiagramId(process.id);
@@ -244,7 +282,7 @@ export function processDrawings(map: MapProcesses, process: Process): ProcessDia
       const note = notes.get(key)!;
       const count = inner(key);
       const id = quietBox ? `x${number.get(key)}` : nodeOf(key);
-      nodes[id] = { kind: 'step', files: [note.file], at: spanOf(note), note: stepWords(note), ...(count ? { down: idOf(key), steps: count } : note.cell === undefined ? { line: note.lines[0] } : {}), ...(quietBox ? { quiet: true as const } : {}) };
+      nodes[id] = { kind: 'step', files: [note.file], at: spansOf(key), note: stepWords(note), ...(count ? { down: idOf(key), steps: count } : note.cell === undefined ? { line: note.lines[0] } : {}), ...(quietBox ? { quiet: true as const } : {}) };
       if (quietBox) quiet.push(id);
       return (decl[id] = `${id}[${label(quietBox ? `${baseName(note.file)}: ${note.title}` : note.title, count)}]`);
     };
@@ -258,12 +296,16 @@ export function processDrawings(map: MapProcesses, process: Process): ProcessDia
     if (top) shown.slice(1).forEach((key, at) => edges.add(nodeOf(shown[at]), nodeOf(key)));
     for (const arrow of process.arrows ?? []) {
       if (!notes.has(arrow.from) || !notes.has(arrow.to)) continue;
-      const [from, to] = [liftTo(arrow.from, top), liftTo(arrow.to, top)];
+      const from = liftTo(arrow.from, top);
+      const lifted = liftTo(arrow.to, top);
+      // A box that holds a step only because it calls it does not take the calls of other boxes to that step: they go to a quiet box of the step.
+      const to = from && lifted && lifted !== from && arrow.kind !== 'branch' && calledUnder(arrow.to, lifted) ? undefined : lifted;
       const start = arrow.kind === 'branch' ? undefined : startOf(arrow.from, arrow.fromLine);
       if (from && to) edges.add(nodeOf(from), nodeOf(to), arrow.label, arrow.kind === 'branch', start);
       else if ((from || to) && arrow.kind !== 'branch') {
-        // One end lies outside the opened step: a quiet box for the step at the other end.
+        // One end lies outside the opened step: a quiet box for the step at the other end, unless that is the opened step, which holds it.
         const away = from ? arrow.to : arrow.from;
+        if (away === top) continue;
         const box = `x${number.get(away)}`;
         if (!nodes[box]) lines.push(`  ${stepLine(away, true)}`);
         if (from) edges.add(nodeOf(from), box, arrow.label, false, start);
@@ -362,8 +404,8 @@ export function processesWithStepsIn(map: MapProcesses, path: string): { drawing
   return (map.processes ?? []).filter((process) => process.steps.some((key) => inPath(parseKey(key)?.file))).flatMap((process) => {
     const [drawing] = processDrawings(map, process);
     if (!drawing) return [];
-    // A step lies in the file of its outer step, so the top steps of that file hold all its steps.
-    const lit = Object.entries(drawing.nodes).filter(([node, one]) => node.startsWith('s') && inPath(one.files[0])).map(([node]) => node);
+    // A top step holds the lines of the steps under it, also of the steps that it calls in other files.
+    const lit = Object.entries(drawing.nodes).filter(([node, one]) => node.startsWith('s') && [one.files[0], ...(one.at ?? []).map((span) => span.file)].some(inPath)).map(([node]) => node);
     return [{ drawing, lit }];
   });
 }

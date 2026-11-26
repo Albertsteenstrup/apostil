@@ -1,9 +1,9 @@
-// Tests for the order of the calls of a drawn process, a box that many boxes call, and a long chain in columns.
+// Tests for the order of the calls of a drawn process, a box that many boxes call, a long chain in columns, and the steps that a step calls in another file.
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { Note } from '../shared/change-file';
-import { columnSizes, processDrawings } from '../shared/process-diagrams';
+import { columnSizes, parentsWithCalls, processDrawings, processesWithStepsIn } from '../shared/process-diagrams';
 import { stepKey, type Arrow, type MapProcesses } from '../shared/processes';
 
 /* eslint-disable @typescript-eslint/no-require-imports */
@@ -20,7 +20,7 @@ const arrow = (from: Note, to: Note, label: string, fromLine: number): Arrow => 
 function longFunction(count: number, callers: number[] = []) {
   const outer = note('src/long.py', [1, count + 2], 'Do all of it');
   const steps = Array.from({ length: count }, (_, at) => note('src/long.py', [at + 2, at + 2], `Step ${at + 1}`));
-  const helper = note('src/help.py', [1, 3], 'Filter the rows');
+  const helper = note('src/long.py', [count + 4, count + 6], 'Filter the rows');
   const map = processOf([outer, ...steps, helper], callers.map((at) => arrow(steps[at], helper, `filter ${at + 1}`, at + 2)));
   const drawings = processDrawings(map, map.processes![0]);
   return { opened: drawings.find((one) => one.id.includes('/'))!, steps, helper };
@@ -28,8 +28,8 @@ function longFunction(count: number, callers: number[] = []) {
 
 test('the arrows that leave a box are numbered by the lines of their calls, and a box with one arrow has no number', () => {
   const main = note('src/main.py', [1, 10], 'Run the job');
-  const ask = note('src/net.py', [1, 2], 'Ask once');
-  const retry = note('src/net.py', [5, 6], 'Retry transient errors');
+  const ask = note('src/main.py', [12, 13], 'Ask once');
+  const retry = note('src/main.py', [15, 16], 'Retry transient errors');
   // The writer listed the call at line 8 first; the code runs the call at line 3 first.
   const [drawing] = drawn(processOf([main, ask, retry], [arrow(main, ask, 'ask once', 8), arrow(main, retry, 'test for retry', 3)]));
   const arrows = drawing.mermaid.split('\n').filter((line) => line.includes('-->'));
@@ -78,4 +78,47 @@ test('a drawing goes in columns unless a rule of the look turns it or leaves a b
   assert.equal(ProcessDrawing.columnsOn(diagram, { hidden: true }), false);
   assert.equal(ProcessDrawing.columnsOn(diagram, { one: true }), false);
   assert.equal(ProcessDrawing.columnsOn({ id: 'process:p' }), false);
+});
+
+test('a step that calls a function in another file holds its steps: the top drawing shows the calling step, and opening it shows the called steps', () => {
+  const main = note('src/run.py', [1, 10], 'Run the job');
+  const load = note('src/run.py', [2, 3], 'Load the rows');
+  const send = note('src/send.py', [1, 12], 'Send all rows');
+  const pack = note('src/send.py', [2, 5], 'Pack the rows');
+  const post = note('src/send.py', [6, 11], 'Post each pack');
+  const map = processOf([main, load, send, pack, post], [arrow(main, send, 'send them', 5)]);
+  const [top, ...opened] = drawn(map);
+  assert.deepEqual(Object.keys(top.nodes), ['s0']);
+  assert.match(top.mermaid, /s0\["Run the job<br><i class='ns'>4 steps<\/i>"\]/);
+  assert.deepEqual(top.nodes.s0.at, [{ file: 'src/run.py', from: 1, to: 10 }, { file: 'src/send.py', from: 1, to: 12 }]);
+  assert.deepEqual(processesWithStepsIn(map, 'src/send.py').map((one) => one.lit), [['s0']]);
+  const step = opened.find((one) => one.id === top.nodes.s0.down)!;
+  assert.deepEqual(Object.keys(step.nodes), ['s1', 's2']);
+  assert.equal(step.nodes.s2.down, 'process:p/2');
+  assert.match(step.mermaid, /s1 --> s2/);
+  assert.deepEqual(Object.keys(opened.find((one) => one.id === 'process:p/2')!.nodes), ['s3', 's4']);
+});
+
+test('a called step goes under the smallest step that holds the call and comes first in the list, never under a step inside itself; a call in the same file moves no step, and another caller calls a quiet box of it', () => {
+  const run = note('src/a.py', [1, 20], 'Run it');
+  const start = note('src/a.py', [2, 5], 'Start');
+  const help = note('src/b.py', [1, 8], 'Help');
+  const tool = note('src/c.py', [1, 4], 'Use the tool');
+  const finish = note('src/a.py', [10, 15], 'Finish');
+  const later = note('src/a.py', [30, 32], 'Clean up');
+  const map = processOf([run, start, help, tool, finish, later], [
+    arrow(finish, help, 'help again', 12), arrow(start, help, 'help', 3), arrow(help, tool, 'use it', 2), arrow(run, later, 'clean up', 18),
+  ]);
+  const parent = parentsWithCalls(map.processes![0], map.processes![0].steps);
+  assert.deepEqual([help, tool, later].map((one) => parent.get(key(one))), [key(start), key(help), undefined]);
+  const opened = drawn(map).find((one) => one.id === 'process:p/0')!;
+  assert.deepEqual(Object.keys(opened.edgeLines!), ['s4>x2']);
+
+  const inner = note('src/x.py', [3, 4], 'Check the input');
+  const side = note('src/y.py', [1, 5], 'Ask the side');
+  const outer = note('src/x.py', [1, 10], 'Read the input');
+  const loop = processOf([inner, side, outer], [arrow(inner, side, 'ask', 3), arrow(side, outer, 'read again', 2)]);
+  const around = parentsWithCalls(loop.processes![0], loop.processes![0].steps);
+  assert.deepEqual([side, outer].map((one) => around.get(key(one))), [key(inner), undefined]);
+  assert.equal(drawn(loop).length, 3);
 });

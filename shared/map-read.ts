@@ -8,7 +8,8 @@ import { thingsOf } from './diagram-code';
 import { diagramGraph } from './diagram-graph';
 import { fileText } from './git';
 import { linesNow, noteKey } from './notes-beside-code';
-import { isTestPath, parentsOf, parseKey, stepKey, type Process } from './processes';
+import { parentsWithCalls } from './process-diagrams';
+import { isTestPath, parseKey, stepKey, type Process } from './processes';
 import { FILE_NOTES_PART, noteCount, notedFileCount } from './repo-map';
 import type { StoredMap } from './store';
 
@@ -101,13 +102,13 @@ export function notesText(folder: string, stored: StoredMap, paths: string[]): s
 
 /**
  * What `apostil process <id> --text` prints: its title and what it does, a line for each step at its lines now ("<path>:<from>-<to>  <title>"; a step
- * inside another step stands two spaces further in), then its handoffs. Undefined when the map has no such process.
+ * under another step, as the drawings nest it, stands two spaces further in), then its handoffs. Undefined when the map has no such process.
  */
 export function processText(folder: string, stored: StoredMap, id: string): string | undefined {
   const process = (stored.map.processes ?? []).find((one) => one.id === id);
   if (!process) return undefined;
   const notes = notesAt(folder, stored, process.steps.map((key) => parseKey(key)?.file ?? ''));
-  const parents = parentsOf(process.steps);
+  const parents = parentsWithCalls(process, process.steps);
   const depth = (key: string): number => { const outer = parents.get(key); return outer ? 1 + depth(outer) : 0; };
   const steps = process.steps.map((key) => {
     const here = notes.get(key);

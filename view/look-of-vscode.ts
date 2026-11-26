@@ -6,7 +6,8 @@
 import { type Look, type LookAction, type LookRule, type Target } from '../shared/look';
 import { markLineNow, marksNow, type Mark } from '../shared/marks';
 import { mapSource, type NoteHere } from '../shared/notes-beside-code';
-import { parentsOf, parseKey, stepKey, type Process } from '../shared/processes';
+import { parentsWithCalls } from '../shared/process-diagrams';
+import { parseKey, stepKey, type Process } from '../shared/processes';
 import type { RepoMap } from '../shared/repo-map';
 import type { Store } from '../shared/store';
 import { notesAtLine } from './note-lines';
@@ -74,7 +75,7 @@ export interface StepRef { process: Process; index: number; drawing: string; nod
 export function stepsByKey(processes: Process[]): Map<string, StepRef> {
   const steps = new Map<string, StepRef>();
   for (const process of processes) {
-    const parent = parentsOf(process.steps);
+    const parent = parentsWithCalls(process, process.steps);
     const first = (key: string): number => process.steps.indexOf(key);
     const topOf = (key: string): string => { let at = key; while (parent.get(at) !== undefined) at = parent.get(at)!; return at; };
     process.steps.forEach((key, index) => {
