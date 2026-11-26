@@ -6,8 +6,8 @@
 import { type Look, type LookAction, type LookRule, type Target } from '../shared/look';
 import { markLineNow, marksNow, type Mark } from '../shared/marks';
 import { mapSource, type NoteHere } from '../shared/notes-beside-code';
-import { parentsWithCalls } from '../shared/process-diagrams';
-import { parseKey, stepKey, type Process } from '../shared/processes';
+import { processDiagramId, stepPlaces } from '../shared/process-diagrams';
+import { noteKeys, parseKey, stepKey, type MapProcesses, type Process } from '../shared/processes';
 import type { RepoMap } from '../shared/repo-map';
 import type { Store } from '../shared/store';
 import { notesAtLine } from './note-lines';
@@ -68,22 +68,16 @@ export function placesOf(folder: string, marks: Mark[], key: string): Place[] {
 
 // ----- the steps of the processes -----
 
-/** A step of a drawn process: its process, its place in the list, and where Home shows it (its own drawing and node, and the top step of the process). */
-export interface StepRef { process: Process; index: number; drawing: string; node: string; top: string }
+/** A step of a drawn process: its process, its place in the list, and where Home shows it (its drawing and node, and the top step of the process). */
+export interface StepRef { process: Process; index: number; drawing: string; node?: string; top?: string }
 
 /** Each step of the processes by the key of its note, in the first process that names it, with the drawing and the node that show it. */
-export function stepsByKey(processes: Process[]): Map<string, StepRef> {
+export function stepsByKey(map: MapProcesses | undefined): Map<string, StepRef> {
   const steps = new Map<string, StepRef>();
-  for (const process of processes) {
-    const parent = parentsWithCalls(process, process.steps);
-    const first = (key: string): number => process.steps.indexOf(key);
-    const topOf = (key: string): string => { let at = key; while (parent.get(at) !== undefined) at = parent.get(at)!; return at; };
-    process.steps.forEach((key, index) => {
-      if (steps.has(key)) return;
-      const outer = parent.get(key);
-      const drawing = `process:${process.id}${outer === undefined ? '' : `/${first(outer)}`}`;
-      steps.set(key, { process, index, drawing, node: `s${first(key)}`, top: `s${first(topOf(key))}` });
-    });
+  const keys = noteKeys(map ?? {});
+  for (const process of map?.processes ?? []) {
+    const places = stepPlaces(process, keys);
+    process.steps.forEach((key, index) => { if (!steps.has(key)) steps.set(key, { process, index, drawing: processDiagramId(process.id), ...places.get(key) }); });
   }
   return steps;
 }
@@ -103,10 +97,10 @@ const linesWords = ([first, last]: [number, number]): string => (first === last 
  * of the processes and the processes, each by its title. A note that is a step answers as a step when steps are on, else as a note. A process
  * opens the first line of its first step.
  */
-export function searchAnswers(rules: LookRule[], notes: { path: string; notes: NoteHere[] }[], processes: Process[]): Answer[] {
+export function searchAnswers(rules: LookRule[], notes: { path: string; notes: NoteHere[] }[], map: MapProcesses | undefined): Answer[] {
   const on = (['note', 'step', 'process'] as Of[]).filter((of) => isShown(rules, { kind: 'symbol-search', fields: { of } }));
   if (!on.length) return [];
-  const steps = stepsByKey(processes);
+  const steps = stepsByKey(map);
   const answers: Answer[] = [];
   const firstLine = new Map<string, number>(); // the line now of each step that stands, by its key
   for (const { path, notes: here } of notes) {
@@ -119,7 +113,7 @@ export function searchAnswers(rules: LookRule[], notes: { path: string; notes: N
     }
   }
   if (on.includes('process')) {
-    for (const process of processes) {
+    for (const process of map?.processes ?? []) {
       const place = parseKey(process.steps[0]);
       if (!place) continue;
       answers.push({ of: 'process', title: process.title, file: place.file, line: firstLine.get(process.steps[0]) ?? place.from, where: `process of ${process.steps.length} steps` });

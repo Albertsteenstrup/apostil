@@ -77,7 +77,7 @@ function stepWords(note: Note): ProcessNode['note'] {
 }
 
 /** The steps of a process that the map still has a note for, once each, in the order of the list. */
-const liveSteps = (process: Process, notes: Map<string, Note>): string[] => [...new Set(process.steps)].filter((key) => notes.has(key));
+const liveSteps = (process: Process, notes: { has: (key: string) => boolean }): string[] => [...new Set(process.steps)].filter((key) => notes.has(key));
 
 /**
  * The outer step of each step as the drawings and the text show it: the step that holds its lines, else the step that calls it from another file.
@@ -237,23 +237,66 @@ const startOf = (key: string, line: number): LineOf | undefined => {
 };
 
 /**
+ * The steps of a process as its drawings show them, nested by parentsWithCalls. A level of one box that holds steps costs no click: it shows what that
+ * box holds, again while that is one such box. Such a step has no drawing of its own: the drawing takes the id of its last level.
+ */
+function drawnLevels(process: Process, steps: string[]) {
+  const parent = parentsWithCalls(process, steps);
+  const kids = (key: string | undefined): string[] => steps.filter((one) => parent.get(one) === key);
+  const levelsUnder = (box: string | undefined): (string | undefined)[] => {
+    const levels = [box];
+    for (let shown = kids(box); shown.length === 1 && kids(shown[0]).length > 0; shown = kids(shown[0])) levels.push(shown[0]);
+    return levels;
+  };
+  const topLevels = levelsUnder(undefined);
+  const number = new Map(process.steps.map((key, index): [string, number] => [key, index]).reverse()); // the first place of a key in the list
+  const own = processDiagramId(process.id);
+  const nodeOf = (key: string): string => `s${number.get(key)}`;
+  // The drawing that shows what a step holds; the drawing of the process for none.
+  const drawingOf = (key: string | undefined): string => {
+    const level = levelsUnder(key).at(-1);
+    return topLevels.includes(level) ? own : `${own}/${number.get(level!)}`;
+  };
+  // The step of a drawing that a step lies in: itself, or its outer step just under the level of the drawing; undefined when it lies outside it.
+  const liftTo = (key: string, level: string | undefined): string | undefined => {
+    let at: string | undefined = key;
+    while (at !== undefined && parent.get(at) !== level) at = parent.get(at);
+    return at;
+  };
+  return { parent, kids, levelsUnder, topLevels, number, nodeOf, drawingOf, liftTo };
+}
+
+/**
+ * Where Home shows each step of a process: the drawing and the node of its box, or of the box that holds it when its level costs no click, and the node
+ * of the top drawing that holds it. A step of a top level that costs no click has the drawing of the process and no node. `notes`: the keys of the
+ * notes of the map; a step whose note is gone has no place, as it has no box.
+ */
+export function stepPlaces(process: Process, notes: Set<string>): Map<string, { drawing: string; node?: string; top?: string }> {
+  const steps = liveSteps(process, notes);
+  const { parent, levelsUnder, topLevels, nodeOf, drawingOf, liftTo } = drawnLevels(process, steps);
+  const boxOf = (key: string): string | undefined => {
+    let at: string | undefined = key;
+    while (at !== undefined && levelsUnder(parent.get(at)).includes(at)) at = parent.get(at);
+    return at;
+  };
+  return new Map(steps.map((key) => {
+    const box = boxOf(key);
+    const top = liftTo(key, topLevels.at(-1));
+    return [key, { drawing: drawingOf(box && parent.get(box)), ...(box ? { node: nodeOf(box) } : {}), ...(top ? { top: nodeOf(top) } : {}) }];
+  }));
+}
+
+/**
  * The drawings of one process: the process itself (its top steps, in one box for each file, with the arrows of the writer and its calls out of the repo),
  * and one for each step that holds steps (its inner steps and the steps that it calls in other files, in the order of the list, with the branch arrows).
- * A step whose note is gone is left out.
+ * A level of one box that holds steps shows what that box holds (drawnLevels). A step whose note is gone is left out.
  */
 export function processDrawings(map: MapProcesses, process: Process): ProcessDiagram[] {
   const notes = notesByKey(map);
   const list = liveSteps(process, notes);
   const byLines = parentsOf(list);
-  const parent = parentsWithCalls(process, list);
-  const kids = (top: string | undefined): string[] => list.filter((key) => parent.get(key) === top);
+  const { parent, kids, levelsUnder, number, nodeOf, drawingOf, liftTo } = drawnLevels(process, list);
   const inner = (key: string): number => kids(key).reduce((sum, kid) => sum + 1 + inner(kid), 0);
-  // The step of a drawing that a step lies in: itself, or its outer step just under the step of the drawing; undefined when it lies outside it.
-  const liftTo = (key: string, top: string | undefined): string | undefined => {
-    let at: string | undefined = key;
-    while (at !== undefined && parent.get(at) !== top) at = parent.get(at);
-    return at;
-  };
   const calledUnder = (key: string, box: string): boolean => {
     for (let at = key; at !== box; at = parent.get(at)!) if (byLines.get(at) === undefined) return true;
     return false;
@@ -263,17 +306,15 @@ export function processDrawings(map: MapProcesses, process: Process): ProcessDia
     const elsewhere = (span: Span): boolean => !own.some((one) => one.file === span.file && one.from <= span.from && span.to <= one.to);
     return [...own, ...kids(key).flatMap(spansOf).filter(elsewhere)];
   };
-  const number = new Map(process.steps.map((key, index): [string, number] => [key, index]).reverse()); // the first place of a key in the list
-  const own = processDiagramId(process.id);
-  const idOf = (key: string | undefined): string => (key === undefined ? own : `${own}/${number.get(key)}`);
-  const nodeOf = (key: string): string => `s${number.get(key)}`;
   const drawings: ProcessDiagram[] = [];
 
-  const draw = (top: string | undefined): void => {
-    const shown = kids(top);
+  const draw = (box: string | undefined): void => {
+    const levels = levelsUnder(box);
+    const level = levels.at(-1);
+    const shown = kids(level);
     // A process runs from left to right, so the boxes of its files stack in a column and a process with many files still fits a wide tab;
-    // an opened step runs from top to bottom, in the order of its list.
-    const lines = [top ? 'flowchart TB' : 'flowchart LR'];
+    // an opened step, and a process of one box that holds steps, runs from top to bottom, in the order of its list.
+    const lines = [level ? 'flowchart TB' : 'flowchart LR'];
     const nodes: Record<string, ProcessNode> = {};
     const quiet: string[] = [];
     const edges = edgeList();
@@ -282,30 +323,30 @@ export function processDrawings(map: MapProcesses, process: Process): ProcessDia
       const note = notes.get(key)!;
       const count = inner(key);
       const id = quietBox ? `x${number.get(key)}` : nodeOf(key);
-      nodes[id] = { kind: 'step', files: [note.file], at: spansOf(key), note: stepWords(note), ...(count ? { down: idOf(key), steps: count } : note.cell === undefined ? { line: note.lines[0] } : {}), ...(quietBox ? { quiet: true as const } : {}) };
+      nodes[id] = { kind: 'step', files: [note.file], at: spansOf(key), note: stepWords(note), ...(count ? { down: drawingOf(key), steps: count } : note.cell === undefined ? { line: note.lines[0] } : {}), ...(quietBox ? { quiet: true as const } : {}) };
       if (quietBox) quiet.push(id);
       return (decl[id] = `${id}[${label(quietBox ? `${baseName(note.file)}: ${note.title}` : note.title, count)}]`);
     };
-    if (top) shown.forEach((key) => lines.push(`  ${stepLine(key)}`));
+    if (level) shown.forEach((key) => lines.push(`  ${stepLine(key)}`));
     else {
       filesOf({ ...process, steps: shown }).forEach((file, at) => {
         lines.push(`  subgraph f${at}[${label(file)}]`, ...shown.filter((key) => parseKey(key)!.file === file).map((key) => `    ${stepLine(key)}`), '  end');
       });
       // Inside one function the steps follow the order of the list; two steps at the top are joined only by an arrow with its lines.
     }
-    if (top) shown.slice(1).forEach((key, at) => edges.add(nodeOf(shown[at]), nodeOf(key)));
+    if (level) shown.slice(1).forEach((key, at) => edges.add(nodeOf(shown[at]), nodeOf(key)));
     for (const arrow of process.arrows ?? []) {
       if (!notes.has(arrow.from) || !notes.has(arrow.to)) continue;
-      const from = liftTo(arrow.from, top);
-      const lifted = liftTo(arrow.to, top);
+      const from = liftTo(arrow.from, level);
+      const lifted = liftTo(arrow.to, level);
       // A box that holds a step only because it calls it does not take the calls of other boxes to that step: they go to a quiet box of the step.
       const to = from && lifted && lifted !== from && arrow.kind !== 'branch' && calledUnder(arrow.to, lifted) ? undefined : lifted;
       const start = arrow.kind === 'branch' ? undefined : startOf(arrow.from, arrow.fromLine);
       if (from && to) edges.add(nodeOf(from), nodeOf(to), arrow.label, arrow.kind === 'branch', start);
       else if ((from || to) && arrow.kind !== 'branch') {
-        // One end lies outside the opened step: a quiet box for the step at the other end, unless that is the opened step, which holds it.
+        // One end lies outside the opened step: a quiet box for the step at the other end, unless that step holds the drawing.
         const away = from ? arrow.to : arrow.from;
-        if (away === top) continue;
+        if (levels.includes(away)) continue;
         const box = `x${number.get(away)}`;
         if (!nodes[box]) lines.push(`  ${stepLine(away, true)}`);
         if (from) edges.add(nodeOf(from), box, arrow.label, false, start);
@@ -315,7 +356,7 @@ export function processDrawings(map: MapProcesses, process: Process): ProcessDia
     // One quiet round box for each library or program that the steps call.
     const targets = [...new Set((process.outside ?? []).map((call) => call.to))];
     for (const call of process.outside ?? []) {
-      const from = notes.has(call.from) ? liftTo(call.from, top) : undefined;
+      const from = notes.has(call.from) ? liftTo(call.from, level) : undefined;
       if (!from) continue;
       const box = `o${targets.indexOf(call.to)}`;
       if (!nodes[box]) {
@@ -335,11 +376,11 @@ export function processDrawings(map: MapProcesses, process: Process): ProcessDia
       nodes[to].callers = by.map((link) => ({ title: nodes[link.from].note?.title ?? link.from, file: nodes[link.from].files[0], ...(link.line ? { line: link.line } : {}) }));
     }
     const order = Object.fromEntries(plan.links.filter((link) => link.number).map((link) => [`${link.from}>${link.to}`, link.number!]));
-    const columns = top ? columnLayout(shown.map(nodeOf), decl, quiet, plan) : undefined;
-    const title = top ? `${baseName(notes.get(top)!.file)}: ${notes.get(top)!.title}` : process.title;
+    const columns = level ? columnLayout(shown.map(nodeOf), decl, quiet, plan) : undefined;
+    const title = box ? `${baseName(notes.get(level!)!.file)}: ${notes.get(level!)!.title}` : process.title;
     const starts = edges.starts();
     drawings.push({
-      id: idOf(top), title, mermaid: lines.join('\n'), nodes, ...(starts ? { edgeLines: starts } : {}),
+      id: drawingOf(box), title, mermaid: lines.join('\n'), nodes, ...(starts ? { edgeLines: starts } : {}),
       ...(Object.keys(order).length ? { order } : {}), ...(Object.keys(plan.dots).length ? { dots: plan.dots } : {}), ...(columns ? { columns } : {}),
     });
     shown.filter((key) => inner(key) > 0).forEach(draw);

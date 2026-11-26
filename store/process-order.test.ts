@@ -3,8 +3,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { Note } from '../shared/change-file';
-import { columnSizes, parentsWithCalls, processDrawings, processesWithStepsIn } from '../shared/process-diagrams';
-import { stepKey, type Arrow, type MapProcesses } from '../shared/processes';
+import { columnSizes, parentsWithCalls, processDrawings, processesWithStepsIn, stepPlaces } from '../shared/process-diagrams';
+import { noteKeys, stepKey, type Arrow, type MapProcesses } from '../shared/processes';
 
 /* eslint-disable @typescript-eslint/no-require-imports */
 const ProcessDrawing = require('../../view/media/process-drawing.js');
@@ -86,9 +86,10 @@ test('a step that calls a function in another file holds its steps: the top draw
   const send = note('src/send.py', [1, 12], 'Send all rows');
   const pack = note('src/send.py', [2, 5], 'Pack the rows');
   const post = note('src/send.py', [6, 11], 'Post each pack');
-  const map = processOf([main, load, send, pack, post], [arrow(main, send, 'send them', 5)]);
+  const report = note('src/run.py', [12, 14], 'Report the count');
+  const map = processOf([main, load, send, pack, post, report], [arrow(main, send, 'send them', 5)]);
   const [top, ...opened] = drawn(map);
-  assert.deepEqual(Object.keys(top.nodes), ['s0']);
+  assert.deepEqual(Object.keys(top.nodes), ['s0', 's5']);
   assert.match(top.mermaid, /s0\["Run the job<br><i class='ns'>4 steps<\/i>"\]/);
   assert.deepEqual(top.nodes.s0.at, [{ file: 'src/run.py', from: 1, to: 10 }, { file: 'src/send.py', from: 1, to: 12 }]);
   assert.deepEqual(processesWithStepsIn(map, 'src/send.py').map((one) => one.lit), [['s0']]);
@@ -120,5 +121,22 @@ test('a called step goes under the smallest step that holds the call and comes f
   const loop = processOf([inner, side, outer], [arrow(inner, side, 'ask', 3), arrow(side, outer, 'read again', 2)]);
   const around = parentsWithCalls(loop.processes![0], loop.processes![0].steps);
   assert.deepEqual([side, outer].map((one) => around.get(key(one))), [key(inner), undefined]);
-  assert.equal(drawn(loop).length, 3);
+  assert.equal(drawn(loop).length, 1);
+});
+
+test('a level of one box that holds steps costs no click: it shows what that box holds, and Home finds each step in a drawing that exists', () => {
+  const job = note('src/job.py', [1, 10], 'Run the job');
+  const work = note('src/work.py', [1, 20], 'Do the work');
+  const read = note('src/work.py', [2, 5], 'Read the input');
+  const help = note('src/help.py', [1, 9], 'Help once');
+  const check = note('src/help.py', [2, 4], 'Check it');
+  const fix = note('src/help.py', [5, 8], 'Fix it');
+  const write = note('src/work.py', [10, 15], 'Write the output');
+  const map = processOf([job, work, read, help, check, fix, write], [arrow(job, work, 'work', 5), arrow(read, help, 'help', 3)]);
+  const drawings = drawn(map);
+  assert.deepEqual(drawings.map((one) => [one.id, one.title, Object.keys(one.nodes).join()]), [['process:p', 'Do it', 's2,s6'], ['process:p/3', 'help.py: Help once', 's4,s5']]);
+  assert.equal(drawings[0].nodes.s2.down, 'process:p/3');
+  assert.deepEqual(processesWithStepsIn(map, 'src/help.py').map((one) => one.lit), [['s2']]);
+  const places = stepPlaces(map.processes![0], noteKeys(map));
+  assert.deepEqual([job, help, fix].map((one) => places.get(key(one))), [{ drawing: 'process:p' }, { drawing: 'process:p', node: 's2', top: 's2' }, { drawing: 'process:p/3', node: 's5', top: 's2' }]);
 });

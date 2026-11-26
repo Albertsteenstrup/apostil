@@ -56,15 +56,15 @@ test('a file box takes the words of a rule with the name of its file, and folded
 });
 
 test('a step whose rule says "folded": false holds its inner steps in its box, in place and one level deep, without the quiet boxes of the inner drawing', () => {
-  const { diagram, shown } = drawn('process:answer-request/0', [{ pick: { kind: 'step', where: { title: 'Answer the request' } }, show: { folded: false } }]);
-  assert.match(diagram.mermaid, /^ {2}subgraph s2\["Answer the request"\]\n {4}s2_s3\["Lock the requests for the book"\]/m);
-  const inner = Object.keys(diagram.nodes).filter((id) => id.startsWith('s2_'));
-  assert.deepEqual(inner, ['s2_s3', 's2_s4', 's2_s5', 's2_s6', 's2_s7', 's2_s8', 's2_s9', 's2_s10', 's2_s11']);
+  const { diagram, shown } = drawn('process:answer-request', [{ pick: { kind: 'step', where: { title: 'Answer one book request' } }, show: { folded: false } }]);
+  assert.match(diagram.mermaid, /^ {4}subgraph s0\["Answer one book request"\]\n {6}s0_s3\["Lock the requests for the book"\]/m);
+  const inner = Object.keys(diagram.nodes).filter((id) => id.startsWith('s0_'));
+  assert.deepEqual(inner, ['s0_s3', 's0_s4', 's0_s5', 's0_s6', 's0_s7', 's0_s8', 's0_s9', 's0_s10', 's0_s11']);
   // The arrows of the process keep their numbers; the inner arrows follow, the branches dotted with their words.
-  assert.equal(pairs(diagram.graph.edges.slice(0, 2)), 's2>o0 s2>x12');
-  assert.match(diagram.mermaid, /s2_s5 -\.->\|"when the key repeats"\| s2_s11$/m);
+  assert.equal(pairs(diagram.graph.edges.slice(0, 3)), 's0>s1 s0>o0 s0>s12');
+  assert.match(diagram.mermaid, /s0_s5 -\.->\|"when the key repeats"\| s0_s11$/m);
   assert.equal(shown.text, diagram.mermaid); // nothing else in the look changes it
-  assert.equal(drawn('process:answer-request/0', []).diagram, diagramOf('process:answer-request/0'));
+  assert.equal(drawn('process:answer-request', []).diagram, diagramOf('process:answer-request'));
 });
 
 test('the direction of each level; a branch arrow of an opened step that a rule leaves out keeps the order of its steps as a plain arrow', () => {
