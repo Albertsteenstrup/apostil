@@ -239,8 +239,8 @@ export function mapPrompt(describe = false, team?: Team): string {
  * the app cannot be started from here. `found` gets the session that the run reports on its output: Codex at its start, Claude Code with its result.
  * `team`: the lead and the writers of the run (teamOf in shared/models.ts: medium effort by default for lead and writers).
  */
-export function startMapRun(app: string, folder: string, ended: (problem?: string, facts?: RunFacts) => void, models: RunModels = {}, describe = false, found: (session: string) => void = () => {}, team: Team = teamOf(app)): boolean {
-  const run = mapRunCommand(app, folder, models, describe, team);
+export function startMapRun(app: string, folder: string, ended: (problem?: string, facts?: RunFacts) => void, models: RunModels = {}, describe = false, found: (session: string) => void = () => {}, team: Team = teamOf(app), resume?: string): boolean {
+  const run = mapRunCommand(app, folder, models, describe, team, false, resume);
   if (!run) return false;
   spawnRun(run.command, folder, found, (problem, facts) => {
     rmSync(join(folder, MAP_DRAFT), { force: true });
@@ -252,12 +252,12 @@ export function startMapRun(app: string, folder: string, ended: (problem?: strin
 /**
  * The command of a new session that writes the map, and the id that a Claude Code session gets from here, so that Home names it from the start.
  * It draws diagrams and reads the repo; its lead and writers take the models and effort of the team. `inTerminal`: Claude Code in a terminal (Home).
+ * `resume`: the id of a session that goes on with the map in place of a new one ("Continue" after a stop).
  */
-export function mapRunCommand(app: string, folder: string, models: RunModels = {}, describe = false, team: Team = teamOf(app), inTerminal = false): { command: string[]; session?: string } | undefined {
-  const session = app === 'claude-code' ? randomUUID() : undefined;
-  const command = newRunCommand(app, mapPrompt(describe, team), {
-    ...runOptions(folder, storeFolder(), models), diagrams: true, ...teamRun(team), ...(session ? { sessionId: session } : {}), ...(inTerminal ? { inTerminal } : {}),
-  });
+export function mapRunCommand(app: string, folder: string, models: RunModels = {}, describe = false, team: Team = teamOf(app), inTerminal = false, resume?: string): { command: string[]; session?: string } | undefined {
+  const session = resume ?? (app === 'claude-code' ? randomUUID() : undefined);
+  const options: RunOptions = { ...runOptions(folder, storeFolder(), models), diagrams: true, ...teamRun(team), ...(inTerminal ? { inTerminal } : {}) };
+  const command = resume ? resumeCommand({ app, session: resume }, mapPrompt(describe, team), options) : newRunCommand(app, mapPrompt(describe, team), { ...options, ...(session ? { sessionId: session } : {}) });
   return command && { command, ...(session ? { session } : {}) };
 }
 

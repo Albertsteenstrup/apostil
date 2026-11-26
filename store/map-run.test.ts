@@ -151,7 +151,7 @@ test('the time left starts at the first saved notes, or at the first save of any
   assert.ok(runTimeLeft({ ...withNotes, saves: [['p', 2.3], ['n', 4, 5]] }, later(5)));
 });
 
-test('the words of the line of Home: the run of Home, his own session that opens in its app or in a terminal that continues it, and a run that stopped', () => {
+test('the words of the line of Home: "Mapping…" for the run of Home and his own session, which opens in its app or in a terminal that continues it, and "Map stopped" after a stop', () => {
   const saved = (run: MapRun | undefined, agent = run?.agent): MapRun => {
     let next = withSave(run, { overview: true }, agent, 8, AT);
     for (const area of ['Lending', 'Desk', 'Catalogue']) next = withSave(next, { area }, agent, 8, AT);
@@ -160,34 +160,35 @@ test('the words of the line of Home: the run of Home, his own session that opens
   const now = later(1);
 
   // The run of Home: a session with no window, first with no id, then with the id that the run reports; nothing opens it while it writes.
-  assert.deepEqual(mapRunLine(homeRun('claude-code', AT), { now }), { state: 'writing', words: 'Writing the map', tip: 'a Claude Code session with no window · nothing saved yet' });
+  assert.deepEqual(mapRunLine(homeRun('claude-code', AT), { now }), { state: 'writing', words: 'Mapping…', tip: 'a Claude Code session with no window · nothing saved yet' });
   const home = saved(homeRun('claude-code', AT), { app: 'claude-code', session: SESSION, hostSession: 'the-host-of-the-window' });
   assert.deepEqual(home.agent, { app: 'claude-code', session: SESSION }); // only the id of the session is taken
   assert.deepEqual(mapRunLine(home, { now }), {
-    state: 'writing', words: 'Writing the map',
+    state: 'writing', words: 'Mapping…',
     tip: `Claude Code session 1a2b3c4d (a session with no window) · overview, 3 of 8 areas, notes of 40 files\nSession ${SESSION}\nAreas: Lending, Desk, Catalogue`, chart: true,
   });
   // The run of Home in a terminal: named from the start; while this window has its terminal, "Open the session" shows it.
-  assert.deepEqual(mapRunLine(homeRun('claude-code', AT, SESSION), { now, alive: true }), { state: 'writing', words: 'Writing the map', tip: `Claude Code session 1a2b3c4d · nothing saved yet\nSession ${SESSION}`, opens: 'shown', chart: true });
+  assert.deepEqual(mapRunLine(homeRun('claude-code', AT, SESSION), { now, alive: true }), { state: 'writing', words: 'Mapping…', tip: `Claude Code session 1a2b3c4d · nothing saved yet\nSession ${SESSION}`, opens: 'shown', chart: true });
 
   // His own session in the Claude desktop app opens there. A name of the session stands in place of the id.
   const desktop = saved(undefined, { app: 'claude-code', session: SESSION, hostSession: 'made-up-host-0002', account: 'reader@example.com' });
   const desktopLine = mapRunLine(desktop, { now, name: 'Map of library-app' })!;
-  assert.deepEqual([desktopLine.words, desktopLine.tip?.split('\n')[0]], ['Writing the map', 'Claude Code session "Map of library-app" · overview, 3 of 8 areas, notes of 40 files']);
+  assert.deepEqual([desktopLine.words, desktopLine.tip?.split('\n')[0]], ['Mapping…', 'Claude Code session "Map of library-app" · overview, 3 of 8 areas, notes of 40 files']);
   assert.equal(desktopLine.opens, 'app');
   assert.ok(desktopLine.chart && !mapRunLine(homeRun('codex', AT, SESSION), { now })?.chart); // the chart reads the files of any session of Claude Code
   assert.ok(!JSON.stringify(desktopLine).includes('reader@example.com'));
 
   // His own session in a terminal has no link: it opens in a terminal that continues it. A session that did not name itself is an agent session.
   const terminal = mapRunLine(saved(undefined, { app: 'claude-code', session: SESSION }), { now })!;
-  assert.deepEqual([terminal.words, terminal.tip?.split('\n')[0], terminal.opens], ['Writing the map', 'Claude Code session 1a2b3c4d · overview, 3 of 8 areas, notes of 40 files', 'terminal']);
+  assert.deepEqual([terminal.words, terminal.tip?.split('\n')[0], terminal.opens], ['Mapping…', 'Claude Code session 1a2b3c4d · overview, 3 of 8 areas, notes of 40 files', 'terminal']);
   assert.equal(mapRunLine(withSave(undefined, { processGroup: 'lending-0a1b2c' }, undefined, undefined, AT), { now })?.tip?.split('\n')[0], 'an agent session · processes of 1 area');
 
   // A run that stopped: after 30 quiet minutes, or the run of Home that ended with a problem; a run of Home that this window still runs is not stopped by a quiet time.
   const stopped = mapRunLine(desktop, { now: later(31) })!;
-  assert.deepEqual([stopped.state, stopped.words, stopped.opens], ['stopped', 'The map run of Claude Code session 1a2b3c4d stopped after overview, 3 of 8 areas, notes of 40 files', 'app']);
-  assert.deepEqual(mapRunLine(withEnd(homeRun('claude-code', AT), AT, true), { now }), { state: 'stopped', words: 'The map run of a Claude Code session with no window stopped with nothing saved' });
-  assert.equal(mapRunLine(withEnd(home, AT, true), { now })?.opens, 'terminal');
+  // After a stop: two short words, the rest in the tooltip, and no way to open the session ("Continue" goes on with it).
+  assert.deepEqual([stopped.state, stopped.words, stopped.tip?.split('\n')[0], stopped.opens], ['stopped', 'Map stopped', 'The map run of Claude Code session 1a2b3c4d stopped after overview, 3 of 8 areas, notes of 40 files', undefined]);
+  assert.deepEqual(mapRunLine(withEnd(homeRun('claude-code', AT), AT, true), { now }), { state: 'stopped', words: 'Map stopped', tip: 'The map run of a Claude Code session with no window stopped with nothing saved' });
+  assert.equal(mapRunLine(withEnd(home, AT, true), { now })?.opens, undefined);
   assert.equal(mapRunLine(homeRun('claude-code', AT), { now: later(31), alive: true })?.state, 'writing');
 });
 

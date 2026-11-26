@@ -158,8 +158,9 @@ export const hasChart = (run: MapRun): boolean => run.agent?.app === 'claude-cod
 /**
  * The line of Home for a record, or undefined when the run is done or there is none. `name` is the name of the session in its app; `alive` says that
  * this window started the run and its program still runs, so a long quiet time is no stop.
- * A session of the Claude desktop app or of Codex opens in its app. Any other session that is known opens in a terminal that continues it; a run of Home
- * only when it stopped, because it still works while it writes. A run of Home in a terminal that this window started shows that terminal while it writes.
+ * The words stay short, "Mapping…" or "Map stopped", and the tooltip says the rest; after a stop the line has only "Continue" (continueMap in
+ * view/home-page.ts). While it writes, a session of the Claude desktop app or of Codex opens in its app, any other known session in a terminal that
+ * continues it, and a run of Home in a terminal that this window started shows that terminal.
  */
 export function mapRunLine(run: MapRun | undefined, has: { name?: string; alive?: boolean; now?: number } = {}): MapRunLine | undefined {
   if (!run) return undefined;
@@ -167,11 +168,12 @@ export function mapRunLine(run: MapRun | undefined, has: { name?: string; alive?
   if (state === 'done') return undefined;
   const session = sessionWords(run, has.name);
   const saved = partsWords(run.parts);
-  const words = state === 'writing' ? 'Writing the map' : `The map run of ${session} stopped ${saved ? `after ${saved}` : 'with nothing saved'}`;
+  const words = state === 'writing' ? 'Mapping…' : 'Map stopped';
   const id = run.agent?.session;
-  const tip = [state === 'writing' ? `${session} · ${saved || 'nothing saved yet'}` : '', id ? `Session ${id}` : '', run.parts.areas?.length ? `Areas: ${run.parts.areas.join(', ')}` : ''].filter(Boolean).join('\n');
+  const said = state === 'writing' ? `${session} · ${saved || 'nothing saved yet'}` : `The map run of ${session} stopped ${saved ? `after ${saved}` : 'with nothing saved'}`;
+  const tip = [said, id ? `Session ${id}` : '', run.parts.areas?.length ? `Areas: ${run.parts.areas.join(', ')}` : ''].filter(Boolean).join('\n');
   const shown = run.terminal && has.alive && state === 'writing';
-  const opens = shown ? 'shown' : run.agent && (!run.home || state === 'stopped') && (!id || /^[\w-]+$/.test(id)) ? sessionOpens(run.agent) : undefined;
+  const opens = state !== 'writing' ? undefined : shown ? 'shown' : run.agent && !run.home && (!id || /^[\w-]+$/.test(id)) ? sessionOpens(run.agent) : undefined;
   const time = state === 'writing' ? runTimeLeft(run, has.now) : undefined;
   const chart = hasChart(run);
   return { state, words, ...(tip ? { tip } : {}), ...(opens ? { opens } : {}), ...(time ? { time } : {}), ...(chart ? { chart: true as const } : {}) };

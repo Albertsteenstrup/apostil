@@ -383,16 +383,16 @@ async function drawHome() {
   const look = Home.data.look;
   Trail.show(document.getElementById('crumb'), ownStep(), { look });
   const summary = document.getElementById('summary');
-  summary.textContent = map?.written ?? '';
+  summary.textContent = Home.data.mapRun ? '' : map?.written ?? ''; // while a map run writes or after it stopped, its line stands alone
   // The header line of the look: words with the fields of the repo, a picture in its place, or nothing.
   const headFields = diagram && { repo: Home.data.repo, areas: Object.keys(diagramOf(map.top).graph.nodes).length, files: map.files ?? 0, age: map.written ?? 'written at this commit' };
   const head = diagram && look ? Marks.resolve(look.rules, { kind: 'header', diagram: diagram.id, fields: headFields }, look.one) : {};
-  if (Object.keys(head).length) summary.innerHTML = Marks.wordsHtml(map.written ?? '', head, headFields, look) ?? '';
+  if (Object.keys(head).length && !Home.data.mapRun) summary.innerHTML = Marks.wordsHtml(map.written ?? '', head, headFields, look) ?? '';
   // After a click on a mark: the quiet line of the value, which the × clears.
-  if (Home.filter && diagram) summary.insertAdjacentHTML('beforeend', `${map.written ? ' · ' : ''}<span class="mk-filter">${esc(Home.filter.text)} <a data-clear-filter title="Clear">×</a></span>`);
+  if (Home.filter && diagram) summary.insertAdjacentHTML('beforeend', `${summary.hasChildNodes() ? ' · ' : ''}<span class="mk-filter">${esc(Home.filter.text)} <a data-clear-filter title="Clear">×</a></span>`);
   // While a map run writes, the map shows what is saved, and this line says which session writes and what is done; after a stop, the press that starts again.
   const run = Home.data.mapRun;
-  if (run && diagram) summary.insertAdjacentHTML('beforeend', `${summary.hasChildNodes() ? ' · ' : ''}${mapRunHtml(run, run.state === 'stopped' ? { app: Home.data.mapApp, apps: Home.data.apps } : null)}`);
+  if (run && diagram) summary.insertAdjacentHTML('beforeend', `${summary.hasChildNodes() ? ' · ' : ''}${mapRunHtml(run)}`);
   // While a run of the whole map writes: the time left at the right end of the head, and the bar of the run on the top edge of the frame.
   const time = run?.state === 'writing' ? run.time : undefined;
   showTime(time);

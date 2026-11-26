@@ -11,6 +11,7 @@ import { homePlan, mapWorkLeft } from '../store/map-run';
 import { mapRunChart, mapRunFiles, type MapRunChart } from '../shared/map-run-chart';
 import { agentHome, teamFrom, type Team } from '../shared/models';
 import type { Store } from '../shared/store';
+import { resumeCommand } from '../shared/agents';
 import { MAP_DRAFT, mapRunCommand, startMapRun, type RunFacts } from './agent-run';
 import { runInTerminal } from './run-terminal';
 import { agentsNeedSetup, runNextStep } from './change-list';
@@ -38,6 +39,7 @@ type Message =
   | { type: 'remarkAction'; id: number; action: 'resolve' | 'reopen' | 'start' }
   | { type: 'openSession'; id: number }
   | { type: 'openMapSession' } // "Open the session" on the line of the map run
+  | { type: 'continueMap' } // "Continue" on the line of a map run that stopped
   | { type: 'openMapChart' } // "Run chart" on the line of a run that stopped, or "Map run" in the head of Home after a run ended
   | { type: 'pointer'; on: boolean }
   | { type: 'openLink'; url: string }
@@ -298,7 +300,7 @@ export class HomePages {
    * map (the press then goes on with it).
    * `chosen`: the lead and the effort that the control after the press sent; else, as for the question of a new repo, the default of teamOf().
    */
-  writeMap(app: string, describe = false, chosen?: unknown): void {
+  writeMap(app: string, describe = false, chosen?: unknown, resume?: string): void {
     const folder = this.openFolder();
     if (!folder || this.writing) return;
     const team = teamFrom(app, chosen);
@@ -327,8 +329,8 @@ export class HomePages {
       this.reload();
     };
     const found = (session: string): void => { record((run) => withSession(run, session)); this.reload(); };
-    const session = app === 'claude-code' ? this.mapInTerminal(folder, describe, team, ended) : undefined;
-    const started = app === 'claude-code' ? !!session : startMapRun(app, folder, ended, runModels(), describe, found, team);
+    const session = app === 'claude-code' ? this.mapInTerminal(folder, describe, team, ended, resume) : resume;
+    const started = app === 'claude-code' ? !!session : startMapRun(app, folder, ended, runModels(), describe, found, team, resume);
     if (!started) return void vscode.window.showWarningMessage(`A new session of ${app} cannot be started from here.`);
     this.writing = app;
     // The plan of the work is saved with the record at once: the code files and their lines, the notes groups, and the steps that are expected.
@@ -340,8 +342,8 @@ export class HomePages {
    * Starts Claude Code in a terminal of VS Code that writes the map: the prompt is its first message, and the terminal shows beside Home, which keeps the
    * focus. The run ends when the terminal closes. Returns the id of the session, or undefined when Claude Code cannot be started from here.
    */
-  private mapInTerminal(folder: string, describe: boolean, team: Team, ended: (problem?: string) => void): string | undefined {
-    const run = mapRunCommand('claude-code', folder, runModels(), describe, team, true);
+  private mapInTerminal(folder: string, describe: boolean, team: Team, ended: (problem?: string) => void, resume?: string): string | undefined {
+    const run = mapRunCommand('claude-code', folder, runModels(), describe, team, true, resume);
     if (!run?.session) return undefined;
     const terminal = runInTerminal(run.command, folder, 'Apostil map', run.session, (code) => {
       this.mapTerminal = undefined;
@@ -352,6 +354,20 @@ export class HomePages {
     this.mapTerminal = terminal;
     terminal.show(true);
     return run.session;
+  }
+
+  /**
+   * "Continue" after a map run stopped: the same session when its app is connected and can continue it, else a new session of that app, else the app
+   * that the press of Home starts. The record goes on with the map of the run that stopped (withSave).
+   */
+  continueMap(): void {
+    const folder = this.openFolder();
+    const repo = folder && repoIdOrNone(folder);
+    const agent = repo ? this.store.mapRun(repo)?.agent : undefined;
+    const app = agent && this.apps.includes(agent.app) ? agent.app : this.homeShown?.mapApp ?? this.apps[0];
+    if (!app) return void this.pickApp();
+    const resume = agent?.app === app && agent.session && resumeCommand(agent, '') ? agent.session : undefined;
+    this.writeMap(app, false, undefined, resume);
   }
 
   /** "Another app": VS Code's quick pick with the other installed apps; a pick starts the map with that app at once, so it is the app used last. */
@@ -523,6 +539,9 @@ export class HomePages {
         break;
       case 'openSession':
         openRemarkSession(this.store, message.id, this.openFolder());
+        break;
+      case 'continueMap':
+        this.continueMap();
         break;
       case 'openMapSession': { // the terminal where the session writes the map; or the session in its app, or in a terminal that continues it
         if (this.mapTerminal) return this.mapTerminal.show();

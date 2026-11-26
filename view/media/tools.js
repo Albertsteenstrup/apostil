@@ -124,18 +124,19 @@ const RUN_CHART_TIP = 'Opens a tab with what the lead session and each writer di
 const OPENS_TIP = { app: 'Opens the session in its app', terminal: 'Opens a terminal of VS Code that continues the session', shown: 'Shows the terminal where the session writes the map' };
 
 /**
- * The quiet line of a map run (`run`, a MapRunLine of shared/map-run.ts): "Writing the map" with the turning mark and the bar of the run, or the words of a run that stopped; the session and what is saved so far stand in the tooltip.
- * After the words, "Open the session", which VS Code opens in its app or in a terminal that continues it, and after a run of Home that stopped "Run chart" (the tab "Map run").
- * `again`: after a run that stopped, on the map, the press "Start again" (it starts `again.app`, the pointer says which) and "Another app". The bar moves with the run (barTo in home.js).
+ * The quiet line of a map run (`run`, a MapRunLine of shared/map-run.ts): "Mapping…" with the turning mark and the bar of the run and "Open the session"
+ * when VS Code can open it, or after a stop "Map stopped · Continue"; the session and what is saved so far stand in the tooltip. The bar moves with the
+ * run (barTo in home.js).
  */
-function mapRunHtml(run, again = null) {
+function mapRunHtml(run) {
   const words = `<span${run.tip ? ` title="${esc(run.tip)}"` : ''}>${esc(run.words)}</span>`;
   const work = run.state === 'writing' ? workHtml(run.time?.share ?? 0) : '';
   const reach = run.opens ? `<a data-open-run title="${OPENS_TIP[run.opens]}">Open the session</a>` : '';
-  const chart = run.chart && run.state !== 'writing' ? `<a data-run-chart title="${RUN_CHART_TIP}">Run chart</a>` : '';
-  const press = again?.app ? `<a data-write="${esc(again.app)}" title="Starts a new ${esc(AGENT_NAMES[again.app] ?? again.app)} session">Start again</a>` : '';
-  return `<span class="state maprun" data-run="${esc(run.state)}">${[words + work, reach, chart, press, again?.app ? anotherAppHtml(again.apps) : ''].filter(Boolean).join(' · ')}</span>`;
+  const go = run.state === 'stopped' ? `<a data-continue-run title="${CONTINUE_TIP}">Continue</a>` : '';
+  return `<span class="state maprun" data-run="${esc(run.state)}">${[words + work, reach, go].filter(Boolean).join(' · ')}</span>`;
 }
+
+const CONTINUE_TIP = 'Goes on with the map in the same session, else in a new session, else with another app';
 
 /** The words of the time left of a map run: "About 14 min left", or "Less than a minute left". */
 const timeWords = (minutes) => (minutes < 1 ? 'Less than a minute left' : `About ${Math.round(minutes)} min left`);
@@ -278,6 +279,7 @@ function askHtml(ask, intro) {
 // A click on "Open the session" of a map run, or on the press of words and the link of their run: VS Code does it.
 document.addEventListener('click', (event) => {
   if (event.target.closest?.('[data-open-run]')) tell({ type: 'openMapSession' });
+  if (event.target.closest?.('[data-continue-run]')) tell({ type: 'continueMap' });
   if (event.target.closest?.('[data-run-chart]')) tell({ type: 'openMapChart' });
   const ask = event.target.closest?.('[data-ask]');
   const team = teamChoice('ask');
