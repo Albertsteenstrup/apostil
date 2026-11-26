@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import { headCommit, repoId } from '../shared/git';
 import { findInMap, notesNow } from '../shared/map-read';
 import { areaWork, homeRun, mapRunLine, mapRunState, QUIET_MS, withEnd, withSave, type MapRun } from '../shared/map-run';
+import { timeLeft, type MapPlan } from '../shared/map-estimate';
 import { markGroups } from '../shared/marks';
 import { noteGroups } from '../shared/note-groups';
 import { processFacts } from '../shared/processes';
@@ -141,6 +142,17 @@ test('the words of the line of Home: the run of Home, his own session that opens
   assert.deepEqual(mapRunLine(withEnd(homeRun('claude-code', AT), AT, true), { now }), { state: 'stopped', words: 'The map run of a Claude Code session with no window stopped with nothing saved' });
   assert.equal(mapRunLine(withEnd(home, AT, true), { now })?.opens, 'terminal');
   assert.equal(mapRunLine(homeRun('claude-code', AT), { now: later(31), alive: true })?.state, 'writing');
+});
+
+test('the line of a run of the whole map with a plan has the share of its bar from the start, from the expected times, and the minutes left only once its first notes are saved; a run with no plan has neither', () => {
+  const plan: MapPlan = { at: 0, done: 0, lines: 5000, overview: 1, areas: 2, notes: 20, noteFiles: 60, processes: 6, services: 6, again: 1, fit: 1 };
+  const run: MapRun = { ...homeRun('claude-code', AT), plan, saves: [['o', 5]], savedAt: new Date(later(5)).toISOString() };
+  const early = mapRunLine(run, { now: later(6) })?.time;
+  assert.deepEqual(early, { share: timeLeft(plan, [['o', 5]], Date.parse(AT), later(6)).share });
+  assert.ok(early.share > 0 && early.share < 1);
+  const measured = mapRunLine({ ...run, saves: [['o', 5], ['n', 6, 3]] }, { now: later(7) })?.time;
+  assert.ok(measured?.minutes !== undefined && measured.minutes > 0 && measured.share > early.share);
+  assert.equal(mapRunLine({ ...run, plan: undefined }, { now: later(6) })?.time, undefined);
 });
 
 test('the first save of a run removes what the map holds of a deleted file and of a file that .apostilignore now leaves out: a process with some steps there is stale, one with all its steps there goes; no read removes them', () => {

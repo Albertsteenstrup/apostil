@@ -671,6 +671,22 @@ try {
       && done.length === 7 && done.every((card) => card.content && card.edge === 'solid')
       && !loading.bar && /^About \d+ min left$/.test(loading.time) && loading.aheadMinutes === Number(loading.time.match(/\d+/)[0]), JSON.stringify(loading));
 
+  // A part of the map with no diagram of its own: the pattern of its node (in the drawing at `where`), its card and the frame; and each bar with its number.
+  const hatchState = (where) => home.evaluate((at) => {
+    const node = (key) => document.querySelector(`${at} g.node[id*="flowchart-${key}-"]`);
+    const pattern = (key) => {
+      const id = /url\("?#([^")]+)/.exec(node(key)?.querySelector(':scope > :is(rect,polygon,path)')?.style.fill ?? '')?.[1];
+      return id ? document.getElementById(id).getAttribute('class') : '';
+    };
+    const card = (key) => document.querySelector(`#cards .ovc[data-node="${key}"]`)?.className ?? '';
+    return {
+      routes: pattern('routes'), lending: pattern('lending'), quiet: getComputedStyle(node('routes')?.querySelector('.nodeLabel, text') ?? document.body).color, routesCard: card('routes'), lendingCard: card('lending'),
+      bars: [...document.querySelectorAll('.ovw')].map((work) => [work.querySelector('.ovbar i').style.width, work.querySelector('.ovp')?.textContent]),
+      summary: document.getElementById('summary').textContent, frame: document.getElementById('view').className,
+    };
+  }, where);
+  const hatchRun = await hatchState('#cards .ovc[data-card="0"]');
+
   const moving = () => home.evaluate(() => {
     const plot = document.querySelector('#view .mr-plot svg');
     const box = (selector) => plot.querySelector(selector).getBoundingClientRect();
@@ -715,10 +731,10 @@ try {
   const saved = { ...(await runState()), old: await home.$$eval('#runtime .rt-old', (all) => all.length) };
   await home.evaluate(() => window.postMessage({ type: 'time', time: { minutes: 0, share: 0.97 } }, '*'));
   await home.waitForFunction(() => document.querySelector('#runtime .rt')?.textContent === 'Less than a minute left', null, { timeout: 3000 }).catch(() => {});
-  const ticked = await runState();
-  check('after a save the time left changes once and calmly: the old words move up and fade out above the new ones, then only the new ones stay, and the striped minutes of the chart follow; the time that VS Code sends every 30 seconds changes the words and the striped minutes with nothing drawn again, and under a minute it says "Less than a minute left"',
+  const ticked = { ...(await runState()), number: await home.$eval('#summary .ovp', (el) => el.textContent).catch(() => '') };
+  check('after a save the time left changes once and calmly: the old words move up and fade out above the new ones, then only the new ones stay, and the striped minutes of the chart follow; the time that VS Code sends every 30 seconds changes the words, the striped minutes and the number of the bar with nothing drawn again, and under a minute it says "Less than a minute left"',
     rolling.old === loading.time && /^About \d+ min left$/.test(rolling.now) && rolling.now !== rolling.old && rolling.moves === 'rt-in,rt-out' && saved.time === rolling.now && saved.old === 0
-      && saved.aheadMinutes === Number(saved.time.match(/\d+/)[0]) && ticked.time === 'Less than a minute left' && ticked.aheadMinutes === 0 && ticked.rendered === saved.rendered,
+      && saved.aheadMinutes === Number(saved.time.match(/\d+/)[0]) && ticked.time === 'Less than a minute left' && ticked.aheadMinutes === 0 && ticked.number === '97%' && ticked.rendered === saved.rendered,
     JSON.stringify({ rolling, saved, ticked }));
 
   // In full screen during a run: the chart fills the page with the bar and the time, and no cards. When the run ends, the bar and the time go and the page is the normal overview.
@@ -739,6 +755,18 @@ try {
       && !ended.bar && ended.time === '' && ended.line === '' && ended.chart.writers === 0 && ended.mapNodes === 8 && Object.keys(ended.nodes).length === 0
       && ended.cards.length === 8 && !ended.cards.some((card) => card.title === TOP_MAP) && ended.cards.every((card) => card.state === 'done' && card.content),
     JSON.stringify({ fullRun, ended }));
+
+  await homeAt('');
+  const hatchTop = await hatchState('#view');
+  await homeAt('?diagram=processes:lib-top/routes');
+  const hatchPage = await hatchState('#view');
+  await takePicture(home, '84-5-the-processes-of-a-node-with-no-diagram.png');
+  check('a node with no diagram of its own is striped with quiet words, and so is its card; a node with a diagram is not; the stripes move while writers work on it; its page of processes has a striped frame and says that it has no diagram yet; each bar shows its share in whole percent',
+    hatchTop.routes === 'hatch' && hatchTop.lending === '' && hatchTop.quiet === 'rgb(107, 107, 107)' && /\bhatched\b/.test(hatchTop.routesCard) && !/moving/.test(hatchTop.routesCard) && !/hatched/.test(hatchTop.lendingCard + hatchTop.frame)
+      && hatchRun.routes === 'hatch moving' && hatchRun.lending === '' && /\bhatched moving\b/.test(hatchRun.routesCard) && !/hatched/.test(hatchRun.lendingCard)
+      && hatchRun.bars.length === 3 && hatchRun.bars.every(([width, number]) => width === number) && hatchRun.bars.map(([, number]) => number).sort().join() === '20%,35%,45%' && hatchTop.bars.length === 0
+      && hatchPage.summary === 'Web routes has no diagram yet · the 2 processes that start in its files' && /\bhatched\b/.test(hatchPage.frame) && !/moving/.test(hatchPage.frame),
+    JSON.stringify({ hatchTop, hatchRun, hatchPage }));
 
   // Comments on the map of Home: a node and an arrow hold one, as on the change page; "@" offers only new sessions; a row of the list after a level down lights its node.
   await homeAt('');

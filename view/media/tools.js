@@ -130,7 +130,7 @@ const OPENS_TIP = { app: 'Opens the session in its app', terminal: 'Opens a term
  */
 function mapRunHtml(run, again = null) {
   const words = `<span${run.tip ? ` title="${esc(run.tip)}"` : ''}>${esc(run.words)}</span>`;
-  const work = run.state === 'writing' ? workHtml(run.time?.share ?? 0) : '';
+  const work = run.state === 'writing' ? workHtml(run.time?.share) : '';
   const reach = run.opens ? `<a data-open-run title="${OPENS_TIP[run.opens]}">Open the session</a>` : '';
   const chart = run.chart && run.state !== 'writing' ? `<a data-run-chart title="${RUN_CHART_TIP}">Run chart</a>` : '';
   const press = again?.app ? `<a data-write="${esc(again.app)}" title="Starts a new ${esc(AGENT_NAMES[again.app] ?? again.app)} session">Start again</a>` : '';

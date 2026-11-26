@@ -41,12 +41,18 @@ export function lookOfPage(dark) {
   const page = color(getComputedStyle(document.body).backgroundColor).slice(0, 3);
   const shows = (el) => { const box = el.getBoundingClientRect(); return box.width > 0 && box.height > 0 && box.bottom > 0 && box.top < innerHeight && box.right > 0 && box.left < innerWidth && getComputedStyle(el).visibility !== 'hidden'; };
   const nameOf = (el) => `${el.tagName.toLowerCase()}.${(el.getAttribute('class') ?? '').split(' ')[0]}`;
-  // The colour behind an element: the backgrounds under it laid one over the other, down to the first that is solid; in a drawing, the fill of a shape.
+  // The colour behind an element: the backgrounds under it laid one over the other, down to the first that is solid; in a drawing, the fill of a shape,
+  // and for a fill with a pattern the stroke of its stripes.
+  const fillOf = (shape) => {
+    const fill = getComputedStyle(shape).fill;
+    const pattern = /^url\("?#([^")]+)/.exec(fill)?.[1];
+    return color(pattern ? getComputedStyle(document.getElementById(pattern).querySelector('path')).stroke : fill);
+  };
   const behind = (el) => {
     const layers = [];
     for (let at = el; at; at = at.parentElement) {
       const shape = at instanceof SVGElement && at.matches('g.node, g.cluster, g:has(> rect.actor)') ? at.querySelector(':scope > :is(rect,polygon,path,circle)') : null;
-      const layer = at instanceof SVGElement ? (shape ? color(getComputedStyle(shape).fill) : [0, 0, 0, 0]) : color(getComputedStyle(at).backgroundColor);
+      const layer = at instanceof SVGElement ? (shape ? fillOf(shape) : [0, 0, 0, 0]) : color(getComputedStyle(at).backgroundColor);
       if (layer[3] > 0) layers.push(layer);
       if (layer[3] >= 0.999) break;
     }

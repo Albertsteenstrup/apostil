@@ -338,6 +338,21 @@ test('the drawings: a process by its top steps in a box for each file, a step op
   done();
 });
 
+test('a node with no diagram of its own that goes down to its processes is unmapped, and so is the drawing of the processes of its place; a node with a diagram is mapped', () => {
+  const { repo, store, done } = setup();
+  const diagramOf = (id: string) => homeData(store, repo.folder).map!.diagrams.find((one) => one.id === id)!;
+  assert.equal(addProcessesToMap(store, repo.folder, { group: 'rows', processes: [runRows()] }).saved, true);
+  assert.deepEqual([diagramOf('top').nodes.code.unmapped, diagramOf('process:run-rows').unmapped], [true, undefined]); // one process: the node opens it
+  assert.equal(addProcessesToMap(store, repo.folder, { group: 'report', processes: [reportFile()], handoffs: [handoff] }).saved, true);
+  const { nodes } = diagramOf('top');
+  assert.deepEqual([nodes.code.unmapped, nodes.docs.unmapped, nodes.checks.unmapped], [true, undefined, undefined]); // a node with no process leads to its files
+  assert.deepEqual(diagramOf('processes:top/code').unmapped, { diagram: 'top', node: 'code', title: 'Code', processes: 2 });
+  const area = { id: 'code-area', parent: 'top', kind: 'flow' as const, title: 'The code', mermaid: 'flowchart LR\n  run["Run"] --> keep["Store"]', nodePaths: { run: ['src/run.py'], keep: ['src/store.py'] } };
+  assert.equal(saveMapDraft(store, repo.folder, { ...topMap(), diagrams: [...topMap().diagrams, area] }).saved, true);
+  assert.deepEqual([diagramOf('top').nodes.code.down, diagramOf('top').nodes.code.unmapped], ['code-area', undefined]);
+  done();
+});
+
 
 test('a map with no processes opens on Home, and the command saves from a file in the repo and removes it', () => {
   const { repo, store, map } = setup();

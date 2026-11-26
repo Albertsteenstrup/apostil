@@ -181,7 +181,7 @@ const top = home.map?.diagrams.find((diagram) => diagram.id === home.map?.top);
 const leading = Object.entries(top?.nodes ?? {}).filter(([, node]) => !node.quiet && (node.down || node.paths.length)).map(([key]) => key);
 const areaStates = { [leading[1]]: { state: 'working', share: 0.45 }, [leading[3]]: { state: 'working', share: 0.2 } } as const;
 // As VS Code sends it (home-page.ts): whole minutes, and the share of the bar to a thousandth.
-const whole = (line: MapRunLine | undefined): MapRunLine | undefined => (line?.time ? { ...line, time: { minutes: Math.round(line.time.minutes), share: Math.round(line.time.share * 1000) / 1000 } } : line);
+const whole = (line: MapRunLine | undefined): MapRunLine | undefined => (line?.time ? { ...line, time: { ...(line.time.minutes === undefined ? {} : { minutes: Math.round(line.time.minutes) }), share: Math.round(line.time.share * 1000) / 1000 } } : line);
 const withAreas = (line: MapRunLine | undefined): MapRunLine | undefined => (line ? { ...line, ...whole(line), areas: areaStates } : line);
 const mapRuns = {
   home: lineOf(savedSoFar(homeRun('claude-code', minutesAgo(5)), { app: 'claude-code', session: mapSession })),

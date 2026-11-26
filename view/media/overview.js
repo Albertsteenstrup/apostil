@@ -294,8 +294,9 @@ function sketchHtml(small = false) {
     + `<g clip-path="url(#${id})"><rect class="sks" x="${-w / 3}" y="0" width="${w / 3}" height="${h}" fill="url(#${id}g)"/></g></svg>`;
 }
 
-/** The small turning mark and the small bar of a card whose area a writer works on now. */
-const workHtml = (share) => `<span class="ovw"><i class="spin" aria-hidden="true"></i><span class="ovbar"><i style="width:${Math.round(share * 100)}%"></i></span></span>`;
+/** The small turning mark and the small bar of a card whose area a writer works on now, and its share in whole percent; with no share, an empty bar and no number. */
+const workHtml = (share) => `<span class="ovw"><i class="spin" aria-hidden="true"></i><span class="ovbar"><i style="width:${percentOf(share ?? 0)}"></i></span>${share === undefined ? '' : `<span class="ovp">${percentOf(share)}</span>`}</span>`;
+const percentOf = (share) => `${Math.round(share * 100)}%`;
 
 const Overview = {
   full: null, // his choice from VS Code: the diagram alone (true) or the overview (false); null until VS Code sends it
@@ -378,7 +379,7 @@ const Overview = {
   /**
    * The cards under the diagram, into `holder`: one for each item, in its order. An item is { title, draw(box), shape, open() } for a node with a diagram
    * of its own, drawn small and read only (`shape`: drawingShape() of its drawing), or { title, files: [{ path, line?, folder?, count?, counts?, diff? }] }
-   * for a node that leads to files; `changes`: the changes that touch the node, as rows at its bottom; `node` is the id of its node, and `run` ({ state, share }) the state of its area while a map is written: a card
+   * for a node that leads to files; `changes`: the changes that touch the node, as rows at its bottom; `unmapped`: its node has no diagram of its own, and the card is striped; `node` is the id of its node, and `run` ({ state, share }) the state of its area while a map is written: a card
    * that a writer works on shows a turning mark and its own bar, and a sketch that shimmers while its diagram is not written yet; a card that waits is empty, with a dashed edge and a faint name.
    * A card with a drawing is filled when it comes into view, so a level with many nodes opens at once. A click on a card with a diagram goes one level
    * down (open); a click on a file row does what the page does for that row. The cards take the sizes of their contents and are placed with no gaps.
@@ -388,7 +389,8 @@ const Overview = {
       const state = item.run?.state;
       const head = `<div class="ovh"><span class="ovn" title="${esc(item.title)}">${esc(item.title)}</span>${state === 'working' ? workHtml(item.run.share) : ''}</div>`;
       const changes = item.changes?.length ? `<div class="ovx">${changeRowsHtml(item.changes)}</div>` : ''; // under the content, the changes that touch the node
-      return `<div class="ovc${item.open ? ' go' : ''}${state ? ` run-${state}` : ''}" data-card="${at}"${item.node ? ` data-node="${esc(item.node)}"` : ''}>${head}<div class="ovb"></div>${changes}</div>`;
+      const hatched = item.unmapped ? ` hatched${state === 'working' ? ' moving' : ''}` : '';
+      return `<div class="ovc${item.open ? ' go' : ''}${state ? ` run-${state}` : ''}${hatched}" data-card="${at}"${item.node ? ` data-node="${esc(item.node)}"` : ''}>${head}<div class="ovb"></div>${changes}</div>`;
     }).join('');
     holder.hidden = !items.length;
     holder.classList.remove('focus'); // new cards: none has the focus until focusOn says so
