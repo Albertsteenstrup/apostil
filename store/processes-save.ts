@@ -6,7 +6,7 @@ import { fileText, headCommit, repoFiles, repoId } from '../shared/git';
 import { processGroups } from '../shared/note-groups';
 import { cellsOfText, findCell, type CellAt } from '../shared/notebook';
 import {
-  coveredKeys, holdsLine, notesNeedingProcess, parentsOf, parseKey, processFolds, stepKey,
+  holdsLine, notesInNoProcess, parentsOf, parseKey, processFolds, stepKey,
   type Arrow, type Handoff, type LineAt, type MapProcesses, type OutsideArrow, type Process, type SetAside,
 } from '../shared/processes';
 import { fewWords, fileNotesProblems, fileNotesStyle, mapNoteProblems, textWording, titleWording, type RepoMap } from '../shared/repo-map';
@@ -341,7 +341,7 @@ export function addProcessesToMap(store: Store, folder: string, draft: unknown):
       notInProcess: [...(stored.notInProcess ?? []).map((one) => ({ ...one, note: renamed.get(one.note) ?? one.note }))
         .filter((one) => keys.has(one.note) && (one.group !== group || (add && !mine.some((process) => process.steps.includes(one.note))))), ...aside],
     };
-    const lost = lostNotes(map, (stored.processes ?? []).filter((process) => folds.has(process.id)).map((process) => renamedSteps(process, renamed)), keys);
+    const lost = lostNotes(map, (stored.processes ?? []).filter((process) => folds.has(process.id)).map((process) => renamedSteps(process, renamed)));
     if (lost.length) return fail(lost);
     const style = fileNotesStyle([...newNotes, ...all.filter((note) => fixes.has(stepKey(note)))]);
     result = {
@@ -356,11 +356,11 @@ export function addProcessesToMap(store: Store, folder: string, draft: unknown):
   return result;
 }
 
-/** The problems of a fold: for each folded process, the notes of its steps that are in no process and not set aside after the save. */
-function lostNotes(map: RepoMap, folded: Process[], keys: Set<string>): string[] {
-  const { steps, aside } = coveredKeys(map);
+/** The problems of a fold: for each folded process, the notes of its steps that need a process and are in no process and not set aside after the save. */
+function lostNotes(map: RepoMap, folded: Process[]): string[] {
+  const left = new Set(notesInNoProcess(map).map(stepKey));
   return folded.flatMap((process) => {
-    const lost = process.steps.filter((key) => keys.has(key) && !steps.has(key) && !aside.has(key));
+    const lost = process.steps.filter((key) => left.has(key));
     return lost.length ? [`The fold of "${process.id}": its steps ${lost.join(', ')} are in no process now. Make each a step where the code calls it, or set it aside in "notInProcess" with a reason.`] : [];
   });
 }
@@ -369,8 +369,7 @@ function lostNotes(map: RepoMap, folded: Process[], keys: Set<string>): string[]
 function leftOf(map: RepoMap, group: string, mine: Process[]): Pick<AddProcessesResult, 'left'> {
   const files = new Set(processGroups(map, true).groups.find((one) => one.name === group)?.files.map((file) => file.path)
     ?? mine.flatMap((process) => process.steps.map((key) => parseKey(key)?.file ?? '')));
-  const { steps, aside } = coveredKeys(map);
-  const left = notesNeedingProcess(map).filter((note) => files.has(note.file) && !steps.has(stepKey(note)) && !aside.has(stepKey(note))).map(stepKey);
+  const left = notesInNoProcess(map).filter((note) => files.has(note.file)).map(stepKey);
   return left.length ? { left: { count: left.length, notes: left.slice(0, LEFT_SHOWN) } } : {};
 }
 

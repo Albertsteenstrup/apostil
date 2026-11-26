@@ -18,6 +18,7 @@ export interface MapRunParts {
   ofAreas?: number; // how many areas the top diagram has
   noteFiles?: number; // the files whose notes it saved
   processGroups?: string[]; // the groups whose processes it saved, as apostil process-groups names them
+  foldedInto?: string[]; // the processes that fold writers wrote again, with the processes that fold into them
   marks?: string[]; // the sets whose marks it saved: "services", and the sets of the look
 }
 
@@ -39,10 +40,10 @@ export interface MapRun {
 const MOST_SAVES = 600;
 
 /** The kind of a save in the list of times. */
-const kindOf = (save: MapSave): SaveKind => ('overview' in save ? 'o' : 'area' in save ? 'a' : 'noteFiles' in save ? 'n' : 'processGroup' in save ? 'p' : 'm');
+const kindOf = (save: MapSave): SaveKind => ('overview' in save ? 'o' : 'area' in save ? 'a' : 'noteFiles' in save ? 'n' : 'processGroup' in save ? 'p' : 'foldedInto' in save ? 'f' : 'm');
 
-/** One save of a writer, as the record keeps it: the overview, an area by its title, the notes of so many files, the processes of a group, or the marks of a set. */
-export type MapSave = { overview: true } | { area: string } | { noteFiles: number } | { processGroup: string } | { marks: string };
+/** One save of a writer, as the record keeps it: the overview, an area by its title, the notes of so many files, the processes of a group, a fold, or the marks of a set. */
+export type MapSave = { overview: true } | { area: string } | { noteFiles: number } | { processGroup: string } | { foldedInto: string[] } | { marks: string };
 
 /**
  * Where a run stands. "writing": it is open and saved something in the last 30 minutes. "stopped": it ended with work left, or it writes the whole
@@ -71,6 +72,7 @@ export function withSave(run: MapRun | undefined, save: MapSave, agent: AgentSes
   if ('area' in save) parts.areas = [...(parts.areas ?? []).filter((title) => title !== save.area), save.area];
   if ('noteFiles' in save) parts.noteFiles = (parts.noteFiles ?? 0) + save.noteFiles;
   if ('processGroup' in save) parts.processGroups = [...new Set([...(parts.processGroups ?? []), save.processGroup])];
+  if ('foldedInto' in save) parts.foldedInto = [...new Set([...(parts.foldedInto ?? []), ...save.foldedInto])];
   if ('marks' in save) parts.marks = [...new Set([...(parts.marks ?? []), save.marks])];
   const session = agent?.session ?? open?.agent?.session;
   const by = open?.home ? { app: open.agent?.app ?? agent?.app ?? '', ...(session ? { session } : {}) } : agent?.session ? agent : open?.agent ?? agent;

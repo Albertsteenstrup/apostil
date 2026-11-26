@@ -94,7 +94,7 @@ A fold writer gets a process `into` and the processes that fold into it, each as
 3. For "same job", the two processes are one job: keep the steps of both, each once, in the order the code runs them.
 4. Each step of a folded process is a step of `into`, or it goes into `notInProcess` with a reason. Never draw an arrow that the code does not have: when no code of `into` calls a folded process, leave that process out of `fold`.
 5. The save moves the handoffs of each folded process to `into`. Change a title or a summary of `into` when it no longer says what the whole job does.
-6. Write the JSON to `apostil-processes-fold-<into>.json` in the top folder of the repo, with the `group` of `into` as `apostil process <into>` printed it, `"add": true`, and the ids of the processes that you folded in as `"fold"`:
+6. Write the JSON to `apostil-processes-fold-<into>.json` in the top folder of the repo, with the `group` of `into` as `apostil process <into>` printed it, `"add": true`, and the ids of the processes that you folded in as `"fold"`. Send `"fold"` also when you leave out all of them, as an empty list: Apostil then knows that your fold is done.
 
         { "group": "<the group of into>", "add": true, "fold": ["<id>", "<id>"], "processes": [ { "id": "<into>", "title": "...", "summary": "...", "steps": [ ... ], "arrows": [ ... ] } ] }
 

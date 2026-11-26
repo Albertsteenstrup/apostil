@@ -8,7 +8,7 @@ import { headCommit, repoId } from '../shared/git';
 import { findInMap, notesNow } from '../shared/map-read';
 import { areaWork, homeRun, mapRunLine, mapRunState, QUIET_MS, runTimeLeft, withEnd, withSave, type MapRun } from '../shared/map-run';
 import { markGroups } from '../shared/marks';
-import { noteGroups } from '../shared/note-groups';
+import { noteGroups, processGroups } from '../shared/note-groups';
 import { processFacts } from '../shared/processes';
 import { Store } from '../shared/store';
 import { makeTestRepo, tempFolder } from '../shared/test-repo';
@@ -64,6 +64,43 @@ test('the first save of a writer opens the record with the session from the envi
   assert.ok(ended.endedAt);
   assert.equal(mapRunState(ended), 'done');
   assert.equal(mapRunLine(ended), undefined);
+  store.close();
+  repo.remove();
+});
+
+test('a run that saved processes ends only after its fold writers saved, a fold save adds to the same record, and the plan counts a fold writer for each process group', () => {
+  const store = new Store(tempFolder('apostil-home-'));
+  const repo = makeTestRepo();
+  repo.write('src/app.py', 'def start():\n    return stop()\n\n\ndef stop():\n    return 0\n');
+  repo.commit('start calls stop');
+  const id = repoId(repo.folder);
+  const drafts = tempFolder('apostil-draft-');
+  const save = (command: string, draft: unknown): void => {
+    writeFileSync(join(drafts, 'draft.json'), JSON.stringify(draft));
+    const done = runMapCommand(store, command, join(drafts, 'draft.json'), repo.folder, {}, { CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: SESSION });
+    assert.ok(done.ok, JSON.stringify(done.output));
+  };
+  save('save-map', { format: 1, diagrams: [{ id: 'top', kind: 'flow', title: 'The test repo', mermaid: 'flowchart LR\n  code["Code"]', nodePaths: { code: ['src/'] } }] });
+  const files = ['src/app.py', 'src/new_tool.py'];
+  const note = (file: string, lines: [number, number], title: string) => ({ file, lines, title, text: 'Returns a number.' });
+  save('add-notes', { notes: [note('src/app.py', [1, 2], 'Start the app'), note('src/app.py', [5, 6], 'Stop the app'), note('src/new_tool.py', [1, 2], 'Name the tool')], files });
+  assert.equal(store.mapRun(id)!.plan?.fold, 1); // made when the last notes were saved: one process group is to come
+  save('add-marks', { group: 'code', set: 'services', files, values: [], marks: [] });
+
+  // The process writer starts a process at stop(), which start() calls: the fold round is still to come, so the record stays open.
+  const start = { id: 'start-app', title: 'Start the app', summary: 'Starts the app and stops it.', steps: ['src/app.py:1-2', 'src/app.py:5-6'],
+    arrows: [{ from: 'src/app.py:1-2', to: 'src/app.py:5-6', label: 'stop it', fromLine: 2, toLine: 5, name: 'stop' }] };
+  const stop = { id: 'stop-app', title: 'Stop the app', summary: 'Returns zero.', steps: ['src/app.py:5-6'] };
+  const tool = { id: 'name-tool', title: 'Name the tool', summary: 'Returns the name of the tool.', steps: ['src/new_tool.py:1-2'] };
+  const group = processGroups(store.getMap(id)!.map).groups[0].name;
+  save('add-processes', { group, processes: [start, stop, tool] });
+  const before = store.mapRun(id)!;
+  assert.equal(before.endedAt, undefined);
+
+  save('add-processes', { group, add: true, processes: [start], fold: ['stop-app'] });
+  const after = store.mapRun(id)!;
+  assert.deepEqual([after.startedAt, after.saves?.at(-1)?.[0], after.parts.foldedInto], [before.startedAt, 'f', ['start-app']]);
+  assert.ok(after.endedAt);
   store.close();
   repo.remove();
 });
