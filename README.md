@@ -4,7 +4,7 @@
 
 Understand what coding agents write. An agent draws a map of your repo and writes notes beside the code. Apostil checks them against the code and shows them in VS Code.
 
-https://github.com/user-attachments/assets/c0450212-1249-4625-94b0-078eebad01c3
+https://github.com/user-attachments/assets/e96bda5e-b914-4e71-b3b8-1c0191c641ce
 
 ## Install
 
