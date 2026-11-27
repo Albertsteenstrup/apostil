@@ -23,9 +23,9 @@ async function reportIssue(context: vscode.ExtensionContext, kind?: IssueKind): 
   const issue = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'Apostil: reading the versions for the issue…' }, async () => {
     await new Promise((shown) => setTimeout(shown, 50)); // the note shows before the versions are read, which takes a moment
     const machine = { home: homedir(), path: process.env.PATH ?? '' };
-    const who = whoIsHere(machine.home);
-    const folder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? machine.home;
-    const facts = issueFacts({ folder, machine, install: thisInstall(root), cli: join(root, 'out', 'store', 'cli.js'), store: storeFolder(), who, vscode: vscode.version, onEditor: true });
+    const workspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    const who = whoIsHere(machine.home, workspace);
+    const facts = issueFacts({ folder: workspace ?? machine.home, machine, install: thisInstall(root), cli: join(root, 'out', 'store', 'cli.js'), store: storeFolder(), who, vscode: vscode.version, onEditor: true });
     return prepareIssue({ kind: picked.issueKind, title: '', text: '', facts, who, issues });
   });
   openInBrowser(issue.address);

@@ -5,10 +5,11 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { hostname, userInfo } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { test } from 'node:test';
+import { git } from '../shared/git';
 import { makeTestRepo, tempFolder, testMachine } from '../shared/test-repo';
-import { cleanText, HEADINGS, issuesAddress, MAX_ADDRESS, prepareIssue, TEMPLATES, type Facts, type IssueKind } from './issue';
+import { cleanText, factsText, HEADINGS, issuesAddress, MAX_ADDRESS, prepareIssue, repoNamesOf, TEMPLATES, type Facts, type IssueKind } from './issue';
 import { thisInstall } from './setup';
 
 const root = join(__dirname, '..', '..');
@@ -144,6 +145,58 @@ test('the guard keeps text that is not private: an SSH remote, the line after "p
   assert.equal(cleanText('see file:///Users/sam%20x/a', { ...who, home: '/Users/sam x' }).text, 'see file://<home>/a');
   const gitlab = ['glpat', 'x'.repeat(24)].join('-');
   assert.equal(cleanText(`token ${gitlab} and https://me:secret@example.org/x`, who).text, 'token <removed> and https://<removed>@example.org/x');
+});
+
+test('in the person\'s text the guard replaces the folder, names, branches and files of the repo, and keeps common names, the files of Apostil and the facts', () => {
+  const repo = {
+    top: '/Users/sam/work/shop',
+    names: ['shop', 'acme', 'shop', 'shop-api', 'app'],
+    branches: ['main', 'release', 'feature/checkout-page', 'sams-fix', 'HEAD'],
+    files: ['src/cart.ts', 'src/a.ts', 'README.md', 'CLAUDE.md', 'Makefile', '.claude/skills/apostil-map-repo/SKILL.md', 'apostil-notes-1.json'],
+  };
+  const text = [
+    'I opened /Users/sam/work/shop/src/cart.ts and /Users/sam/work/shop.',
+    'The map of acme/shop on feature/checkout-page stops at cart.ts:12, also in Shop-API and src/a.ts.',
+    'A clone in /Users/sam/old/shop/src/cart.ts, and the sams-fix branch.',
+    'It works on main and release, for the app in src, and on HEAD.',
+    'Apostil wrote /Users/sam/work/shop/.claude/skills/apostil-map-repo/SKILL.md, CLAUDE.md and apostil-notes-1.json; README.md and the Makefile are fine.',
+  ].join('\n');
+  const doctorFacts: Facts = { ...facts, doctor: ['ok       The repo shop on feature/checkout-page has src/cart.ts.'] };
+  const issue = prepareIssue({ kind: 'bug', title: 'Map: shop stops on feature/checkout-page', text, facts: doctorFacts, who: { ...who, repo }, issues: 'https://github.com/example/app/issues' });
+  assert.equal(issue.title, 'Map: <repo> stops on <branch>');
+  assert.equal(issue.body, [
+    'I opened <repo>/<file> and <repo>.',
+    'The map of <repo>/<repo> on <branch> stops at <file>:12, also in <repo> and <file>.',
+    'A clone in <home>/old/<repo>/<file>, and the <branch> branch.',
+    'It works on main and release, for the app in src, and on HEAD.',
+    'Apostil wrote <repo>/.claude/skills/apostil-map-repo/SKILL.md, CLAUDE.md and apostil-notes-1.json; README.md and the Makefile are fine.',
+    '', factsText(doctorFacts), '',
+  ].join('\n'));
+  assert.deepEqual(issue.changed, [
+    'title: a name of the repo → <repo> (1)',
+    'title: a branch name → <branch> (1)',
+    'the folder of the repo → <repo> (3)',
+    'the home folder → <home> (1)',
+    'a name of the repo → <repo> (4)',
+    'a branch name → <branch> (2)',
+    'a file of the repo → <file> (4)',
+  ]);
+});
+
+test('the names of the repo come from git: its top folder, the names in its remotes, its branches and its files; none outside a repo', () => {
+  const repo = makeTestRepo();
+  git(repo.folder, 'remote', 'add', 'origin', 'git@github.com:acme/shop.git');
+  git(repo.folder, 'remote', 'add', 'upstream', 'https://github.com/acme/shop-api.git');
+  git(repo.folder, 'update-ref', 'refs/remotes/origin/fix-cart', 'HEAD');
+  const found = repoNamesOf(join(repo.folder, 'src'));
+  assert.equal(found?.top, repo.folder);
+  assert.deepEqual(new Set(found?.names), new Set([basename(repo.folder), 'acme', 'shop', 'shop-api']));
+  assert.deepEqual(found?.branches.sort(), ['feature', 'fix-cart', 'main']);
+  assert.deepEqual(found?.files.sort(), ['README.md', 'generated/api.json', 'src/app.py', 'src/new_tool.py']);
+  const text = `${repo.folder}/src/app.py on fix-cart of acme/shop-api, see new_tool.py`;
+  assert.equal(cleanText(text, { ...who, repo: found }).text, '<repo>/<file> on <branch> of <repo>/<repo>, see <file>');
+  assert.equal(repoNamesOf(tempFolder('apostil-no-repo-')), undefined);
+  repo.remove();
 });
 
 test('a text far over the limit is refused before the guard reads it', () => {
