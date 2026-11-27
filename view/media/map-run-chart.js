@@ -47,7 +47,7 @@ const RunChart = (() => {
    */
   function plotHtml(chart, ago) {
     const live = chart.state === 'writing';
-    const total = Math.max(MINUTE, chart.now + (live ? (chart.minutesLeft ?? chart.guessLeft ?? 0) * MINUTE : 0));
+    const total = Math.max(MINUTE, chart.now + (live ? (chart.minutesLeft ?? 0) * MINUTE : 0));
     const x = (ms) => `${((ms / total) * 100).toFixed(3)}%`;
     const width = (span) => `${(((span.to - span.from) / total) * 100).toFixed(3)}%`;
     const left = live ? total - chart.now : 0;

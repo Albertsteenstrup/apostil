@@ -28,7 +28,6 @@ export interface MapRunChart {
   start: string; // the start of the run, or of its first writer when that is earlier (mapRunChart)
   now: number; // the end of the chart; after the run ended, its end
   minutesLeft?: number;
-  guessLeft?: number; // before the pace is measured: the guessed minutes left, which only set the end of the axis
   lead: { run: RunPick; thinks: Span[]; commands: Span[]; busy: number };
   writers: ChartWriter[]; // in the order of their starts
   writersRun?: RunPick;
@@ -170,11 +169,11 @@ function aloneSpans(writers: Span[], end: number): Span[] {
 
 /**
  * The chart of a map run of Claude Code at `now`, read from the files in `home`; undefined for a run with no Claude Code session id. After the run ended,
- * the chart ends at its end (a run that stopped by a quiet time, at its last line). `minutesLeft`: the minutes that Home shows; `guessLeft`: the guess before them; `alive`: as for mapRunState.
+ * the chart ends at its end (a run that stopped by a quiet time, at its last line). `minutesLeft`: the minutes that Home shows; `alive`: as for mapRunState.
  * A session of his own also works before and after the run, so only the lines from the start to the end of the run count, and the writers whose lines
  * reach into that time. The record of such a run starts at its first save, so the chart starts with the first of those writers.
  */
-export function mapRunChart(run: MapRun, home: string, now = Date.now(), { minutesLeft, guessLeft, alive }: { minutesLeft?: number; guessLeft?: number; alive?: boolean } = {}): MapRunChart | undefined {
+export function mapRunChart(run: MapRun, home: string, now = Date.now(), { minutesLeft, alive }: { minutesLeft?: number; alive?: boolean } = {}): MapRunChart | undefined {
   const agent = run.agent;
   if (agent?.app !== 'claude-code' || !agent.session) return undefined;
   const state = mapRunState(run, now, alive);
@@ -194,7 +193,7 @@ export function mapRunChart(run: MapRun, home: string, now = Date.now(), { minut
   const running = writers.filter((writer) => writer.running).length;
   return {
     kind: 'run', state: files.transcript ? state : 'waiting', session: sessionCalled(agent, sessionName(agent, home)), start: new Date(start).toISOString(), now: end,
-    ...(writing && minutesLeft !== undefined ? { minutesLeft } : writing && guessLeft !== undefined ? { guessLeft } : {}),
+    ...(writing && minutesLeft !== undefined ? { minutesLeft } : {}),
     lead: { run: sessionPick('claude-code', agent.session, undefined, home), thinks, commands, busy: covered([...thinks, ...commands]) },
     writers, ...(writers[0] ? { writersRun: writers[0].run } : {}), alone: aloneSpans(writers, end),
     numbers: { running, done: writers.length - running, tokens: writers.reduce((sum, writer) => sum + writer.tokens, 0) },

@@ -85,18 +85,16 @@ export function withSave(run: MapRun | undefined, save: MapSave, agent: AgentSes
   };
 }
 
-/** What Home shows of a run: the share of its bar, the minutes left once the pace of the run is measured, and before that `guess`, which only the chart's axis uses. */
-export type RunTime = Pick<TimeLeft, 'share'> & Partial<Pick<TimeLeft, 'minutes'>> & { guess?: number };
+/** What Home shows of a run: the share of its bar, and the minutes left. */
+export type RunTime = Pick<TimeLeft, 'share'> & Partial<Pick<TimeLeft, 'minutes'>>;
 
 /**
- * The time left of a run that writes the whole map and has a plan, at `now` (shared/map-estimate.ts); undefined for any other. The share comes from the
- * expected times from the start; the minutes only once its first notes are saved: before that the pace of the run is not measured, and a time from the
- * size of the repo alone is a guess, which only scales the axis of the chart (`guess`). A plan with no notes to write counts the real groups of the map, so its minutes start at the first save of any writer.
+ * The time left of a run that writes the whole map and has a plan, at `now` (shared/map-estimate.ts); undefined for any other. From the start it comes
+ * from the code lines of the repo that need notes (the plan), the same for the small model of each app; the pace of the run corrects it as work is saved.
  */
 export function runTimeLeft(run: MapRun, now = Date.now()): RunTime | undefined {
   if (!run.plan || !run.whole || run.endedAt) return undefined;
-  const time = timeLeft(run.plan, run.saves ?? [], Date.parse(run.startedAt), now);
-  return run.saves?.some(([kind]) => kind === 'n' || !run.plan?.notes) ? time : { share: time.share, guess: time.minutes };
+  return timeLeft(run.plan, run.saves ?? [], Date.parse(run.startedAt), now);
 }
 
 /** The share of the work of a stopped run of the whole map with a plan, up to its last save; undefined for any other. */

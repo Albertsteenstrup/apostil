@@ -141,15 +141,12 @@ test('an open record with no save for 30 minutes counts as stopped; a run that w
   assert.deepEqual([after.startedAt, after.whole, after.parts, after.agent?.session], [new Date(later(40)).toISOString(), true, { ofAreas: 8, noteFiles: 3 }, 'another-session']);
 });
 
-test('the minutes left start at the first saved notes, or at the first save of any writer when the plan has no notes to write', () => {
+test('the minutes left show from the start, before any writer saves, also for a plan with no notes to write', () => {
   const plan = { at: 0, done: 0, lines: 20_000, overview: 0, areas: 0, notes: 0, noteFiles: 0, noteLines: 0, longest: 0, processes: 3, services: 10, again: 1, fit: 1 };
   const run: MapRun = { ...homeRun('claude-code', AT, SESSION), plan, saves: [] };
-  assert.equal(runTimeLeft(run, later(2))?.minutes, undefined); // nothing saved: the pace is not measured
-  assert.ok((runTimeLeft({ ...run, saves: [['p', 2.3]] }, later(3))?.minutes ?? 0) > 20);
-  // A plan with notes to write waits for the first notes, also after a process is saved.
+  assert.ok((runTimeLeft(run, later(0))?.minutes ?? 0) > 20);
   const withNotes: MapRun = { ...run, plan: { ...plan, notes: 2, noteFiles: 10, noteLines: 900, longest: 500 } };
-  assert.equal(runTimeLeft({ ...withNotes, saves: [['p', 2.3]] }, later(3))?.minutes, undefined);
-  assert.ok(runTimeLeft({ ...withNotes, saves: [['p', 2.3], ['n', 4, 5]] }, later(5))?.minutes !== undefined);
+  assert.ok((runTimeLeft(withNotes, later(0))?.minutes ?? 0) > (runTimeLeft(run, later(0))?.minutes ?? 0));
 });
 
 test('the words of the line of Home: "Mapping…" for the run of Home and his own session, which opens in its app or in a terminal that continues it, and "Map stopped" after a stop', () => {
@@ -193,14 +190,18 @@ test('the words of the line of Home: "Mapping…" for the run of Home and his ow
   assert.equal(mapRunLine(homeRun('claude-code', AT), { now: later(31), alive: true })?.state, 'writing');
 });
 
-test('the line of a run of the whole map with a plan has the share of its bar from the start, from the expected times, and the minutes left only once its first notes are saved (before that a guess for the axis of the chart); a run with no plan has neither', () => {
-  const plan: MapPlan = { at: 0, done: 0, lines: 5000, overview: 1, areas: 2, notes: 20, noteFiles: 60, processes: 6, services: 6, again: 1, fit: 1 };
-  const run: MapRun = { ...homeRun('claude-code', AT), plan, saves: [['o', 5]], savedAt: new Date(later(5)).toISOString() };
-  const early = mapRunLine(run, { now: later(6) })?.time;
-  const guessed = timeLeft(plan, [['o', 5]], Date.parse(AT), later(6));
-  assert.deepEqual(early, { share: guessed.share, guess: guessed.minutes });
+test('the line of a run of the whole map with a plan has the share of its bar and the minutes left from the start, from the code lines of the repo; a run with no plan has neither', () => {
+  const plan: MapPlan = { at: 0, done: 0, lines: 5000, overview: 1, areas: 2, notes: 20, noteFiles: 60, noteLines: 5000, processes: 6, services: 6, again: 1, fit: 1 };
+  const run: MapRun = { ...homeRun('claude-code', AT), plan };
+  const first = mapRunLine(run, { now: later(0) })?.time;
+  assert.deepEqual(first, timeLeft(plan, [], Date.parse(AT), later(0)));
+  assert.ok(first.minutes > 0);
+  const bigger = mapRunLine({ ...run, plan: { ...plan, noteLines: 20000, longest: 2000 } }, { now: later(0) })?.time;
+  assert.ok(bigger!.minutes! > first.minutes!);
+  const early = mapRunLine({ ...run, saves: [['o', 5]], savedAt: new Date(later(5)).toISOString() }, { now: later(6) })?.time;
+  assert.deepEqual(early, timeLeft(plan, [['o', 5]], Date.parse(AT), later(6)));
   assert.ok(early.share > 0 && early.share < 1);
-  const measured = mapRunLine({ ...run, saves: [['o', 5], ['n', 6, 3]] }, { now: later(7) })?.time;
+  const measured = mapRunLine({ ...run, saves: [['o', 5], ['n', 6, 3]], savedAt: new Date(later(6)).toISOString() }, { now: later(7) })?.time;
   assert.ok(measured?.minutes !== undefined && measured.minutes > 0 && measured.share > early.share);
   assert.equal(mapRunLine({ ...run, plan: undefined }, { now: later(6) })?.time, undefined);
 });

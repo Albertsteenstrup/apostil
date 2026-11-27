@@ -228,7 +228,7 @@ export function mapPrompt(describe = false, team?: Team): string {
   const files = ['apostil-map-repo/SKILL.md', 'apostil-map-repo/look-writer-prompt.md', 'apostil-describe-change/text-rules.md', ...(describe ? ['apostil-describe-change/SKILL.md'] : [])];
   const models = team ? teamSentence(team, WRITER_AGENT) : '';
   return [
-    `Write the map of this repo for Apostil Home, with the notes of its code files and its processes, as the skill apostil-map-repo says.${describe ? ` ${DESCRIBE_AFTER_MAP}` : ''}${models ? ` ${models}` : ''} The files of the skills follow. `
+    `Write the map of this repo for Apostil Home, with the notes of its code files and its processes, as the skill apostil-map-repo says. The owner started it from Home to map the whole repo, so he has already chosen all of it: ask him nothing, also when there are more than 80 notes groups, and never wait for an answer.${describe ? ` ${DESCRIBE_AFTER_MAP}` : ''}${models ? ` ${models}` : ''} The files of the skills follow. `
       + `The overview writer writes the map file as ${MAP_DRAFT} in the repo folder. An area writer writes its diagram file, a notes writer its notes file, a process writer its processes file, and a service or mark writer its marks file and its icon files, in the repo folder, as its prompt says.`,
     skillTexts(files),
   ].join('\n\n');

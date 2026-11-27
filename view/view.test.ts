@@ -586,9 +586,9 @@ test('the map run gets as text the files of the skills that its lead reads and n
   // A map run that also describes the change says so in its first words and gets the skill of the change.
   const plain = mapPrompt();
   const both = mapPrompt(true);
-  assert.ok(plain.startsWith('Write the map of this repo for Apostil Home, with the notes of its code files and its processes, as the skill apostil-map-repo says. The files'));
+  assert.ok(plain.startsWith('Write the map of this repo for Apostil Home, with the notes of its code files and its processes, as the skill apostil-map-repo says. The owner started it from Home to map the whole repo, so he has already chosen all of it: ask him nothing, also when there are more than 80 notes groups, and never wait for an answer. The files'));
   assert.ok(!plain.includes('# Describe a change'));
-  assert.ok(both.startsWith(`Write the map of this repo for Apostil Home, with the notes of its code files and its processes, as the skill apostil-map-repo says. ${DESCRIBE_AFTER_MAP}`));
+  assert.ok(both.startsWith(`Write the map of this repo for Apostil Home, with the notes of its code files and its processes, as the skill apostil-map-repo says. The owner started it from Home to map the whole repo, so he has already chosen all of it: ask him nothing, also when there are more than 80 notes groups, and never wait for an answer. ${DESCRIBE_AFTER_MAP}`));
   assert.deepEqual(both.match(/^----- .+ -----$/gm), [...lead, '----- apostil-describe-change/SKILL.md -----']); // the writer and the checkers print their prompts
   assert.ok(both.includes('# Describe a change'));
 

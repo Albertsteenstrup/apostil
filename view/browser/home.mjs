@@ -679,8 +679,8 @@ try {
   await homeAt('?nomap=1&run=reading');
   const reading = await runState();
   await takePicture(home, '84-1-before-the-overview.png');
-  check('before the overview of a run of Home is saved, the frame holds the live chart of the run (the lead row and the writers, no head of its own) in place of the wordmark, and the one card is the overview as a soft sketch that shimmers slowly; the line of the run stands under the head; no time and no bar show before the run has measured its pace',
-    reading.chart.thinks > 0 && reading.chart.writers === 4 && !reading.chart.head && !reading.sketch && !reading.wordmark && reading.time === '' && reading.line.startsWith('Mapping…')
+  check('before the overview of a run of Home is saved, the frame holds the live chart of the run (the lead row and the writers, no head of its own) in place of the wordmark, and the one card is the overview as a soft sketch that shimmers slowly; the line of the run stands under the head; the time left shows from the start, from the code lines of the repo, and the frame has no bar',
+    reading.chart.thinks > 0 && reading.chart.writers === 4 && !reading.chart.head && !reading.sketch && !reading.wordmark && /^About \d+ min left$/.test(reading.time) && reading.line.startsWith('Mapping…')
       && !reading.bar && reading.cards.length === 1 && reading.cards[0].title === 'Overview' && reading.cards[0].sketch && reading.cards[0].state === 'working', JSON.stringify(reading));
 
   // While the areas load: the states of the nodes of the top map and of their cards, the bar and the time.
