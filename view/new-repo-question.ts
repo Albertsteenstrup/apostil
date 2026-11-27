@@ -1,5 +1,5 @@
-// One question in a repo with no map, once for a repo, after the first-start questions: a new session of an agent app that maps it, one button for each app.
-// Only an app that is connected is offered, Claude Code first. With no app connected, the question that connects them comes first.
+// One question in a repo with no map, once for a repo, after the first-start questions: a new session that maps it, with one button for the first app
+// that is connected (Claude Code first); the other apps stay on Home. With no app connected, the question that connects them comes first.
 // An answer starts the run that "Map this repo with …" on Home starts. Home keeps that press, so "Not now" loses nothing.
 
 import * as vscode from 'vscode';
@@ -34,8 +34,7 @@ export async function askOnceInNewRepo(context: vscode.ExtensionContext, store: 
   if (step === 'connect') await vscode.commands.executeCommand('apostil.setUp', root); // the set-up question: the command on the path and the skills for Claude Code and Codex
   const connected = connectedApps(apps, root);
   if (!connected.length) return; // he did not connect an app: Home keeps its actions
-  const actions = connected.map((app) => `New ${APP_NAMES[app] ?? app} session`);
-  const picked = await vscode.window.showInformationMessage(NEW_REPO_QUESTION, ...actions, 'Not now');
-  const app = connected[actions.indexOf(picked ?? '')];
-  if (app) start(app, hasUndescribedChange(root));
+  const [app] = connected;
+  const action = `Map with ${APP_NAMES[app] ?? app}`;
+  if (await vscode.window.showInformationMessage(NEW_REPO_QUESTION, action, 'Not now') === action) start(app, hasUndescribedChange(root));
 }

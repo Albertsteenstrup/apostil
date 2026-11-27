@@ -322,11 +322,11 @@ try {
   const questionShown = await shown(question);
   const questionButtons = questionShown ? await question.locator('.monaco-button').allTextContents() : [];
   await shot('1b-the-question-of-a-new-repo');
-  if (questionShown) await question.locator('.monaco-button', { hasText: 'New Claude Code session' }).click();
+  if (questionShown) await question.locator('.monaco-button', { hasText: 'Map with Claude Code' }).click();
   await until(() => runsNow().length === 1);
   const [mapRun = ''] = runsNow();
-  check('in a repo with no map whose apps are connected, one question follows, Claude Code first; its action starts one run of the map in a terminal, with the prompt as its first message, which also describes the change of the branch',
-    questionButtons.join() === 'New Claude Code session,New Codex session,New Antigravity session,Not now' && mapRun.startsWith('Write the map of this repo for Apostil Home') && mapRun.includes('Then describe the change of this branch'),
+  check('in a repo with no map whose apps are connected, one question follows with one button, for Claude Code, the first connected app; its action starts one run of the map in a terminal, with the prompt as its first message, which also describes the change of the branch',
+    questionButtons.join() === 'Map with Claude Code,Not now' && mapRun.startsWith('Write the map of this repo for Apostil Home') && mapRun.includes('Then describe the change of this branch'),
     `${questionButtons.join()}; ${mapRun.slice(0, 120).replace(/\n/g, ' | ')}`);
 
   // While the stand-in writes in its terminal, Home says that the map is written, with the link that shows the terminal; its tooltip names the
