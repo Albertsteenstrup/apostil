@@ -193,11 +193,12 @@ test('the words of the line of Home: "Mapping…" for the run of Home and his ow
   assert.equal(mapRunLine(homeRun('claude-code', AT), { now: later(31), alive: true })?.state, 'writing');
 });
 
-test('the line of a run of the whole map with a plan has the share of its bar from the start, from the expected times, and the minutes left only once its first notes are saved; a run with no plan has neither', () => {
+test('the line of a run of the whole map with a plan has the share of its bar from the start, from the expected times, and the minutes left only once its first notes are saved (before that a guess for the axis of the chart); a run with no plan has neither', () => {
   const plan: MapPlan = { at: 0, done: 0, lines: 5000, overview: 1, areas: 2, notes: 20, noteFiles: 60, processes: 6, services: 6, again: 1, fit: 1 };
   const run: MapRun = { ...homeRun('claude-code', AT), plan, saves: [['o', 5]], savedAt: new Date(later(5)).toISOString() };
   const early = mapRunLine(run, { now: later(6) })?.time;
-  assert.deepEqual(early, { share: timeLeft(plan, [['o', 5]], Date.parse(AT), later(6)).share });
+  const guessed = timeLeft(plan, [['o', 5]], Date.parse(AT), later(6));
+  assert.deepEqual(early, { share: guessed.share, guess: guessed.minutes });
   assert.ok(early.share > 0 && early.share < 1);
   const measured = mapRunLine({ ...run, saves: [['o', 5], ['n', 6, 3]] }, { now: later(7) })?.time;
   assert.ok(measured?.minutes !== undefined && measured.minutes > 0 && measured.share > early.share);

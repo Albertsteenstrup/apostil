@@ -533,7 +533,7 @@ function runFrame(view, summary, run, time) {
 /** While a run of Home writes the map: its chart (map-run-chart.js), which Home's frame holds in place of the top map. */
 const liveChart = () => {
   const run = Home.data.mapRun;
-  return run?.state === 'writing' && Home.data.chart ? { ...Home.data.chart, minutesLeft: run.time?.minutes } : null;
+  return run?.state === 'writing' && Home.data.chart ? { ...Home.data.chart, minutesLeft: run.time?.minutes, guessLeft: run.time?.guess } : null;
 };
 const fillChart = () => { const box = document.querySelector('#view > .runchart'); if (box && liveChart()) { RunChart.fill(box, liveChart(), false); box.parentElement.sized?.(); } };
 

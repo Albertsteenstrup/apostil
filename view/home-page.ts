@@ -201,11 +201,12 @@ export class HomePages {
     const repo = repoIdOrNone(this.openFolder());
     const run = repo ? this.store.mapRun(repo) : undefined;
     const minutesLeft = run && this.shown?.run === run.startedAt ? this.shown.time.minutes : undefined;
+    const guessLeft = run && minutesLeft === undefined ? runTimeLeft(run)?.guess : undefined;
     const files = run?.agent?.session ? mapRunFiles(run.agent.session, agentHome()) : {};
     for (const file of [files.transcript, files.writers]) {
       if (file && !this.runFiles.has(file) && existsSync(file)) this.runFiles.set(file, followFile(dirname(file), basename(file), () => this.runChanged()));
     }
-    return run && mapRunChart(run, agentHome(), Date.now(), { minutesLeft, alive: !!this.writing });
+    return run && mapRunChart(run, agentHome(), Date.now(), { minutesLeft, guessLeft, alive: !!this.writing });
   }
 
   /** A file of the map run changed, or its time moved on: the tab "Map run", and Home while it shows the chart, read it again. */
@@ -428,7 +429,7 @@ export class HomePages {
   /** The time to show: a fall at once, a rise only when two computations in a row agree on it (shownTime). */
   private held(run: string, time: RunTime): RunTime {
     const share = Math.round(time.share * 1000) / 1000;
-    if (time.minutes === undefined) return { share };
+    if (time.minutes === undefined) return { share, ...(time.guess !== undefined ? { guess: time.guess } : {}) };
     const next = shownTime(this.shown?.run === run ? this.shown.time : undefined, time.minutes);
     this.shown = { run, time: next };
     return { minutes: next.minutes, share };
