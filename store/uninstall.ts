@@ -5,6 +5,7 @@
 
 import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { delimiter, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { tryGit } from '../shared/git';
 import { Store } from '../shared/store';
 import { isOwnLink, ownTarget } from '../shared/install-command';
@@ -14,6 +15,10 @@ import { RECORD_FILE, recordRepo, setUpRepos } from './setup-record';
 
 export const EXTENSION_ID = 'apostil.apostil';
 const STORE_FILE = 'apostil.sqlite'; // the database of the store (shared/store.ts)
+const STATE_FILE = join('globalStorage', 'state.vscdb'); // where VS Code keeps the saved answers (global state) of every extension, in its user folder
+const STATE_KEYS = [EXTENSION_ID, 'workbench.view.extension.apostil.state.hidden']; // the answers of Apostil, and the view state of its sidebar
+const STATE_WAIT = 2000; // milliseconds that the database may be busy: the editor may be open
+const SERVER_FOLDERS = ['.vscode-server', '.cursor-server', '.windsurf-server', '.vscode-server-insiders']; // the folders of an editor that runs on a remote machine
 
 /**
  * VS Code and the forks that have a command of their own: the folder of their extensions in the home folder, the folder of their user data
@@ -77,6 +82,9 @@ function hasApostil(extensions: string): boolean {
   const removed = read('.obsolete') ?? {};
   return children(extensions).some((name) => name.toLowerCase().startsWith(`${EXTENSION_ID}-`) && !removed[name]);
 }
+
+/** The user folders of the editors that run on this machine as a remote server (over SSH, in a container), when they are there. */
+export const serverUserFolders = (home: string): string[] => SERVER_FOLDERS.map((folder) => join(home, folder, 'data', 'User')).filter((user) => existsSync(user));
 
 const count = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 's'}`;
 
@@ -145,6 +153,44 @@ function removeSettings(home: string, users: string[], say: Say, change: Change)
     if (change(place, 'Remove them in the file by hand.', () => writeFileSync(file, `${JSON.stringify(kept, null, indent)}${text.endsWith('\n') ? '\n' : ''}`))) say('removed', place);
   }
   if (!found) say('nothing', 'Settings of Apostil in VS Code: none found.');
+}
+
+/**
+ * Takes the saved answers of Apostil (the global state of the extension and the view state of its sidebar) out of the database of VS Code in each user folder.
+ * Without them a new install asks again whether to set up the look and whether to map a repo. A database that cannot be opened or written stays, and the line says so.
+ */
+function removeSavedAnswers(home: string, users: string[], say: Say, change: Change, failed: (place: string, error: unknown, byHand: string) => void): void {
+  const byHand = 'Close the editor and run apostil uninstall again.';
+  const marks = STATE_KEYS.map(() => '?').join(', ');
+  let said = false; // a line for a file: removed, or left with the reason
+  for (const file of users.map((user) => join(user, STATE_FILE)).filter((one) => existsSync(one))) {
+    const place = `VS Code's saved answers of Apostil in ${short(file, home)}`;
+    let rows = 0;
+    try {
+      const read = new DatabaseSync(file, { readOnly: true, timeout: STATE_WAIT });
+      try {
+        rows = Number((read.prepare(`SELECT count(*) AS n FROM ItemTable WHERE key IN (${marks})`).get(...STATE_KEYS) as { n: number }).n);
+      } finally {
+        read.close();
+      }
+    } catch (error) {
+      failed(place, error, byHand);
+      said = true;
+      continue;
+    }
+    if (!rows) continue;
+    said = true;
+    const act = (): void => {
+      const write = new DatabaseSync(file, { timeout: STATE_WAIT });
+      try {
+        write.prepare(`DELETE FROM ItemTable WHERE key IN (${marks})`).run(...STATE_KEYS);
+      } finally {
+        write.close();
+      }
+    };
+    if (change(place, byHand, act)) say('removed', place);
+  }
+  if (!said) say('nothing', "VS Code's saved answers of Apostil: none found.");
 }
 
 /** The mods of Apostil that Claude's own plugin file lists: read when the command claude is not on the path (the desktop app has none), and by the quick run of an editor. */
@@ -254,6 +300,10 @@ export function uninstall({ machine, install, store, folder, dryRun = false, del
     if (change(place, 'Remove the folder by hand.', () => rmSync(storage, { recursive: true, force: true }))) say('removed', place);
   }
   if (!removing && !storages.length) say('nothing', "VS Code's storage of Apostil: none found.");
+
+  // 2b. The saved answers of the extension in VS Code's database. The editor does not clear them when it removes the extension, so this runs for an editor's cleanup too (for its own folders).
+  if (!removing) removeSavedAnswers(home, [...editorUserFolders(home), ...serverUserFolders(home)], say, change, failed);
+  else if (removing.editor) removeSavedAnswers(home, editorUserFolders(home, removing.editor), say, change, failed);
 
   // 3. The settings. In VS Code, its command takes them away through VS Code, which also reads a file with comments. An editor's cleanup: only its own.
   if (removing && !removing.editor) say('left', 'The settings: the editor that removes Apostil is not one that Apostil knows. Remove its settings that start with apostil. by hand.');

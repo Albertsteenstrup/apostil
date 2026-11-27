@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { checkChangeFile } from '../shared/checks';
 import { baseOf, currentBranch, headCommit, repoId } from '../shared/git';
@@ -14,7 +15,7 @@ import { installCommand } from '../shared/install-command';
 import { connectClaudeCode } from './connect-claude-code';
 import { setup, thisInstall } from './setup';
 import { setUpRepos } from './setup-record';
-import { uninstall } from './uninstall';
+import { EDITORS, uninstall } from './uninstall';
 
 delete process.env.APOSTIL_HOME; // the store is the one of the home folder of each test
 const install = thisInstall();
@@ -26,6 +27,34 @@ function snapshot(folder: string, skip: (path: string) => boolean = () => false)
     const stat = lstatSync(path);
     return `${relative(folder, path)} ${stat.isSymbolicLink() ? `-> ${readlinkSync(path)}` : stat.isDirectory() ? '/' : readFileSync(path, 'utf8')}`;
   }).sort();
+}
+
+/** The database of VS Code's saved answers changes bytes when a row goes, so the snapshots skip it; the rows are checked with rowsOf(). */
+const isVsCodeDatabase = (path: string): boolean => path.endsWith('state.vscdb');
+
+const APOSTIL_ROWS: [string, string][] = [
+  ['apostil.apostil', '{"apostil.askedForLook":true,"apostil.askedForCommand":true,"apostil.askedForMap.repo":true}'],
+  ['workbench.view.extension.apostil.state.hidden', '[{"id":"apostil.home","isHidden":false}]'],
+];
+
+/** A database of VS Code's saved answers: a row of another extension, and with apostil, the rows of Apostil. */
+function writeStateDatabase(user: string, apostil: boolean): string {
+  const file = join(user, 'globalStorage', 'state.vscdb');
+  mkdirSync(dirname(file), { recursive: true });
+  const db = new DatabaseSync(file);
+  db.exec('CREATE TABLE IF NOT EXISTS ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)');
+  const insert = db.prepare('INSERT INTO ItemTable (key, value) VALUES (?, ?)');
+  for (const [key, value] of [['other.extension', '{"other.asked":true}'], ...(apostil ? APOSTIL_ROWS : [])]) insert.run(key, value);
+  db.close();
+  return file;
+}
+
+/** The keys in a database of VS Code, sorted. */
+function rowsOf(file: string): string[] {
+  const db = new DatabaseSync(file, { readOnly: true });
+  const keys = (db.prepare('SELECT key FROM ItemTable').all() as { key: string }[]).map((row) => row.key).sort();
+  db.close();
+  return keys;
 }
 
 function write(path: string, text: string, mode = 0o644): void {
@@ -71,8 +100,8 @@ esac
   write(join(home, 'bin', 'apostil'), '#!/bin/sh\necho mine\n', 0o755);
   mkdirSync(join(home, '.local', 'bin'), { recursive: true });
   write(join(user, 'settings.json'), '{\n    "editor.fontSize": 14\n}\n');
-  write(join(user, 'globalStorage', 'state.vscdb'), 'the database of VS Code');
-  const before = { home: snapshot(home), repo: snapshot(repo.folder, inGit) };
+  const state = writeStateDatabase(user, false);
+  const before = { home: snapshot(home, isVsCodeDatabase), repo: snapshot(repo.folder, inGit) };
 
   // Apostil.
   setup({ install, machine, repo: repo.folder });
@@ -84,13 +113,14 @@ esac
   gone.remove();
   assert.ok(installCommand(cli, [join(home, '.local', 'bin')], machine.path, '/Applications/Made Up.app/Contents/MacOS/Code').link);
   write(join(user, 'globalStorage', 'apostil.apostil', 'avatars', 'mira.png'), 'png');
+  writeStateDatabase(user, true);
   write(join(user, 'settings.json'), '{\n    "editor.fontSize": 14,\n    "apostil.codexModel": "made-up",\n    "workbench.colorTheme": "Apostil Light"\n}\n');
   const saved = new Store(store);
   const base = baseOf(repo.folder, currentBranch(repo.folder));
   saved.saveChange({ repoId: repoId(repo.folder), folder: repo.folder, branch: 'feature', base, head: headCommit(repo.folder), file: testChangeFile(), checks: checkChangeFile(repo.folder, base, testChangeFile()) });
   saved.close();
   assert.deepEqual(setUpRepos(store), [gone.folder, repo.folder].sort()); // setup and connect wrote the record
-  return { home, bin, machine, store, repo, gone, before, run: { machine, install, store, folder: repo.folder } };
+  return { home, bin, user, state, machine, store, repo, gone, before, run: { machine, install, store, folder: repo.folder } };
 }
 
 /** In a repo, Git's own files change with every command; only the exclude file is Apostil's. */
@@ -99,16 +129,18 @@ const inGit = (path: string): boolean => path.startsWith('.git/') && path !== '.
 const lineWith = (lines: string[], text: string): string => lines.find((one) => one.includes(text)) ?? `no line with "${text}" in:\n${lines.join('\n')}`;
 
 test('a dry run changes nothing; then uninstall prints the same lines and leaves the home folder and the repo as before Apostil, except the store', () => {
-  const { home, bin, store, repo, gone, before, run } = installedHome();
+  const { home, bin, state, store, repo, gone, before, run } = installedHome();
   const installed = { home: snapshot(home), repo: snapshot(repo.folder, inGit) };
   const dry = uninstall({ ...run, dryRun: true });
   assert.deepEqual({ home: snapshot(home), repo: snapshot(repo.folder, inGit) }, installed);
   assert.deepEqual(readdirSync(bin).sort(), ['claude', 'code']); // the stand-ins were only asked for their lists
+  assert.deepEqual(rowsOf(state), ['apostil.apostil', 'other.extension', 'workbench.view.extension.apostil.state.hidden']);
 
   const done = uninstall(run);
   assert.equal(done.ok, true, done.lines.join('\n'));
   assert.deepEqual(done.lines.slice(0, -1), dry.lines.slice(0, -1)); // the same lines; only the line of the store differs, below
-  assert.deepEqual(snapshot(home, (path) => path === '.apostil' || path.startsWith('.apostil/')), before.home);
+  assert.deepEqual(snapshot(home, (path) => path === '.apostil' || path.startsWith('.apostil/') || isVsCodeDatabase(path)), before.home);
+  assert.deepEqual(rowsOf(state), ['other.extension']); // the rows of another extension stay
   assert.deepEqual(snapshot(repo.folder, inGit), before.repo);
   assert.deepEqual(readdirSync(bin).sort(), ['claude', 'code', 'extension-gone', 'market-gone', 'mod-gone']);
 
@@ -120,6 +152,7 @@ test('a dry run changes nothing; then uninstall prints the same lines and leaves
   assert.match(lineWith(lines, '~/.local/bin/apostil'), /^removed +The command/);
   assert.match(lineWith(lines, 'apostil.codexModel'), /^removed +The settings apostil\.codexModel, workbench\.colorTheme in ~\//);
   assert.match(lineWith(lines, "VS Code's storage"), /^removed /);
+  assert.match(lineWith(lines, "VS Code's saved answers"), /^removed +VS Code's saved answers of Apostil in ~\/.*\/Code\/User\/globalStorage\/state\.vscdb$/);
   assert.match(lineWith(lines, 'Claude mod apostil@apostil'), /^removed /);
   assert.match(lineWith(lines, 'marketplace'), /^removed +The marketplace apostil /); // "market" holds another mod: no line
   assert.match(lineWith(lines, 'The extension'), /^removed +The extension in VS Code, through code --uninstall-extension/);
@@ -135,10 +168,46 @@ test('with --delete-data the store goes too, and a second run finds nothing more
   const done = uninstall({ ...run, deleteData: true });
   assert.match(done.lines.at(-1)!, /^removed +The store ~\/\.apostil \(/);
   assert.equal(existsSync(store), false);
-  assert.deepEqual(snapshot(home), before.home);
+  assert.deepEqual(snapshot(home, isVsCodeDatabase), before.home);
   const again = uninstall({ ...run, deleteData: true });
   assert.deepEqual(again.lines.filter((one) => one.startsWith('removed')), [], again.lines.join('\n'));
   repo.remove();
+});
+
+test('the cleanup of an editor that removed the extension clears the saved answers in its own folders, which the editor does not clear', () => {
+  const { home, state, repo, run } = installedHome();
+  const done = uninstall({ ...run, removing: { editor: EDITORS[0], extension: join(home, '.vscode', 'extensions', 'apostil.apostil-0.5.2') } });
+  assert.match(lineWith(done.lines, "VS Code's saved answers"), /^removed /);
+  assert.deepEqual(rowsOf(state), ['other.extension']);
+  repo.remove();
+});
+
+test('the saved answers in the user folder of a remote server go too, and a database that cannot be read is left with the step by hand, and the run goes on', () => {
+  const home = tempFolder('apostil-home-');
+  const server = join(home, '.vscode-server', 'data', 'User');
+  const file = writeStateDatabase(server, true);
+  const broken = join(home, ...(process.platform === 'darwin' ? ['Library', 'Application Support'] : ['.config']), 'Cursor', 'User');
+  write(join(broken, 'globalStorage', 'state.vscdb'), 'not a database');
+  const machine = { home, path: '/nowhere' };
+  const store = join(home, 'store');
+  const done = uninstall({ machine, install, store });
+  assert.deepEqual(rowsOf(file), ['other.extension']);
+  assert.match(lineWith(done.lines, '~/.vscode-server/'), /^removed +VS Code's saved answers of Apostil in ~\/\.vscode-server\/data\/User\/globalStorage\/state\.vscdb$/);
+  assert.match(lineWith(done.lines, 'Cursor/User'), /^left +VS Code's saved answers of Apostil in .*: .*\. Close the editor and run apostil uninstall again\.$/);
+  assert.equal(done.ok, false);
+});
+
+test('a home with no saved answers prints the line "none found", and a dry run keeps the rows', () => {
+  const home = tempFolder('apostil-home-');
+  const user = join(home, ...(process.platform === 'darwin' ? ['Library', 'Application Support'] : ['.config']), 'Code', 'User');
+  const machine = { home, path: '/nowhere' };
+  const store = join(home, 'store');
+  assert.match(lineWith(uninstall({ machine, install, store }).lines, "VS Code's saved answers"), /^nothing +VS Code's saved answers of Apostil: none found\.$/);
+  const file = writeStateDatabase(user, false); // a database with the rows of another extension only
+  assert.match(lineWith(uninstall({ machine, install, store }).lines, "VS Code's saved answers"), /^nothing /);
+  writeStateDatabase(user, true);
+  uninstall({ machine, install, store, dryRun: true });
+  assert.equal(rowsOf(file).length, 3);
 });
 
 test('what uninstall cannot do or must not touch is left, with the reason and the step by hand, and the run goes on', () => {
