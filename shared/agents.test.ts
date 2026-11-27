@@ -126,6 +126,7 @@ test('the settings of the models are empty by default; a model that the owner se
   assert.deepEqual(JSON.parse(agyMap[agyMap.indexOf('--settings') + 1]), { permissions: { allow: ['write_file(*)', 'command(*)'], deny: ['command(git push *)', 'command(git push)', 'command(rm -rf *)'] } });
   // The map run reads the repo: the read tools and the commands of git and gh that only read.
   const map = newRunCommand('claude-code', 'Write the map', { ...models, diagrams: true })!;
+  assert.deepEqual(JSON.parse(map[map.indexOf('--settings') + 1]), { hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'apostil read-hook', timeout: 10 }] }] } });
   assert.deepEqual(map.slice(map.indexOf('--allowedTools') + 1), ['Bash(apostil *)', 'Read', 'Grep', 'Glob', 'Bash(git log *)', 'Bash(git show *)', 'Bash(git diff *)', 'Bash(git ls-files *)',
     'Bash(git grep *)', 'Bash(git blame *)', 'Bash(git status *)', 'Bash(ls *)', 'Bash(gh pr view *)', 'Bash(gh pr diff *)']);
 
@@ -146,6 +147,8 @@ test('the settings of the models are empty by default; a model that the owner se
   assert.deepEqual(describe.slice(5, 7), ['--session-id', '00000000-0000-4000-8000-000000000035']);
   assert.deepEqual(describe.slice(describe.indexOf('--allowedTools') + 1), ['Bash(apostil *)', 'Read', 'Grep', 'Glob', 'Bash(git log *)', 'Bash(git show *)', 'Bash(git diff *)', 'Bash(git ls-files *)',
     'Bash(git grep *)', 'Bash(git blame *)', 'Bash(git status *)', 'Bash(ls *)', 'Bash(gh pr view *)', 'Bash(gh pr diff *)', 'Write', '--disallowedTools', 'Edit', 'NotebookEdit']);
+  // The hook that allows commands that only read is for the map run alone.
+  for (const other of [describe, newRunCommand('claude-code', 'Do it')!, newRunCommand('claude-code', 'Do it', { commentRuns: 'read only' })!]) assert.ok(!other.includes('--settings'));
 });
 
 const pr = (changes: Partial<RawPullRequest>): RawPullRequest => ({

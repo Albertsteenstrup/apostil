@@ -4,6 +4,7 @@ import { accessSync, closeSync, constants, existsSync, fstatSync, openSync, read
 import { homedir } from 'node:os';
 import { delimiter, join } from 'node:path';
 import { WRITERS_AT_ONCE } from './map-estimate';
+import { READ_HOOK_COMMAND } from './read-only-command';
 
 /** The apps that have a name of their own: claude-code, codex, antigravity and opencode. */
 export interface AgentSession {
@@ -86,13 +87,17 @@ const READ_REPO = [...READ_TOOLS, 'Bash(git log *)', 'Bash(git show *)', 'Bash(g
  */
 const DESCRIBE_TOOLS = [...READ_REPO, 'Write'];
 
+/** The settings that only a map run gets, and never the settings files of the person: a hook that allows each shell command that only reads, as the rules of --allowedTools cannot match a command with a pipe or a loop. */
+const READ_HOOK_SETTINGS = { hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: READ_HOOK_COMMAND, timeout: 10 }] }] } };
+
 /**
  * What a Claude Code run may do: its mode, and the command apostil, with which it saves what it writes. A run that a comment starts (`commentRuns` set) also
  * reads the repo and, with "read and edit", edits it: no other command. "Read only" takes the editing tools away also when the mode would accept edits.
- * A run that describes a change (`describe`) gets what the skill runs, and no Edit; a run that writes the map (`diagrams`) reads the repo as it does.
+ * A run that describes a change (`describe`) gets what the skill runs, and no Edit; a run that writes the map (`diagrams`) reads the repo as it does, and a hook allows its commands that only read.
  */
 const claudeRights = ({ claudeMode, commentRuns, describe, diagrams }: RunOptions): string[] => [
   '--permission-mode', claudeRunMode(claudeMode),
+  ...(diagrams && !describe ? ['--settings', JSON.stringify(READ_HOOK_SETTINGS)] : []),
   '--allowedTools', 'Bash(apostil *)', ...(describe ? DESCRIBE_TOOLS : diagrams ? READ_REPO : commentRuns === undefined ? [] : commentRuns === 'read only' ? READ_TOOLS : [...READ_TOOLS, 'Edit', 'Write']),
   ...(describe ? ['--disallowedTools', 'Edit', 'NotebookEdit'] : commentRuns === 'read only' ? ['--disallowedTools', 'Edit', 'Write', 'NotebookEdit'] : []),
 ];

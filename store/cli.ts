@@ -21,6 +21,7 @@ import { connectClaudeCode } from './connect-claude-code';
 import { doctor } from './doctor';
 import { hintCommand } from './hint';
 import { prHookCommand } from './pr-hook';
+import { readHookCommand } from './read-hook';
 import { runIssue } from './issue';
 import { setup, thisInstall } from './setup';
 import { uninstall } from './uninstall';
@@ -70,6 +71,7 @@ const USAGE: Record<string, string> = {
   why: 'apostil why <path> [<path> ...] (plain lines: whether each file gets notes or only its path, and why: the line of .apostilignore that decides, else the rule of the code files)',
   hint: 'apostil hint [--text] (for the SessionStart hook of Claude Code: in a repo with a map, the JSON that tells the agent which commands read the map; --text: the text alone; else nothing, and never exit code 1)',
   'pr-hook': 'apostil pr-hook (for the PostToolUse hook of Claude Code, matcher Bash; reads its JSON on standard input: after a gh pr create that printed a pull request address, the JSON that tells the agent to describe the pull request; else nothing, and never exit code 1)',
+  'read-hook': 'apostil read-hook (for the PreToolUse hook of Claude Code, matcher Bash, that a map run gets; reads its JSON on standard input: for a command that only reads files, the JSON that allows it; else nothing, and never exit code 1)',
   ...PROMPT_USAGE,
 };
 const POINT_KINDS = ['note-not-supported', 'no-note', 'thing-not-supported'];
@@ -285,6 +287,18 @@ export async function main(args: string[]): Promise<void> {
       // no input: nothing to say
     }
     const said = prHookCommand(stdin);
+    if (said) console.log(said);
+    return;
+  }
+  // Run by a hook before each Bash command of a map run: the same, with the JSON that allows a command that only reads.
+  if (command === 'read-hook' && !args.includes('--help')) {
+    let stdin = '';
+    try {
+      if (!process.stdin.isTTY) stdin = readFileSync(0, 'utf8');
+    } catch {
+      // no input: nothing to say
+    }
+    const said = readHookCommand(stdin);
     if (said) console.log(said);
     return;
   }
